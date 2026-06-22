@@ -1,4 +1,5 @@
 import json
+import logging
 from copy import deepcopy
 from typing import Any
 
@@ -7,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.core.errors import ItineraryGenerationError
 from app.main import create_app
 from app.schemas.itinerary import GenerateItineraryRequest
 from app.services.generator_factory import get_itinerary_generator
@@ -123,6 +125,19 @@ def test_ollama_mode_parses_valid_json_response_successfully() -> None:
     assert response.days[0].items[0].name == "Historic center walk"
 
 
+def test_ollama_mode_parses_markdown_fenced_json_response_successfully() -> None:
+    fenced_response = f"```json\n{json.dumps(_itinerary_body())}\n```"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": fenced_response})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(settings=_settings(), http_client=http_client)
+        response = generator.generate(_request())
+
+    assert len(response.days) == VALID_PAYLOAD["days"]
+
+
 def test_parser_strips_markdown_code_fences() -> None:
     response_text = f"```json\n{json.dumps(_itinerary_body(days=1))}\n```"
 
@@ -204,3 +219,160 @@ def test_generated_response_keeps_exact_itinerary_response_shape() -> None:
         "note",
         "estimatedCost",
     }
+
+
+def test_wrong_number_of_days_triggers_repair_and_returns_repaired_itinerary() -> None:
+    captured_prompts: list[str] = []
+    responses = [
+        json.dumps(_itinerary_body(days=1)),
+        json.dumps(_itinerary_body(days=2)),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_prompts.append(json.loads(request.content)["prompt"])
+        return httpx.Response(200, json={"response": responses.pop(0)})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(settings=_settings(), http_client=http_client)
+        response = generator.generate(_request())
+
+    assert len(captured_prompts) == 2
+    assert "Validation error:" in captured_prompts[1]
+    assert "Return ONLY corrected JSON" in captured_prompts[1]
+    assert len(response.days) == 2
+
+
+def test_repair_response_invalid_and_fallback_enabled_returns_mock_itinerary() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"response": json.dumps(_itinerary_body(days=1))})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(ollama_fallback_to_mock=True),
+            http_client=http_client,
+        )
+        response = generator.generate(_request())
+
+    assert calls == 2
+    assert len(response.days) == VALID_PAYLOAD["days"]
+    assert response.days[0].title.startswith("Day 1: Rome")
+
+
+def test_repair_response_invalid_and_fallback_disabled_raises_generation_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": json.dumps(_itinerary_body(days=1))})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(ollama_fallback_to_mock=False),
+            http_client=http_client,
+        )
+
+        with pytest.raises(ItineraryGenerationError):
+            generator.generate(_request())
+
+
+def test_initial_invalid_json_and_repair_enabled_triggers_repair() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(200, json={"response": "this is not json"})
+        return httpx.Response(200, json={"response": json.dumps(_itinerary_body())})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(settings=_settings(), http_client=http_client)
+        response = generator.generate(_request())
+
+    assert calls == 2
+    assert len(response.days) == VALID_PAYLOAD["days"]
+
+
+def test_initial_invalid_json_and_repair_disabled_falls_back_when_fallback_enabled() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"response": "this is not json"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(ollama_repair_enabled=False, ollama_fallback_to_mock=True),
+            http_client=http_client,
+        )
+        response = generator.generate(_request())
+
+    assert calls == 1
+    assert len(response.days) == VALID_PAYLOAD["days"]
+    assert response.days[0].title.startswith("Day 1: Rome")
+
+
+def test_log_llm_payloads_false_does_not_log_full_prompt_or_response(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="app.services.ollama_itinerary_generator")
+    raw_response = json.dumps(_itinerary_body())
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": raw_response})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(log_llm_payloads=False),
+            http_client=http_client,
+        )
+        generator.generate(_request())
+
+    assert all("prompt" not in record.__dict__ for record in caplog.records)
+    assert all("raw_llm_response" not in record.__dict__ for record in caplog.records)
+
+
+def test_log_llm_payloads_true_in_development_allows_payload_logging(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="app.services.ollama_itinerary_generator")
+    raw_response = json.dumps(_itinerary_body())
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": raw_response})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(app_env="development", log_llm_payloads=True),
+            http_client=http_client,
+        )
+        generator.generate(_request())
+
+    assert any("Trip request:" in record.__dict__.get("prompt", "") for record in caplog.records)
+    assert any(record.__dict__.get("raw_llm_response") == raw_response for record in caplog.records)
+
+
+def test_log_llm_payloads_true_outside_development_does_not_log_payloads(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="app.services.ollama_itinerary_generator")
+    raw_response = json.dumps(_itinerary_body())
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": raw_response})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(app_env="production", log_llm_payloads=True),
+            http_client=http_client,
+        )
+        generator.generate(_request())
+
+    assert all("prompt" not in record.__dict__ for record in caplog.records)
+    assert all("raw_llm_response" not in record.__dict__ for record in caplog.records)
+
+
+def test_ollama_repair_attempts_greater_than_one_is_clamped_to_one() -> None:
+    assert _settings(ollama_repair_attempts=3).ollama_repair_attempts == 1

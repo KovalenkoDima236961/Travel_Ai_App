@@ -7,6 +7,20 @@ AI Planning Service is a FastAPI microservice for itinerary generation. It expos
 
 The public request and response contract is shared with Trip Service and should remain stable.
 
+## Validation And Repair
+
+Ollama mode now validates generated itineraries in two layers:
+
+- Pydantic/schema validation for the public response shape.
+- Business validation for usable itineraries: exact day count, ordered day numbers, pace-based
+  item counts, supported item types, HH:MM times, chronological ordering, non-empty text,
+  non-negative costs, duplicate item detection, and budget sanity checks.
+
+When the first local model response is invalid, the service can make one repair request to
+Ollama with the original trip details, the validation error, and the invalid response. The
+repair request must return the same public JSON shape. Raw model output is never returned to
+API clients.
+
 ## Generator Modes
 
 The service supports two generator modes:
@@ -50,17 +64,29 @@ OLLAMA_TIMEOUT_SECONDS=60
 OLLAMA_TEMPERATURE=0.2
 OLLAMA_NUM_PREDICT=2048
 OLLAMA_FALLBACK_TO_MOCK=true
+OLLAMA_REPAIR_ENABLED=true
+OLLAMA_REPAIR_ATTEMPTS=1
+LOG_LLM_PAYLOADS=false
 ```
 
+`OLLAMA_REPAIR_ENABLED=true` and `OLLAMA_REPAIR_ATTEMPTS=1` allow one repair call after invalid
+JSON, schema validation failure, or business validation failure. Values above `1` are clamped
+to `1`; `0` disables repair attempts.
+
 `OLLAMA_FALLBACK_TO_MOCK=true` means Ollama connection errors, non-2xx responses, invalid
-Ollama API JSON, missing `response`, or invalid itinerary JSON will be logged and served by
-the deterministic mock generator. With `false`, `/generate-itinerary` returns:
+Ollama API JSON, missing `response`, invalid itinerary JSON, repair failures, or business
+validation failures will be logged and served by the deterministic mock generator. With
+`false`, `/generate-itinerary` returns:
 
 ```json
 {
   "error": "Failed to generate itinerary"
 }
 ```
+
+`LOG_LLM_PAYLOADS=false` keeps full prompts and raw model responses out of logs. Setting it to
+`true` only logs those payloads when `APP_ENV=development`; outside development, payload
+logging remains disabled.
 
 ## Run Locally In Mock Mode
 
@@ -89,6 +115,8 @@ ITINERARY_GENERATOR_MODE=ollama \
 OLLAMA_BASE_URL=http://127.0.0.1:11434 \
 OLLAMA_MODEL=llama3.1:8b \
 OLLAMA_FALLBACK_TO_MOCK=true \
+OLLAMA_REPAIR_ENABLED=true \
+OLLAMA_REPAIR_ATTEMPTS=1 \
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -127,6 +155,9 @@ services:
       OLLAMA_TEMPERATURE: "0.2"
       OLLAMA_NUM_PREDICT: "2048"
       OLLAMA_FALLBACK_TO_MOCK: "true"
+      OLLAMA_REPAIR_ENABLED: "true"
+      OLLAMA_REPAIR_ATTEMPTS: "1"
+      LOG_LLM_PAYLOADS: "false"
     depends_on:
       - ollama
 
@@ -226,8 +257,21 @@ the AI Planning Service process. Use `http://127.0.0.1:11434` for local runs and
 `model not found`: pull the configured model with `ollama pull llama3.1:8b` locally or
 `docker compose exec ollama ollama pull llama3.1:8b` in Compose.
 
-`invalid JSON from local model`: lower `OLLAMA_TEMPERATURE`, increase `OLLAMA_NUM_PREDICT` if
+`invalid JSON from local model`: keep `OLLAMA_REPAIR_ENABLED=true` so the service asks Ollama
+for one corrected JSON response. Lower `OLLAMA_TEMPERATURE`, increase `OLLAMA_NUM_PREDICT` if
 responses are truncated, or keep `OLLAMA_FALLBACK_TO_MOCK=true` while developing.
+
+`repair failed`: the repaired output still failed JSON/schema/business validation. With
+`OLLAMA_FALLBACK_TO_MOCK=true`, the service returns mock data. With fallback disabled, it
+returns `{"error": "Failed to generate itinerary"}` with HTTP 500.
 
 `fallback to mock behavior`: when fallback is enabled, the service logs the Ollama failure and
 returns the deterministic mock itinerary instead of exposing raw LLM output or stack traces.
+
+`model gives too many/few itinerary items`: the business validator enforces exactly 3 relaxed,
+4 balanced, or 5 intensive items per day. The repair prompt repeats this requirement before
+fallback/error handling runs.
+
+`budget validation failure`: when `budgetAmount` is provided and at least one item has an
+estimated cost, the known estimated total cannot exceed the budget by more than 30%. Use null
+for uncertain item costs rather than inflated guesses.

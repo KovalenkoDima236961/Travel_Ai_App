@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 
+from app.core.errors import ItineraryGenerationError
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
 from app.services.itinerary_generator import ItineraryGenerator
 
@@ -20,4 +21,9 @@ def generate_itinerary(
     request: GenerateItineraryRequest,
     generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
 ) -> ItineraryResponse:
-    return generator.generate(request)
+    try:
+        return generator.generate(request)
+    except ItineraryGenerationError:
+        raise
+    except Exception as exc:
+        raise ItineraryGenerationError("Failed to generate itinerary") from exc

@@ -15,7 +15,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="AI Planning Service",
-        version="1.0.0",
+        version="2.1.0",
         description="AI itinerary planner with mock and local Ollama generator modes.",
     )
     app.state.settings = settings

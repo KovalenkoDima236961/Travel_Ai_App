@@ -2,7 +2,7 @@ from copy import deepcopy
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, create_app
 from app.schemas.itinerary import GenerateItineraryRequest
 
 client = TestClient(app)
@@ -119,6 +119,21 @@ def test_negative_budget_amount_returns_validation_error() -> None:
     response = client.post("/generate-itinerary", json=payload)
 
     assert response.status_code == 422
+
+
+def test_unexpected_generator_error_returns_clean_generation_error() -> None:
+    class BrokenGenerator:
+        def generate(self, request: GenerateItineraryRequest) -> None:
+            raise RuntimeError("internal failure")
+
+    test_app = create_app()
+    test_app.state.itinerary_generator = BrokenGenerator()
+    test_client = TestClient(test_app)
+
+    response = test_client.post("/generate-itinerary", json=VALID_PAYLOAD)
+
+    assert response.status_code == 500
+    assert response.json() == {"error": "Failed to generate itinerary"}
 
 
 def test_empty_budget_currency_defaults_to_eur() -> None:

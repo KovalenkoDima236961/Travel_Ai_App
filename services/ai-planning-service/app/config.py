@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Settings(BaseModel):
@@ -16,6 +16,18 @@ class Settings(BaseModel):
     ollama_temperature: float = Field(default=0.2, ge=0)
     ollama_num_predict: int = 2048
     ollama_fallback_to_mock: bool = True
+    ollama_repair_enabled: bool = True
+    ollama_repair_attempts: int = Field(default=1, ge=0)
+    log_llm_payloads: bool = False
+
+    @field_validator("ollama_repair_attempts")
+    @classmethod
+    def clamp_ollama_repair_attempts(cls, value: int) -> int:
+        return min(value, 1)
+
+    @property
+    def allow_llm_payload_logging(self) -> bool:
+        return self.log_llm_payloads and self.app_env.strip().lower() == "development"
 
 
 def _env_string(name: str, default: str) -> str:
@@ -67,4 +79,7 @@ def get_settings() -> Settings:
         ollama_temperature=_env_float("OLLAMA_TEMPERATURE", 0.2),
         ollama_num_predict=_env_int("OLLAMA_NUM_PREDICT", 2048),
         ollama_fallback_to_mock=_env_bool("OLLAMA_FALLBACK_TO_MOCK", True),
+        ollama_repair_enabled=_env_bool("OLLAMA_REPAIR_ENABLED", True),
+        ollama_repair_attempts=_env_int("OLLAMA_REPAIR_ATTEMPTS", 1),
+        log_llm_payloads=_env_bool("LOG_LLM_PAYLOADS", False),
     )
