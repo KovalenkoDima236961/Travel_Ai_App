@@ -5,13 +5,15 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from app.schemas.destination_context import DestinationContext
+from app.schemas.destination_context import DestinationContext, DestinationContextSummary
 
 logger = logging.getLogger(__name__)
 
 
 class DestinationKnowledgeProvider(Protocol):
     def get_context(self, destination: str) -> DestinationContext | None: ...
+
+    def list_contexts(self) -> list[DestinationContextSummary]: ...
 
 
 class FileDestinationKnowledgeProvider:
@@ -29,6 +31,17 @@ class FileDestinationKnowledgeProvider:
                 return context
 
         return None
+
+    def list_contexts(self) -> list[DestinationContextSummary]:
+        summaries = [
+            DestinationContextSummary(
+                destination=context.destination,
+                aliases=context.aliases,
+                source="file",
+            )
+            for context in self._load_contexts()
+        ]
+        return sorted(summaries, key=lambda summary: summary.destination.casefold())
 
     def _load_contexts(self) -> list[DestinationContext]:
         if self._contexts is not None:

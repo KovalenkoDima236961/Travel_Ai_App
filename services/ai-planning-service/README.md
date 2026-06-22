@@ -4,8 +4,12 @@ AI Planning Service is a FastAPI microservice for itinerary generation. It expos
 
 - `GET /health`
 - `POST /generate-itinerary`
+- `GET /destination-context`
+- `GET /destination-context/{destination}`
+- `POST /destination-context/{destination}/preview-prompt`
 
 The public request and response contract is shared with Trip Service and should remain stable.
+The destination context endpoints are internal/admin/debug endpoints for development.
 
 ## Validation And Repair
 
@@ -67,6 +71,8 @@ OLLAMA_FALLBACK_TO_MOCK=true
 OLLAMA_REPAIR_ENABLED=true
 OLLAMA_REPAIR_ATTEMPTS=1
 LOG_LLM_PAYLOADS=false
+DESTINATION_CONTEXT_ENABLED=true
+DESTINATION_CONTEXT_DIR=app/data/destinations
 ```
 
 `OLLAMA_REPAIR_ENABLED=true` and `OLLAMA_REPAIR_ATTEMPTS=1` allow one repair call after invalid
@@ -87,6 +93,10 @@ validation failures will be logged and served by the deterministic mock generato
 `LOG_LLM_PAYLOADS=false` keeps full prompts and raw model responses out of logs. Setting it to
 `true` only logs those payloads when `APP_ENV=development`; outside development, payload
 logging remains disabled.
+
+`DESTINATION_CONTEXT_ENABLED=true` loads curated file-based destination context from
+`DESTINATION_CONTEXT_DIR`. Set it to `false` to disable context lookup; itinerary prompt
+preview still works, but returns `destinationContextFound=false`.
 
 ## Run Locally In Mock Mode
 
@@ -237,6 +247,65 @@ Example response shape:
   ]
 }
 ```
+
+## Destination Context Debug Endpoints
+
+These endpoints are internal/admin/debug endpoints for development. No authentication is
+implemented yet. Prompt preview may expose prompt details and should be protected before
+production.
+
+List loaded destination contexts:
+
+```bash
+curl http://localhost:8000/destination-context
+```
+
+Get one destination context by destination name or alias:
+
+```bash
+curl http://localhost:8000/destination-context/rome
+```
+
+Preview the exact itinerary prompt that would be sent to Ollama:
+
+```bash
+curl -X POST http://localhost:8000/destination-context/rome/preview-prompt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tripId": "7b6e1f4e-7d8a-4e0e-9e7b-3cf87b0a5c92",
+    "destination": "Rome",
+    "startDate": "2026-08-10",
+    "days": 4,
+    "budgetAmount": 600,
+    "budgetCurrency": "EUR",
+    "travelers": 2,
+    "interests": ["food", "history", "hidden_gems"],
+    "pace": "balanced"
+  }'
+```
+
+Example list response:
+
+```json
+{
+  "items": [
+    {
+      "destination": "Paris",
+      "aliases": ["paris, france"],
+      "source": "file"
+    },
+    {
+      "destination": "Rome",
+      "aliases": ["roma"],
+      "source": "file"
+    }
+  ]
+}
+```
+
+If `DESTINATION_CONTEXT_ENABLED=false`, `GET /destination-context` returns an empty list,
+destination lookups return `404`, and prompt preview returns a prompt without destination
+context.
 
 ## Development Commands
 

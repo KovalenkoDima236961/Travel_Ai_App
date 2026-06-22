@@ -12,7 +12,10 @@ from app.services.ollama_itinerary_generator import OllamaItineraryGenerator
 logger = logging.getLogger(__name__)
 
 
-def get_itinerary_generator(settings: Settings) -> ItineraryGenerator:
+def get_itinerary_generator(
+    settings: Settings,
+    destination_knowledge_provider: DestinationKnowledgeProvider | None = None,
+) -> ItineraryGenerator:
     mode = settings.itinerary_generator_mode.strip().lower() or "mock"
 
     if mode == "mock":
@@ -25,7 +28,9 @@ def get_itinerary_generator(settings: Settings) -> ItineraryGenerator:
             raise ValueError("OLLAMA_MODEL is required when ITINERARY_GENERATOR_MODE=ollama")
         return OllamaItineraryGenerator(
             settings=settings,
-            destination_knowledge_provider=_destination_knowledge_provider(settings),
+            destination_knowledge_provider=(
+                destination_knowledge_provider or get_destination_knowledge_provider(settings)
+            ),
         )
 
     raise ValueError(
@@ -34,7 +39,7 @@ def get_itinerary_generator(settings: Settings) -> ItineraryGenerator:
     )
 
 
-def _destination_knowledge_provider(settings: Settings) -> DestinationKnowledgeProvider | None:
+def get_destination_knowledge_provider(settings: Settings) -> DestinationKnowledgeProvider | None:
     if not settings.destination_context_enabled:
         return None
 
