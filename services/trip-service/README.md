@@ -1,9 +1,9 @@
 # Trip Service
 
 A Go microservice for an AI travel planning web app. It manages **trip requests**
-(destination, dates, budget, travelers, interests, pace) and generates a **mock
-itinerary** locally. The planning step is isolated behind the service layer so it
-can later be replaced with an async AI Planning Service integration.
+(destination, dates, budget, travelers, interests, pace) and generates an
+**itinerary** through a configurable generator: either a deterministic local mock
+or AI Planning Service v1 over HTTP.
 
 ## Tech stack
 
@@ -46,7 +46,7 @@ trip-service/
 │   │   └── generator.go               #   ItineraryGenerator (port interface)
 │   ├── infrastructure/                # adapters (implement ports)
 │   │   ├── repository/postgres/       #   Repository (squirrel) + dto/ (pgtype ⇄ entity)
-│   │   └── generator/                 #   MockItineraryGenerator (port adapter)
+│   │   └── generator/                 #   Mock + AI Planning HTTP generator adapters
 │   └── http-server/                   # delivery: chi router + http.Server
 │       ├── handler/                   #   Handler (decode/validate/status mapping)
 │       └── dto/{request,response}/    #   CreateTrip / Trip + ListTrips payloads
@@ -75,7 +75,7 @@ HTTP request → http-server/handler          (decode + validate + status mappin
              → application/service           (defaults, business rules, transitions)
              → application ports:
                  • tripRepository  → infrastructure/repository/postgres (squirrel)
-                 • ItineraryGenerator → infrastructure/generator (mock by default)
+                 • ItineraryGenerator → infrastructure/generator (mock/http)
              → pkg/storage/postgres (pgxpool) → PostgreSQL
 ```
 
@@ -90,17 +90,17 @@ flowchart TD
         RT["http-server: chi router + middleware"]
         TH["trip.Handler\n(decode / validate / status)"]
         SV["trip.Service\n(defaults, business rules)"]
-        GEN["trip.ItineraryGenerator\n(MockItineraryGenerator)"]
+        GEN["trip.ItineraryGenerator\n(Mock or HTTP adapter)"]
         RP["trip.Repository\n(squirrel + pgtype ⇄ domain)"]
         PGPKG["pkg/storage/postgres\n(pgxpool + squirrel builder)"]
     end
 
     PG[("PostgreSQL\ntrips table")]
-    AI{{"AI Planning Service\n(future, async)"}}
+    AI{{"AI Planning Service v1\nFastAPI / HTTP"}}
 
     Client -->|"REST / JSON"| RT --> TH --> SV --> RP --> PGPKG -->|"pgxpool"| PG
     SV --> GEN
-    GEN -.->|"mock impl replaced later"| AI
+    GEN -.->|"POST /generate-itinerary\nwhen mode=http"| AI
 
     subgraph BOOT["internal/app (composition root)"]
         CFG["config (cleanenv)"] --> LOG["zap logger"] --> DB["postgres.New\n(auto-migrate)"] --> SRV["http server"]
@@ -134,8 +134,14 @@ Key environment variables:
 | `POSTGRES_MIN_CONNS` | —              | Pool minimum connections (≥ 1).      |
 | `POSTGRES_MAX_CONNS` | —              | Pool maximum connections (≥ 1).      |
 | `POSTGRES_MIG_PATH`  | —              | Path to the `migrations/` directory. |
+| `ITINERARY_GENERATOR_MODE` | `mock` | `mock` for local generation, `http` for AI Planning Service. |
+| `AI_PLANNING_SERVICE_URL` | `http://ai-planning-service:8000` | Base URL used when generator mode is `http`. |
+| `AI_PLANNING_TIMEOUT_SECONDS` | `10` | HTTP client timeout for AI Planning Service calls. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
+
+Unknown generator modes fail startup. In `http` mode, startup also fails if
+`AI_PLANNING_SERVICE_URL` is missing or invalid.
 
 ## Run with Docker Compose
 
@@ -143,9 +149,12 @@ See [configs/config.example.yaml](configs/config.example.yaml) for the file form
 docker compose up --build
 ```
 
-Brings up PostgreSQL and the service (configured via env). The service applies
-migrations itself on startup, so there is no separate migrate step. The API is
-available at `http://localhost:8080`.
+Brings up PostgreSQL, AI Planning Service, and Trip Service (configured via env).
+Trip Service runs with `ITINERARY_GENERATOR_MODE=http` and calls
+`http://ai-planning-service:8000/generate-itinerary`. The service applies
+migrations itself on startup, so there is no separate migrate step. The Trip API
+is available at `http://localhost:8080`; AI Planning Service is exposed at
+`http://localhost:8000`.
 
 Tear down (and wipe the DB volume):
 
@@ -161,14 +170,23 @@ docker run --rm -d --name trip-pg \
   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=trip_service \
   -p 5432:5432 postgres:16-alpine
 
-# 2a. Run with env config
+# 2a. Run with env config and the local mock generator
 export APP_ENV=development HTTP_ADDRESS=":8080" \
   POSTGRES_DB=trip_service POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres \
   POSTGRES_HOST=localhost POSTGRES_PORT=5432 \
-  POSTGRES_MIN_CONNS=2 POSTGRES_MAX_CONNS=10 POSTGRES_MIG_PATH=./migrations
+  POSTGRES_MIN_CONNS=2 POSTGRES_MAX_CONNS=10 POSTGRES_MIG_PATH=./migrations \
+  ITINERARY_GENERATOR_MODE=mock
 go run ./cmd/server
 
-# 2b. …or run with a YAML config file
+# 2b. Or keep the database env vars above and switch to AI Planning Service over HTTP.
+# In another shell from services/ai-planning-service:
+#   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+export ITINERARY_GENERATOR_MODE=http \
+  AI_PLANNING_SERVICE_URL=http://localhost:8000 \
+  AI_PLANNING_TIMEOUT_SECONDS=10
+go run ./cmd/server
+
+# 2c. …or run with a YAML config file
 cp configs/config.example.yaml configs/config.yaml
 go run ./cmd/server -config ./configs/config.yaml
 ```
@@ -194,19 +212,26 @@ make migrate-down    # roll back the last migration
 | POST   | `/trips`                | Create a trip (status `DRAFT`).              |
 | GET    | `/trips`                | List trips (paginated, newest first).        |
 | GET    | `/trips/{id}`           | Fetch a trip by UUID.                        |
-| POST   | `/trips/{id}/generate`  | Generate the mock itinerary; status `COMPLETED`. |
+| POST   | `/trips/{id}/generate`  | Generate the itinerary with the configured generator; status `COMPLETED`. |
 
 Trip statuses: `DRAFT` → `PROCESSING` → `COMPLETED` (or `FAILED`).
 
 ### Itinerary generation
 
 Itinerary generation is abstracted behind a `trip.ItineraryGenerator` interface, so
-the service layer does not depend on any particular planning strategy. The service
-currently wires `trip.MockItineraryGenerator`, which returns a deterministic,
-interest-aware sample plan locally. When the async AI Planning Service exists, swap
-the implementation injected in `internal/app/di.go` — no service or handler changes
-are required. Generated plans use typed `Itinerary` / `ItineraryDay` /
-`ItineraryItem` structs and are stored as JSONB.
+the service layer does not depend on any particular planning strategy. The
+configured adapter is selected at startup:
+
+| Mode | Behavior |
+| ---- | -------- |
+| `mock` | Uses `MockItineraryGenerator` locally. This is the default when mode is empty. |
+| `http` | Uses `AIPlanningHTTPGenerator` to call `POST {AI_PLANNING_SERVICE_URL}/generate-itinerary`. |
+
+The HTTP adapter sends the Trip fields as JSON, uses the configured client
+timeout, decodes the AI Planning Service response into typed `Itinerary` /
+`ItineraryDay` / `ItineraryItem` structs, and returns an error for non-2xx,
+invalid JSON, request failures, or empty `days`. Generated plans are stored as
+JSONB by the service layer.
 
 Errors use a uniform envelope; validation failures add a `fields` map:
 
@@ -217,8 +242,7 @@ Errors use a uniform envelope; validation failures add a `fields` map:
 ### Example curl requests
 
 ```bash
-# Create
-curl -s -X POST http://localhost:8080/trips \
+TRIP_ID=$(curl -s -X POST http://localhost:8080/trips \
   -H 'Content-Type: application/json' \
   -d '{
     "destination": "Rome",
@@ -229,19 +253,19 @@ curl -s -X POST http://localhost:8080/trips \
     "travelers": 2,
     "interests": ["food", "history", "hidden_gems"],
     "pace": "balanced"
-  }'
+  }' | jq -r '.id')
+
+# Generate the itinerary
+curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/generate"
+
+# Fetch the completed trip
+curl -s "http://localhost:8080/trips/${TRIP_ID}"
 
 # List (paginated, newest first)
 curl -s "http://localhost:8080/trips?limit=20&offset=0"
 
-# Fetch
-curl -s http://localhost:8080/trips/<TRIP_ID>
-
-# Generate the itinerary
-curl -s -X POST http://localhost:8080/trips/<TRIP_ID>/generate
-
 # Health
-curl -s http://localhost:8080/health   # {"status":"ok"}
+curl -s http://localhost:8080/health
 ```
 
 The list endpoint returns a paginated envelope:
@@ -284,10 +308,8 @@ go test ./... -race -count=1
 
 - The `id` column uses `gen_random_uuid()` (PostgreSQL 13+) so IDs are generated
   by the database.
-- The mock itinerary is produced by `trip.MockItineraryGenerator` (behind the
-  `trip.ItineraryGenerator` interface). To integrate the real AI Planning Service,
-  provide an implementation that publishes a message and returns the plan — or move
-  the `PROCESSING → COMPLETED` transition into the consumer that receives it — and
-  swap the implementation wired in `internal/app/di.go`.
+- Itinerary generation is selected by `ITINERARY_GENERATOR_MODE`. Use `mock` for
+  local deterministic output or `http` for AI Planning Service v1. RabbitMQ, real
+  LLM calls, and RAG are intentionally not part of this version.
 - `pkg/cache/redis` and `pkg/tls` are wired-ready platform utilities included for
   future use; the trip feature does not depend on them yet.

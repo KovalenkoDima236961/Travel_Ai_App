@@ -15,17 +15,28 @@ services:
       timeout: 5s
       retries: 10
 
+  ai-planning-service:
+    build:
+      context: ../ai-planning-service
+    ports:
+      - "8000:8000"
+
   trip-service:
     build:
       context: .
     depends_on:
       postgres:
         condition: service_healthy
+      ai-planning-service:
+        condition: service_started
     # The service applies migrations itself on startup (golang-migrate),
     # so no separate migrate step is needed.
     environment:
       APP_ENV: development
       HTTP_ADDRESS: ":8080"
+      ITINERARY_GENERATOR_MODE: http
+      AI_PLANNING_SERVICE_URL: http://ai-planning-service:8000
+      AI_PLANNING_TIMEOUT_SECONDS: "10"
       POSTGRES_DB: trip_service
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

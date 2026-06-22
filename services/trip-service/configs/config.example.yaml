@@ -20,3 +20,8 @@ postgres:
   min-conns: 2
   max-conns: 10
   mig-path: ./migrations
+
+itinerary_generator:
+  mode: mock # mock | http
+  ai_planning_service_url: http://localhost:8000
+  ai_planning_timeout_seconds: 10

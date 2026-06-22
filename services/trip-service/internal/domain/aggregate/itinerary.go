@@ -3,8 +3,8 @@ package aggregate
 import "time"
 
 // Itinerary is the generated plan associated with a trip. It is stored on the
-// trip as JSONB. The typed shape mirrors what the future AI Planning Service is
-// expected to return.
+// trip as JSONB. The typed shape is shared by local and remote itinerary
+// generators.
 type Itinerary struct {
 	Destination string         `json:"destination"`
 	Summary     string         `json:"summary"`

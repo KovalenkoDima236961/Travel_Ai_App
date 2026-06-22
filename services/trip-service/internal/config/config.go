@@ -14,9 +14,10 @@ import (
 // (path passed via the -config flag) with environment-variable overrides, then
 // validated using the project's validation package.
 type Config struct {
-	Env        string          `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production"`
-	HTTPServer HTTPServer      `yaml:"http_server"`
-	Postgres   postgres.Config `yaml:"postgres"`
+	Env                string                   `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production"`
+	HTTPServer         HTTPServer               `yaml:"http_server"`
+	Postgres           postgres.Config          `yaml:"postgres"`
+	ItineraryGenerator ItineraryGeneratorConfig `yaml:"itinerary_generator"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -26,6 +27,13 @@ type HTTPServer struct {
 	WriteTimeout    time.Duration `yaml:"write_timeout" env:"HTTP_WRITE_TIMEOUT" env-default:"30s"`
 	IdleTimeout     time.Duration `yaml:"idle_timeout" env:"HTTP_IDLE_TIMEOUT" env-default:"60s"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" env:"HTTP_SHUTDOWN_TIMEOUT" env-default:"15s"`
+}
+
+// ItineraryGeneratorConfig selects the itinerary generation adapter.
+type ItineraryGeneratorConfig struct {
+	Mode                     string `yaml:"mode" env:"ITINERARY_GENERATOR_MODE" env-default:"mock"`
+	AIPlanningServiceURL     string `yaml:"ai_planning_service_url" env:"AI_PLANNING_SERVICE_URL" env-default:"http://ai-planning-service:8000"`
+	AIPlanningTimeoutSeconds int    `yaml:"ai_planning_timeout_seconds" env:"AI_PLANNING_TIMEOUT_SECONDS" env-default:"10" validate:"min=1"`
 }
 
 // IsProduction reports whether the service runs in a production profile.

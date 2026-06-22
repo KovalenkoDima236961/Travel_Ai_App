@@ -136,7 +136,7 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]entity.Trip, i
 
 // Generate runs the planning flow: PROCESSING -> generate itinerary -> COMPLETED
 // (or FAILED on error). The itinerary itself is produced by the injected
-// ItineraryGenerator port, a local stand-in for the future AI Planning Service.
+// ItineraryGenerator port.
 func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {
 	current, err := s.repo.GetByID(ctx, id)
 	if err != nil {

@@ -48,7 +48,10 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 
 	repo := triprepo.New(db)
-	gen := generator.NewMockItineraryGenerator(log)
+	gen, err := generator.NewItineraryGenerator(cfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("init itinerary generator: %w", err)
+	}
 	svc := service.New(repo, gen, log)
 	tripHandler := handler.New(svc, validator, log)
 	router := httpserver.NewRouter(log, tripHandler)

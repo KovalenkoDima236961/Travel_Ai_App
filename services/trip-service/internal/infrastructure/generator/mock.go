@@ -15,7 +15,7 @@ import (
 )
 
 // MockItineraryGenerator produces a deterministic, interest-aware sample plan
-// locally. It is a stand-in until the real async AI Planning Service exists.
+// locally.
 type MockItineraryGenerator struct {
 	logger *zap.Logger
 }

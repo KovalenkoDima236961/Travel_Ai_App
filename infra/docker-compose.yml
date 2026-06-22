@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: trip_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - trip_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trip_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ai-planning-service:
+    build:
+      context: ../services/ai-planning-service
+    environment:
+      APP_ENV: development
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: "8000"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  trip-service:
+    build:
+      context: ../services/trip-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-planning-service:
+        condition: service_healthy
+    environment:
+      APP_ENV: development
+      HTTP_ADDRESS: ":8080"
+      ITINERARY_GENERATOR_MODE: http
+      AI_PLANNING_SERVICE_URL: http://ai-planning-service:8000
+      AI_PLANNING_TIMEOUT_SECONDS: "10"
+      POSTGRES_DB: trip_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_MIN_CONNS: "2"
+      POSTGRES_MAX_CONNS: "10"
+      POSTGRES_MIG_PATH: /app/migrations
+    ports:
+      - "8080:8080"
+
+volumes:
+  trip_pgdata:

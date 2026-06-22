@@ -5,6 +5,8 @@ trip-service
 
 # Local env
 .env
+.cache/
+config.yaml
 
 # OS / editor
 .DS_Store
