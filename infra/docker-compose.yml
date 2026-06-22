@@ -15,14 +15,31 @@ services:
       timeout: 5s
       retries: 10
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
   ai-planning-service:
     build:
       context: ../services/ai-planning-service
+    depends_on:
+      ollama:
+        condition: service_started
     environment:
       APP_ENV: development
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: "8000"
       LOG_LEVEL: INFO
+      ITINERARY_GENERATOR_MODE: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.1:8b
+      OLLAMA_TIMEOUT_SECONDS: "60"
+      OLLAMA_TEMPERATURE: "0.2"
+      OLLAMA_NUM_PREDICT: "2048"
+      OLLAMA_FALLBACK_TO_MOCK: "true"
     ports:
       - "8000:8000"
     healthcheck:
@@ -64,3 +81,4 @@ services:
 
 volumes:
   trip_pgdata:
+  ollama-data:

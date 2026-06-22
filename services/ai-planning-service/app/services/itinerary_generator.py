@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Protocol
 
 from app.schemas.itinerary import (
     GenerateItineraryRequest,
@@ -6,6 +7,10 @@ from app.schemas.itinerary import (
     ItineraryItem,
     ItineraryResponse,
 )
+
+
+class ItineraryGenerator(Protocol):
+    def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse: ...
 
 
 class MockItineraryGenerator:

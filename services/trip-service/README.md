@@ -120,6 +120,13 @@ Config is read from a YAML file (via the `-config` flag) **and/or** environment
 variables (env overrides file). When no `-config` is passed, it is loaded from the
 environment only. It is then validated with `pkg/validation`.
 
+Use [.env.example](.env.example) as the local env template:
+
+```bash
+cp .env.example .env
+set -a; source .env; set +a
+```
+
 Key environment variables:
 
 | Variable             | Default        | Description                          |

@@ -1,15 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
-from app.services.itinerary_generator import MockItineraryGenerator
+from app.services.itinerary_generator import ItineraryGenerator
 
 router = APIRouter()
 
-_generator = MockItineraryGenerator()
 
-
-def get_itinerary_generator() -> MockItineraryGenerator:
-    return _generator
+def get_configured_itinerary_generator(request: Request) -> ItineraryGenerator:
+    return request.app.state.itinerary_generator
 
 
 @router.get("/health")
@@ -20,6 +18,6 @@ def health() -> dict[str, str]:
 @router.post("/generate-itinerary", response_model=ItineraryResponse)
 def generate_itinerary(
     request: GenerateItineraryRequest,
-    generator: MockItineraryGenerator = Depends(get_itinerary_generator),
+    generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
 ) -> ItineraryResponse:
     return generator.generate(request)
