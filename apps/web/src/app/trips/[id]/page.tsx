@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { GenerateItineraryButton } from "@/components/trips/GenerateItineraryButton";
 import { ItineraryView } from "@/components/trips/ItineraryView";
@@ -18,6 +19,14 @@ import {
 } from "@/lib/utils";
 
 export default function TripDetailPage() {
+  return (
+    <ProtectedRoute>
+      <TripDetailPageContent />
+    </ProtectedRoute>
+  );
+}
+
+function TripDetailPageContent() {
   const params = useParams<{ id: string }>();
   const tripId = params.id;
 

@@ -2,12 +2,21 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { TripCard } from "@/components/trips/TripCard";
 import { buttonStyles } from "@/components/ui/Button";
 import { listTrips, tripKeys } from "@/lib/api/trips";
 
 export default function TripsPage() {
+  return (
+    <ProtectedRoute>
+      <TripsPageContent />
+    </ProtectedRoute>
+  );
+}
+
+function TripsPageContent() {
   const tripsQuery = useQuery({
     queryKey: tripKeys.list({ limit: 20, offset: 0 }),
     queryFn: () => listTrips({ limit: 20, offset: 0 })

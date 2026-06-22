@@ -7,8 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 )
@@ -19,6 +21,7 @@ func NewRouter(
 	tripHandler *handler.Handler,
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
+	authCfg config.AuthConfig,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -33,7 +36,20 @@ func NewRouter(
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
 
-	tripHandler.RegisterRoutes(r)
+	devUserID, err := uuid.Parse(authCfg.DevUserID)
+	if err != nil {
+		log.Panic("invalid dev user id", zap.String("dev_user_id", authCfg.DevUserID), zap.Error(err))
+	}
+
+	r.Group(func(r chi.Router) {
+		r.Use(auth.Middleware(auth.MiddlewareConfig{
+			Required:        authCfg.Required,
+			JWTAccessSecret: authCfg.JWTAccessSecret,
+			HeaderName:      authCfg.HeaderName,
+			DevUserID:       devUserID,
+		}))
+		tripHandler.RegisterRoutes(r)
+	})
 
 	return r
 }

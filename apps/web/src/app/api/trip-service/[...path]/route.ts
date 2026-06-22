@@ -35,6 +35,7 @@ async function proxyTripServiceRequest(request: NextRequest, context: RouteConte
 
   const headers = new Headers();
   copyHeader(request.headers, headers, "accept");
+  copyHeader(request.headers, headers, "authorization");
   copyHeader(request.headers, headers, "content-type");
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";

@@ -1,4 +1,11 @@
 import { getTripApiBaseUrl } from "@/lib/config";
+import { refresh as refreshAuthTokens } from "@/lib/api/auth";
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  saveTokens
+} from "@/lib/auth/token-storage";
 
 type ApiErrorPayload = {
   error?: string;
@@ -18,11 +25,24 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return apiFetchInternal<T>(path, init, true);
+}
+
+async function apiFetchInternal<T>(
+  path: string,
+  init: RequestInit = {},
+  allowRefresh: boolean
+): Promise<T> {
   const url = buildApiUrl(path);
   const headers = new Headers(init.headers);
+  const accessToken = getAccessToken();
 
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
+  }
+
+  if (accessToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
   }
 
   if (init.body && !headers.has("Content-Type")) {
@@ -40,6 +60,24 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       "Could not reach Trip Service. Confirm the local stack is running and CORS allows this origin.",
       0
     );
+  }
+
+  if (response.status === 401 && allowRefresh) {
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      try {
+        const refreshed = await refreshAuthTokens(refreshToken);
+        saveTokens(refreshed.accessToken, refreshed.refreshToken);
+        return apiFetchInternal<T>(path, init, false);
+      } catch {
+        clearTokens();
+        notifySessionExpired();
+        throw new ApiError("Your session expired. Please log in again.", 401);
+      }
+    }
+
+    clearTokens();
+    notifySessionExpired();
   }
 
   if (!response.ok) {
@@ -80,5 +118,11 @@ async function readJson<T>(response: Response): Promise<T | null> {
     return (await response.json()) as T;
   } catch {
     return null;
+  }
+}
+
+function notifySessionExpired() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("auth:session-expired"));
   }
 }

@@ -101,6 +101,20 @@ assert_2xx() {
   fi
 }
 
+assert_status() {
+  local label="$1"
+  local expected="$2"
+  if [[ "${LAST_STATUS}" != "${expected}" ]]; then
+    echo "${label} expected HTTP ${expected}, got HTTP ${LAST_STATUS}" >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+}
+
+echo "Checking Auth Service health..."
+request GET "${AUTH_SERVICE_URL}/health"
+assert_2xx "Auth Service health check"
+
 echo "Checking Trip Service health..."
 request GET "${TRIP_SERVICE_URL}/health"
 assert_2xx "Trip Service health check"
@@ -108,52 +122,6 @@ assert_2xx "Trip Service health check"
 echo "Checking AI Planning Service health..."
 request GET "${AI_PLANNING_SERVICE_URL}/health"
 assert_2xx "AI Planning Service health check"
-
-echo "Checking optional Auth Service smoke flow..."
-if request GET "${AUTH_SERVICE_URL}/health" && [[ "${LAST_STATUS}" =~ ^2 ]]; then
-  AUTH_EMAIL="smoke+$(date +%s)-$$@example.com"
-  AUTH_PASSWORD="StrongPassword123!"
-  AUTH_REGISTER_PAYLOAD="$(jq -nc --arg email "${AUTH_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
-
-  request POST "${AUTH_SERVICE_URL}/auth/register" "${AUTH_REGISTER_PAYLOAD}"
-  assert_2xx "Auth register"
-
-  AUTH_ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
-  AUTH_REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
-  if [[ -z "${AUTH_ACCESS_TOKEN}" || -z "${AUTH_REFRESH_TOKEN}" ]]; then
-    echo "Auth register response did not include both tokens." >&2
-    echo "${LAST_BODY}" >&2
-    exit 1
-  fi
-
-  request POST "${AUTH_SERVICE_URL}/auth/login" "${AUTH_REGISTER_PAYLOAD}"
-  assert_2xx "Auth login"
-
-  AUTH_ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
-  AUTH_REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
-
-  request_with_bearer GET "${AUTH_SERVICE_URL}/auth/me" "${AUTH_ACCESS_TOKEN}"
-  assert_2xx "Auth me"
-
-  AUTH_ME_EMAIL="$(jq -r '.email // empty' <<<"${LAST_BODY}")"
-  if [[ "${AUTH_ME_EMAIL}" != "${AUTH_EMAIL}" ]]; then
-    echo "Expected /auth/me email ${AUTH_EMAIL}, got ${AUTH_ME_EMAIL}." >&2
-    echo "${LAST_BODY}" >&2
-    exit 1
-  fi
-
-  AUTH_REFRESH_PAYLOAD="$(jq -nc --arg refreshToken "${AUTH_REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
-  request POST "${AUTH_SERVICE_URL}/auth/refresh" "${AUTH_REFRESH_PAYLOAD}"
-  assert_2xx "Auth refresh"
-
-  AUTH_REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
-  AUTH_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${AUTH_REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
-  request POST "${AUTH_SERVICE_URL}/auth/logout" "${AUTH_LOGOUT_PAYLOAD}"
-  assert_2xx "Auth logout"
-  echo "Auth Service smoke flow passed for ${AUTH_EMAIL}."
-else
-  echo "Auth Service is not reachable; skipping auth smoke flow."
-fi
 
 echo "Web App URL: ${WEB_APP_URL}"
 if request GET "${WEB_APP_URL}"; then
@@ -166,7 +134,37 @@ else
   echo "Web App is not reachable; continuing with API smoke test."
 fi
 
-echo "Checking AI Planning Service destination context endpoint..."
+echo "Registering and logging in smoke test user..."
+AUTH_EMAIL="smoke+$(date +%s)-$$@example.com"
+AUTH_PASSWORD="StrongPassword123!"
+AUTH_PAYLOAD="$(jq -nc --arg email "${AUTH_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
+
+request POST "${AUTH_SERVICE_URL}/auth/register" "${AUTH_PAYLOAD}"
+assert_2xx "Auth register"
+
+request POST "${AUTH_SERVICE_URL}/auth/login" "${AUTH_PAYLOAD}"
+assert_2xx "Auth login"
+
+ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
+REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ACCESS_TOKEN}" || -z "${REFRESH_TOKEN}" ]]; then
+  echo "Auth login response did not include both tokens." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking /auth/me..."
+request_with_bearer GET "${AUTH_SERVICE_URL}/auth/me" "${ACCESS_TOKEN}"
+assert_2xx "Auth me"
+
+AUTH_ME_EMAIL="$(jq -r '.email // empty' <<<"${LAST_BODY}")"
+if [[ "${AUTH_ME_EMAIL}" != "${AUTH_EMAIL}" ]]; then
+  echo "Expected /auth/me email ${AUTH_EMAIL}, got ${AUTH_ME_EMAIL}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking optional AI Planning destination context endpoint..."
 if request GET "${AI_PLANNING_SERVICE_URL}/destination-context"; then
   if [[ "${LAST_STATUS}" =~ ^2 ]]; then
     echo "Destination context endpoint is available."
@@ -192,7 +190,7 @@ else
   echo "Knowledge search request failed; continuing."
 fi
 
-echo "Creating a trip through Trip Service..."
+echo "Creating a trip with Authorization header..."
 CREATE_TRIP_PAYLOAD='{
   "destination": "Rome",
   "startDate": "2026-08-10",
@@ -203,7 +201,7 @@ CREATE_TRIP_PAYLOAD='{
   "interests": ["food", "history", "hidden_gems"],
   "pace": "balanced"
 }'
-request POST "${TRIP_SERVICE_URL}/trips" "${CREATE_TRIP_PAYLOAD}"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips" "${ACCESS_TOKEN}" "${CREATE_TRIP_PAYLOAD}"
 assert_2xx "Create trip"
 
 TRIP_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
@@ -214,12 +212,12 @@ if [[ -z "${TRIP_ID}" ]]; then
 fi
 echo "Created trip ${TRIP_ID}."
 
-echo "Generating itinerary..."
-request POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate"
+echo "Generating itinerary with Authorization header..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${ACCESS_TOKEN}"
 assert_2xx "Generate itinerary"
 
-echo "Fetching completed trip..."
-request GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}"
+echo "Fetching completed trip with Authorization header..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
 assert_2xx "Fetch trip"
 
 STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
@@ -237,5 +235,46 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
   exit 1
 fi
 
-echo "Smoke test passed: trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s)."
-echo "Open ${WEB_APP_URL} to run the manual browser flow."
+echo "Listing trips for current user..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips?limit=20&offset=0" "${ACCESS_TOKEN}"
+assert_2xx "List trips"
+
+MATCHING_TRIPS="$(jq --arg id "${TRIP_ID}" '[.items[] | select(.id == $id)] | length' <<<"${LAST_BODY}")"
+if [[ "${MATCHING_TRIPS}" -ne 1 ]]; then
+  echo "Expected authenticated list to include trip ${TRIP_ID} exactly once." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Verifying another user cannot access the first user's trip..."
+OTHER_EMAIL="smoke-other+$(date +%s)-$$@example.com"
+OTHER_PAYLOAD="$(jq -nc --arg email "${OTHER_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
+
+request POST "${AUTH_SERVICE_URL}/auth/register" "${OTHER_PAYLOAD}"
+assert_2xx "Second user register"
+
+OTHER_ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
+OTHER_REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
+if [[ -z "${OTHER_ACCESS_TOKEN}" || -z "${OTHER_REFRESH_TOKEN}" ]]; then
+  echo "Second user register response did not include both tokens." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user fetch first user's trip" "404"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user generate first user's trip" "404"
+
+echo "Logging out smoke test users..."
+LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
+request POST "${AUTH_SERVICE_URL}/auth/logout" "${LOGOUT_PAYLOAD}"
+assert_2xx "Logout first user"
+
+OTHER_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${OTHER_REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
+request POST "${AUTH_SERVICE_URL}/auth/logout" "${OTHER_LOGOUT_PAYLOAD}"
+assert_2xx "Logout second user"
+
+echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), and owner isolation was enforced."
+echo "Open ${WEB_APP_URL}/login to run the manual browser flow."

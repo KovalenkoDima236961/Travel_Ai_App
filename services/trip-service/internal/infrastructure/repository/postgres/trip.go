@@ -47,12 +47,15 @@ func (r *Repository) Create(ctx context.Context, t *entity.Trip) (*entity.Trip, 
 	return dto.Scan(r.db.QueryRow(ctx, query, args...))
 }
 
-// GetByID loads a trip by UUID, returning domain errs.ErrNotFound when absent.
-func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {
+// GetByIDAndUserID loads a trip only when it belongs to the given user.
+func (r *Repository) GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error) {
 	query, args, err := r.db.Builder.
 		Select(dto.Columns).
 		From("trips").
-		Where(sq.Eq{"id": dto.IDArg(id)}).
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build select: %w", err)
@@ -61,12 +64,13 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, e
 	return dto.Scan(r.db.QueryRow(ctx, query, args...))
 }
 
-// List returns trips ordered by created_at DESC, paginated by limit/offset.
+// ListByUser returns one user's trips ordered by created_at DESC.
 // Callers are expected to pass already-validated, normalised parameters.
-func (r *Repository) List(ctx context.Context, limit, offset int) ([]entity.Trip, error) {
+func (r *Repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error) {
 	query, args, err := r.db.Builder.
 		Select(dto.Columns).
 		From("trips").
+		Where(sq.Eq{"user_id": dto.IDArg(userID)}).
 		OrderBy("created_at DESC").
 		Limit(uint64(limit)).
 		Offset(uint64(offset)).
@@ -96,13 +100,16 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]entity.Trip
 	return trips, nil
 }
 
-// UpdateStatus transitions a trip to the given status.
-func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status entity.Status) (*entity.Trip, error) {
+// UpdateStatusByUserID transitions a trip only when it belongs to the user.
+func (r *Repository) UpdateStatusByUserID(ctx context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
 	query, args, err := r.db.Builder.
 		Update("trips").
 		Set("status", string(status)).
 		Set("updated_at", sq.Expr("NOW()")).
-		Where(sq.Eq{"id": dto.IDArg(id)}).
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
 		Suffix("RETURNING " + dto.Columns).
 		ToSql()
 	if err != nil {
@@ -112,14 +119,17 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status enti
 	return dto.Scan(r.db.QueryRow(ctx, query, args...))
 }
 
-// UpdateItinerary stores the generated itinerary and resulting status.
-func (r *Repository) UpdateItinerary(ctx context.Context, id uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error) {
+// UpdateItineraryByUserID stores the itinerary only when the trip belongs to the user.
+func (r *Repository) UpdateItineraryByUserID(ctx context.Context, id, userID uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error) {
 	query, args, err := r.db.Builder.
 		Update("trips").
 		Set("itinerary", []byte(itinerary)).
 		Set("status", string(status)).
 		Set("updated_at", sq.Expr("NOW()")).
-		Where(sq.Eq{"id": dto.IDArg(id)}).
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
 		Suffix("RETURNING " + dto.Columns).
 		ToSql()
 	if err != nil {

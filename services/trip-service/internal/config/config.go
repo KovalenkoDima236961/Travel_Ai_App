@@ -17,6 +17,7 @@ import (
 type Config struct {
 	Env                string                   `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production"`
 	HTTPServer         HTTPServer               `yaml:"http_server"`
+	Auth               AuthConfig               `yaml:"auth"`
 	CORS               CORSConfig               `yaml:"cors"`
 	Postgres           postgres.Config          `yaml:"postgres"`
 	ItineraryGenerator ItineraryGeneratorConfig `yaml:"itinerary_generator"`
@@ -29,6 +30,14 @@ type HTTPServer struct {
 	WriteTimeout    time.Duration `yaml:"write_timeout" env:"HTTP_WRITE_TIMEOUT" env-default:"150s"`
 	IdleTimeout     time.Duration `yaml:"idle_timeout" env:"HTTP_IDLE_TIMEOUT" env-default:"60s"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" env:"HTTP_SHUTDOWN_TIMEOUT" env-default:"15s"`
+}
+
+// AuthConfig controls local JWT validation for protected trip endpoints.
+type AuthConfig struct {
+	Required        bool   `yaml:"required" env:"AUTH_REQUIRED" env-default:"true"`
+	JWTAccessSecret string `yaml:"jwt_access_secret" env:"JWT_ACCESS_SECRET" env-default:"change-me-in-development" validate:"required"`
+	HeaderName      string `yaml:"header_name" env:"AUTH_HEADER_NAME" env-default:"Authorization" validate:"required"`
+	DevUserID       string `yaml:"dev_user_id" env:"DEV_USER_ID" env-default:"00000000-0000-0000-0000-000000000001" validate:"required,uuid"`
 }
 
 // CORSConfig controls browser access to the Trip Service API.

@@ -1,4 +1,5 @@
 const DEFAULT_TRIP_SERVICE_URL = "http://localhost:8080";
+const DEFAULT_AUTH_SERVICE_URL = "http://localhost:8082";
 
 export function getTripServiceUrl() {
   const value = process.env.NEXT_PUBLIC_TRIP_SERVICE_URL?.trim();
@@ -30,4 +31,18 @@ export function getTripApiBaseUrl() {
   }
 
   return getTripServiceInternalUrl();
+}
+
+export function getAuthServiceUrl() {
+  const value = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL?.trim();
+
+  if (value) {
+    return value.replace(/\/+$/, "");
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return DEFAULT_AUTH_SERVICE_URL;
+  }
+
+  throw new Error("NEXT_PUBLIC_AUTH_SERVICE_URL is not configured.");
 }

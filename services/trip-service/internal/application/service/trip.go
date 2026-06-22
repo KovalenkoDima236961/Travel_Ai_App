@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
@@ -31,10 +32,10 @@ const (
 // unexported — the use case owns the abstraction it consumes.
 type tripRepository interface {
 	Create(ctx context.Context, t *entity.Trip) (*entity.Trip, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error)
-	List(ctx context.Context, limit, offset int) ([]entity.Trip, error)
-	UpdateStatus(ctx context.Context, id uuid.UUID, status entity.Status) (*entity.Trip, error)
-	UpdateItinerary(ctx context.Context, id uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error)
+	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
+	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
+	UpdateStatusByUserID(ctx context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error)
+	UpdateItineraryByUserID(ctx context.Context, id, userID uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error)
 }
 
 // Service holds the trip business logic. It depends on the repository and
@@ -52,6 +53,11 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 
 // Create validates input, applies defaults, and stores a new DRAFT trip.
 func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entity.Trip, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	destination := strings.TrimSpace(in.Destination)
 	if destination == "" {
 		return nil, apperrs.NewInvalidInput("destination is required")
@@ -87,6 +93,7 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 	}
 
 	created, err := s.repo.Create(ctx, &entity.Trip{
+		UserID:         &user.ID,
 		Destination:    destination,
 		StartDate:      startDate,
 		Days:           in.Days,
@@ -103,6 +110,7 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 
 	s.log.Info("trip created",
 		zap.String("trip_id", created.ID.String()),
+		zap.String("user_id", user.ID.String()),
 		zap.String("destination", created.Destination),
 	)
 	return created, nil
@@ -110,13 +118,22 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 
 // Get returns a trip by id.
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {
-	return s.repo.GetByID(ctx, id)
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetByIDAndUserID(ctx, id, user.ID)
 }
 
 // List returns trips ordered by created_at DESC. It normalises and validates the
 // pagination parameters: limit defaults to 20 (when 0) and must be 1..100;
 // offset must be >= 0.
 func (s *Service) List(ctx context.Context, limit, offset int) ([]entity.Trip, int, int, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
 	if limit == 0 {
 		limit = defaultLimit
 	}
@@ -127,7 +144,7 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]entity.Trip, i
 		return nil, 0, 0, apperrs.NewInvalidInput("offset must be >= 0")
 	}
 
-	trips, err := s.repo.List(ctx, limit, offset)
+	trips, err := s.repo.ListByUser(ctx, user.ID, limit, offset)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -138,42 +155,54 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]entity.Trip, i
 // (or FAILED on error). The itinerary itself is produced by the injected
 // ItineraryGenerator port.
 func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {
-	current, err := s.repo.GetByID(ctx, id)
+	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := s.repo.UpdateStatus(ctx, id, entity.StatusProcessing); err != nil {
+	current, err := s.repo.GetByIDAndUserID(ctx, id, user.ID)
+	if err != nil {
 		return nil, err
 	}
-	s.log.Info("trip processing started", zap.String("trip_id", id.String()))
+
+	if _, err := s.repo.UpdateStatusByUserID(ctx, id, user.ID, entity.StatusProcessing); err != nil {
+		return nil, err
+	}
+	s.log.Info("trip processing started",
+		zap.String("trip_id", id.String()),
+		zap.String("user_id", user.ID.String()),
+	)
 
 	itinerary, err := s.generator.Generate(ctx, *current)
 	if err != nil {
-		s.markFailed(ctx, id)
+		s.markFailed(ctx, id, user.ID)
 		return nil, err
 	}
 
 	raw, err := json.Marshal(itinerary)
 	if err != nil {
-		s.markFailed(ctx, id)
+		s.markFailed(ctx, id, user.ID)
 		return nil, err
 	}
 
-	updated, err := s.repo.UpdateItinerary(ctx, id, raw, entity.StatusCompleted)
+	updated, err := s.repo.UpdateItineraryByUserID(ctx, id, user.ID, raw, entity.StatusCompleted)
 	if err != nil {
-		s.markFailed(ctx, id)
+		s.markFailed(ctx, id, user.ID)
 		return nil, err
 	}
 
-	s.log.Info("trip completed", zap.String("trip_id", id.String()))
+	s.log.Info("trip completed",
+		zap.String("trip_id", id.String()),
+		zap.String("user_id", user.ID.String()),
+	)
 	return updated, nil
 }
 
-func (s *Service) markFailed(ctx context.Context, id uuid.UUID) {
-	if _, err := s.repo.UpdateStatus(ctx, id, entity.StatusFailed); err != nil {
+func (s *Service) markFailed(ctx context.Context, id, userID uuid.UUID) {
+	if _, err := s.repo.UpdateStatusByUserID(ctx, id, userID, entity.StatusFailed); err != nil {
 		s.log.Error("failed to mark trip as FAILED",
 			zap.String("trip_id", id.String()),
+			zap.String("user_id", userID.String()),
 			zap.Error(err),
 		)
 	}

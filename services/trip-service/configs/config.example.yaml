@@ -11,6 +11,12 @@ http_server:
   idle_timeout: 60s
   shutdown_timeout: 15s
 
+auth:
+  required: true
+  jwt_access_secret: change-me-in-development
+  header_name: Authorization
+  dev_user_id: 00000000-0000-0000-0000-000000000001
+
 cors:
   allowed_origins: http://localhost:3000
   allowed_methods: GET,POST,PATCH,DELETE,OPTIONS

@@ -94,6 +94,10 @@ services:
       ITINERARY_GENERATOR_MODE: ${TRIP_ITINERARY_GENERATOR_MODE:-http}
       AI_PLANNING_SERVICE_URL: ${AI_PLANNING_SERVICE_URL:-http://ai-planning-service:8000}
       AI_PLANNING_TIMEOUT_SECONDS: ${AI_PLANNING_TIMEOUT_SECONDS:-120}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-development}
+      AUTH_HEADER_NAME: ${AUTH_HEADER_NAME:-Authorization}
+      DEV_USER_ID: ${DEV_USER_ID:-00000000-0000-0000-0000-000000000001}
       POSTGRES_DB: ${POSTGRES_DB:-trip_service}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -165,10 +169,13 @@ services:
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_AUTH_SERVICE_URL: ${NEXT_PUBLIC_AUTH_SERVICE_URL:-http://localhost:8082}
       NEXT_PUBLIC_TRIP_SERVICE_URL: ${NEXT_PUBLIC_TRIP_SERVICE_URL:-http://localhost:8080}
       TRIP_SERVICE_INTERNAL_URL: ${TRIP_SERVICE_INTERNAL_URL:-http://trip-service:8080}
     depends_on:
       trip-service:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     ports:
       - "${WEB_APP_PORT:-3000}:3000"

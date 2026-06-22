@@ -5,6 +5,11 @@ A Go microservice for an AI travel planning web app. It manages **trip requests*
 **itinerary** through a configurable generator: either a deterministic local mock
 or AI Planning Service v1 over HTTP.
 
+Trip endpoints require Auth Service JWT access tokens by default. The service
+validates tokens locally with the shared `JWT_ACCESS_SECRET`, reads the user ID
+from the `sub` claim, and scopes trip create/list/get/generate operations to
+that user.
+
 ## Tech stack
 
 | Concern           | Choice                                                        |
@@ -134,6 +139,10 @@ Key environment variables:
 | `APP_ENV`            | `development`  | `development` or `production`.       |
 | `HTTP_ADDRESS`       | `:8080`        | HTTP listen address.                 |
 | `HTTP_WRITE_TIMEOUT` | `150s`         | Maximum duration for writing an HTTP response. |
+| `AUTH_REQUIRED`      | `true`         | Requires a valid bearer token for `/trips` routes when true. |
+| `JWT_ACCESS_SECRET`  | `change-me-in-development` | Shared HS256 secret used to validate Auth Service access tokens locally. |
+| `AUTH_HEADER_NAME`   | `Authorization` | Header read for bearer tokens. |
+| `DEV_USER_ID`        | `00000000-0000-0000-0000-000000000001` | Owner used when `AUTH_REQUIRED=false` and no valid token is present. |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` in development | Comma-separated browser origins allowed to call the API. |
 | `CORS_ALLOWED_METHODS` | `GET,POST,PATCH,DELETE,OPTIONS` | Methods returned for CORS preflight responses. |
 | `CORS_ALLOWED_HEADERS` | `Content-Type,Authorization` | Headers returned for CORS preflight responses. |
@@ -183,6 +192,7 @@ docker run --rm -d --name trip-pg \
 
 # 2a. Run with env config and the local mock generator
 export APP_ENV=development HTTP_ADDRESS=":8080" \
+  AUTH_REQUIRED=true JWT_ACCESS_SECRET=change-me-in-development \
   CORS_ALLOWED_ORIGINS=http://localhost:3000 \
   POSTGRES_DB=trip_service POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres \
   POSTGRES_HOST=localhost POSTGRES_PORT=5432 \
@@ -223,12 +233,27 @@ make migrate-down    # roll back the last migration
 | ------ | ----------------------- | -------------------------------------------- |
 | GET    | `/health`               | Liveness probe.                              |
 | GET    | `/ready`                | Readiness probe for PostgreSQL and AI service dependencies. |
-| POST   | `/trips`                | Create a trip (status `DRAFT`).              |
-| GET    | `/trips`                | List trips (paginated, newest first).        |
-| GET    | `/trips/{id}`           | Fetch a trip by UUID.                        |
-| POST   | `/trips/{id}/generate`  | Generate the itinerary with the configured generator; status `COMPLETED`. |
+| POST   | `/trips`                | Create a trip for the authenticated user (status `DRAFT`). |
+| GET    | `/trips`                | List authenticated user's trips (paginated, newest first). |
+| GET    | `/trips/{id}`           | Fetch an authenticated user's trip by UUID.  |
+| POST   | `/trips/{id}/generate`  | Generate the itinerary for an authenticated user's trip; status `COMPLETED`. |
 
 Trip statuses: `DRAFT` → `PROCESSING` → `COMPLETED` (or `FAILED`).
+
+All `/trips` routes expect:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+Missing or invalid tokens return:
+
+```json
+{ "error": "unauthorized" }
+```
+
+For local debugging only, set `AUTH_REQUIRED=false`. In that mode requests
+without a valid token are allowed and new trips are owned by `DEV_USER_ID`.
 
 ### Itinerary generation
 
@@ -262,8 +287,15 @@ Errors use a uniform envelope; validation failures add a `fields` map:
 ### Example curl requests
 
 ```bash
+AUTH_EMAIL="you@example.com"
+AUTH_PASSWORD="StrongPassword123!"
+ACCESS_TOKEN=$(curl -s -X POST http://localhost:8082/auth/login \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"${AUTH_EMAIL}\",\"password\":\"${AUTH_PASSWORD}\"}" | jq -r '.accessToken')
+
 TRIP_ID=$(curl -s -X POST http://localhost:8080/trips \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -d '{
     "destination": "Rome",
     "startDate": "2026-08-10",
@@ -276,13 +308,16 @@ TRIP_ID=$(curl -s -X POST http://localhost:8080/trips \
   }' | jq -r '.id')
 
 # Generate the itinerary
-curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/generate"
+curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/generate" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
 
 # Fetch the completed trip
-curl -s "http://localhost:8080/trips/${TRIP_ID}"
+curl -s "http://localhost:8080/trips/${TRIP_ID}" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
 
 # List (paginated, newest first)
-curl -s "http://localhost:8080/trips?limit=20&offset=0"
+curl -s "http://localhost:8080/trips?limit=20&offset=0" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
 
 # Health
 curl -s http://localhost:8080/health
@@ -331,5 +366,8 @@ go test ./... -race -count=1
 - Itinerary generation is selected by `ITINERARY_GENERATOR_MODE`. Use `mock` for
   local deterministic output or `http` for AI Planning Service v1. RabbitMQ, real
   LLM calls, and RAG are intentionally not part of this version.
+- Auth Service remains the source of issued tokens. Trip Service validates access
+  tokens locally for v1; a future production setup should move to asymmetric keys
+  or JWKS validation.
 - `pkg/cache/redis` and `pkg/tls` are wired-ready platform utilities included for
   future use; the trip feature does not depend on them yet.

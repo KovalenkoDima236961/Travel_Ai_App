@@ -1,7 +1,19 @@
+"use client";
+
 import Link from "next/link";
-import { buttonStyles } from "@/components/ui/Button";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { Button, buttonStyles } from "@/components/ui/Button";
 
 export function AppHeader() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading, logout, user } = useAuth();
+
+  async function handleLogout() {
+    await logout();
+    router.push("/login");
+  }
+
   return (
     <header className="border-b border-slate-200 bg-white/95">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -9,12 +21,32 @@ export function AppHeader() {
           Travel AI Planner
         </Link>
         <nav className="flex items-center gap-2">
-          <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/trips">
-            Trips
-          </Link>
-          <Link className={buttonStyles({ size: "sm" })} href="/trips/new">
-            Create
-          </Link>
+          {!isLoading && isAuthenticated ? (
+            <>
+              <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/trips">
+                Trips
+              </Link>
+              <Link className={buttonStyles({ size: "sm" })} href="/trips/new">
+                Create
+              </Link>
+              <span className="hidden max-w-48 truncate text-sm text-slate-600 sm:inline">
+                {user?.email}
+              </span>
+              <Button size="sm" variant="secondary" onClick={handleLogout}>
+                Logout
+              </Button>
+            </>
+          ) : null}
+          {!isLoading && !isAuthenticated ? (
+            <>
+              <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/login">
+                Login
+              </Link>
+              <Link className={buttonStyles({ size: "sm" })} href="/register">
+                Register
+              </Link>
+            </>
+          ) : null}
         </nav>
       </div>
     </header>

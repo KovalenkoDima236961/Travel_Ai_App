@@ -14,6 +14,10 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"HTTP_WRITE_TIMEOUT",
 		"HTTP_IDLE_TIMEOUT",
 		"HTTP_SHUTDOWN_TIMEOUT",
+		"AUTH_REQUIRED",
+		"JWT_ACCESS_SECRET",
+		"AUTH_HEADER_NAME",
+		"DEV_USER_ID",
 		"CORS_ALLOWED_ORIGINS",
 		"CORS_ALLOWED_METHODS",
 		"CORS_ALLOWED_HEADERS",
@@ -53,6 +57,18 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if cfg.CORS.AllowedHeaders != "Content-Type,Authorization" {
 		t.Fatalf("expected default CORS headers, got %q", cfg.CORS.AllowedHeaders)
 	}
+	if !cfg.Auth.Required {
+		t.Fatal("expected auth to be required by default")
+	}
+	if cfg.Auth.JWTAccessSecret != "change-me-in-development" {
+		t.Fatalf("expected default JWT secret, got %q", cfg.Auth.JWTAccessSecret)
+	}
+	if cfg.Auth.HeaderName != "Authorization" {
+		t.Fatalf("expected default auth header, got %q", cfg.Auth.HeaderName)
+	}
+	if cfg.Auth.DevUserID != "00000000-0000-0000-0000-000000000001" {
+		t.Fatalf("expected default dev user id, got %q", cfg.Auth.DevUserID)
+	}
 }
 
 func TestLoadReadsCORSOverrides(t *testing.T) {
@@ -63,6 +79,10 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"HTTP_WRITE_TIMEOUT",
 		"HTTP_IDLE_TIMEOUT",
 		"HTTP_SHUTDOWN_TIMEOUT",
+		"AUTH_REQUIRED",
+		"JWT_ACCESS_SECRET",
+		"AUTH_HEADER_NAME",
+		"DEV_USER_ID",
 		"ITINERARY_GENERATOR_MODE",
 		"AI_PLANNING_SERVICE_URL",
 		"AI_PLANNING_TIMEOUT_SECONDS",

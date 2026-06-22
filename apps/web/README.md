@@ -1,6 +1,6 @@
 # Travel AI Planner Web
 
-Next.js Web App v1 for creating trip requests, listing trips, opening trip details, generating itineraries, and viewing generated plans.
+Next.js Web App v1 for registering/logging in, creating trip requests, listing trips, opening trip details, generating itineraries, and viewing generated plans.
 
 ## Source Layout
 
@@ -23,13 +23,26 @@ npm run dev
 The app expects the Trip Service URL in:
 
 ```bash
+NEXT_PUBLIC_AUTH_SERVICE_URL=http://localhost:8082
 NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080
 TRIP_SERVICE_INTERNAL_URL=http://localhost:8080
 ```
 
 ## Backend
 
-Start the repository backend services first, then run the web app. The frontend calls the Trip Service endpoints:
+Start the repository backend services first, then run the web app. The frontend calls Auth Service endpoints:
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `GET /auth/me`
+
+After login/register, the frontend stores the access and refresh token in
+`localStorage` for development v1 and sends `Authorization: Bearer <accessToken>`
+to Trip Service. Secure httpOnly cookies are recommended for production.
+
+The frontend calls the protected Trip Service endpoints:
 
 - `POST /trips`
 - `GET /trips?limit=20&offset=0`
@@ -40,11 +53,11 @@ Browser requests go through the Next.js route proxy at `/api/trip-service/*`,
 which forwards to `TRIP_SERVICE_INTERNAL_URL` when set, then falls back to
 `NEXT_PUBLIC_TRIP_SERVICE_URL`. In Docker Compose, the browser-facing URL stays
 `http://localhost:8080` while server-side proxy calls use
-`http://trip-service:8080`.
+`http://trip-service:8080`. The proxy forwards the `Authorization` header.
 
-Trip Service also enables CORS for `http://localhost:3000`, so direct browser
-calls to `NEXT_PUBLIC_TRIP_SERVICE_URL` remain possible during local
-development.
+Auth Service and Trip Service enable CORS for `http://localhost:3000`, so direct
+browser calls to `NEXT_PUBLIC_AUTH_SERVICE_URL` and
+`NEXT_PUBLIC_TRIP_SERVICE_URL` remain possible during local development.
 
 The current Trip Service validates the most active pace as `packed`; the UI labels that option as `Intensive`.
 

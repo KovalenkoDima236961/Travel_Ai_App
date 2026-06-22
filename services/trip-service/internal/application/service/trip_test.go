@@ -12,6 +12,7 @@ import (
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
@@ -25,17 +26,21 @@ type mockRepo struct {
 
 	getByIDResult *entity.Trip
 	getByIDErr    error
+	getByIDUserID uuid.UUID
 
 	listResult []entity.Trip
 	listErr    error
 	listLimit  int
 	listOffset int
+	listUserID uuid.UUID
 
 	updateStatusErr  error
 	statusSeq        []entity.Status
+	statusUserIDs    []uuid.UUID
 	updateItinStatus entity.Status
 	updateItinRaw    json.RawMessage
 	updateItinErr    error
+	updateItinUserID uuid.UUID
 }
 
 func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -50,14 +55,16 @@ func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, erro
 	return &out, nil
 }
 
-func (m *mockRepo) GetByID(_ context.Context, _ uuid.UUID) (*entity.Trip, error) {
+func (m *mockRepo) GetByIDAndUserID(_ context.Context, _, userID uuid.UUID) (*entity.Trip, error) {
+	m.getByIDUserID = userID
 	if m.getByIDErr != nil {
 		return nil, m.getByIDErr
 	}
 	return m.getByIDResult, nil
 }
 
-func (m *mockRepo) List(_ context.Context, limit, offset int) ([]entity.Trip, error) {
+func (m *mockRepo) ListByUser(_ context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error) {
+	m.listUserID = userID
 	m.listLimit = limit
 	m.listOffset = offset
 	if m.listErr != nil {
@@ -66,17 +73,19 @@ func (m *mockRepo) List(_ context.Context, limit, offset int) ([]entity.Trip, er
 	return m.listResult, nil
 }
 
-func (m *mockRepo) UpdateStatus(_ context.Context, id uuid.UUID, status entity.Status) (*entity.Trip, error) {
+func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
 	m.statusSeq = append(m.statusSeq, status)
+	m.statusUserIDs = append(m.statusUserIDs, userID)
 	if m.updateStatusErr != nil {
 		return nil, m.updateStatusErr
 	}
 	return &entity.Trip{ID: id, Status: status}, nil
 }
 
-func (m *mockRepo) UpdateItinerary(_ context.Context, id uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error) {
+func (m *mockRepo) UpdateItineraryByUserID(_ context.Context, id, userID uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error) {
 	m.updateItinRaw = itinerary
 	m.updateItinStatus = status
+	m.updateItinUserID = userID
 	if m.updateItinErr != nil {
 		return nil, m.updateItinErr
 	}
@@ -113,6 +122,17 @@ func validCreateInput() appdto.CreateTripInput {
 	}
 }
 
+func authContext() context.Context {
+	return auth.WithUser(context.Background(), auth.AuthenticatedUser{
+		ID:    testUserID(),
+		Email: "traveler@example.com",
+	})
+}
+
+func testUserID() uuid.UUID {
+	return uuid.MustParse("11111111-1111-1111-1111-111111111111")
+}
+
 func assertInvalidInput(t *testing.T, err error) {
 	t.Helper()
 	var invalid *apperrs.InvalidInputError
@@ -125,7 +145,7 @@ func TestCreate_Success(t *testing.T) {
 	repo := &mockRepo{}
 	svc := newTestService(repo, &mockGenerator{})
 
-	got, err := svc.Create(context.Background(), validCreateInput())
+	got, err := svc.Create(authContext(), validCreateInput())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,6 +158,9 @@ func TestCreate_Success(t *testing.T) {
 	if repo.createdTrip.Status != entity.StatusDraft {
 		t.Errorf("expected status DRAFT, got %s", repo.createdTrip.Status)
 	}
+	if repo.createdTrip.UserID == nil || *repo.createdTrip.UserID != testUserID() {
+		t.Fatalf("expected authenticated user id %s, got %v", testUserID(), repo.createdTrip.UserID)
+	}
 }
 
 func TestCreate_EmptyDestination(t *testing.T) {
@@ -147,7 +170,7 @@ func TestCreate_EmptyDestination(t *testing.T) {
 	in := validCreateInput()
 	in.Destination = "   "
 
-	_, err := svc.Create(context.Background(), in)
+	_, err := svc.Create(authContext(), in)
 	assertInvalidInput(t, err)
 	if repo.createdTrip != nil {
 		t.Error("repository Create must not be called on invalid input")
@@ -161,7 +184,7 @@ func TestCreate_DaysTooLow(t *testing.T) {
 	in := validCreateInput()
 	in.Days = 0
 
-	_, err := svc.Create(context.Background(), in)
+	_, err := svc.Create(authContext(), in)
 	assertInvalidInput(t, err)
 	if repo.createdTrip != nil {
 		t.Error("repository Create must not be called on invalid input")
@@ -175,7 +198,7 @@ func TestCreate_DaysTooHigh(t *testing.T) {
 	in := validCreateInput()
 	in.Days = 31
 
-	_, err := svc.Create(context.Background(), in)
+	_, err := svc.Create(authContext(), in)
 	assertInvalidInput(t, err)
 	if repo.createdTrip != nil {
 		t.Error("repository Create must not be called on invalid input")
@@ -189,7 +212,7 @@ func TestCreate_DefaultsCurrencyToEUR(t *testing.T) {
 	in := validCreateInput()
 	in.BudgetCurrency = ""
 
-	if _, err := svc.Create(context.Background(), in); err != nil {
+	if _, err := svc.Create(authContext(), in); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if repo.createdTrip.BudgetCurrency != "EUR" {
@@ -204,7 +227,7 @@ func TestCreate_DefaultsPaceToBalanced(t *testing.T) {
 	in := validCreateInput()
 	in.Pace = ""
 
-	if _, err := svc.Create(context.Background(), in); err != nil {
+	if _, err := svc.Create(authContext(), in); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if repo.createdTrip.Pace != "balanced" {
@@ -220,7 +243,7 @@ func TestGenerate_Success_SetsCompleted(t *testing.T) {
 	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
 	svc := newTestService(repo, gen)
 
-	got, err := svc.Generate(context.Background(), id)
+	got, err := svc.Generate(authContext(), id)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -240,6 +263,9 @@ func TestGenerate_Success_SetsCompleted(t *testing.T) {
 	if len(repo.statusSeq) != 1 || repo.statusSeq[0] != entity.StatusProcessing {
 		t.Errorf("expected status sequence [PROCESSING], got %v", repo.statusSeq)
 	}
+	if repo.getByIDUserID != testUserID() || repo.updateItinUserID != testUserID() {
+		t.Fatalf("expected generate repository calls for user %s", testUserID())
+	}
 }
 
 func TestGenerate_GeneratorError_SetsFailed(t *testing.T) {
@@ -250,7 +276,7 @@ func TestGenerate_GeneratorError_SetsFailed(t *testing.T) {
 	gen := &mockGenerator{err: errors.New("generation boom")}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.Generate(context.Background(), id)
+	_, err := svc.Generate(authContext(), id)
 	if err == nil {
 		t.Fatal("expected an error when the generator fails")
 	}
@@ -262,6 +288,9 @@ func TestGenerate_GeneratorError_SetsFailed(t *testing.T) {
 		if repo.statusSeq[i] != want[i] {
 			t.Fatalf("expected status sequence %v, got %v", want, repo.statusSeq)
 		}
+		if repo.statusUserIDs[i] != testUserID() {
+			t.Fatalf("expected status update %d for user %s, got %s", i, testUserID(), repo.statusUserIDs[i])
+		}
 	}
 }
 
@@ -270,7 +299,7 @@ func TestGet_NotFound(t *testing.T) {
 	repo := &mockRepo{getByIDErr: wantErr}
 	svc := newTestService(repo, &mockGenerator{})
 
-	_, err := svc.Get(context.Background(), uuid.New())
+	_, err := svc.Get(authContext(), uuid.New())
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("expected the repository error to propagate, got %v", err)
 	}
@@ -280,7 +309,7 @@ func TestList_AppliesDefaults(t *testing.T) {
 	repo := &mockRepo{listResult: []entity.Trip{}}
 	svc := newTestService(repo, &mockGenerator{})
 
-	_, limit, offset, err := svc.List(context.Background(), 0, 0)
+	_, limit, offset, err := svc.List(authContext(), 0, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -293,13 +322,16 @@ func TestList_AppliesDefaults(t *testing.T) {
 	if repo.listLimit != defaultLimit || repo.listOffset != 0 {
 		t.Errorf("expected repo called with (%d, 0), got (%d, %d)", defaultLimit, repo.listLimit, repo.listOffset)
 	}
+	if repo.listUserID != testUserID() {
+		t.Errorf("expected list for user %s, got %s", testUserID(), repo.listUserID)
+	}
 }
 
 func TestList_RejectsInvalidLimit(t *testing.T) {
 	repo := &mockRepo{}
 	svc := newTestService(repo, &mockGenerator{})
 
-	_, _, _, err := svc.List(context.Background(), maxLimit+1, 0)
+	_, _, _, err := svc.List(authContext(), maxLimit+1, 0)
 	assertInvalidInput(t, err)
 }
 
@@ -307,6 +339,6 @@ func TestList_RejectsNegativeOffset(t *testing.T) {
 	repo := &mockRepo{}
 	svc := newTestService(repo, &mockGenerator{})
 
-	_, _, _, err := svc.List(context.Background(), 20, -1)
+	_, _, _, err := svc.List(authContext(), 20, -1)
 	assertInvalidInput(t, err)
 }
