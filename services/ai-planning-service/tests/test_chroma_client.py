@@ -1,3 +1,4 @@
+import builtins
 import os
 import sys
 from types import ModuleType
@@ -34,6 +35,20 @@ def test_create_persistent_chroma_client_disables_telemetry_by_default(
 ) -> None:
     calls = _install_fake_chromadb(monkeypatch)
     monkeypatch.delenv("ANONYMIZED_TELEMETRY", raising=False)
+    real_import = builtins.__import__
+
+    def import_with_telemetry_check(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "chromadb":
+            assert os.environ["ANONYMIZED_TELEMETRY"] == "false"
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_with_telemetry_check)
 
     create_persistent_chroma_client(Settings(), tmp_path)
 

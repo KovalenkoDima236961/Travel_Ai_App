@@ -1,11 +1,27 @@
+const DEFAULT_TRIP_SERVICE_URL = "http://localhost:8080";
+
 export function getTripServiceUrl() {
   const value = process.env.NEXT_PUBLIC_TRIP_SERVICE_URL?.trim();
 
-  if (!value) {
-    throw new Error("NEXT_PUBLIC_TRIP_SERVICE_URL is not configured.");
+  if (value) {
+    return value.replace(/\/+$/, "");
   }
 
-  return value.replace(/\/+$/, "");
+  if (process.env.NODE_ENV !== "production") {
+    return DEFAULT_TRIP_SERVICE_URL;
+  }
+
+  throw new Error("NEXT_PUBLIC_TRIP_SERVICE_URL is not configured.");
+}
+
+export function getTripServiceInternalUrl() {
+  const value = process.env.TRIP_SERVICE_INTERNAL_URL?.trim();
+
+  if (value) {
+    return value.replace(/\/+$/, "");
+  }
+
+  return getTripServiceUrl();
 }
 
 export function getTripApiBaseUrl() {
@@ -13,5 +29,5 @@ export function getTripApiBaseUrl() {
     return "/api/trip-service";
   }
 
-  return getTripServiceUrl();
+  return getTripServiceInternalUrl();
 }

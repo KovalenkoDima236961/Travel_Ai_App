@@ -29,10 +29,18 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url, {
-    ...init,
-    headers
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers
+    });
+  } catch {
+    throw new ApiError(
+      "Could not reach Trip Service. Confirm the local stack is running and CORS allows this origin.",
+      0
+    );
+  }
 
   if (!response.ok) {
     const payload = await readJson<ApiErrorPayload>(response);

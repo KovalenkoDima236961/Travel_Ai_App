@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 )
 
@@ -17,6 +18,7 @@ func NewRouter(
 	log *zap.Logger,
 	tripHandler *handler.Handler,
 	readinessHandler http.Handler,
+	corsCfg config.CORSConfig,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -24,6 +26,7 @@ func NewRouter(
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(requestLogger(log))
+	r.Use(corsMiddleware(corsCfg))
 
 	r.Get("/health", healthHandler)
 	if readinessHandler != nil {

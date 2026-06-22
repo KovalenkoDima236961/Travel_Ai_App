@@ -24,6 +24,7 @@ The app expects the Trip Service URL in:
 
 ```bash
 NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080
+TRIP_SERVICE_INTERNAL_URL=http://localhost:8080
 ```
 
 ## Backend
@@ -36,9 +37,14 @@ Start the repository backend services first, then run the web app. The frontend 
 - `POST /trips/{id}/generate`
 
 Browser requests go through the Next.js route proxy at `/api/trip-service/*`,
-which forwards to `NEXT_PUBLIC_TRIP_SERVICE_URL`. This keeps local development
-usable even when the Trip Service is running on a different port without CORS
-headers.
+which forwards to `TRIP_SERVICE_INTERNAL_URL` when set, then falls back to
+`NEXT_PUBLIC_TRIP_SERVICE_URL`. In Docker Compose, the browser-facing URL stays
+`http://localhost:8080` while server-side proxy calls use
+`http://trip-service:8080`.
+
+Trip Service also enables CORS for `http://localhost:3000`, so direct browser
+calls to `NEXT_PUBLIC_TRIP_SERVICE_URL` remain possible during local
+development.
 
 The current Trip Service validates the most active pace as `packed`; the UI labels that option as `Intensive`.
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -16,6 +17,7 @@ import (
 type Config struct {
 	Env                string                   `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production"`
 	HTTPServer         HTTPServer               `yaml:"http_server"`
+	CORS               CORSConfig               `yaml:"cors"`
 	Postgres           postgres.Config          `yaml:"postgres"`
 	ItineraryGenerator ItineraryGeneratorConfig `yaml:"itinerary_generator"`
 }
@@ -27,6 +29,13 @@ type HTTPServer struct {
 	WriteTimeout    time.Duration `yaml:"write_timeout" env:"HTTP_WRITE_TIMEOUT" env-default:"150s"`
 	IdleTimeout     time.Duration `yaml:"idle_timeout" env:"HTTP_IDLE_TIMEOUT" env-default:"60s"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" env:"HTTP_SHUTDOWN_TIMEOUT" env-default:"15s"`
+}
+
+// CORSConfig controls browser access to the Trip Service API.
+type CORSConfig struct {
+	AllowedOrigins string `yaml:"allowed_origins" env:"CORS_ALLOWED_ORIGINS"`
+	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,PATCH,DELETE,OPTIONS"`
+	AllowedHeaders string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
 }
 
 // ItineraryGeneratorConfig selects the itinerary generation adapter.
@@ -62,6 +71,8 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("read env config: %w", err)
 	}
 
+	cfg.applyDefaults()
+
 	validator, err := validation.NewValidator()
 	if err != nil {
 		return nil, fmt.Errorf("init validator: %w", err)
@@ -71,4 +82,16 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func (c *Config) applyDefaults() {
+	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && c.Env == "development" {
+		c.CORS.AllowedOrigins = "http://localhost:3000"
+	}
+	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
+		c.CORS.AllowedMethods = "GET,POST,PATCH,DELETE,OPTIONS"
+	}
+	if strings.TrimSpace(c.CORS.AllowedHeaders) == "" {
+		c.CORS.AllowedHeaders = "Content-Type,Authorization"
+	}
 }

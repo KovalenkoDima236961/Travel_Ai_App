@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTripServiceUrl } from "@/lib/config";
+import { getTripServiceInternalUrl } from "@/lib/config";
 
 type RouteContext = {
   params: Promise<{
@@ -17,7 +17,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
 async function proxyTripServiceRequest(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
-  const targetUrl = new URL(path.join("/"), `${getTripServiceUrl()}/`);
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(path.join("/"), `${getTripServiceInternalUrl()}/`);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Trip Service URL is not configured."
+      },
+      { status: 500 }
+    );
+  }
   targetUrl.search = request.nextUrl.search;
 
   const headers = new Headers();
@@ -25,12 +38,23 @@ async function proxyTripServiceRequest(request: NextRequest, context: RouteConte
   copyHeader(request.headers, headers, "content-type");
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: hasBody ? await request.arrayBuffer() : undefined,
-    cache: "no-store"
-  });
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: hasBody ? await request.arrayBuffer() : undefined,
+      cache: "no-store"
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "Trip Service is unavailable. Confirm it is running and reachable from the web app."
+      },
+      { status: 503 }
+    );
+  }
 
   const responseHeaders = new Headers(response.headers);
   responseHeaders.delete("content-encoding");

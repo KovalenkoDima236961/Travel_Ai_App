@@ -11,6 +11,11 @@ http_server:
   idle_timeout: 60s
   shutdown_timeout: 15s
 
+cors:
+  allowed_origins: http://localhost:3000
+  allowed_methods: GET,POST,PATCH,DELETE,OPTIONS
+  allowed_headers: Content-Type,Authorization
+
 postgres:
   database: trip_service
   username: postgres

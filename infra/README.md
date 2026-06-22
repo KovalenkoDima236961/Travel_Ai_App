@@ -42,6 +42,35 @@ docker compose -f infra/docker-compose.yml up --build
 Trip Service applies PostgreSQL migrations automatically on startup, so there is
 no separate migration container in this stack.
 
+## Running The Web App
+
+Start the full stack:
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+Useful local URLs:
+
+- Web App: http://localhost:3000
+- Trip Service: http://localhost:8080
+- AI Planning Service: http://localhost:8000
+
+The `web-app` service receives both Trip Service URLs:
+
+- `NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080` for browser-facing
+  configuration.
+- `TRIP_SERVICE_INTERNAL_URL=http://trip-service:8080` for server-side Next.js
+  proxy calls inside Docker Compose.
+
+Run the API smoke test from the repository root:
+
+```bash
+./scripts/smoke-test.sh
+```
+
+Run the manual browser flow in [scripts/web-smoke-test.md](../scripts/web-smoke-test.md).
+
 ## Pull Ollama Models
 
 Run these once after Ollama is up:
@@ -117,6 +146,13 @@ Adminer local defaults:
 
 ## Troubleshooting
 
+- Browser CORS error: confirm `CORS_ALLOWED_ORIGINS=http://localhost:3000` is
+  present in `infra/.env`, then rebuild/restart `trip-service`. The Trip
+  Service only sets `Access-Control-Allow-Origin` for configured origins.
+- Web app cannot reach Trip Service from Docker: confirm
+  `TRIP_SERVICE_INTERNAL_URL=http://trip-service:8080` is set for `web-app`.
+- Browser points at the wrong Trip Service URL: confirm
+  `NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080` and rebuild the web app.
 - Ollama model not found: run the two `ollama pull` commands above or rerun
   `./scripts/dev-setup.sh`.
 - Ollama slow first response: the first local generation can take a while after

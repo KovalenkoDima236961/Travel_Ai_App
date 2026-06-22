@@ -134,6 +134,9 @@ Key environment variables:
 | `APP_ENV`            | `development`  | `development` or `production`.       |
 | `HTTP_ADDRESS`       | `:8080`        | HTTP listen address.                 |
 | `HTTP_WRITE_TIMEOUT` | `150s`         | Maximum duration for writing an HTTP response. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` in development | Comma-separated browser origins allowed to call the API. |
+| `CORS_ALLOWED_METHODS` | `GET,POST,PATCH,DELETE,OPTIONS` | Methods returned for CORS preflight responses. |
+| `CORS_ALLOWED_HEADERS` | `Content-Type,Authorization` | Headers returned for CORS preflight responses. |
 | `POSTGRES_HOST`      | —              | Database host.                       |
 | `POSTGRES_PORT`      | —              | Database port.                       |
 | `POSTGRES_DB`        | —              | Database name.                       |
@@ -180,6 +183,7 @@ docker run --rm -d --name trip-pg \
 
 # 2a. Run with env config and the local mock generator
 export APP_ENV=development HTTP_ADDRESS=":8080" \
+  CORS_ALLOWED_ORIGINS=http://localhost:3000 \
   POSTGRES_DB=trip_service POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres \
   POSTGRES_HOST=localhost POSTGRES_PORT=5432 \
   POSTGRES_MIN_CONNS=2 POSTGRES_MAX_CONNS=10 POSTGRES_MIG_PATH=./migrations \
@@ -218,6 +222,7 @@ make migrate-down    # roll back the last migration
 | Method | Path                    | Description                                  |
 | ------ | ----------------------- | -------------------------------------------- |
 | GET    | `/health`               | Liveness probe.                              |
+| GET    | `/ready`                | Readiness probe for PostgreSQL and AI service dependencies. |
 | POST   | `/trips`                | Create a trip (status `DRAFT`).              |
 | GET    | `/trips`                | List trips (paginated, newest first).        |
 | GET    | `/trips/{id}`           | Fetch a trip by UUID.                        |

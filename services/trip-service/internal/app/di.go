@@ -62,7 +62,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		time.Duration(cfg.ItineraryGenerator.AIPlanningTimeoutSeconds)*time.Second,
 		log,
 	)
-	router := httpserver.NewRouter(log, tripHandler, readinessHandler)
+	router := httpserver.NewRouter(log, tripHandler, readinessHandler, cfg.CORS)
 
 	return &container{
 		db:     db,
