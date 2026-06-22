@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -54,7 +55,14 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 	svc := service.New(repo, gen, log)
 	tripHandler := handler.New(svc, validator, log)
-	router := httpserver.NewRouter(log, tripHandler)
+	readinessHandler := httpserver.NewReadinessHandler(
+		db,
+		cfg.ItineraryGenerator.Mode,
+		cfg.ItineraryGenerator.AIPlanningServiceURL,
+		time.Duration(cfg.ItineraryGenerator.AIPlanningTimeoutSeconds)*time.Second,
+		log,
+	)
+	router := httpserver.NewRouter(log, tripHandler, readinessHandler)
 
 	return &container{
 		db:     db,

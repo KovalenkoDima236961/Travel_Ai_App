@@ -81,6 +81,7 @@ RAG_CHROMA_DIR=app/data/chroma
 RAG_COLLECTION_NAME=travel_knowledge
 RAG_TOP_K=5
 RAG_MIN_SCORE=0.0
+ANONYMIZED_TELEMETRY=false
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 OLLAMA_EMBEDDING_TIMEOUT_SECONDS=30
 ```
@@ -191,6 +192,7 @@ services:
       RAG_COLLECTION_NAME: travel_knowledge
       RAG_TOP_K: "5"
       RAG_MIN_SCORE: "0.0"
+      ANONYMIZED_TELEMETRY: "false"
       OLLAMA_EMBEDDING_MODEL: nomic-embed-text
       OLLAMA_EMBEDDING_TIMEOUT_SECONDS: "30"
     volumes:
@@ -339,6 +341,10 @@ context.
 
 RAG v1 is local-document retrieval only. It is not scraping, Reddit/X/blog ingestion, external
 travel APIs, or a cloud LLM integration.
+
+ChromaDB anonymized telemetry is disabled by default with
+`ANONYMIZED_TELEMETRY=false`, which avoids noisy PostHog telemetry errors during
+local startup and indexing.
 
 The service now has two knowledge layers:
 

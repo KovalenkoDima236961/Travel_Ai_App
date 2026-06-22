@@ -1,19 +1,23 @@
 services:
   postgres:
     image: postgres:16-alpine
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: trip_service
+      POSTGRES_DB: ${POSTGRES_DB:-trip_service}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
-      - trip_pgdata:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d trip_service"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - backend
 
   ollama:
     image: ollama/ollama:latest
@@ -21,37 +25,50 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
 
   ai-planning-service:
     build:
       context: ../services/ai-planning-service
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      HTTP_HOST: ${AI_HTTP_HOST:-0.0.0.0}
+      HTTP_PORT: ${AI_HTTP_PORT:-8000}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ITINERARY_GENERATOR_MODE: ${AI_ITINERARY_GENERATOR_MODE:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-90}
+      OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.2}
+      OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-2048}
+      OLLAMA_FALLBACK_TO_MOCK: ${OLLAMA_FALLBACK_TO_MOCK:-true}
+      OLLAMA_REPAIR_ENABLED: ${OLLAMA_REPAIR_ENABLED:-true}
+      OLLAMA_REPAIR_ATTEMPTS: ${OLLAMA_REPAIR_ATTEMPTS:-1}
+      LOG_LLM_PAYLOADS: ${LOG_LLM_PAYLOADS:-false}
+      DESTINATION_CONTEXT_ENABLED: ${DESTINATION_CONTEXT_ENABLED:-true}
+      DESTINATION_CONTEXT_DIR: ${DESTINATION_CONTEXT_DIR:-app/data/destinations}
+      RAG_ENABLED: ${RAG_ENABLED:-true}
+      RAG_KNOWLEDGE_DIR: ${RAG_KNOWLEDGE_DIR:-app/data/knowledge}
+      RAG_CHROMA_DIR: ${RAG_CHROMA_DIR:-app/data/chroma}
+      RAG_COLLECTION_NAME: ${RAG_COLLECTION_NAME:-travel_knowledge}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      RAG_MIN_SCORE: ${RAG_MIN_SCORE:-0.0}
+      ANONYMIZED_TELEMETRY: ${ANONYMIZED_TELEMETRY:-false}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      OLLAMA_EMBEDDING_TIMEOUT_SECONDS: ${OLLAMA_EMBEDDING_TIMEOUT_SECONDS:-60}
     depends_on:
       ollama:
-        condition: service_started
-    environment:
-      APP_ENV: development
-      HTTP_HOST: 0.0.0.0
-      HTTP_PORT: "8000"
-      LOG_LEVEL: INFO
-      ITINERARY_GENERATOR_MODE: ollama
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: llama3.1:8b
-      OLLAMA_TIMEOUT_SECONDS: "60"
-      OLLAMA_TEMPERATURE: "0.2"
-      OLLAMA_NUM_PREDICT: "2048"
-      OLLAMA_FALLBACK_TO_MOCK: "true"
-      RAG_ENABLED: "false"
-      RAG_KNOWLEDGE_DIR: app/data/knowledge
-      RAG_CHROMA_DIR: app/data/chroma
-      RAG_COLLECTION_NAME: travel_knowledge
-      RAG_TOP_K: "5"
-      RAG_MIN_SCORE: "0.0"
-      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
-      OLLAMA_EMBEDDING_TIMEOUT_SECONDS: "30"
-    volumes:
-      - ai-planning-chroma:/app/app/data/chroma
+        condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      - chroma-data:/app/app/data/chroma
     healthcheck:
       test:
         [
@@ -62,34 +79,65 @@ services:
         ]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
+    networks:
+      - backend
 
   trip-service:
     build:
       context: ../services/trip-service
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      HTTP_ADDRESS: ${TRIP_HTTP_ADDRESS:-:8080}
+      HTTP_WRITE_TIMEOUT: ${TRIP_HTTP_WRITE_TIMEOUT:-150s}
+      ITINERARY_GENERATOR_MODE: ${TRIP_ITINERARY_GENERATOR_MODE:-http}
+      AI_PLANNING_SERVICE_URL: ${AI_PLANNING_SERVICE_URL:-http://ai-planning-service:8000}
+      AI_PLANNING_TIMEOUT_SECONDS: ${AI_PLANNING_TIMEOUT_SECONDS:-120}
+      POSTGRES_DB: ${POSTGRES_DB:-trip_service}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_MIN_CONNS: ${POSTGRES_MIN_CONNS:-2}
+      POSTGRES_MAX_CONNS: ${POSTGRES_MAX_CONNS:-10}
+      POSTGRES_MIG_PATH: ${POSTGRES_MIG_PATH:-/app/migrations}
     depends_on:
       postgres:
         condition: service_healthy
       ai-planning-service:
         condition: service_healthy
-    environment:
-      APP_ENV: development
-      HTTP_ADDRESS: ":8080"
-      ITINERARY_GENERATOR_MODE: http
-      AI_PLANNING_SERVICE_URL: http://ai-planning-service:8000
-      AI_PLANNING_TIMEOUT_SECONDS: "10"
-      POSTGRES_DB: trip_service
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_MIN_CONNS: "2"
-      POSTGRES_MAX_CONNS: "10"
-      POSTGRES_MIG_PATH: /app/migrations
     ports:
       - "8080:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8080/health",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
+  adminer:
+    image: adminer:latest
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    networks:
+      - backend
+
+networks:
+  backend:
 
 volumes:
-  trip_pgdata:
+  postgres-data:
   ollama-data:
-  ai-planning-chroma:
+  chroma-data:

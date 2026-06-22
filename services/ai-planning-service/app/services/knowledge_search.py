@@ -4,6 +4,7 @@ from typing import Any, Protocol
 
 from app.config import Settings
 from app.schemas.knowledge import KnowledgeSearchResult
+from app.services.chroma_client import create_persistent_chroma_client
 from app.services.ollama_embedding_client import OllamaEmbeddingClient
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,14 @@ class KnowledgeSearchService:
             return None
 
         try:
-            import chromadb
+            client = create_persistent_chroma_client(
+                self._settings,
+                _resolve_service_path(self._settings.rag_chroma_dir),
+            )
+            self._collection = client.get_collection(
+                self._settings.rag_collection_name,
+                embedding_function=None,
+            )
         except ImportError:
             logger.warning(
                 "ChromaDB is not installed; continuing without RAG context",
@@ -109,12 +117,6 @@ class KnowledgeSearchService:
             )
             self._collection_lookup_failed = True
             return None
-
-        try:
-            client = chromadb.PersistentClient(
-                path=str(_resolve_service_path(self._settings.rag_chroma_dir))
-            )
-            self._collection = client.get_collection(self._settings.rag_collection_name)
         except Exception:
             logger.warning(
                 "RAG ChromaDB collection is missing; continuing without RAG context",

@@ -13,7 +13,11 @@ import (
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
-func NewRouter(log *zap.Logger, tripHandler *handler.Handler) http.Handler {
+func NewRouter(
+	log *zap.Logger,
+	tripHandler *handler.Handler,
+	readinessHandler http.Handler,
+) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -22,6 +26,9 @@ func NewRouter(log *zap.Logger, tripHandler *handler.Handler) http.Handler {
 	r.Use(requestLogger(log))
 
 	r.Get("/health", healthHandler)
+	if readinessHandler != nil {
+		r.Get("/ready", readinessHandler.ServeHTTP)
+	}
 
 	tripHandler.RegisterRoutes(r)
 

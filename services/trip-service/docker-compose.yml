@@ -34,9 +34,10 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDRESS: ":8080"
+      HTTP_WRITE_TIMEOUT: "150s"
       ITINERARY_GENERATOR_MODE: http
       AI_PLANNING_SERVICE_URL: http://ai-planning-service:8000
-      AI_PLANNING_TIMEOUT_SECONDS: "10"
+      AI_PLANNING_TIMEOUT_SECONDS: "120"
       POSTGRES_DB: trip_service
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

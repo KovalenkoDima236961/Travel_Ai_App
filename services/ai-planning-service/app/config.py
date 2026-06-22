@@ -27,6 +27,7 @@ class Settings(BaseModel):
     rag_collection_name: str = "travel_knowledge"
     rag_top_k: int = 5
     rag_min_score: float = Field(default=0.0, ge=0)
+    chroma_anonymized_telemetry: bool = False
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_embedding_timeout_seconds: float = Field(default=30, gt=0)
 
@@ -105,6 +106,7 @@ def get_settings() -> Settings:
         rag_collection_name=_env_string("RAG_COLLECTION_NAME", "travel_knowledge"),
         rag_top_k=_env_int("RAG_TOP_K", 5),
         rag_min_score=_env_float("RAG_MIN_SCORE", 0.0),
+        chroma_anonymized_telemetry=_env_bool("ANONYMIZED_TELEMETRY", False),
         ollama_embedding_model=_env_string("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"),
         ollama_embedding_timeout_seconds=_env_float("OLLAMA_EMBEDDING_TIMEOUT_SECONDS", 30),
     )

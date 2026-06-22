@@ -7,7 +7,7 @@ env: development # development | production
 http_server:
   address: ":8080"
   read_timeout: 15s
-  write_timeout: 30s
+  write_timeout: 150s
   idle_timeout: 60s
   shutdown_timeout: 15s
 
@@ -24,4 +24,4 @@ postgres:
 itinerary_generator:
   mode: mock # mock | http
   ai_planning_service_url: http://localhost:8000
-  ai_planning_timeout_seconds: 10
+  ai_planning_timeout_seconds: 120

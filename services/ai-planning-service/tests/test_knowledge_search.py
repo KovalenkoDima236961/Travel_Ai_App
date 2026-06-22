@@ -26,6 +26,16 @@ class FakeCollection:
         return self.result
 
 
+class FakeChromaClient:
+    def __init__(self, collection: FakeCollection) -> None:
+        self.collection = collection
+        self.get_collection_kwargs: dict[str, Any] = {}
+
+    def get_collection(self, *args: Any, **kwargs: Any) -> FakeCollection:
+        self.get_collection_kwargs = {"args": args, "kwargs": kwargs}
+        return self.collection
+
+
 def _settings(**overrides: Any) -> Settings:
     values = {
         "rag_enabled": True,
@@ -76,6 +86,28 @@ def test_returns_empty_list_when_collection_is_missing(monkeypatch) -> None:
     monkeypatch.setattr(service, "_get_collection", lambda: None)
 
     assert service.search("Rome", ["food"], None, 5) == []
+
+
+def test_get_collection_disables_chroma_default_embedding_function(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    collection = FakeCollection({"ids": [[]], "documents": [[]], "metadatas": [[]]})
+    client = FakeChromaClient(collection)
+    monkeypatch.setattr(
+        "app.services.knowledge_search.create_persistent_chroma_client",
+        lambda settings, chroma_dir: client,
+    )
+    service = KnowledgeSearchService(
+        settings=_settings(rag_chroma_dir=str(tmp_path)),
+        embedding_client=FakeEmbeddingClient(),
+    )
+
+    assert service._get_collection() is collection
+    assert client.get_collection_kwargs == {
+        "args": ("travel_knowledge",),
+        "kwargs": {"embedding_function": None},
+    }
 
 
 def test_filters_by_destination_metadata_and_maps_results() -> None:

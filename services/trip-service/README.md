@@ -133,6 +133,7 @@ Key environment variables:
 | -------------------- | -------------- | ------------------------------------ |
 | `APP_ENV`            | `development`  | `development` or `production`.       |
 | `HTTP_ADDRESS`       | `:8080`        | HTTP listen address.                 |
+| `HTTP_WRITE_TIMEOUT` | `150s`         | Maximum duration for writing an HTTP response. |
 | `POSTGRES_HOST`      | —              | Database host.                       |
 | `POSTGRES_PORT`      | —              | Database port.                       |
 | `POSTGRES_DB`        | —              | Database name.                       |
@@ -143,7 +144,7 @@ Key environment variables:
 | `POSTGRES_MIG_PATH`  | —              | Path to the `migrations/` directory. |
 | `ITINERARY_GENERATOR_MODE` | `mock` | `mock` for local generation, `http` for AI Planning Service. |
 | `AI_PLANNING_SERVICE_URL` | `http://ai-planning-service:8000` | Base URL used when generator mode is `http`. |
-| `AI_PLANNING_TIMEOUT_SECONDS` | `10` | HTTP client timeout for AI Planning Service calls. |
+| `AI_PLANNING_TIMEOUT_SECONDS` | `120` | HTTP client timeout for AI Planning Service calls. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -190,7 +191,8 @@ go run ./cmd/server
 #   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 export ITINERARY_GENERATOR_MODE=http \
   AI_PLANNING_SERVICE_URL=http://localhost:8000 \
-  AI_PLANNING_TIMEOUT_SECONDS=10
+  AI_PLANNING_TIMEOUT_SECONDS=120 \
+  HTTP_WRITE_TIMEOUT=150s
 go run ./cmd/server
 
 # 2c. …or run with a YAML config file
@@ -239,6 +241,12 @@ timeout, decodes the AI Planning Service response into typed `Itinerary` /
 `ItineraryDay` / `ItineraryItem` structs, and returns an error for non-2xx,
 invalid JSON, request failures, or empty `days`. Generated plans are stored as
 JSONB by the service layer.
+
+When the AI Planning Service runs in Ollama mode with fallback enabled, set
+`AI_PLANNING_TIMEOUT_SECONDS` higher than the AI service's
+`OLLAMA_TIMEOUT_SECONDS`, and keep `HTTP_WRITE_TIMEOUT` higher than
+`AI_PLANNING_TIMEOUT_SECONDS`. Otherwise the trip-service can time out before
+the AI service returns its fallback itinerary.
 
 Errors use a uniform envelope; validation failures add a `fields` map:
 

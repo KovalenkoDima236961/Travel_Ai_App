@@ -28,6 +28,16 @@ def test_health_endpoint_returns_ok() -> None:
     assert response.json() == {"status": "ok", "service": "ai-planning-service"}
 
 
+def test_ready_endpoint_returns_ready_in_mock_mode() -> None:
+    test_app = create_app()
+    test_client = TestClient(test_app)
+
+    response = test_client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "checks": {"app": "ok"}}
+
+
 def test_generate_itinerary_success() -> None:
     response = client.post("/generate-itinerary", json=VALID_PAYLOAD)
 

@@ -1,8 +1,18 @@
-from fastapi import APIRouter, Depends, Request
+import logging
+import time
+from pathlib import Path
 
+import httpx
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
+
+from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
 from app.services.itinerary_generator import ItineraryGenerator
+from app.services.chroma_client import create_persistent_chroma_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -16,6 +26,52 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai-planning-service"}
 
 
+@router.get("/ready")
+def ready(request: Request) -> JSONResponse:
+    started_at = time.monotonic()
+    settings: Settings = request.app.state.settings
+    checks: dict[str, str] = {"app": "ok"}
+    is_ready = True
+
+    if settings.itinerary_generator_mode.strip().lower() == "ollama":
+        ollama_error = _check_ollama(settings)
+        if ollama_error is None:
+            checks["ollama"] = "ok"
+        else:
+            checks["ollama"] = "failed"
+            is_ready = False
+            logger.warning(
+                "Ollama readiness check failed",
+                extra={"ollama_base_url": settings.ollama_base_url},
+                exc_info=ollama_error,
+            )
+
+    if settings.rag_enabled:
+        chroma_error = _check_chroma(settings)
+        if chroma_error is None:
+            checks["chroma"] = "ok"
+        else:
+            checks["chroma"] = "failed"
+            is_ready = False
+            logger.warning(
+                "ChromaDB readiness check failed",
+                extra={"rag_chroma_dir": settings.rag_chroma_dir},
+                exc_info=chroma_error,
+            )
+
+    status = "ready" if is_ready else "not_ready"
+    status_code = 200 if is_ready else 503
+    logger.info(
+        "Readiness check completed",
+        extra={
+            "status": status,
+            "checks": checks,
+            "duration_ms": int((time.monotonic() - started_at) * 1000),
+        },
+    )
+    return JSONResponse(status_code=status_code, content={"status": status, "checks": checks})
+
+
 @router.post("/generate-itinerary", response_model=ItineraryResponse)
 def generate_itinerary(
     request: GenerateItineraryRequest,
@@ -27,3 +83,39 @@ def generate_itinerary(
         raise
     except Exception as exc:
         raise ItineraryGenerationError("Failed to generate itinerary") from exc
+
+
+def _check_ollama(settings: Settings) -> BaseException | None:
+    endpoint = f"{settings.ollama_base_url.rstrip('/')}/api/tags"
+    timeout = min(settings.ollama_timeout_seconds, 5)
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(endpoint)
+            response.raise_for_status()
+    except Exception as exc:
+        return exc
+    return None
+
+
+def _check_chroma(settings: Settings) -> BaseException | None:
+    try:
+        chroma_dir = _resolve_service_path(settings.rag_chroma_dir)
+        chroma_dir.mkdir(parents=True, exist_ok=True)
+
+        create_persistent_chroma_client(settings, chroma_dir)
+    except Exception as exc:
+        return exc
+    return None
+
+
+def _resolve_service_path(raw_path: str) -> Path:
+    path = Path(raw_path)
+    if path.is_absolute():
+        return path
+
+    cwd_path = Path.cwd() / path
+    if cwd_path.exists():
+        return cwd_path
+
+    service_root = Path(__file__).resolve().parents[2]
+    return service_root / path
