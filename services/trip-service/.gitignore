@@ -1,0 +1,10 @@
+# Binaries
+/bin/
+/out/
+trip-service
+
+# Local env
+.env
+
+# OS / editor
+.DS_Store

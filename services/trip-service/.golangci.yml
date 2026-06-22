@@ -1,0 +1,498 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  allow-parallel-runners: true
+
+output:
+  formats:
+    format: colored-line-number
+  show-stats: true
+
+formatters:
+  enable:
+    - gci # for imports
+    - gofmt # standard Go formatting + simplify + rewrite rules
+    - goimports # import grouping: stdlib / external / internal
+    - gofumpt # stricter gofmt superset (empty lines, grouping)
+    - golines # formats too long lines
+    - swaggo # swagger formating comments
+
+  settings:
+    golines:
+      max-len: 150
+      tab-len: 4
+      shorten-comments: true
+      reformat-tags: false
+      chain-split-dots: false
+
+    gci:
+      sections:
+        - standard # Standard section: captures all standard packages.
+        - default # Default section: contains all imports that could not be matched to another section type.
+        - prefix(github.com/dcmedical/rigel-v2) # Custom section: groups all imports with the specified Prefix.
+        - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
+        - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
+        - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
+        - localmodule # Local module section: contains all local packages. This section is not present unless explicitly enabled.
+      no-inline-comments: true
+      no-prefix-comments: true
+      custom-order: true
+      no-lex-order: true
+
+    gofumpt:
+      module-path: github.com/dcmedical/rigel-v2
+      extra-rules: true
+
+    gofmt:
+      simplify: true
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
+
+    goimports:
+      local-prefixes: "github.com/dcmedical/rigel-v2"
+
+  exclusions:
+    generated: strict
+    paths:
+      - ".*\\.pb\\.go$"
+      - ".*\\.pb\\.gw\\.go$"
+      - ".*\\.gen\\.go$"
+      - ".*_generated\\.go$"
+      - "mock_.*\\.go$"
+
+linters:
+  default: none
+
+  enable:
+    - errcheck # unchecked errors
+    - govet # suspicious constructs (shadow, printf, etc.)
+    - ineffassign # assignments never used
+    - staticcheck # mega-suite: bugs, perf, style
+    - unused # unused vars, funcs, types, consts
+    - copyloopvar # loop variables copied unnecessarily (Go 1.22+)
+    - nilerr # return nil, nil — likely logic error
+    - nilnil # returning two nils — confusing contract
+    - nilnesserr # incorrect nil error checks
+    - forcetypeassert # x.(T) without ok guard
+    - makezero # slice make with non-zero length then append
+    - durationcheck # two durations multiplied together
+    - wastedassign # assignments whose result is immediately overwritten
+    - reassign # package-level var reassigned in another pkg
+    - recvcheck # inconsistent value/pointer receivers on same type
+    - dupword # duplicate words in comments/strings
+    - bidichk # dangerous Unicode bidi sequences
+    - fatcontext # context.Context grown in loops / goroutines
+    - intrange # for i := 0; i < n; i++ -> for i := range n
+    - exptostd # golang.org/x/exp -> std equivalents
+    - unqueryvet # misuse of database/sql query functions
+    - embeddedstructfieldcheck # embedded fields must be at top + blank line
+    - errorlint # wrong error wrapping (missing %w, etc.)
+#    - wrapcheck # errors from external pkgs must be wrapped
+    - errname # sentinel errors prefixed Err*, types suffixed *Error
+    - err113 # errors.New / fmt.Errorf anti-patterns
+    - errchkjson # JSON marshal/unmarshal error checks
+    - whitespace # leading/trailing blank lines in blocks
+    - wsl_v5 # enforces empty lines around blocks (v5)
+    - nolintlint # //nolint directives must have reason + be specific
+    - godot # comments should end with a period
+    - nonamedreturns # ban naked returns in non-trivial functions
+    - usestdlibvars # http.MethodGet vs "GET", http.StatusOK vs 200, etc.
+    - mirror # use bytes.* instead of strings.* for []byte args
+    - perfsprint # replace fmt.Sprint* with faster alternatives
+    - tagalign # align struct field tags
+    - goprintffuncname # printf-like functions must end with 'f'
+    - nlreturn # blank line before return/break/continue/goto
+    - canonicalheader # net/http.Header must use canonical form
+    - cyclop # cyclomatic complexity per function
+    - funlen # function length (lines + statements)
+    - gocognit # cognitive complexity (human readability)
+    - nestif # deeply nested if-chains
+    - maintidx # maintainability index
+    - gochecknoglobals # no package-level variables
+    - gochecknoinits # no init() functions
+    - interfacebloat # interfaces with too many methods
+    - inamedparam # unnamed interface method parameters
+    - lll # line length limit
+    - mnd # magic numbers (replaces gomnd)
+    - goconst # repeated string literals should be constants
+#    - varnamelen # too-short variable names
+    - decorder # type/const/var/func declaration order
+    - funcorder # constructor and method ordering inside a type
+    - dogsled # too many blank identifiers in assignments
+    - gosec # common security issues (G101-G706)
+    - nosprintfhostport # use net.JoinHostPort instead of Sprintf
+    - prealloc # slice pre-allocation hints
+    - bodyclose # HTTP response body must be closed
+    - noctx # HTTP requests without context.Context
+    - zerologlint # zerolog chains missing .Send() or .Msg()
+    - sloglint # slog misuse: odd args, non-string keys, etc.
+    - loggercheck # kitlog/klog/logr/slog/zap key-value pair checks
+    - depguard # ban/allow specific packages
+    - gomodguard # module-level allow/block list
+    - importas # enforce consistent import aliases
+    - forbidigo # forbid specific identifiers/functions
+    - gomoddirectives # validate replace/retract/exclude directives
+    - godox # TODO/FIXME/HACK comment tracker
+    - nakedret # naked returns in long functions
+    - unconvert # unnecessary type conversions
+    - unparam # params always called with the same value
+#    - revive # fast, configurable golint replacement
+    - ireturn # prefer returning concrete types over interfaces
+    - musttag # struct fields used with encoding must have tags
+    - tagliatelle # struct tag naming conventions
+    - godoclint # godoc formatting and conventions
+    - iotamixing # iota mixed with non-iota in const block
+    - rowserrcheck # rows.Err() must be checked after iteration
+    - sqlclosecheck # sql.Rows and sql.Stmt must be closed
+    - contextcheck # non-inherited context passed to functions
+    - containedctx # context.Context stored inside a struct field
+    - thelper # t.Helper() missing in test helper functions
+    - testifylint # correct testify assertion usage
+    - tparallel # t.Parallel() missing in subtests
+    - paralleltest # table-driven tests should call t.Parallel()
+    - usetesting # use testing.T helpers vs os/ioutil equivalents
+    - testpackage # tests should be in separate _test package
+    - testableexamples # example functions must be testable
+    - exhaustive # enum switch exhaustiveness
+    - gochecksumtype # sum-type (sealed interface) switch exhaustiveness
+    - exhaustruct # all struct fields must be initialized explicitly
+    - asciicheck # identifiers must be ASCII only
+    - gocheckcompilerdirectives # valid //go: compiler directives
+    - gocritic # extensible diagnostic + style + perf checks
+    - predeclared # shadowing of built-ins (len, cap, make, etc.)
+    - spancheck # OpenTelemetry span: end(), record error, set status
+    - promlinter # Prometheus metric naming conventions
+    - protogetter # use proto getters instead of direct field access
+    - iface # interface pollution: identical, unused, opaque
+#    - noinlineerr # disallow inline if-err-return patterns
+    - grouper # enforce grouped const/var/type/import declarations
+    - dupl # duplicate code fragments
+    - gosmopolitan # i18n/l10n anti-patterns
+    - gocheckcompilerdirectives
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    govet:
+      enable:
+        - shadow
+        - printf
+        - structtag
+        - nilness
+        - unusedresult
+        - unusedwrite
+        - waitgroup
+
+    cyclop:
+      max-complexity: 12
+      skip-tests: false
+
+    funlen:
+      lines: 80
+      statements: 50
+      ignore-comments: true
+
+    gocognit:
+      min-complexity: 20
+
+    nestif:
+      min-complexity: 5
+
+    lll:
+      line-length: 130
+      tab-width: 4
+
+    mnd:
+      checks:
+        - argument
+        - case
+        - condition
+        - operation
+        - return
+        - assign
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+        - "10"
+        - "100"
+      ignored-functions:
+        - '^math\.'
+        - '^http\.StatusText$'
+        - '^time\.'
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      ignore-calls: true
+
+    gosec:
+      excludes:
+        - G104 # already covered by errcheck
+      severity: medium
+      confidence: medium
+      config:
+        G306: "0644"
+
+    wrapcheck:
+      ignorePackageGlobs:
+        - "github.com/dcmedical/rigel-v2/*" # internal packages — errors already contain context
+
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "github.com/pkg/errors"
+              desc: "use standard errors + fmt.Errorf with %w"
+            - pkg: "io/ioutil"
+              desc: "deprecated since Go 1.16 — use io and os packages"
+            - pkg: "math/rand$"
+              desc: "use math/rand/v2 (Go 1.22+)"
+
+    revive:
+      severity: warning
+      rules:
+        - name: exported
+          arguments: ["checkPrivateReceivers", "sayRepetitiveInsteadOfStutters"]
+        - name: unused-parameter
+        - name: context-as-argument
+        - name: error-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: receiver-naming
+        - name: if-return
+        - name: redefines-builtin-id
+
+    godot:
+      scope: declarations
+      capital: false
+
+    nakedret:
+      max-func-lines: 25
+
+    maintidx:
+      under: 20
+
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+
+    varnamelen:
+      max-distance: 5
+      min-name-length: 3
+      check-receiver: true
+      check-return: true
+      ignore-names:
+        - err
+        - ok
+        - id
+        - i
+        - j
+        - k
+        - n
+        - wg
+        - mu
+        - tx
+        - db
+        - r
+        - w
+        - t
+      ignore-type-assert-ok: true
+      ignore-map-index-ok: true
+      ignore-chan-recv-ok: true
+      ignore-decls:
+        - t testing.T
+        - b testing.B
+        - f *os.File
+
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - (or|er)$ # Reader, Writer, Closer, etc.
+
+    interfacebloat:
+      max: 8
+
+    sloglint:
+      no-mixed-args: true
+      static-msg: true
+      key-naming-case: snake
+      forbidden-keys:
+        - time
+        - level
+        - msg
+
+    loggercheck:
+      require-string-key: true
+      no-printf-like: true
+
+    testifylint:
+      enable-all: true
+
+    tagliatelle:
+      case:
+        use-field-name: false
+        rules:
+          json: snake
+          yaml: snake
+          xml: camel
+          bson: camel
+          mapstructure: kebab
+
+    tagalign:
+      align: true
+      sort: true
+      order:
+        - json
+        - yaml
+        - xml
+        - bson
+        - validate
+        - mapstructure
+
+    exhaustive:
+      check:
+        - switch
+        - map
+      default-signifies-exhaustive: true
+
+    exhaustruct:
+      exclude:
+        - '.+/cobra\.Command$'
+        - '.*/http\.Server$'
+        - '.*/tls\.Config$'
+        - '.*/zap\.Config$'
+
+    gomodguard:
+      blocked:
+        modules:
+          - github.com/uudashr/go-module:
+              recommendations:
+                - golang.org/x/mod
+              reason: "use the official go.mod parser"
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentedOutCode # noisy during active development
+        - hugeParam # covered by govet/other checks
+
+    forbidigo:
+      forbid:
+        - pattern: ^fmt\.Print.*$
+          msg: "Do not commit debug print statements"
+        - pattern: ^print(ln)?$
+          msg: "Use a structured logger instead"
+        - pattern: ^spew\.Dump$
+          msg: "Do not commit spew.Dump calls"
+      exclude-godoc-examples: true
+
+    nolintlint:
+      require-explanation: true # //nolint:linter // reason is mandatory
+      require-specific: true # bare //nolint is banned
+      allow-unused: false
+
+    spancheck:
+      checks:
+        - end
+        - record-error
+        - set-status
+
+    iface:
+      enable:
+        - identical
+        - unused
+        - opaque
+
+    wsl_v5:
+      enforce-return-stmt: true
+
+    misspell:
+      locale: US
+
+    godoclint:
+      default: basic
+      enable:
+        - start-with-name
+        - require-doc
+        - deprecated
+
+  exclusions:
+    generated: lax
+    warn-unused: true
+
+    # Predefined preset bundles — pick what fits
+    presets:
+      - common-false-positives # well-known noisy false positives
+      - std-error-handling # idiomatic stdlib error patterns
+
+    rules:
+      # Test files: relax complexity, style, and security rules
+      - path: "_test\\.go"
+        linters:
+          - funlen
+          - cyclop
+          - gocognit
+          - wrapcheck
+          - gosec
+          - mnd
+          - goconst
+          - varnamelen
+          - ireturn
+          - gochecknoglobals
+          - gocritic
+          - lll
+          - err113
+          - exhaustruct
+          - testpackage # _test.go in same package is fine for white-box tests
+          - godoclint # test helpers and mock stubs don't need godoc
+          - noinlineerr # inline err patterns are idiomatic in test table loops
+
+      # cmd/ wiring is naturally long and uses init() for flag binding
+      - path: "cmd/.*\\.go$"
+        linters:
+          - funlen
+          - wrapcheck
+          - gochecknoinits
+
+      # Allow TODO/FIXME — remove before strict production enforcement
+      - linters:
+          - godox
+        text: "TODO|FIXME"
+
+      # Idiomatic deferred close/flush — not worth checking
+      - linters:
+          - errcheck
+        text: "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
+
+      # go:generate lines are intentionally long
+      - linters:
+          - lll
+        source: "^//go:generate "
+
+    # Generated and vendored paths — skip issue reporting entirely
+    paths:
+      - vendor
+      - third_party
+      - testdata
+      - scripts
+      - tools
+      - ".*\\.pb\\.go$"
+      - ".*\\.pb\\.gw\\.go$"
+      - ".*\\.gen\\.go$"
+      - ".*_generated\\.go$"
+      - "mock_.*\\.go$"

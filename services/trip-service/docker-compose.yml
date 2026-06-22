@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: trip_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trip_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  trip-service:
+    build:
+      context: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # The service applies migrations itself on startup (golang-migrate),
+    # so no separate migrate step is needed.
+    environment:
+      APP_ENV: development
+      HTTP_ADDRESS: ":8080"
+      POSTGRES_DB: trip_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_MIN_CONNS: "2"
+      POSTGRES_MAX_CONNS: "10"
+      POSTGRES_MIG_PATH: /app/migrations
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
