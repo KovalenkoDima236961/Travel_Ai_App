@@ -2,6 +2,7 @@
 set -euo pipefail
 
 TRIP_SERVICE_URL="${TRIP_SERVICE_URL:-http://localhost:8080}"
+AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8082}"
 AI_PLANNING_SERVICE_URL="${AI_PLANNING_SERVICE_URL:-http://localhost:8000}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
 
@@ -53,6 +54,44 @@ request() {
   rm -f "${response_file}"
 }
 
+request_with_bearer() {
+  local method="$1"
+  local url="$2"
+  local token="$3"
+  local body="${4:-}"
+  local response_file
+  response_file="$(mktemp)"
+
+  if [[ -n "${body}" ]]; then
+    if ! LAST_STATUS="$(
+      curl -sS -o "${response_file}" -w "%{http_code}" \
+        -X "${method}" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${token}" \
+        --data "${body}" \
+        "${url}"
+    )"; then
+      LAST_BODY="$(cat "${response_file}")"
+      rm -f "${response_file}"
+      return 1
+    fi
+  else
+    if ! LAST_STATUS="$(
+      curl -sS -o "${response_file}" -w "%{http_code}" \
+        -X "${method}" \
+        -H "Authorization: Bearer ${token}" \
+        "${url}"
+    )"; then
+      LAST_BODY="$(cat "${response_file}")"
+      rm -f "${response_file}"
+      return 1
+    fi
+  fi
+
+  LAST_BODY="$(cat "${response_file}")"
+  rm -f "${response_file}"
+}
+
 assert_2xx() {
   local label="$1"
   if [[ ! "${LAST_STATUS}" =~ ^2 ]]; then
@@ -69,6 +108,52 @@ assert_2xx "Trip Service health check"
 echo "Checking AI Planning Service health..."
 request GET "${AI_PLANNING_SERVICE_URL}/health"
 assert_2xx "AI Planning Service health check"
+
+echo "Checking optional Auth Service smoke flow..."
+if request GET "${AUTH_SERVICE_URL}/health" && [[ "${LAST_STATUS}" =~ ^2 ]]; then
+  AUTH_EMAIL="smoke+$(date +%s)-$$@example.com"
+  AUTH_PASSWORD="StrongPassword123!"
+  AUTH_REGISTER_PAYLOAD="$(jq -nc --arg email "${AUTH_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
+
+  request POST "${AUTH_SERVICE_URL}/auth/register" "${AUTH_REGISTER_PAYLOAD}"
+  assert_2xx "Auth register"
+
+  AUTH_ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
+  AUTH_REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
+  if [[ -z "${AUTH_ACCESS_TOKEN}" || -z "${AUTH_REFRESH_TOKEN}" ]]; then
+    echo "Auth register response did not include both tokens." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  request POST "${AUTH_SERVICE_URL}/auth/login" "${AUTH_REGISTER_PAYLOAD}"
+  assert_2xx "Auth login"
+
+  AUTH_ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
+  AUTH_REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
+
+  request_with_bearer GET "${AUTH_SERVICE_URL}/auth/me" "${AUTH_ACCESS_TOKEN}"
+  assert_2xx "Auth me"
+
+  AUTH_ME_EMAIL="$(jq -r '.email // empty' <<<"${LAST_BODY}")"
+  if [[ "${AUTH_ME_EMAIL}" != "${AUTH_EMAIL}" ]]; then
+    echo "Expected /auth/me email ${AUTH_EMAIL}, got ${AUTH_ME_EMAIL}." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  AUTH_REFRESH_PAYLOAD="$(jq -nc --arg refreshToken "${AUTH_REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
+  request POST "${AUTH_SERVICE_URL}/auth/refresh" "${AUTH_REFRESH_PAYLOAD}"
+  assert_2xx "Auth refresh"
+
+  AUTH_REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
+  AUTH_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${AUTH_REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
+  request POST "${AUTH_SERVICE_URL}/auth/logout" "${AUTH_LOGOUT_PAYLOAD}"
+  assert_2xx "Auth logout"
+  echo "Auth Service smoke flow passed for ${AUTH_EMAIL}."
+else
+  echo "Auth Service is not reachable; skipping auth smoke flow."
+fi
 
 echo "Web App URL: ${WEB_APP_URL}"
 if request GET "${WEB_APP_URL}"; then

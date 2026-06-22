@@ -29,7 +29,8 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
 The web app is included in this stack and waits for Trip Service to become
-healthy before starting.
+healthy before starting. Auth Service also runs in the stack at
+`http://localhost:8082`.
 
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right
@@ -40,7 +41,10 @@ docker compose -f infra/docker-compose.yml up --build
 ```
 
 Trip Service applies PostgreSQL migrations automatically on startup, so there is
-no separate migration container in this stack.
+no separate migration container in this stack. Auth Service does the same for
+its own `auth_service` database. The Postgres init script in
+`infra/postgres/init` creates `auth_service` when the database volume is first
+initialized.
 
 ## Running The Web App
 
@@ -54,6 +58,7 @@ Useful local URLs:
 
 - Web App: http://localhost:3000
 - Trip Service: http://localhost:8080
+- Auth Service: http://localhost:8082
 - AI Planning Service: http://localhost:8000
 
 The `web-app` service receives both Trip Service URLs:
@@ -62,6 +67,9 @@ The `web-app` service receives both Trip Service URLs:
   configuration.
 - `TRIP_SERVICE_INTERNAL_URL=http://trip-service:8080` for server-side Next.js
   proxy calls inside Docker Compose.
+
+Auth Service is exposed directly at `http://localhost:8082` for API testing.
+The web app is not wired to Auth Service yet.
 
 Run the API smoke test from the repository root:
 
@@ -109,10 +117,11 @@ With the stack running:
 ./scripts/smoke-test.sh
 ```
 
-The smoke test checks both health endpoints, optionally probes destination
-context and RAG search, confirms the web app responds, creates a Rome trip,
-generates its itinerary through the AI Planning Service, fetches the trip, and
-verifies `status=COMPLETED` with at least one itinerary day.
+The smoke test checks Trip Service and AI Planning Service health, optionally
+tests Auth Service if it is running, optionally probes destination context and
+RAG search, confirms the web app responds, creates a Rome trip, generates its
+itinerary through the AI Planning Service, fetches the trip, and verifies
+`status=COMPLETED` with at least one itinerary day.
 
 The trip-service timeout must be longer than the AI service's Ollama timeout so
 `OLLAMA_FALLBACK_TO_MOCK=true` has time to return a fallback itinerary. The
@@ -123,6 +132,7 @@ URLs can be overridden:
 
 ```bash
 TRIP_SERVICE_URL=http://localhost:8080 \
+AUTH_SERVICE_URL=http://localhost:8082 \
 AI_PLANNING_SERVICE_URL=http://localhost:8000 \
 WEB_APP_URL=http://localhost:3000 \
 ./scripts/smoke-test.sh
@@ -132,6 +142,7 @@ WEB_APP_URL=http://localhost:3000 \
 
 - Web App: http://localhost:3000
 - Trip Service: http://localhost:8080
+- Auth Service: http://localhost:8082
 - AI Planning Service: http://localhost:8000
 - Ollama: http://localhost:11434
 - Adminer: http://localhost:8081
@@ -143,6 +154,9 @@ Adminer local defaults:
 - Username: `postgres`
 - Password: `postgres`
 - Database: `trip_service`
+
+Use database `auth_service` in Adminer to inspect Auth Service users and
+refresh tokens.
 
 ## Troubleshooting
 
@@ -164,6 +178,10 @@ Adminer local defaults:
 - Migrations not run: Trip Service runs migrations during startup. Check
   `docker compose -f infra/docker-compose.yml logs trip-service` for migration
   or database connection errors.
+- Auth database missing: the init script only runs when the Postgres volume is
+  first created. For an existing local volume, create `auth_service` manually in
+  Adminer or recreate the stack with `docker compose -f infra/docker-compose.yml
+  down -v`.
 - AI service falls back to mock: this is expected when
   `OLLAMA_FALLBACK_TO_MOCK=true` and Ollama generation fails. Check
   `docker compose -f infra/docker-compose.yml logs ai-planning-service`.

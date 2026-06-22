@@ -1,7 +1,10 @@
 # Travel AI App
 
-AI travel planning project with Go Trip Service, Python/FastAPI AI Planning
-Service, and a Next.js web app.
+AI travel planning project with Go Trip Service, Go Auth Service, Python/FastAPI
+AI Planning Service, and a Next.js web app.
+
+Auth Service v1 lives in `services/auth-service` and supports email/password
+registration, login, refresh token rotation, logout, and JWT-backed `/auth/me`.
 
 Web App v1 lives in `apps/web`. The local full stack runs from
 `infra/docker-compose.yml`, and the browser URL is `http://localhost:3000`.

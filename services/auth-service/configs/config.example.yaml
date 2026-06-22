@@ -1,0 +1,32 @@
+# Example configuration for the Auth Service.
+# Copy to configs/config.yaml and pass via: ./server -config ./configs/config.yaml
+# Any value can also be overridden by the matching environment variable.
+
+env: development # development | production
+
+http_server:
+  address: ":8082"
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 15s
+
+cors:
+  allowed_origins: http://localhost:3000
+  allowed_methods: GET,POST,OPTIONS
+  allowed_headers: Content-Type,Authorization
+
+postgres:
+  database: auth_service
+  username: postgres
+  password: postgres
+  host: localhost
+  port: 5432
+  min-conns: 2
+  max-conns: 10
+  mig-path: ./migrations
+
+jwt:
+  access_secret: "change-me-in-development"
+  access_token_ttl_minutes: 15
+  refresh_token_ttl_days: 30
