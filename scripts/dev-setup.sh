@@ -58,5 +58,5 @@ case "${RAG_ENABLED_NORMALIZED}" in
     ;;
 esac
 
-echo "Starting full backend stack..."
+echo "Starting full application stack..."
 "${COMPOSE[@]}" up

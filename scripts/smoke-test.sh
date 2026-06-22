@@ -3,6 +3,7 @@ set -euo pipefail
 
 TRIP_SERVICE_URL="${TRIP_SERVICE_URL:-http://localhost:8080}"
 AI_PLANNING_SERVICE_URL="${AI_PLANNING_SERVICE_URL:-http://localhost:8000}"
+WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required to run the smoke test." >&2
@@ -68,6 +69,10 @@ assert_2xx "Trip Service health check"
 echo "Checking AI Planning Service health..."
 request GET "${AI_PLANNING_SERVICE_URL}/health"
 assert_2xx "AI Planning Service health check"
+
+echo "Checking Web App..."
+request GET "${WEB_APP_URL}"
+assert_2xx "Web App check"
 
 echo "Checking AI Planning Service destination context endpoint..."
 if request GET "${AI_PLANNING_SERVICE_URL}/destination-context"; then

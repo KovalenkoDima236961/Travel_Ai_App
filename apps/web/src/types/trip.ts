@@ -1,0 +1,62 @@
+export type TripStatus = "DRAFT" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+export type Pace = "relaxed" | "balanced" | "packed" | "intensive" | string;
+
+export type ItineraryItem = {
+  time: string;
+  type: "place" | "food" | "activity" | "transport" | "rest" | string;
+  name: string;
+  note?: string | null;
+  estimatedCost?: number | null;
+};
+
+export type ItineraryDay = {
+  day: number;
+  title: string;
+  items: ItineraryItem[];
+};
+
+export type Itinerary = {
+  destination?: string;
+  summary?: string;
+  travelers?: number;
+  pace?: string;
+  currency?: string;
+  totalBudget?: number | null;
+  generatedAt?: string;
+  source?: string;
+  days: ItineraryDay[];
+};
+
+export type Trip = {
+  id: string;
+  destination: string;
+  startDate?: string | null;
+  days: number;
+  budgetAmount?: number | null;
+  budgetCurrency: string;
+  travelers: number;
+  interests: string[];
+  pace: Pace;
+  status: TripStatus;
+  itinerary?: Itinerary | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TripsListResponse = {
+  items: Trip[];
+  limit: number;
+  offset: number;
+};
+
+export type CreateTripInput = {
+  destination: string;
+  startDate?: string;
+  days: number;
+  budgetAmount?: number;
+  budgetCurrency: string;
+  travelers: number;
+  interests: string[];
+  pace: "relaxed" | "balanced" | "packed";
+};

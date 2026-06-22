@@ -1,6 +1,6 @@
 # Local Infrastructure
 
-This folder contains the local Docker Compose stack for the backend services.
+This folder contains the local Docker Compose stack for the full application.
 The main compose file is `infra/docker-compose.yml`.
 
 ## Prerequisites
@@ -25,14 +25,18 @@ names each service actually reads. `TRIP_ITINERARY_GENERATOR_MODE` and
 ## Start The Stack
 
 ```bash
-docker compose -f infra/docker-compose.yml up --build
+docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
-The helper scripts pass `--env-file infra/.env` explicitly. If your direct
-Docker Compose command does not pick up custom values from `infra/.env`, run:
+The web app is included in this stack and waits for Trip Service to become
+healthy before starting.
+
+The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
+use the shorter command below, confirm Docker Compose is picking up the right
+environment values:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
+docker compose -f infra/docker-compose.yml up --build
 ```
 
 Trip Service applies PostgreSQL migrations automatically on startup, so there is
@@ -77,9 +81,9 @@ With the stack running:
 ```
 
 The smoke test checks both health endpoints, optionally probes destination
-context and RAG search, creates a Rome trip, generates its itinerary through the
-AI Planning Service, fetches the trip, and verifies `status=COMPLETED` with at
-least one itinerary day.
+context and RAG search, confirms the web app responds, creates a Rome trip,
+generates its itinerary through the AI Planning Service, fetches the trip, and
+verifies `status=COMPLETED` with at least one itinerary day.
 
 The trip-service timeout must be longer than the AI service's Ollama timeout so
 `OLLAMA_FALLBACK_TO_MOCK=true` has time to return a fallback itinerary. The
@@ -91,11 +95,13 @@ URLs can be overridden:
 ```bash
 TRIP_SERVICE_URL=http://localhost:8080 \
 AI_PLANNING_SERVICE_URL=http://localhost:8000 \
+WEB_APP_URL=http://localhost:3000 \
 ./scripts/smoke-test.sh
 ```
 
 ## Useful URLs
 
+- Web App: http://localhost:3000
 - Trip Service: http://localhost:8080
 - AI Planning Service: http://localhost:8000
 - Ollama: http://localhost:11434
