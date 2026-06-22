@@ -7,9 +7,12 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/trip"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
+	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
@@ -23,8 +26,9 @@ type container struct {
 }
 
 // buildContainer constructs and wires all dependencies in order:
-// postgres (with auto-migrations) -> validator -> repository -> service ->
-// handler -> router. Long-lived resources register themselves with the closer.
+// postgres (with auto-migrations) -> validator -> repository -> generator ->
+// service -> handler -> router. Long-lived resources register themselves with
+// the closer.
 func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*container, error) {
 	db, err := postgres.New(ctx, cfg.Postgres)
 	if err != nil {
@@ -43,10 +47,11 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		return nil, fmt.Errorf("init validator: %w", err)
 	}
 
-	repo := trip.NewRepository(db)
-	service := trip.NewService(repo, log)
-	handler := trip.NewHandler(service, validator, log)
-	router := httpserver.NewRouter(log, handler)
+	repo := triprepo.New(db)
+	gen := generator.NewMockItineraryGenerator(log)
+	svc := service.New(repo, gen, log)
+	tripHandler := handler.New(svc, validator, log)
+	router := httpserver.NewRouter(log, tripHandler)
 
 	return &container{
 		db:     db,

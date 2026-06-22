@@ -1,117 +1,59 @@
-package trip
+// Package dto maps between the trip domain entity and its PostgreSQL row
+// representation (pgtype). It keeps all persistence-shape concerns out of the
+// repository's query-building code.
+package dto
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"time"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 )
 
-// ErrNotFound is returned when a trip does not exist.
-var ErrNotFound = errors.New("trip not found")
-
-// tripColumns is the canonical column order used by all SELECT/RETURNING
-// statements and the scanTrip helper.
-const tripColumns = "id, user_id, destination, start_date, days, budget_amount, " +
+// Columns is the canonical column order used by all SELECT/RETURNING statements
+// and the Scan helper.
+const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
 	"budget_currency, travelers, interests, pace, status, itinerary, created_at, updated_at"
 
-// Repository persists trips using squirrel query building over the shared
-// postgres pool.
-type Repository struct {
-	db *postgres.DB
+// InsertColumns returns the columns set on INSERT (DB-defaulted columns omitted),
+// in the same order as InsertValues.
+func InsertColumns() []string {
+	return []string{
+		"user_id", "destination", "start_date", "days", "budget_amount",
+		"budget_currency", "travelers", "interests", "pace", "status",
+	}
 }
 
-// NewRepository constructs the trip repository.
-func NewRepository(db *postgres.DB) *Repository {
-	return &Repository{db: db}
-}
-
-// Create inserts a new trip and returns the stored row.
-func (r *Repository) Create(ctx context.Context, t *Trip) (*Trip, error) {
+// InsertValues returns the values for InsertColumns, in matching order.
+func InsertValues(t *entity.Trip) ([]any, error) {
 	interests, err := marshalInterests(t.Interests)
 	if err != nil {
 		return nil, err
 	}
-
-	query, args, err := r.db.Builder.
-		Insert("trips").
-		Columns(
-			"user_id", "destination", "start_date", "days", "budget_amount",
-			"budget_currency", "travelers", "interests", "pace", "status",
-		).
-		Values(
-			toPgUUIDPtr(t.UserID), t.Destination, toPgDate(t.StartDate), t.Days,
-			toPgNumeric(t.BudgetAmount), toPgText(t.BudgetCurrency), t.Travelers,
-			interests, t.Pace, string(t.Status),
-		).
-		Suffix("RETURNING " + tripColumns).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build insert: %w", err)
-	}
-
-	return scanTrip(r.db.QueryRow(ctx, query, args...))
+	return []any{
+		toPgUUIDPtr(t.UserID), t.Destination, toPgDate(t.StartDate), t.Days,
+		toPgNumeric(t.BudgetAmount), toPgText(t.BudgetCurrency), t.Travelers,
+		interests, t.Pace, string(t.Status),
+	}, nil
 }
 
-// GetByID loads a trip by UUID, returning ErrNotFound when absent.
-func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Trip, error) {
-	query, args, err := r.db.Builder.
-		Select(tripColumns).
-		From("trips").
-		Where(sq.Eq{"id": toPgUUID(id)}).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build select: %w", err)
-	}
-
-	return scanTrip(r.db.QueryRow(ctx, query, args...))
+// IDArg encodes a trip id for use in a WHERE clause.
+func IDArg(id uuid.UUID) pgtype.UUID {
+	return toPgUUID(id)
 }
 
-// UpdateStatus transitions a trip to the given status.
-func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Status) (*Trip, error) {
-	query, args, err := r.db.Builder.
-		Update("trips").
-		Set("status", string(status)).
-		Set("updated_at", sq.Expr("NOW()")).
-		Where(sq.Eq{"id": toPgUUID(id)}).
-		Suffix("RETURNING " + tripColumns).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build update status: %w", err)
-	}
-
-	return scanTrip(r.db.QueryRow(ctx, query, args...))
-}
-
-// UpdateItinerary stores the generated itinerary and resulting status.
-func (r *Repository) UpdateItinerary(ctx context.Context, id uuid.UUID, itinerary json.RawMessage, status Status) (*Trip, error) {
-	query, args, err := r.db.Builder.
-		Update("trips").
-		Set("itinerary", []byte(itinerary)).
-		Set("status", string(status)).
-		Set("updated_at", sq.Expr("NOW()")).
-		Where(sq.Eq{"id": toPgUUID(id)}).
-		Suffix("RETURNING " + tripColumns).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build update itinerary: %w", err)
-	}
-
-	return scanTrip(r.db.QueryRow(ctx, query, args...))
-}
-
-// scanTrip scans a single row (in tripColumns order) into a domain Trip.
-func scanTrip(row pgx.Row) (*Trip, error) {
+// Scan reads a single row (in Columns order) into a domain Trip. It returns
+// domain errs.ErrNotFound when the row is absent.
+func Scan(row pgx.Row) (*entity.Trip, error) {
 	var (
 		id, userID           pgtype.UUID
 		destination          string
@@ -133,7 +75,7 @@ func scanTrip(row pgx.Row) (*Trip, error) {
 	)
 	if err != nil {
 		if postgres.NoRowsFound(err) {
-			return nil, ErrNotFound
+			return nil, domainerrs.ErrNotFound
 		}
 		return nil, fmt.Errorf("scan trip: %w", err)
 	}
@@ -143,7 +85,7 @@ func scanTrip(row pgx.Row) (*Trip, error) {
 		return nil, err
 	}
 
-	t := &Trip{
+	t := &entity.Trip{
 		ID:             uuid.UUID(id.Bytes),
 		UserID:         fromPgUUID(userID),
 		Destination:    destination,
@@ -154,7 +96,7 @@ func scanTrip(row pgx.Row) (*Trip, error) {
 		Travelers:      travelers.Int32,
 		Interests:      interests,
 		Pace:           pace,
-		Status:         Status(status),
+		Status:         entity.Status(status),
 		CreatedAt:      createdAt.Time,
 		UpdatedAt:      updatedAt.Time,
 	}

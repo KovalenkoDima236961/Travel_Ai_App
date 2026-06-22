@@ -9,11 +9,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
-	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/trip"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
-func NewRouter(log *zap.Logger, tripHandler *trip.Handler) http.Handler {
+func NewRouter(log *zap.Logger, tripHandler *handler.Handler) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)

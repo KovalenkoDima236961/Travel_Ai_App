@@ -10,19 +10,19 @@ import (
 
 type closeFn struct {
 	name string
-	fn func(context.Context) error
+	fn   func(context.Context) error
 }
 
 // Works in LIFO order
 type closer struct {
-	mu 		sync.Mutex
-	once 	sync.Once
-	funcs 	[]closeFn
+	mu    sync.Mutex
+	once  sync.Once
+	funcs []closeFn
 }
 
 var globalCloser = &closer{}
 
-func Add(name string, fn func(context.Context) error ) {
+func Add(name string, fn func(context.Context) error) {
 	globalCloser.add(name, fn)
 }
 

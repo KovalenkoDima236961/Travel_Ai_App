@@ -27,23 +27,38 @@ can later be replaced with an async AI Planning Service integration.
 
 ## Project layout
 
+The code follows a layered / hexagonal (DDD-flavoured) structure under `internal/`:
+
 ```
 trip-service/
-├── cmd/server/main.go            # entrypoint: app.New(configPath).Run()
+├── cmd/server/main.go                 # entrypoint: app.New(configPath).Run()
 ├── internal/
-│   ├── app/                      # composition root (app.go) + wiring (di.go)
-│   ├── config/                   # cleanenv config + validation
-│   ├── http-server/              # chi router (routes.go) + http.Server (server.go)
-│   └── trip/                     # feature: handler -> service -> repository (squirrel)
+│   ├── app/                           # composition root (app.go) + wiring (di.go)
+│   ├── config/                        # cleanenv config + validation
+│   ├── domain/                        # enterprise core (no outward deps)
+│   │   ├── entity/                    #   Trip, Status
+│   │   ├── aggregate/                 #   Itinerary, ItineraryDay, ItineraryItem
+│   │   └── errs/                      #   ErrNotFound (domain sentinel)
+│   ├── application/                   # use cases + ports
+│   │   ├── service/                   #   Service (business logic, tripRepository port)
+│   │   ├── dto/                       #   CreateTripInput (use-case input)
+│   │   ├── errs/                      #   InvalidInputError
+│   │   └── generator.go               #   ItineraryGenerator (port interface)
+│   ├── infrastructure/                # adapters (implement ports)
+│   │   ├── repository/postgres/       #   Repository (squirrel) + dto/ (pgtype ⇄ entity)
+│   │   └── generator/                 #   MockItineraryGenerator (port adapter)
+│   └── http-server/                   # delivery: chi router + http.Server
+│       ├── handler/                   #   Handler (decode/validate/status mapping)
+│       └── dto/{request,response}/    #   CreateTrip / Trip + ListTrips payloads
 ├── pkg/
-│   ├── closer/                   # global LIFO shutdown registry
-│   ├── logger/                   # zap logger
-│   ├── storage/postgres/         # pgxpool + squirrel builder + auto-migrate + error checks
-│   ├── cache/redis/              # redis client (available, not wired into trip flow)
-│   ├── tls/                      # autocert TLS manager (available, not wired)
-│   └── validation/               # validator wrapper + custom tags
+│   ├── closer/                        # global LIFO shutdown registry
+│   ├── logger/                        # zap logger
+│   ├── storage/postgres/              # pgxpool + squirrel builder + auto-migrate
+│   ├── cache/redis/                   # redis client (available, not wired)
+│   ├── tls/                           # autocert TLS manager (available, not wired)
+│   └── validation/                    # validator wrapper + custom tags
 ├── configs/config.example.yaml
-├── migrations/                   # golang-migrate up/down SQL
+├── migrations/                        # golang-migrate up/down SQL
 ├── Dockerfile
 ├── docker-compose.yml
 └── Makefile
@@ -51,10 +66,16 @@ trip-service/
 
 ### Layering
 
+Dependencies point inward: `http-server` → `application` → `domain`, with
+`infrastructure` adapters implementing the application's ports. `domain` imports
+nothing else in the project.
+
 ```
-HTTP request → handler (decode + validate + status mapping)
-             → service (defaults, business rules, mock planning)
-             → repository (squirrel query building, pgtype ⇄ domain mapping)
+HTTP request → http-server/handler          (decode + validate + status mapping)
+             → application/service           (defaults, business rules, transitions)
+             → application ports:
+                 • tripRepository  → infrastructure/repository/postgres (squirrel)
+                 • ItineraryGenerator → infrastructure/generator (mock by default)
              → pkg/storage/postgres (pgxpool) → PostgreSQL
 ```
 
@@ -68,7 +89,8 @@ flowchart TD
         direction TB
         RT["http-server: chi router + middleware"]
         TH["trip.Handler\n(decode / validate / status)"]
-        SV["trip.Service\n(defaults, mock planner)"]
+        SV["trip.Service\n(defaults, business rules)"]
+        GEN["trip.ItineraryGenerator\n(MockItineraryGenerator)"]
         RP["trip.Repository\n(squirrel + pgtype ⇄ domain)"]
         PGPKG["pkg/storage/postgres\n(pgxpool + squirrel builder)"]
     end
@@ -77,7 +99,8 @@ flowchart TD
     AI{{"AI Planning Service\n(future, async)"}}
 
     Client -->|"REST / JSON"| RT --> TH --> SV --> RP --> PGPKG -->|"pgxpool"| PG
-    SV -.->|"replaces mock planner later"| AI
+    SV --> GEN
+    GEN -.->|"mock impl replaced later"| AI
 
     subgraph BOOT["internal/app (composition root)"]
         CFG["config (cleanenv)"] --> LOG["zap logger"] --> DB["postgres.New\n(auto-migrate)"] --> SRV["http server"]
@@ -169,10 +192,21 @@ make migrate-down    # roll back the last migration
 | ------ | ----------------------- | -------------------------------------------- |
 | GET    | `/health`               | Liveness probe.                              |
 | POST   | `/trips`                | Create a trip (status `DRAFT`).              |
+| GET    | `/trips`                | List trips (paginated, newest first).        |
 | GET    | `/trips/{id}`           | Fetch a trip by UUID.                        |
 | POST   | `/trips/{id}/generate`  | Generate the mock itinerary; status `COMPLETED`. |
 
 Trip statuses: `DRAFT` → `PROCESSING` → `COMPLETED` (or `FAILED`).
+
+### Itinerary generation
+
+Itinerary generation is abstracted behind a `trip.ItineraryGenerator` interface, so
+the service layer does not depend on any particular planning strategy. The service
+currently wires `trip.MockItineraryGenerator`, which returns a deterministic,
+interest-aware sample plan locally. When the async AI Planning Service exists, swap
+the implementation injected in `internal/app/di.go` — no service or handler changes
+are required. Generated plans use typed `Itinerary` / `ItineraryDay` /
+`ItineraryItem` structs and are stored as JSONB.
 
 Errors use a uniform envelope; validation failures add a `fields` map:
 
@@ -197,6 +231,9 @@ curl -s -X POST http://localhost:8080/trips \
     "pace": "balanced"
   }'
 
+# List (paginated, newest first)
+curl -s "http://localhost:8080/trips?limit=20&offset=0"
+
 # Fetch
 curl -s http://localhost:8080/trips/<TRIP_ID>
 
@@ -207,6 +244,16 @@ curl -s -X POST http://localhost:8080/trips/<TRIP_ID>/generate
 curl -s http://localhost:8080/health   # {"status":"ok"}
 ```
 
+The list endpoint returns a paginated envelope:
+
+```json
+{
+  "items": [ { "id": "…", "destination": "Rome", "status": "COMPLETED", "itinerary": { } } ],
+  "limit": 20,
+  "offset": 0
+}
+```
+
 ## Validation rules
 
 - `destination` is required.
@@ -215,13 +262,32 @@ curl -s http://localhost:8080/health   # {"status":"ok"}
 - `budgetCurrency`, when present, must be 3 characters (defaults to `EUR` when empty).
 - `pace`, when present, must be one of `relaxed | balanced | packed` (defaults to `balanced`).
 - `startDate`, when present, must be `YYYY-MM-DD`.
+- `interests`, when omitted, defaults to an empty array.
+
+For `GET /trips`:
+
+- `limit` defaults to `20`, and must be between `1` and `100`.
+- `offset` defaults to `0`, and must be `>= 0`.
+
+## Tests
+
+Service-level business logic is covered by unit tests that mock the repository and
+the itinerary generator (no database required):
+
+```bash
+make test          # go test ./... -race -count=1
+# or directly:
+go test ./... -race -count=1
+```
 
 ## Notes & extension points
 
 - The `id` column uses `gen_random_uuid()` (PostgreSQL 13+) so IDs are generated
   by the database.
-- The mock itinerary is produced in `trip.Service.Generate`. To integrate the real
-  AI Planning Service, publish a message there and move the
-  `PROCESSING → COMPLETED` transition into the consumer that receives the plan.
+- The mock itinerary is produced by `trip.MockItineraryGenerator` (behind the
+  `trip.ItineraryGenerator` interface). To integrate the real AI Planning Service,
+  provide an implementation that publishes a message and returns the plan — or move
+  the `PROCESSING → COMPLETED` transition into the consumer that receives it — and
+  swap the implementation wired in `internal/app/di.go`.
 - `pkg/cache/redis` and `pkg/tls` are wired-ready platform utilities included for
   future use; the trip feature does not depend on them yet.
