@@ -19,6 +19,8 @@ class Settings(BaseModel):
     ollama_repair_enabled: bool = True
     ollama_repair_attempts: int = Field(default=1, ge=0)
     log_llm_payloads: bool = False
+    destination_context_enabled: bool = True
+    destination_context_dir: str = "app/data/destinations"
 
     @field_validator("ollama_repair_attempts")
     @classmethod
@@ -82,4 +84,6 @@ def get_settings() -> Settings:
         ollama_repair_enabled=_env_bool("OLLAMA_REPAIR_ENABLED", True),
         ollama_repair_attempts=_env_int("OLLAMA_REPAIR_ATTEMPTS", 1),
         log_llm_payloads=_env_bool("LOG_LLM_PAYLOADS", False),
+        destination_context_enabled=_env_bool("DESTINATION_CONTEXT_ENABLED", True),
+        destination_context_dir=_env_string("DESTINATION_CONTEXT_DIR", "app/data/destinations"),
     )

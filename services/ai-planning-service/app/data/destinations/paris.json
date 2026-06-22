@@ -1,0 +1,30 @@
+{
+  "destination": "Paris",
+  "aliases": ["paris, france"],
+  "localTips": [
+    "Book timed museum entries for major sights and keep mornings for the busiest attractions.",
+    "Plan neighborhoods in clusters because crossing the city repeatedly wastes time.",
+    "Use smaller cafes and boulangeries away from the most visible landmark streets."
+  ],
+  "hiddenGems": [
+    "Promenade Plantée",
+    "Musée de la Vie Romantique",
+    "Canal Saint-Martin"
+  ],
+  "foodTips": [
+    "Try a fresh baguette sandwich, crêpes, steak frites, macarons, and seasonal pastries.",
+    "Markets such as Marché d'Aligre can work well for casual lunches and picnic supplies."
+  ],
+  "avoid": [
+    "Trying to combine Versailles, the Louvre, and Montmartre in one packed day.",
+    "Restaurants with large multilingual menus directly beside major monuments."
+  ],
+  "transportTips": [
+    "Use the Metro for longer hops and walk within each neighborhood cluster.",
+    "Check station exits because choosing the wrong exit can add unnecessary walking."
+  ],
+  "budgetTips": [
+    "Balance paid museums with parks, viewpoints, covered passages, and riverside walks.",
+    "Use lunch menus and bakeries to keep food costs predictable."
+  ]
+}

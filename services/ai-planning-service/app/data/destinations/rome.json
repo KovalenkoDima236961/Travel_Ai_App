@@ -1,0 +1,30 @@
+{
+  "destination": "Rome",
+  "aliases": ["roma"],
+  "localTips": [
+    "Visit popular attractions early in the morning to avoid the largest crowds.",
+    "Avoid eating directly next to major landmarks because prices are usually higher.",
+    "Trastevere is useful for evening walks and local food."
+  ],
+  "hiddenGems": [
+    "Quartiere Coppedè",
+    "Orange Garden",
+    "Basilica di San Clemente"
+  ],
+  "foodTips": [
+    "Try carbonara, cacio e pepe, supplì, and maritozzo.",
+    "Look for small trattorias a few streets away from the main tourist routes."
+  ],
+  "avoid": [
+    "Restaurants with aggressive street promoters near tourist landmarks.",
+    "Overloading one day with Vatican, Colosseum, and central Rome together."
+  ],
+  "transportTips": [
+    "Group nearby attractions together to reduce unnecessary transit time.",
+    "Use public transport or walking for central areas instead of taxis during peak hours."
+  ],
+  "budgetTips": [
+    "Use free viewpoints and churches to balance paid attractions.",
+    "Reserve budget for food experiences instead of only major paid attractions."
+  ]
+}

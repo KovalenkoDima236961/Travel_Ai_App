@@ -1,0 +1,30 @@
+{
+  "destination": "Vienna",
+  "aliases": ["wien"],
+  "localTips": [
+    "Reserve ahead for popular classical music performances and palace visits.",
+    "Leave time for coffeehouse breaks because they fit naturally between cultural stops.",
+    "The inner districts are walkable, but grouping nearby sights still saves energy."
+  ],
+  "hiddenGems": [
+    "Hundertwasserhaus",
+    "Spittelberg",
+    "Austrian National Library State Hall"
+  ],
+  "foodTips": [
+    "Try schnitzel, tafelspitz, sachertorte, apple strudel, and a classic Viennese coffee.",
+    "Naschmarkt works well for casual tastings and flexible lunches."
+  ],
+  "avoid": [
+    "Packing too many palace and museum interiors into the same day.",
+    "Only staying around Stephansplatz when quieter nearby districts offer better breaks."
+  ],
+  "transportTips": [
+    "Use the U-Bahn and trams for fast movement between districts.",
+    "Validate or activate transit tickets before riding where required."
+  ],
+  "budgetTips": [
+    "Mix paid palace visits with parks, markets, churches, and self-guided walks.",
+    "Look for standing-room concert options when available to reduce entertainment costs."
+  ]
+}

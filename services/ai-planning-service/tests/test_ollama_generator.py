@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.main import create_app
+from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import GenerateItineraryRequest
 from app.services.generator_factory import get_itinerary_generator
 from app.services.itinerary_generator import MockItineraryGenerator
@@ -44,6 +45,21 @@ def _request(**overrides: Any) -> GenerateItineraryRequest:
     payload = deepcopy(VALID_PAYLOAD)
     payload.update(overrides)
     return GenerateItineraryRequest.model_validate(payload)
+
+
+class StaticDestinationKnowledgeProvider:
+    def __init__(self, context: DestinationContext | None) -> None:
+        self.context = context
+        self.requests: list[str] = []
+
+    def get_context(self, destination: str) -> DestinationContext | None:
+        self.requests.append(destination)
+        return self.context
+
+
+class FailingDestinationKnowledgeProvider:
+    def get_context(self, destination: str) -> DestinationContext | None:
+        raise AssertionError("provider should not be called")
 
 
 def _itinerary_body(days: int = 2) -> dict[str, Any]:
@@ -201,6 +217,14 @@ def test_missing_ollama_model_in_ollama_mode_fails_clearly() -> None:
         get_itinerary_generator(_settings(ollama_model=""))
 
 
+def test_ollama_factory_ignores_missing_destination_context_dir_when_enabled() -> None:
+    generator = get_itinerary_generator(
+        _settings(destination_context_enabled=True, destination_context_dir="/missing/context")
+    )
+
+    assert isinstance(generator, OllamaItineraryGenerator)
+
+
 def test_generated_response_keeps_exact_itinerary_response_shape() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"response": json.dumps(_itinerary_body())})
@@ -240,6 +264,66 @@ def test_wrong_number_of_days_triggers_repair_and_returns_repaired_itinerary() -
     assert "Validation error:" in captured_prompts[1]
     assert "Return ONLY corrected JSON" in captured_prompts[1]
     assert len(response.days) == 2
+
+
+def test_ollama_mode_injects_destination_context_into_initial_and_repair_prompts() -> None:
+    captured_prompts: list[str] = []
+    responses = [
+        json.dumps(_itinerary_body(days=1)),
+        json.dumps(_itinerary_body(days=2)),
+    ]
+    provider = StaticDestinationKnowledgeProvider(
+        DestinationContext(
+            destination="Rome",
+            aliases=["Roma"],
+            localTips=["Visit popular attractions early."],
+            hiddenGems=["Orange Garden"],
+            foodTips=["Try carbonara."],
+            avoid=["Do not overload Vatican and Colosseum on one day."],
+            transportTips=["Group nearby attractions together."],
+            budgetTips=["Use free viewpoints."],
+        )
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_prompts.append(json.loads(request.content)["prompt"])
+        return httpx.Response(200, json={"response": responses.pop(0)})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(),
+            http_client=http_client,
+            destination_knowledge_provider=provider,
+        )
+        response = generator.generate(_request())
+
+    assert provider.requests == ["Rome"]
+    assert len(response.days) == 2
+    assert "DESTINATION CONTEXT:" in captured_prompts[0]
+    assert "- Destination: Rome" in captured_prompts[0]
+    assert "Orange Garden" in captured_prompts[0]
+    assert "Try carbonara." in captured_prompts[0]
+    assert "DESTINATION CONTEXT:" in captured_prompts[1]
+    assert "The corrected JSON should still use the destination context" in captured_prompts[1]
+
+
+def test_ollama_mode_does_not_lookup_destination_context_when_disabled() -> None:
+    captured_prompt: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_prompt["prompt"] = json.loads(request.content)["prompt"]
+        return httpx.Response(200, json={"response": json.dumps(_itinerary_body())})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(destination_context_enabled=False),
+            http_client=http_client,
+            destination_knowledge_provider=FailingDestinationKnowledgeProvider(),
+        )
+        response = generator.generate(_request())
+
+    assert len(response.days) == VALID_PAYLOAD["days"]
+    assert "DESTINATION CONTEXT" not in captured_prompt["prompt"]
 
 
 def test_repair_response_invalid_and_fallback_enabled_returns_mock_itinerary() -> None:

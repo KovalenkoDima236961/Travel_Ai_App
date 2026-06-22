@@ -6,7 +6,9 @@ import httpx
 
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
+from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
+from app.services.destination_knowledge import DestinationKnowledgeProvider
 from app.services.itinerary_generator import ItineraryGenerator, MockItineraryGenerator
 from app.services.itinerary_validator import ItineraryValidationError, ItineraryValidator
 from app.services.llm_response_parser import LLMResponseParseError, parse_itinerary_response
@@ -25,10 +27,12 @@ class OllamaItineraryGenerator:
         settings: Settings,
         fallback_generator: ItineraryGenerator | None = None,
         http_client: httpx.Client | None = None,
+        destination_knowledge_provider: DestinationKnowledgeProvider | None = None,
     ) -> None:
         self._settings = settings
         self._fallback_generator = fallback_generator or MockItineraryGenerator()
         self._http_client = http_client
+        self._destination_knowledge_provider = destination_knowledge_provider
         self._validator = ItineraryValidator()
 
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse:
@@ -66,7 +70,8 @@ class OllamaItineraryGenerator:
         request: GenerateItineraryRequest,
         log_context: dict[str, Any],
     ) -> ItineraryResponse:
-        prompt = build_itinerary_prompt(request)
+        destination_context = self._get_destination_context(request, log_context)
+        prompt = build_itinerary_prompt(request, destination_context=destination_context)
         self._log_llm_payload("Ollama itinerary prompt", "prompt", prompt, log_context)
 
         llm_response = self._call_ollama(prompt)
@@ -90,6 +95,7 @@ class OllamaItineraryGenerator:
                 request=request,
                 invalid_response_text=llm_response,
                 validation_error=self._validation_error_for_prompt(exc),
+                destination_context=destination_context,
             )
             self._log_llm_payload(
                 "Ollama itinerary repair prompt",
@@ -171,9 +177,34 @@ class OllamaItineraryGenerator:
             "repair_attempted": False,
             "repair_succeeded": False,
             "fallback_used": False,
+            "destination_context_used": False,
             "validation_error_code": None,
             "validation_error_message": None,
         }
+
+    def _get_destination_context(
+        self,
+        request: GenerateItineraryRequest,
+        log_context: dict[str, Any],
+    ) -> DestinationContext | None:
+        if (
+            not self._settings.destination_context_enabled
+            or self._destination_knowledge_provider is None
+        ):
+            return None
+
+        try:
+            context = self._destination_knowledge_provider.get_context(request.destination)
+        except Exception:
+            logger.warning(
+                "Destination context lookup failed; continuing without destination context",
+                extra=log_context,
+                exc_info=True,
+            )
+            return None
+
+        log_context["destination_context_used"] = context is not None
+        return context
 
     def _record_generation_error(
         self,
