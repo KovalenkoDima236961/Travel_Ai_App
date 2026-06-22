@@ -12,6 +12,7 @@ from app.core.errors import ItineraryGenerationError
 from app.main import create_app
 from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import GenerateItineraryRequest
+from app.schemas.knowledge import KnowledgeSearchResult
 from app.services.generator_factory import get_itinerary_generator
 from app.services.itinerary_generator import MockItineraryGenerator
 from app.services.llm_response_parser import LLMResponseParseError, parse_itinerary_response
@@ -60,6 +61,29 @@ class StaticDestinationKnowledgeProvider:
 class FailingDestinationKnowledgeProvider:
     def get_context(self, destination: str) -> DestinationContext | None:
         raise AssertionError("provider should not be called")
+
+
+class StaticKnowledgeSearchService:
+    def __init__(self, items: list[KnowledgeSearchResult]) -> None:
+        self.items = items
+        self.calls: list[dict[str, Any]] = []
+
+    def search(
+        self,
+        destination: str,
+        interests: list[str],
+        query: str | None,
+        top_k: int,
+    ) -> list[KnowledgeSearchResult]:
+        self.calls.append(
+            {
+                "destination": destination,
+                "interests": interests,
+                "query": query,
+                "top_k": top_k,
+            }
+        )
+        return self.items
 
 
 def _itinerary_body(days: int = 2) -> dict[str, Any]:
@@ -324,6 +348,45 @@ def test_ollama_mode_does_not_lookup_destination_context_when_disabled() -> None
 
     assert len(response.days) == VALID_PAYLOAD["days"]
     assert "DESTINATION CONTEXT" not in captured_prompt["prompt"]
+
+
+def test_ollama_mode_calls_rag_search_and_injects_chunks_when_enabled() -> None:
+    captured_prompt: dict[str, str] = {}
+    search_service = StaticKnowledgeSearchService(
+        [
+            KnowledgeSearchResult(
+                id="rome:food.md:0",
+                destination="rome",
+                source="food.md",
+                content="Use Testaccio for traditional Roman food.",
+                score=0.91,
+                metadata={"chunkIndex": 0},
+            )
+        ]
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_prompt["prompt"] = json.loads(request.content)["prompt"]
+        return httpx.Response(200, json={"response": json.dumps(_itinerary_body())})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        generator = OllamaItineraryGenerator(
+            settings=_settings(rag_enabled=True, rag_top_k=3),
+            http_client=http_client,
+            knowledge_search_service=search_service,
+        )
+        response = generator.generate(_request())
+
+    assert len(response.days) == VALID_PAYLOAD["days"]
+    assert search_service.calls
+    assert search_service.calls[0]["destination"] == "Rome"
+    assert search_service.calls[0]["interests"] == ["food", "history", "hidden_gems"]
+    assert search_service.calls[0]["top_k"] == 3
+    assert "pace: balanced" in search_service.calls[0]["query"]
+    assert "budget: 600 EUR" in search_service.calls[0]["query"]
+    assert "RAG CONTEXT:" in captured_prompt["prompt"]
+    assert "- Source: food.md" in captured_prompt["prompt"]
+    assert "Use Testaccio for traditional Roman food." in captured_prompt["prompt"]
 
 
 def test_repair_response_invalid_and_fallback_enabled_returns_mock_itinerary() -> None:

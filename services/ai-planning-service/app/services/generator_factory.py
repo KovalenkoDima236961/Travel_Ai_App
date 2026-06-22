@@ -7,6 +7,7 @@ from app.services.destination_knowledge import (
     FileDestinationKnowledgeProvider,
 )
 from app.services.itinerary_generator import ItineraryGenerator, MockItineraryGenerator
+from app.services.knowledge_search import KnowledgeSearchService
 from app.services.ollama_itinerary_generator import OllamaItineraryGenerator
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 def get_itinerary_generator(
     settings: Settings,
     destination_knowledge_provider: DestinationKnowledgeProvider | None = None,
+    knowledge_search_service: KnowledgeSearchService | None = None,
 ) -> ItineraryGenerator:
     mode = settings.itinerary_generator_mode.strip().lower() or "mock"
 
@@ -31,6 +33,8 @@ def get_itinerary_generator(
             destination_knowledge_provider=(
                 destination_knowledge_provider or get_destination_knowledge_provider(settings)
             ),
+            knowledge_search_service=knowledge_search_service
+            or get_knowledge_search_service(settings),
         )
 
     raise ValueError(
@@ -52,6 +56,12 @@ def get_destination_knowledge_provider(settings: Settings) -> DestinationKnowled
         return None
 
     return FileDestinationKnowledgeProvider(data_dir=data_dir)
+
+
+def get_knowledge_search_service(settings: Settings) -> KnowledgeSearchService | None:
+    if not settings.rag_enabled:
+        return None
+    return KnowledgeSearchService(settings=settings)
 
 
 def _resolve_destination_context_dir(raw_data_dir: str) -> Path:

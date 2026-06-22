@@ -3,12 +3,14 @@ import logging
 from fastapi import FastAPI
 
 from app.api.destination_context_routes import router as destination_context_router
+from app.api.knowledge_routes import router as knowledge_router
 from app.api.routes import router
 from app.config import get_settings
 from app.core.errors import register_exception_handlers
 from app.services.generator_factory import (
     get_destination_knowledge_provider,
     get_itinerary_generator,
+    get_knowledge_search_service,
 )
 
 
@@ -16,9 +18,11 @@ def create_app() -> FastAPI:
     settings = get_settings()
     logging.basicConfig(level=settings.log_level)
     destination_knowledge_provider = get_destination_knowledge_provider(settings)
+    knowledge_search_service = get_knowledge_search_service(settings)
     generator = get_itinerary_generator(
         settings,
         destination_knowledge_provider=destination_knowledge_provider,
+        knowledge_search_service=knowledge_search_service,
     )
 
     app = FastAPI(
@@ -29,9 +33,11 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.itinerary_generator = generator
     app.state.destination_knowledge_provider = destination_knowledge_provider
+    app.state.knowledge_search_service = knowledge_search_service
     register_exception_handlers(app)
     app.include_router(router)
     app.include_router(destination_context_router)
+    app.include_router(knowledge_router)
     return app
 
 

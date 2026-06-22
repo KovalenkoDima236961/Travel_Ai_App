@@ -1,5 +1,6 @@
 from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import GenerateItineraryRequest
+from app.schemas.knowledge import KnowledgeSearchResult
 
 _ITEMS_PER_DAY_BY_PACE = {
     "relaxed": 3,
@@ -11,6 +12,7 @@ _ITEMS_PER_DAY_BY_PACE = {
 def build_itinerary_prompt(
     request: GenerateItineraryRequest,
     destination_context: DestinationContext | None = None,
+    rag_chunks: list[KnowledgeSearchResult] | None = None,
 ) -> str:
     items_per_day = _items_per_day_for_pace(request.pace)
     interests = ", ".join(request.interests) if request.interests else "general sightseeing"
@@ -21,6 +23,7 @@ def build_itinerary_prompt(
     )
     start_date = request.start_date.isoformat() if request.start_date else "not provided"
     destination_context_section = _destination_context_section(request, destination_context)
+    rag_context_section = _rag_context_section(rag_chunks)
 
     return f"""
 You are generating an itinerary for a web-based travel planning application.
@@ -54,6 +57,7 @@ Trip request:
 - Interests: {interests}
 - Pace: {request.pace}
 {destination_context_section}
+{rag_context_section}
 
 Rules:
 - Generate exactly {request.days} day objects.
@@ -76,6 +80,7 @@ def build_repair_prompt(
     invalid_response_text: str,
     validation_error: str,
     destination_context: DestinationContext | None = None,
+    rag_chunks: list[KnowledgeSearchResult] | None = None,
 ) -> str:
     items_per_day = _items_per_day_for_pace(request.pace)
     interests = ", ".join(request.interests) if request.interests else "general sightseeing"
@@ -86,6 +91,7 @@ def build_repair_prompt(
     )
     start_date = request.start_date.isoformat() if request.start_date else "not provided"
     destination_context_section = _destination_context_section(request, destination_context)
+    rag_context_section = _rag_context_section(rag_chunks)
 
     return f"""
 You previously generated an itinerary JSON response, but it was invalid.
@@ -102,6 +108,7 @@ Original trip request:
 - Interests: {interests}
 - Pace: {request.pace}
 {destination_context_section}
+{rag_context_section}
 
 Invalid previous response:
 {invalid_response_text}
@@ -139,6 +146,7 @@ Repair rules:
 - Include estimatedCost as a non-negative number or null.
 - Keep total estimated costs reasonable for the requested budget when a budget is provided.
 - The corrected JSON should still use the destination context where relevant.
+- The corrected JSON should still use the RAG context where relevant.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -185,6 +193,41 @@ def _destination_context_section(
         return ""
 
     return "\n" + "\n".join(lines)
+
+
+def _rag_context_section(rag_chunks: list[KnowledgeSearchResult] | None) -> str:
+    if not rag_chunks:
+        return ""
+
+    lines = [
+        "RAG CONTEXT:",
+        "Use these retrieved local travel notes when relevant.",
+        "Do not copy them blindly.",
+        "Prefer them over generic assumptions.",
+        "If a note conflicts with the request, follow the request.",
+    ]
+    for chunk in rag_chunks:
+        content = _compact_content(chunk.content)
+        if not content:
+            continue
+        lines.extend(
+            [
+                f"- Source: {chunk.source}",
+                f"  Content: {content}",
+            ]
+        )
+
+    if len(lines) == 5:
+        return ""
+
+    return "\n" + "\n".join(lines)
+
+
+def _compact_content(content: str, max_chars: int = 700) -> str:
+    compacted = " ".join(content.split())
+    if len(compacted) <= max_chars:
+        return compacted
+    return compacted[: max_chars - 3].rstrip() + "..."
 
 
 def _should_include_hidden_gems(request: GenerateItineraryRequest) -> bool:

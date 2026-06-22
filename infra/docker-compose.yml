@@ -40,6 +40,16 @@ services:
       OLLAMA_TEMPERATURE: "0.2"
       OLLAMA_NUM_PREDICT: "2048"
       OLLAMA_FALLBACK_TO_MOCK: "true"
+      RAG_ENABLED: "false"
+      RAG_KNOWLEDGE_DIR: app/data/knowledge
+      RAG_CHROMA_DIR: app/data/chroma
+      RAG_COLLECTION_NAME: travel_knowledge
+      RAG_TOP_K: "5"
+      RAG_MIN_SCORE: "0.0"
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
+      OLLAMA_EMBEDDING_TIMEOUT_SECONDS: "30"
+    volumes:
+      - ai-planning-chroma:/app/app/data/chroma
     ports:
       - "8000:8000"
     healthcheck:
@@ -82,3 +92,4 @@ services:
 volumes:
   trip_pgdata:
   ollama-data:
+  ai-planning-chroma:

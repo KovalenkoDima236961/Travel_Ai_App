@@ -7,9 +7,10 @@ AI Planning Service is a FastAPI microservice for itinerary generation. It expos
 - `GET /destination-context`
 - `GET /destination-context/{destination}`
 - `POST /destination-context/{destination}/preview-prompt`
+- `POST /knowledge/search`
 
 The public request and response contract is shared with Trip Service and should remain stable.
-The destination context endpoints are internal/admin/debug endpoints for development.
+The destination context and knowledge endpoints are internal/admin/debug endpoints for development.
 
 ## Validation And Repair
 
@@ -73,6 +74,15 @@ OLLAMA_REPAIR_ATTEMPTS=1
 LOG_LLM_PAYLOADS=false
 DESTINATION_CONTEXT_ENABLED=true
 DESTINATION_CONTEXT_DIR=app/data/destinations
+
+RAG_ENABLED=false
+RAG_KNOWLEDGE_DIR=app/data/knowledge
+RAG_CHROMA_DIR=app/data/chroma
+RAG_COLLECTION_NAME=travel_knowledge
+RAG_TOP_K=5
+RAG_MIN_SCORE=0.0
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+OLLAMA_EMBEDDING_TIMEOUT_SECONDS=30
 ```
 
 `OLLAMA_REPAIR_ENABLED=true` and `OLLAMA_REPAIR_ATTEMPTS=1` allow one repair call after invalid
@@ -98,6 +108,11 @@ logging remains disabled.
 `DESTINATION_CONTEXT_DIR`. Set it to `false` to disable context lookup; itinerary prompt
 preview still works, but returns `destinationContextFound=false`.
 
+`RAG_ENABLED=false` disables local-document retrieval. When set to `true`, Ollama mode searches
+the ChromaDB collection named by `RAG_COLLECTION_NAME` and injects up to `RAG_TOP_K` retrieved
+chunks into the itinerary and repair prompts. `RAG_TOP_K` is clamped to `1..10`. Search scores
+are returned as `1 / (1 + chroma_distance)`, so higher is better.
+
 ## Run Locally In Mock Mode
 
 ```bash
@@ -110,10 +125,11 @@ ITINERARY_GENERATOR_MODE=mock uvicorn app.main:app --host 0.0.0.0 --port 8000 --
 
 ## Run Locally With Ollama
 
-Install and start Ollama, then pull the model:
+Install and start Ollama, then pull the generation and embedding models:
 
 ```bash
 ollama pull llama3.1:8b
+ollama pull nomic-embed-text
 ```
 
 Start the service against local Ollama:
@@ -139,10 +155,11 @@ cd infra
 docker compose up --build
 ```
 
-Ollama does not download models just because the container starts. Pull the model once:
+Ollama does not download models just because the container starts. Pull the models once:
 
 ```bash
 docker compose exec ollama ollama pull llama3.1:8b
+docker compose exec ollama ollama pull nomic-embed-text
 ```
 
 The relevant compose settings are:
@@ -168,11 +185,22 @@ services:
       OLLAMA_REPAIR_ENABLED: "true"
       OLLAMA_REPAIR_ATTEMPTS: "1"
       LOG_LLM_PAYLOADS: "false"
+      RAG_ENABLED: "false"
+      RAG_KNOWLEDGE_DIR: app/data/knowledge
+      RAG_CHROMA_DIR: app/data/chroma
+      RAG_COLLECTION_NAME: travel_knowledge
+      RAG_TOP_K: "5"
+      RAG_MIN_SCORE: "0.0"
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
+      OLLAMA_EMBEDDING_TIMEOUT_SECONDS: "30"
+    volumes:
+      - ai-planning-chroma:/app/app/data/chroma
     depends_on:
       - ollama
 
 volumes:
   ollama-data:
+  ai-planning-chroma:
 ```
 
 ## Run With Docker
@@ -307,6 +335,61 @@ If `DESTINATION_CONTEXT_ENABLED=false`, `GET /destination-context` returns an em
 destination lookups return `404`, and prompt preview returns a prompt without destination
 context.
 
+## Local Knowledge RAG V1
+
+RAG v1 is local-document retrieval only. It is not scraping, Reddit/X/blog ingestion, external
+travel APIs, or a cloud LLM integration.
+
+The service now has two knowledge layers:
+
+- Destination context JSON in `app/data/destinations`: curated structured tips for prompt
+  shaping and debug prompt preview.
+- Local RAG documents in `app/data/knowledge`: markdown/text notes split into chunks, embedded
+  with Ollama, stored in ChromaDB, searched at generation time, and injected as `RAG CONTEXT`.
+
+Add local knowledge by creating `.md` or `.txt` files under a destination folder:
+
+```text
+app/data/knowledge/rome/food.md
+app/data/knowledge/paris/budget.md
+```
+
+Index the files after Ollama is running and `nomic-embed-text` is pulled:
+
+```bash
+cd services/ai-planning-service
+source .venv/bin/activate
+RAG_CHROMA_DIR=app/data/chroma \
+OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+python -m app.scripts.index_knowledge
+```
+
+Enable RAG for generation:
+
+```bash
+RAG_ENABLED=true \
+ITINERARY_GENERATOR_MODE=ollama \
+OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Test search directly:
+
+```bash
+curl -X POST http://localhost:8000/knowledge/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destination": "Rome",
+    "interests": ["food", "hidden_gems"],
+    "query": "local food and non-touristy areas",
+    "topK": 5
+  }'
+```
+
+If RAG is disabled, the endpoint returns `{"items": []}`. If the Chroma collection is missing,
+embedding fails, or there are no matching chunks, itinerary generation continues without RAG
+context. The public `/generate-itinerary` request and response schema is unchanged.
+
 ## Development Commands
 
 ```bash
@@ -325,6 +408,19 @@ the AI Planning Service process. Use `http://127.0.0.1:11434` for local runs and
 
 `model not found`: pull the configured model with `ollama pull llama3.1:8b` locally or
 `docker compose exec ollama ollama pull llama3.1:8b` in Compose.
+
+`embedding model not found`: pull `nomic-embed-text` locally with `ollama pull nomic-embed-text`
+or in Compose with `docker compose exec ollama ollama pull nomic-embed-text`.
+
+`RAG disabled`: confirm `RAG_ENABLED=true` in the AI Planning Service environment. The default is
+`false`.
+
+`Chroma collection missing`: run `python -m app.scripts.index_knowledge` from
+`services/ai-planning-service` after pulling the embedding model.
+
+`no RAG search results`: check that the destination folder name matches the requested
+destination after normalization, for example `rome` for `"Rome"`, and lower `RAG_MIN_SCORE` if
+it was raised above `0.0`.
 
 `invalid JSON from local model`: keep `OLLAMA_REPAIR_ENABLED=true` so the service asks Ollama
 for one corrected JSON response. Lower `OLLAMA_TEMPERATURE`, increase `OLLAMA_NUM_PREDICT` if

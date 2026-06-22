@@ -8,9 +8,11 @@ from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
+from app.schemas.knowledge import KnowledgeSearchResult
 from app.services.destination_knowledge import DestinationKnowledgeProvider
 from app.services.itinerary_generator import ItineraryGenerator, MockItineraryGenerator
 from app.services.itinerary_validator import ItineraryValidationError, ItineraryValidator
+from app.services.knowledge_search import KnowledgeSearchService
 from app.services.llm_response_parser import LLMResponseParseError, parse_itinerary_response
 from app.services.prompt_builder import build_itinerary_prompt, build_repair_prompt
 
@@ -28,11 +30,13 @@ class OllamaItineraryGenerator:
         fallback_generator: ItineraryGenerator | None = None,
         http_client: httpx.Client | None = None,
         destination_knowledge_provider: DestinationKnowledgeProvider | None = None,
+        knowledge_search_service: KnowledgeSearchService | None = None,
     ) -> None:
         self._settings = settings
         self._fallback_generator = fallback_generator or MockItineraryGenerator()
         self._http_client = http_client
         self._destination_knowledge_provider = destination_knowledge_provider
+        self._knowledge_search_service = knowledge_search_service
         self._validator = ItineraryValidator()
 
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse:
@@ -71,7 +75,12 @@ class OllamaItineraryGenerator:
         log_context: dict[str, Any],
     ) -> ItineraryResponse:
         destination_context = self._get_destination_context(request, log_context)
-        prompt = build_itinerary_prompt(request, destination_context=destination_context)
+        rag_chunks = self._get_rag_chunks(request, log_context)
+        prompt = build_itinerary_prompt(
+            request,
+            destination_context=destination_context,
+            rag_chunks=rag_chunks,
+        )
         self._log_llm_payload("Ollama itinerary prompt", "prompt", prompt, log_context)
 
         llm_response = self._call_ollama(prompt)
@@ -96,6 +105,7 @@ class OllamaItineraryGenerator:
                 invalid_response_text=llm_response,
                 validation_error=self._validation_error_for_prompt(exc),
                 destination_context=destination_context,
+                rag_chunks=rag_chunks,
             )
             self._log_llm_payload(
                 "Ollama itinerary repair prompt",
@@ -178,6 +188,9 @@ class OllamaItineraryGenerator:
             "repair_succeeded": False,
             "fallback_used": False,
             "destination_context_used": False,
+            "rag_enabled": self._settings.rag_enabled,
+            "rag_results_count": 0,
+            "rag_search_failed": False,
             "validation_error_code": None,
             "validation_error_message": None,
         }
@@ -205,6 +218,45 @@ class OllamaItineraryGenerator:
 
         log_context["destination_context_used"] = context is not None
         return context
+
+    def _get_rag_chunks(
+        self,
+        request: GenerateItineraryRequest,
+        log_context: dict[str, Any],
+    ) -> list[KnowledgeSearchResult]:
+        if not self._settings.rag_enabled or self._knowledge_search_service is None:
+            return []
+
+        query = self._build_rag_query(request)
+        try:
+            chunks = self._knowledge_search_service.search(
+                destination=request.destination,
+                interests=request.interests,
+                query=query,
+                top_k=self._settings.rag_top_k,
+            )
+        except Exception:
+            log_context["rag_search_failed"] = True
+            logger.warning(
+                "RAG search failed; continuing without RAG context",
+                extra=log_context,
+                exc_info=True,
+            )
+            return []
+
+        log_context["rag_search_failed"] = bool(
+            getattr(self._knowledge_search_service, "last_search_failed", False)
+        )
+        log_context["rag_results_count"] = len(chunks)
+        return chunks
+
+    def _build_rag_query(self, request: GenerateItineraryRequest) -> str:
+        query_parts = [f"pace: {request.pace}", "travel itinerary"]
+        if request.budget_amount is not None:
+            query_parts.append(f"budget: {request.budget_amount} {request.budget_currency}")
+        if request.interests:
+            query_parts.append("interests: " + ", ".join(request.interests))
+        return " | ".join(query_parts)
 
     def _record_generation_error(
         self,

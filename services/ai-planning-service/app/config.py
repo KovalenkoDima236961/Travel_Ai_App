@@ -21,11 +21,24 @@ class Settings(BaseModel):
     log_llm_payloads: bool = False
     destination_context_enabled: bool = True
     destination_context_dir: str = "app/data/destinations"
+    rag_enabled: bool = False
+    rag_knowledge_dir: str = "app/data/knowledge"
+    rag_chroma_dir: str = "app/data/chroma"
+    rag_collection_name: str = "travel_knowledge"
+    rag_top_k: int = 5
+    rag_min_score: float = Field(default=0.0, ge=0)
+    ollama_embedding_model: str = "nomic-embed-text"
+    ollama_embedding_timeout_seconds: float = Field(default=30, gt=0)
 
     @field_validator("ollama_repair_attempts")
     @classmethod
     def clamp_ollama_repair_attempts(cls, value: int) -> int:
         return min(value, 1)
+
+    @field_validator("rag_top_k")
+    @classmethod
+    def clamp_rag_top_k(cls, value: int) -> int:
+        return min(max(value, 1), 10)
 
     @property
     def allow_llm_payload_logging(self) -> bool:
@@ -86,4 +99,12 @@ def get_settings() -> Settings:
         log_llm_payloads=_env_bool("LOG_LLM_PAYLOADS", False),
         destination_context_enabled=_env_bool("DESTINATION_CONTEXT_ENABLED", True),
         destination_context_dir=_env_string("DESTINATION_CONTEXT_DIR", "app/data/destinations"),
+        rag_enabled=_env_bool("RAG_ENABLED", False),
+        rag_knowledge_dir=_env_string("RAG_KNOWLEDGE_DIR", "app/data/knowledge"),
+        rag_chroma_dir=_env_string("RAG_CHROMA_DIR", "app/data/chroma"),
+        rag_collection_name=_env_string("RAG_COLLECTION_NAME", "travel_knowledge"),
+        rag_top_k=_env_int("RAG_TOP_K", 5),
+        rag_min_score=_env_float("RAG_MIN_SCORE", 0.0),
+        ollama_embedding_model=_env_string("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"),
+        ollama_embedding_timeout_seconds=_env_float("OLLAMA_EMBEDDING_TIMEOUT_SECONDS", 30),
     )
