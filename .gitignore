@@ -1,1 +1,4 @@
 infra/.env
+
+# graphify skill output
+graphify-out/
