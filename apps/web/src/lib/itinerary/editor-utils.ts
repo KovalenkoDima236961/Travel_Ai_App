@@ -116,7 +116,8 @@ export function prepareItineraryForEdit(itinerary: Itinerary): Itinerary {
         name: item.name ?? "",
         note: item.note ?? "",
         estimatedCost: item.estimatedCost ?? null,
-        place: item.place ?? null
+        place: item.place ?? null,
+        placeEnrichment: item.placeEnrichment ?? null
       }))
     }))
   };
@@ -196,6 +197,7 @@ function normalizeItemForSave(item: ItineraryItem): ItineraryItem {
     name: item.name.trim(),
     note: typeof item.note === "string" ? item.note.trim() : item.note ?? "",
     estimatedCost: item.estimatedCost ?? null,
+    placeEnrichment: item.placeEnrichment ?? null,
     place: item.place
       ? {
           ...item.place,

@@ -23,6 +23,7 @@ type Config struct {
 	ItineraryGenerator ItineraryGeneratorConfig `yaml:"itinerary_generator"`
 	UserContext        UserContextConfig        `yaml:"user_context"`
 	WeatherContext     WeatherContextConfig     `yaml:"weather_context"`
+	PlaceEnrichment    PlaceEnrichmentConfig    `yaml:"place_enrichment"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -72,6 +73,18 @@ type WeatherContextConfig struct {
 	ExternalIntegrationsServiceURL string `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
 	TimeoutSeconds                 int    `yaml:"timeout_seconds" env:"WEATHER_CONTEXT_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
 	FailOpen                       bool   `yaml:"fail_open" env:"WEATHER_CONTEXT_FAIL_OPEN" env-default:"true"`
+}
+
+// PlaceEnrichmentConfig controls optional automatic place matching after AI
+// itinerary generation.
+type PlaceEnrichmentConfig struct {
+	Enabled                        bool    `yaml:"enabled" env:"PLACE_ENRICHMENT_ENABLED" env-default:"true"`
+	ExternalIntegrationsServiceURL string  `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
+	FailOpen                       bool    `yaml:"fail_open" env:"PLACE_ENRICHMENT_FAIL_OPEN" env-default:"true"`
+	TimeoutSeconds                 int     `yaml:"timeout_seconds" env:"PLACE_ENRICHMENT_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
+	MinConfidence                  float64 `yaml:"min_confidence" env:"PLACE_ENRICHMENT_MIN_CONFIDENCE" env-default:"0.75" validate:"min=0,max=1"`
+	MaxItems                       int     `yaml:"max_items" env:"PLACE_ENRICHMENT_MAX_ITEMS" env-default:"20" validate:"min=1"`
+	OverwriteExisting              bool    `yaml:"overwrite_existing" env:"PLACE_ENRICHMENT_OVERWRITE_EXISTING" env-default:"false"`
 }
 
 // IsProduction reports whether the service runs in a production profile.

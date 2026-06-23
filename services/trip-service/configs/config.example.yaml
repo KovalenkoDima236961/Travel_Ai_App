@@ -48,3 +48,12 @@ weather_context:
   external_integrations_service_url: http://localhost:8084
   timeout_seconds: 5
   fail_open: true
+
+place_enrichment:
+  enabled: true
+  external_integrations_service_url: http://localhost:8084
+  fail_open: true
+  timeout_seconds: 5
+  min_confidence: 0.75
+  max_items: 20
+  overwrite_existing: false

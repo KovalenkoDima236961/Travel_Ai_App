@@ -126,6 +126,12 @@ name, category, and address. When a destination is provided, results are
 filtered to that city. Unknown city-specific queries return a small fallback set
 for that city.
 
+Trip Service AI Place Enrichment v1 also calls `GET /places/search` after
+itinerary generation. The endpoint returns normalized, map-ready place objects
+with optional `category`, `rating`, `ratingCount`, `mapUrl`, `website`,
+coordinates, and `openingHours` so Trip Service can attach high-confidence
+matches without exposing provider credentials to the Web App.
+
 ## Real Place Provider v1
 
 `PLACE_PROVIDER` options:

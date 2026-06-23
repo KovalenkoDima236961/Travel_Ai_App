@@ -44,6 +44,12 @@ Trip Service can also call External Integrations Service for mock weather
 forecasts before full or partial itinerary generation. `WEATHER_CONTEXT_ENABLED=true`
 enables this path and `WEATHER_CONTEXT_FAIL_OPEN=true` lets generation continue
 without weather if the service is unavailable.
+Trip Service also uses External Integrations Service for AI Place Enrichment v1
+after generated itinerary payloads. `PLACE_ENRICHMENT_ENABLED=true` enables the
+path, `PLACE_ENRICHMENT_FAIL_OPEN=true` keeps generation successful when place
+search is unavailable, and `PLACE_ENRICHMENT_MIN_CONFIDENCE=0.75`,
+`PLACE_ENRICHMENT_MAX_ITEMS=20`, and
+`PLACE_ENRICHMENT_OVERWRITE_EXISTING=false` control matching behavior.
 
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right

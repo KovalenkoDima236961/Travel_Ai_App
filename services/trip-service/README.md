@@ -166,10 +166,16 @@ Key environment variables:
 | `USER_CONTEXT_ENABLED` | `true` | Fetch user profile/preferences before generating itineraries. |
 | `USER_CONTEXT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for User Service context calls. |
 | `USER_CONTEXT_FAIL_OPEN` | `true` | Continue generation without personalization when User Service fails. Set `false` to return `502` with `{"error":"failed to load user preferences"}`. |
-| `EXTERNAL_INTEGRATIONS_SERVICE_URL` | `http://external-integrations-service:8084` | Base URL for weather forecast lookup during generation. |
+| `EXTERNAL_INTEGRATIONS_SERVICE_URL` | `http://external-integrations-service:8084` | Base URL for weather forecast and place enrichment lookups during generation. |
 | `WEATHER_CONTEXT_ENABLED` | `true` | Fetch weather before full and partial itinerary generation when the trip has a start date. |
 | `WEATHER_CONTEXT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for weather forecast calls. |
 | `WEATHER_CONTEXT_FAIL_OPEN` | `true` | Continue generation without weather when External Integrations Service fails. Set `false` to return `502` with `{"error":"failed to load weather forecast"}`. |
+| `PLACE_ENRICHMENT_ENABLED` | `true` | Try to auto-attach place metadata after generated itinerary payloads. |
+| `PLACE_ENRICHMENT_FAIL_OPEN` | `true` | Continue generation without place matches when External Integrations Service fails. Set `false` to return `502` with `{"error":"failed to enrich itinerary places"}`. |
+| `PLACE_ENRICHMENT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for each place search request. |
+| `PLACE_ENRICHMENT_MIN_CONFIDENCE` | `0.75` | Minimum deterministic match score required before attaching a place. |
+| `PLACE_ENRICHMENT_MAX_ITEMS` | `20` | Maximum generated itinerary items to search per enrichment run. |
+| `PLACE_ENRICHMENT_OVERWRITE_EXISTING` | `false` | Preserve existing item `place` metadata by default. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -182,6 +188,17 @@ the trip has `destination`, `startDate`, and `days`, Trip Service requests
 generation and before day/item regeneration, then forwards the optional
 `weatherForecast` payload to AI Planning Service. Missing start dates skip
 weather context.
+
+Place enrichment is optional and fail-open by default. After full generation and
+partial day/item regeneration, Trip Service searches External Integrations
+Service for suitable item types (`place`, `food`, `activity`, `museum`,
+`landmark`, `restaurant`, `cafe`, `market`, `park`, `attraction`, `viewpoint`).
+It skips transport/rest/free-time/accommodation-style items, empty names, and
+existing `place` metadata unless overwrite is enabled. The scorer compares
+normalized item and place names, then adds small bonuses for destination/address
+fit, category fit, valid coordinates, and rating. Generated version history
+stores the final enriched itinerary snapshot; no separate enrichment version is
+created.
 
 ## Run with Docker Compose
 
@@ -391,6 +408,12 @@ Validation rules:
   `dayOfWeek` from `1` Monday through `7` Sunday and `open`/`close` in local
   `HH:mm` 24-hour time with `open` before `close`. Multiple intervals per day
   are allowed, and no interval for a day means closed or unknown.
+- `placeEnrichment` is optional and is preserved when present.
+- `placeEnrichment.status` must be one of `matched`, `no_match`, `skipped`, or
+  `failed`.
+- `placeEnrichment.confidence` must be between `0` and `1` when present.
+- `placeEnrichment.query`, `provider`, and `reason` are optional and capped at
+  300, 50, and 200 characters respectively. `matchedAt` is stored as a string.
 - String fields are trimmed before saving.
 
 Missing/invalid tokens return `401`. Missing trips and trips owned by another
@@ -398,10 +421,18 @@ user both return `404` so ownership is not leaked. Invalid itinerary shapes
 return `400` with `{ "error": "message" }`.
 
 External place lookup is owned by External Integrations Service. Trip Service
-does not call Google Places or other third-party place APIs; it only validates,
-stores, returns, versions, and restores optional place metadata submitted as
-part of the full itinerary JSON, including optional `openingHours`. Older saved
-itineraries without `place` or without `openingHours` remain valid.
+does not call Google Places or other third-party place APIs directly. For
+generated itineraries it calls `GET /places/search` on External Integrations
+Service, attaches only high-confidence matches, and stores `placeEnrichment`
+metadata such as confidence, provider, query, and reason. Manual
+`PUT /trips/{id}/itinerary` saves do not trigger auto-enrichment; the submitted
+`place` and `placeEnrichment` values are only validated and preserved. Older
+saved itineraries without `place`, `openingHours`, or `placeEnrichment` remain
+valid.
+
+Limitations: v1 uses simple string/category scoring, no background worker, no
+RabbitMQ, and no user confirmation before auto-attach. Real provider quality
+depends on External Integrations Service provider configuration.
 
 ### Itinerary version history
 

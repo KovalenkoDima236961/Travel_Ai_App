@@ -43,7 +43,8 @@ const defaultItem: ItineraryItem = {
   name: "",
   note: "",
   estimatedCost: null,
-  place: null
+  place: null,
+  placeEnrichment: null
 };
 
 export function ItineraryEditor({
@@ -191,7 +192,7 @@ export function ItineraryEditor({
     if (attachTarget == null) {
       return;
     }
-    updateItem(attachTarget.dayIndex, attachTarget.itemIndex, { place });
+    updateItem(attachTarget.dayIndex, attachTarget.itemIndex, { place, placeEnrichment: null });
   }
 
   return (
@@ -424,7 +425,9 @@ export function ItineraryEditor({
                       {item.place ? (
                         <Button
                           disabled={disabled}
-                          onClick={() => updateItem(dayIndex, itemIndex, { place: null })}
+                          onClick={() =>
+                            updateItem(dayIndex, itemIndex, { place: null, placeEnrichment: null })
+                          }
                           size="sm"
                           type="button"
                           variant="ghost"

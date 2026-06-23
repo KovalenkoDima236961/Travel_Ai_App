@@ -74,6 +74,12 @@ If External Integrations Service is configured with `PLACE_PROVIDER=foursquare`,
 the browser still calls the same `/places/search` and `/places/{placeId}`
 endpoints and receives normalized `Place` objects.
 
+Automatic place enrichment after AI generation is owned by Trip Service. The Web
+App does not call enrichment directly; it renders returned `place` metadata and
+shows an `Auto-matched place` confidence badge when an item has
+`placeEnrichment.status === "matched"`. Manual place changes/removals in the
+editor clear `placeEnrichment` so stale auto-match labels are not saved.
+
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and
 adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:

@@ -26,12 +26,13 @@ type ItineraryDay struct {
 
 // ItineraryItem is a single planned activity within a day.
 type ItineraryItem struct {
-	Time          string    `json:"time"`
-	Type          string    `json:"type"`
-	Name          string    `json:"name"`
-	Note          string    `json:"note,omitempty"`
-	EstimatedCost *float64  `json:"estimatedCost,omitempty"`
-	Place         *PlaceRef `json:"place,omitempty"`
+	Time            string               `json:"time"`
+	Type            string               `json:"type"`
+	Name            string               `json:"name"`
+	Note            string               `json:"note,omitempty"`
+	EstimatedCost   *float64             `json:"estimatedCost,omitempty"`
+	Place           *PlaceRef            `json:"place,omitempty"`
+	PlaceEnrichment *PlaceEnrichmentMeta `json:"placeEnrichment,omitempty"`
 }
 
 // OpeningHoursInterval is one local-time opening interval for an attached
@@ -56,4 +57,15 @@ type PlaceRef struct {
 	Category        string                 `json:"category,omitempty"`
 	Website         string                 `json:"website,omitempty"`
 	OpeningHours    []OpeningHoursInterval `json:"openingHours,omitempty"`
+}
+
+// PlaceEnrichmentMeta describes automatic Trip Service place matching for an
+// itinerary item. It is optional and preserved with itinerary JSON snapshots.
+type PlaceEnrichmentMeta struct {
+	Status     string  `json:"status"`
+	Confidence float64 `json:"confidence,omitempty"`
+	Query      string  `json:"query,omitempty"`
+	Provider   string  `json:"provider,omitempty"`
+	MatchedAt  string  `json:"matchedAt,omitempty"`
+	Reason     string  `json:"reason,omitempty"`
 }

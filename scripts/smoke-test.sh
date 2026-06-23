@@ -439,6 +439,21 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
 
+AUTO_MATCHED_GENERATED_ITEMS="$(jq '[.itinerary.days[]?.items[]? | select(.place != null and .placeEnrichment.status == "matched")] | length' <<<"${COMPLETED_TRIP_BODY}")"
+if [[ "${AUTO_MATCHED_GENERATED_ITEMS}" -gt 0 ]]; then
+  if ! jq -e '
+    [.itinerary.days[]?.items[]? | select(.place != null and .placeEnrichment.status == "matched")]
+    | all(.[]; (.place.provider // "") != "" and (.place.providerPlaceId // "") != "" and (.place.name // "") != "" and (.placeEnrichment.confidence // 0) >= 0.75)
+  ' >/dev/null <<<"${COMPLETED_TRIP_BODY}"; then
+    echo "Generated itinerary auto-matched place metadata is incomplete." >&2
+    echo "${COMPLETED_TRIP_BODY}" >&2
+    exit 1
+  fi
+  echo "Generated itinerary has ${AUTO_MATCHED_GENERATED_ITEMS} auto-matched place item(s)."
+else
+  echo "Generated itinerary has no high-confidence auto-matched places; continuing because AI wording can vary."
+fi
+
 echo "Listing itinerary versions after generation..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions" "${ACCESS_TOKEN}"
 assert_2xx "List itinerary versions after generation"

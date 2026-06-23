@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
@@ -260,6 +261,25 @@ type mockWeatherContextProvider struct {
 	capturedDays        int
 }
 
+type mockPlaceEnrichmentProvider struct {
+	result        *placeenrichment.EnrichItineraryResult
+	err           error
+	called        bool
+	capturedInput placeenrichment.EnrichItineraryInput
+}
+
+func (p *mockPlaceEnrichmentProvider) EnrichItinerary(_ context.Context, input placeenrichment.EnrichItineraryInput) (*placeenrichment.EnrichItineraryResult, error) {
+	p.called = true
+	p.capturedInput = input
+	if p.err != nil {
+		return nil, p.err
+	}
+	if p.result != nil {
+		return p.result, nil
+	}
+	return &placeenrichment.EnrichItineraryResult{Itinerary: input.Itinerary}, nil
+}
+
 func (p *mockWeatherContextProvider) GetForecast(_ context.Context, destination string, startDate string, days int) (*weathercontext.WeatherForecast, error) {
 	p.called = true
 	p.capturedDestination = destination
@@ -446,6 +466,150 @@ func TestGenerate_Success_SetsCompleted(t *testing.T) {
 	}
 	if repo.versions[0].Metadata["generator"] != "full" {
 		t.Fatalf("expected full generator metadata, got %+v", repo.versions[0].Metadata)
+	}
+}
+
+func TestGenerate_PlaceEnrichmentEnabled_SavesEnrichedGeneratedVersion(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	generated := aggregate.Itinerary{
+		Destination: "Rome",
+		Days: []aggregate.ItineraryDay{{
+			Day:   1,
+			Title: "Historic Rome",
+			Items: []aggregate.ItineraryItem{{
+				Time: "09:00",
+				Type: "place",
+				Name: "Colosseum",
+			}},
+		}},
+	}
+	enriched := generated
+	enriched.Days = append([]aggregate.ItineraryDay(nil), generated.Days...)
+	enriched.Days[0].Items = append([]aggregate.ItineraryItem(nil), generated.Days[0].Items...)
+	enriched.Days[0].Items[0].Place = validPlaceRef()
+	enriched.Days[0].Items[0].PlaceEnrichment = &aggregate.PlaceEnrichmentMeta{
+		Status:     placeenrichment.StatusMatched,
+		Confidence: 0.9,
+		Query:      "Colosseum",
+		Provider:   "mock",
+		MatchedAt:  "2026-06-23T12:00:00Z",
+		Reason:     "exact_name_match",
+	}
+	enricher := &mockPlaceEnrichmentProvider{
+		result: &placeenrichment.EnrichItineraryResult{
+			Itinerary: enriched,
+			Stats:     placeenrichment.PlaceEnrichmentStats{Attempted: 1, Matched: 1},
+		},
+	}
+	svc := New(repo, &mockGenerator{result: &generated}, zap.NewNop(), WithPlaceEnrichment(enricher, true, true))
+
+	got, err := svc.Generate(authContext(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Status != entity.StatusCompleted {
+		t.Fatalf("expected completed trip, got %s", got.Status)
+	}
+	if !enricher.called {
+		t.Fatal("expected place enrichment to be called")
+	}
+	if enricher.capturedInput.Destination != "Rome" {
+		t.Fatalf("expected enrichment destination Rome, got %q", enricher.capturedInput.Destination)
+	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one generated version, got %d", len(repo.versions))
+	}
+	saved := decodeItinerary(t, repo.versions[0].Itinerary)
+	item := saved.Days[0].Items[0]
+	if item.Place == nil || item.Place.ProviderPlaceID != "mock-colosseum-rome" {
+		t.Fatalf("expected version to store enriched place, got %+v", item.Place)
+	}
+	if item.PlaceEnrichment == nil || item.PlaceEnrichment.Status != placeenrichment.StatusMatched {
+		t.Fatalf("expected version to store matched enrichment metadata, got %+v", item.PlaceEnrichment)
+	}
+}
+
+func TestGenerate_PlaceEnrichmentDisabled_SkipsEnrichment(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	enricher := &mockPlaceEnrichmentProvider{err: errors.New("should not be called")}
+	svc := New(repo, &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}, zap.NewNop(), WithPlaceEnrichment(enricher, false, false))
+
+	if _, err := svc.Generate(authContext(), id); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if enricher.called {
+		t.Fatal("place enrichment must not be called when disabled")
+	}
+}
+
+func TestGenerate_PlaceEnrichmentFailOpen_ContinuesWithOriginalItinerary(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	generated := &aggregate.Itinerary{
+		Destination: "Rome",
+		Days: []aggregate.ItineraryDay{{
+			Day:   1,
+			Title: "Historic Rome",
+			Items: []aggregate.ItineraryItem{{Time: "09:00", Type: "place", Name: "Colosseum"}},
+		}},
+	}
+	enricher := &mockPlaceEnrichmentProvider{err: errors.New("place service down")}
+	svc := New(repo, &mockGenerator{result: generated}, zap.NewNop(), WithPlaceEnrichment(enricher, true, true))
+
+	got, err := svc.Generate(authContext(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Status != entity.StatusCompleted {
+		t.Fatalf("expected completed trip, got %s", got.Status)
+	}
+	saved := decodeItinerary(t, repo.updateItinRaw)
+	if saved.Days[0].Items[0].Place != nil {
+		t.Fatalf("expected original itinerary without place, got %+v", saved.Days[0].Items[0].Place)
+	}
+}
+
+func TestGenerate_PlaceEnrichmentFailClosed_ReturnsDependencyError(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	generated := &aggregate.Itinerary{
+		Destination: "Rome",
+		Days: []aggregate.ItineraryDay{{
+			Day:   1,
+			Title: "Historic Rome",
+			Items: []aggregate.ItineraryItem{{Time: "09:00", Type: "place", Name: "Colosseum"}},
+		}},
+	}
+	enricher := &mockPlaceEnrichmentProvider{err: errors.New("place service down")}
+	svc := New(repo, &mockGenerator{result: generated}, zap.NewNop(), WithPlaceEnrichment(enricher, true, false))
+
+	_, err := svc.Generate(authContext(), id)
+	if err == nil {
+		t.Fatal("expected enrichment dependency error")
+	}
+	var dependencyErr *apperrs.DependencyError
+	if !errors.As(err, &dependencyErr) {
+		t.Fatalf("expected DependencyError, got %v", err)
+	}
+	if dependencyErr.Error() != "failed to enrich itinerary places" {
+		t.Fatalf("unexpected dependency error: %v", dependencyErr)
+	}
+	if len(repo.versions) != 0 {
+		t.Fatalf("fail-closed enrichment must not create versions, got %+v", repo.versions)
+	}
+	if len(repo.statusSeq) != 2 || repo.statusSeq[0] != entity.StatusProcessing || repo.statusSeq[1] != entity.StatusFailed {
+		t.Fatalf("expected status sequence [PROCESSING FAILED], got %v", repo.statusSeq)
 	}
 }
 
@@ -827,6 +991,89 @@ func TestUpdateItinerary_WithOldPlaceWithoutOpeningHoursStillSucceeds(t *testing
 	}
 	if len(place.OpeningHours) != 0 {
 		t.Fatalf("expected old place metadata without opening hours to remain valid, got %+v", place.OpeningHours)
+	}
+}
+
+func TestUpdateItinerary_WithPlaceEnrichmentSucceedsAndVersionsMetadata(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+		Itinerary: validItineraryWithPlaceEnrichmentRaw(t),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	updated := decodeItinerary(t, got.Itinerary)
+	meta := updated.Days[0].Items[0].PlaceEnrichment
+	if meta == nil || meta.Status != placeenrichment.StatusMatched || meta.Query != "Colosseum" {
+		t.Fatalf("expected persisted place enrichment metadata, got %+v", meta)
+	}
+	version := decodeItinerary(t, repo.versions[0].Itinerary)
+	versionMeta := version.Days[0].Items[0].PlaceEnrichment
+	if versionMeta == nil || versionMeta.Status != placeenrichment.StatusMatched {
+		t.Fatalf("expected version to store place enrichment metadata, got %+v", versionMeta)
+	}
+}
+
+func TestUpdateItinerary_InvalidPlaceEnrichmentReturnsInvalidInput(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*aggregate.PlaceEnrichmentMeta)
+	}{
+		{
+			name: "invalid status",
+			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
+				meta.Status = "manual"
+			},
+		},
+		{
+			name: "negative confidence",
+			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
+				meta.Confidence = -0.1
+			},
+		},
+		{
+			name: "confidence over one",
+			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
+				meta.Confidence = 1.1
+			},
+		},
+		{
+			name: "query too long",
+			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
+				meta.Query = strings.Repeat("q", maxPlaceEnrichmentQuery+1)
+			},
+		},
+		{
+			name: "provider too long",
+			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
+				meta.Provider = strings.Repeat("p", maxPlaceEnrichmentProvider+1)
+			},
+		},
+		{
+			name: "reason too long",
+			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
+				meta.Reason = strings.Repeat("r", maxPlaceEnrichmentReason+1)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockRepo{}
+			svc := newTestService(repo, &mockGenerator{})
+
+			_, err := svc.UpdateItinerary(authContext(), uuid.New(), appdto.UpdateItineraryInput{
+				Itinerary: itineraryWithMutatedPlaceEnrichmentRaw(t, tt.mutate),
+			})
+			assertInvalidInput(t, err)
+			if len(repo.versions) != 0 {
+				t.Fatalf("invalid place enrichment metadata must not create versions, got %+v", repo.versions)
+			}
+		})
 	}
 }
 
@@ -1551,6 +1798,19 @@ func validItineraryWithPlaceWithoutOpeningHoursRaw(t *testing.T) json.RawMessage
 	return out
 }
 
+func validItineraryWithPlaceEnrichmentRaw(t *testing.T) json.RawMessage {
+	t.Helper()
+	raw := validItineraryWithPlaceRaw(t)
+	itinerary := decodeItinerary(t, raw)
+	itinerary.Days[0].Items[0].PlaceEnrichment = validPlaceEnrichmentMeta()
+
+	out, err := json.Marshal(itinerary)
+	if err != nil {
+		t.Fatalf("marshal itinerary with place enrichment: %v", err)
+	}
+	return out
+}
+
 func itineraryWithMutatedPlaceRaw(t *testing.T, mutate func(*aggregate.PlaceRef)) json.RawMessage {
 	t.Helper()
 	raw := validExistingItineraryRaw(t)
@@ -1562,6 +1822,21 @@ func itineraryWithMutatedPlaceRaw(t *testing.T, mutate func(*aggregate.PlaceRef)
 	out, err := json.Marshal(itinerary)
 	if err != nil {
 		t.Fatalf("marshal mutated place itinerary: %v", err)
+	}
+	return out
+}
+
+func itineraryWithMutatedPlaceEnrichmentRaw(t *testing.T, mutate func(*aggregate.PlaceEnrichmentMeta)) json.RawMessage {
+	t.Helper()
+	raw := validItineraryWithPlaceRaw(t)
+	itinerary := decodeItinerary(t, raw)
+	meta := validPlaceEnrichmentMeta()
+	mutate(meta)
+	itinerary.Days[0].Items[0].PlaceEnrichment = meta
+
+	out, err := json.Marshal(itinerary)
+	if err != nil {
+		t.Fatalf("marshal mutated place enrichment itinerary: %v", err)
 	}
 	return out
 }
@@ -1592,6 +1867,17 @@ func validPlaceRef() *aggregate.PlaceRef {
 			{DayOfWeek: 6, Open: "08:30", Close: "19:15"},
 			{DayOfWeek: 7, Open: "08:30", Close: "19:15"},
 		},
+	}
+}
+
+func validPlaceEnrichmentMeta() *aggregate.PlaceEnrichmentMeta {
+	return &aggregate.PlaceEnrichmentMeta{
+		Status:     placeenrichment.StatusMatched,
+		Confidence: 0.9,
+		Query:      "Colosseum",
+		Provider:   "mock",
+		MatchedAt:  "2026-06-23T12:00:00Z",
+		Reason:     "exact_name_match",
 	}
 }
 

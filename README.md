@@ -19,8 +19,11 @@ preferences from User Service by forwarding the user's JWT, then sends optional
 `userProfile` and `userPreferences` to AI Planning Service for prompt
 personalization. Trip Service can also fetch a mock weather forecast from
 External Integrations Service and forward optional `weatherForecast` context so
-AI prompts can adapt to rain, heat, cold, or wind. Access tokens and full
-preference payloads should not be logged.
+AI prompts can adapt to rain, heat, cold, or wind. After AI generation, Trip
+Service can also call External Integrations Service to auto-attach
+high-confidence place metadata to suitable itinerary items; enrichment is
+optional and fail-open by default. Access tokens and full preference payloads
+should not be logged.
 External Integrations Service v1 lives in
 `services/external-integrations-service` and owns place search/details, route
 estimation, and weather forecast provider boundaries. Place search/details use

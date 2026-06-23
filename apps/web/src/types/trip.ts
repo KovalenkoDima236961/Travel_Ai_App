@@ -4,6 +4,15 @@ export type TripStatus = "DRAFT" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export type Pace = "relaxed" | "balanced" | "packed" | "intensive" | string;
 
+export type PlaceEnrichment = {
+  status: "matched" | "no_match" | "skipped" | "failed";
+  confidence?: number | null;
+  query?: string | null;
+  provider?: string | null;
+  matchedAt?: string | null;
+  reason?: string | null;
+};
+
 export type ItineraryItem = {
   time: string;
   type: "place" | "food" | "activity" | "transport" | "rest" | string;
@@ -11,6 +20,7 @@ export type ItineraryItem = {
   note?: string | null;
   estimatedCost?: number | null;
   place?: Place | null;
+  placeEnrichment?: PlaceEnrichment | null;
 };
 
 export type ItineraryDay = {

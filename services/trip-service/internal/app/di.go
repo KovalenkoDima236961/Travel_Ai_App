@@ -14,6 +14,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
 	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
@@ -79,6 +81,24 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			return nil, fmt.Errorf("init weather context client: %w", err)
 		}
 	}
+	var placeEnrichmentSvc interface {
+		EnrichItinerary(context.Context, placeenrichment.EnrichItineraryInput) (*placeenrichment.EnrichItineraryResult, error)
+	}
+	if cfg.PlaceEnrichment.Enabled {
+		placeClient, err := placecontext.New(placecontext.Config{
+			BaseURL:        cfg.PlaceEnrichment.ExternalIntegrationsServiceURL,
+			TimeoutSeconds: cfg.PlaceEnrichment.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init place context client: %w", err)
+		}
+		placeEnrichmentSvc = placeenrichment.New(placeClient, placeenrichment.Config{
+			MinConfidence:     cfg.PlaceEnrichment.MinConfidence,
+			MaxItems:          cfg.PlaceEnrichment.MaxItems,
+			OverwriteExisting: cfg.PlaceEnrichment.OverwriteExisting,
+			FailOpen:          cfg.PlaceEnrichment.FailOpen,
+		})
+	}
 	svc := service.New(repo, gen, log, service.WithUserContext(
 		userContextClient,
 		cfg.UserContext.Enabled,
@@ -87,6 +107,10 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		weatherContextClient,
 		cfg.WeatherContext.Enabled,
 		cfg.WeatherContext.FailOpen,
+	), service.WithPlaceEnrichment(
+		placeEnrichmentSvc,
+		cfg.PlaceEnrichment.Enabled,
+		cfg.PlaceEnrichment.FailOpen,
 	))
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(

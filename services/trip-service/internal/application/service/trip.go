@@ -19,6 +19,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
@@ -27,13 +28,16 @@ const (
 	defaultCurrency = "EUR"
 	defaultPace     = "balanced"
 
-	maxDays                 = 30
-	maxItineraryDays        = 60
-	maxItineraryItemsPerDay = 30
-	maxInstructionLength    = 500
-	maxPlaceURLLength       = 2048
-	defaultLimit            = 20
-	maxLimit                = 100
+	maxDays                    = 30
+	maxItineraryDays           = 60
+	maxItineraryItemsPerDay    = 30
+	maxInstructionLength       = 500
+	maxPlaceURLLength          = 2048
+	maxPlaceEnrichmentQuery    = 300
+	maxPlaceEnrichmentProvider = 50
+	maxPlaceEnrichmentReason   = 200
+	defaultLimit               = 20
+	maxLimit                   = 100
 )
 
 type editableItinerary struct {
@@ -76,6 +80,10 @@ type weatherContextProvider interface {
 	GetForecast(ctx context.Context, destination string, startDate string, days int) (*weathercontext.WeatherForecast, error)
 }
 
+type placeEnrichmentProvider interface {
+	EnrichItinerary(ctx context.Context, input placeenrichment.EnrichItineraryInput) (*placeenrichment.EnrichItineraryResult, error)
+}
+
 // Option customizes Service dependencies that are not required for the core
 // trip CRUD flow.
 type Option func(*Service)
@@ -100,18 +108,31 @@ func WithWeatherContext(provider weatherContextProvider, enabled, failOpen bool)
 	}
 }
 
+// WithPlaceEnrichment enables optional automatic place metadata attachment
+// after generated itinerary payloads are returned by AI Planning Service.
+func WithPlaceEnrichment(provider placeEnrichmentProvider, enabled, failOpen bool) Option {
+	return func(s *Service) {
+		s.placeEnrichmentProvider = provider
+		s.placeEnrichmentEnabled = enabled
+		s.placeEnrichmentFailOpen = failOpen
+	}
+}
+
 // Service holds the trip business logic. It depends on the repository and
 // generator ports and a logger.
 type Service struct {
-	repo                   tripRepository
-	generator              application.ItineraryGenerator
-	userContextProvider    userContextProvider
-	userContextEnabled     bool
-	userContextFailOpen    bool
-	weatherContextProvider weatherContextProvider
-	weatherContextEnabled  bool
-	weatherContextFailOpen bool
-	log                    *zap.Logger
+	repo                    tripRepository
+	generator               application.ItineraryGenerator
+	userContextProvider     userContextProvider
+	userContextEnabled      bool
+	userContextFailOpen     bool
+	weatherContextProvider  weatherContextProvider
+	weatherContextEnabled   bool
+	weatherContextFailOpen  bool
+	placeEnrichmentProvider placeEnrichmentProvider
+	placeEnrichmentEnabled  bool
+	placeEnrichmentFailOpen bool
+	log                     *zap.Logger
 }
 
 // New constructs the trip service.
@@ -266,6 +287,12 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		return nil, err
 	}
 
+	itinerary, err = s.enrichGeneratedItinerary(ctx, id, *current, itinerary)
+	if err != nil {
+		s.markFailed(ctx, id, user.ID)
+		return nil, err
+	}
+
 	raw, err := json.Marshal(itinerary)
 	if err != nil {
 		s.markFailed(ctx, id, user.ID)
@@ -392,6 +419,12 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 		return nil, apperrs.NewDependencyError("AI returned invalid replacement")
 	}
 
+	normalizedReplacement, err = s.enrichReplacementDay(ctx, id, *current, normalizedReplacement)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
 	currentItinerary.Days[dayIndex] = normalizedReplacement
 	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateDay, map[string]any{
 		"dayNumber":          dayNumber,
@@ -473,6 +506,12 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		return nil, apperrs.NewDependencyError("AI returned invalid replacement")
 	}
 
+	normalizedReplacement, err = s.enrichReplacementItem(ctx, id, *current, dayNumber, normalizedReplacement)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
 	currentItinerary.Days[dayIndex].Items[itemIndex] = normalizedReplacement
 	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateItem, map[string]any{
 		"dayNumber":          dayNumber,
@@ -551,6 +590,9 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 			if err := validateAndNormalizePlaceRef(item.Place, "itinerary.days[%d].items[%d].place", dayIndex, itemIndex); err != nil {
 				return nil, err
 			}
+			if err := validateAndNormalizePlaceEnrichment(item.PlaceEnrichment, "itinerary.days[%d].items[%d].placeEnrichment", dayIndex, itemIndex); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -624,6 +666,9 @@ func validateCurrentItinerary(itinerary aggregate.Itinerary) error {
 			if err := validateAndNormalizePlaceRef(item.Place, "place"); err != nil {
 				return currentItineraryInvalidError()
 			}
+			if err := validateAndNormalizePlaceEnrichment(item.PlaceEnrichment, "placeEnrichment"); err != nil {
+				return currentItineraryInvalidError()
+			}
 		}
 	}
 
@@ -679,6 +724,9 @@ func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.Itinerar
 	}
 	if err := validateAndNormalizePlaceRef(normalized.Place, "replacement item place"); err != nil {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item place is invalid")
+	}
+	if err := validateAndNormalizePlaceEnrichment(normalized.PlaceEnrichment, "replacement item placeEnrichment"); err != nil {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item placeEnrichment is invalid")
 	}
 
 	return normalized, nil
@@ -768,6 +816,46 @@ func validateAndNormalizeOpeningHours(place *aggregate.PlaceRef, label string) e
 		if openMinutes >= closeMinutes {
 			return apperrs.NewInvalidInput("%s.openingHours[%d].open must be before close", label, index)
 		}
+	}
+
+	return nil
+}
+
+func validateAndNormalizePlaceEnrichment(meta *aggregate.PlaceEnrichmentMeta, path string, args ...any) error {
+	if meta == nil {
+		return nil
+	}
+
+	label := path
+	if len(args) > 0 {
+		label = fmt.Sprintf(path, args...)
+	}
+
+	meta.Status = strings.TrimSpace(meta.Status)
+	switch meta.Status {
+	case placeenrichment.StatusMatched, placeenrichment.StatusNoMatch, placeenrichment.StatusSkipped, placeenrichment.StatusFailed:
+	default:
+		return apperrs.NewInvalidInput("%s.status must be one of matched, no_match, skipped, failed", label)
+	}
+
+	if meta.Confidence < 0 || meta.Confidence > 1 {
+		return apperrs.NewInvalidInput("%s.confidence must be between 0 and 1", label)
+	}
+
+	meta.Query = strings.TrimSpace(meta.Query)
+	if len(meta.Query) > maxPlaceEnrichmentQuery {
+		return apperrs.NewInvalidInput("%s.query must be at most %d characters", label, maxPlaceEnrichmentQuery)
+	}
+
+	meta.Provider = strings.TrimSpace(meta.Provider)
+	if len(meta.Provider) > maxPlaceEnrichmentProvider {
+		return apperrs.NewInvalidInput("%s.provider must be at most %d characters", label, maxPlaceEnrichmentProvider)
+	}
+
+	meta.MatchedAt = strings.TrimSpace(meta.MatchedAt)
+	meta.Reason = strings.TrimSpace(meta.Reason)
+	if len(meta.Reason) > maxPlaceEnrichmentReason {
+		return apperrs.NewInvalidInput("%s.reason must be at most %d characters", label, maxPlaceEnrichmentReason)
 	}
 
 	return nil
@@ -1008,6 +1096,114 @@ func (s *Service) handleWeatherContextError(err error, fields []zap.Field) (*wea
 
 	s.log.Warn("failed to load weather context; generation blocked", logFields...)
 	return nil, apperrs.NewDependencyError("failed to load weather forecast")
+}
+
+func (s *Service) enrichGeneratedItinerary(ctx context.Context, tripID uuid.UUID, trip entity.Trip, itinerary *aggregate.Itinerary) (*aggregate.Itinerary, error) {
+	if itinerary == nil {
+		return itinerary, nil
+	}
+	result, err := s.enrichItinerary(ctx, tripID, trip, *itinerary, "generate")
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *Service) enrichReplacementDay(ctx context.Context, tripID uuid.UUID, trip entity.Trip, day aggregate.ItineraryDay) (aggregate.ItineraryDay, error) {
+	itinerary := aggregate.Itinerary{
+		Destination: trip.Destination,
+		Days:        []aggregate.ItineraryDay{day},
+	}
+	enriched, err := s.enrichItinerary(ctx, tripID, trip, itinerary, "regenerate_day")
+	if err != nil {
+		return aggregate.ItineraryDay{}, err
+	}
+	if enriched == nil || len(enriched.Days) != 1 {
+		return day, nil
+	}
+	return enriched.Days[0], nil
+}
+
+func (s *Service) enrichReplacementItem(ctx context.Context, tripID uuid.UUID, trip entity.Trip, dayNumber int, item aggregate.ItineraryItem) (aggregate.ItineraryItem, error) {
+	itinerary := aggregate.Itinerary{
+		Destination: trip.Destination,
+		Days: []aggregate.ItineraryDay{{
+			Day:   dayNumber,
+			Title: "Replacement day",
+			Items: []aggregate.ItineraryItem{item},
+		}},
+	}
+	enriched, err := s.enrichItinerary(ctx, tripID, trip, itinerary, "regenerate_item")
+	if err != nil {
+		return aggregate.ItineraryItem{}, err
+	}
+	if enriched == nil || len(enriched.Days) != 1 || len(enriched.Days[0].Items) != 1 {
+		return item, nil
+	}
+	return enriched.Days[0].Items[0], nil
+}
+
+func (s *Service) enrichItinerary(ctx context.Context, tripID uuid.UUID, trip entity.Trip, itinerary aggregate.Itinerary, source string) (*aggregate.Itinerary, error) {
+	started := time.Now()
+	fields := []zap.Field{
+		zap.String("action", "place_enrichment"),
+		zap.String("tripId", tripID.String()),
+		zap.String("destination", trip.Destination),
+		zap.String("source", source),
+		zap.Bool("enabled", s.placeEnrichmentEnabled),
+		zap.Bool("failOpen", s.placeEnrichmentFailOpen),
+	}
+
+	if !s.placeEnrichmentEnabled {
+		s.log.Info("place enrichment disabled",
+			append(fields,
+				zap.Int64("durationMs", time.Since(started).Milliseconds()),
+			)...,
+		)
+		return &itinerary, nil
+	}
+	if s.placeEnrichmentProvider == nil {
+		err := errors.New("place enrichment provider is not configured")
+		return s.handlePlaceEnrichmentError(err, fields, started, itinerary)
+	}
+
+	result, err := s.placeEnrichmentProvider.EnrichItinerary(ctx, placeenrichment.EnrichItineraryInput{
+		Destination: trip.Destination,
+		Itinerary:   itinerary,
+	})
+	if err != nil {
+		return s.handlePlaceEnrichmentError(err, fields, started, itinerary)
+	}
+	if result == nil {
+		err := errors.New("place enrichment returned no result")
+		return s.handlePlaceEnrichmentError(err, fields, started, itinerary)
+	}
+
+	s.log.Info("place enrichment completed",
+		append(fields,
+			zap.Int("attempted", result.Stats.Attempted),
+			zap.Int("matched", result.Stats.Matched),
+			zap.Int("noMatch", result.Stats.NoMatch),
+			zap.Int("skipped", result.Stats.Skipped),
+			zap.Int("failed", result.Stats.Failed),
+			zap.Int64("durationMs", time.Since(started).Milliseconds()),
+		)...,
+	)
+	return &result.Itinerary, nil
+}
+
+func (s *Service) handlePlaceEnrichmentError(err error, fields []zap.Field, started time.Time, original aggregate.Itinerary) (*aggregate.Itinerary, error) {
+	logFields := append(fields,
+		zap.Int64("durationMs", time.Since(started).Milliseconds()),
+		zap.Error(err),
+	)
+	if s.placeEnrichmentFailOpen {
+		s.log.Warn("failed to enrich itinerary places; continuing without enrichment", logFields...)
+		return &original, nil
+	}
+
+	s.log.Warn("failed to enrich itinerary places; generation blocked", logFields...)
+	return nil, apperrs.NewDependencyError("failed to enrich itinerary places")
 }
 
 func (s *Service) markFailed(ctx context.Context, id, userID uuid.UUID) {

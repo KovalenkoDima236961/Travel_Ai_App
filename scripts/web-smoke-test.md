@@ -57,56 +57,62 @@ http://localhost:3000
 12. Click `Generate itinerary`.
 13. Wait for completion.
 14. Confirm the itinerary appears.
-15. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
-16. Open `Version History`.
-17. Confirm a `Generated` version exists.
-18. Click `Edit itinerary`.
-19. Open an itinerary item and click `Attach real place`.
-20. Search for `Colosseum` with destination `Rome`.
-21. Select `Colosseum`.
-22. Confirm the item shows address, rating/category, and an `Open map` link.
-23. Attach a second mock place with coordinates to another itinerary item.
-24. Change one item name.
-25. Add one item.
-26. Remove one item.
-27. Click `Save`.
-28. Refresh the page.
-29. Confirm the attached place address/rating/map link still appears.
-30. Confirm Map View appears on the trip detail page.
-31. Confirm map markers are visible.
-32. Click a marker and confirm the popup shows item/place details.
-33. Use the day filter and confirm markers change.
-34. Refresh the page and confirm the map still shows markers.
-35. Confirm the `Distance estimate` panel appears below the Map View.
-36. Confirm the panel explains that route estimates come from the External
+15. If any generated items show `Auto-matched place`, confirm they also show a
+    place address/provider and, when confidence is present, a percentage.
+16. If at least two generated auto-matched places have coordinates, confirm map
+    markers and distance estimates appear before any manual place attachment.
+17. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+18. Open `Version History`.
+19. Confirm a `Generated` version exists.
+20. Click `Edit itinerary`.
+21. Open an itinerary item and click `Attach real place`.
+22. Search for `Colosseum` with destination `Rome`.
+23. Select `Colosseum`.
+24. Confirm the item shows address, rating/category, and an `Open map` link.
+25. Confirm manually changing or removing an auto-matched place clears the
+    `Auto-matched place` label after saving.
+26. Attach a second mock place with coordinates to another itinerary item.
+27. Change one item name.
+28. Add one item.
+29. Remove one item.
+30. Click `Save`.
+31. Refresh the page.
+32. Confirm the attached place address/rating/map link still appears.
+33. Confirm Map View appears on the trip detail page.
+34. Confirm map markers are visible.
+35. Click a marker and confirm the popup shows item/place details.
+36. Use the day filter and confirm markers change.
+37. Refresh the page and confirm the map still shows markers.
+38. Confirm the `Distance estimate` panel appears below the Map View.
+39. Confirm the panel explains that route estimates come from the External
     Integrations Service and fall back to a straight-line Haversine estimate.
-37. Confirm the day with at least two mapped places shows a mapped-stops count
+40. Confirm the day with at least two mapped places shows a mapped-stops count
     and, with the External Integrations Service running, a
     `Route estimate: <km> · ~<time> walking` line plus a smaller
     `Straight-line fallback: <km>` line. Exact figures depend on the attached
     places. (If the service is down, a `Straight-line estimate` line is shown
     instead.)
-38. Expand the day's segment details and confirm per-segment distances appear
+41. Expand the day's segment details and confirm per-segment distances appear
     (e.g. `Colosseum → Roman Forum: 0.6 km · ~8 min`).
-39. Open `/settings`, set `maxWalkingKmPerDay` to a low value such as `1`, and
+42. Open `/settings`, set `maxWalkingKmPerDay` to a low value such as `1`, and
     save preferences.
-40. Return to the trip detail page.
-41. Confirm a day above the preference shows the `Above your walking preference`
+43. Return to the trip detail page.
+44. Confirm a day above the preference shows the `Above your walking preference`
     warning badge and the `Your preference: max 1 km/day` line.
-42. Click `Edit itinerary` and confirm the distance estimates are hidden with a
+45. Click `Edit itinerary` and confirm the distance estimates are hidden with a
     note that they are available after saving or leaving edit mode.
-43. Leave edit mode and confirm the distance estimates reappear.
-44. Open `Version History` again.
-45. Confirm a `Manual edit` version exists.
-46. Preview the manual edit version and confirm it keeps the place metadata.
-47. Preview the older generated version.
-48. Restore the generated version.
-49. Refresh the page.
-50. Confirm the restored itinerary persists.
-51. Open `Version History`.
-52. Confirm the restore created another version.
-53. Go to `/trips`.
-54. Confirm the trip appears in the list.
+46. Leave edit mode and confirm the distance estimates reappear.
+47. Open `Version History` again.
+48. Confirm a `Manual edit` version exists.
+49. Preview the manual edit version and confirm it keeps the place metadata.
+50. Preview the older generated version.
+51. Restore the generated version.
+52. Refresh the page.
+53. Confirm the restored itinerary persists.
+54. Open `Version History`.
+55. Confirm the restore created another version.
+56. Go to `/trips`.
+57. Confirm the trip appears in the list.
 
 ## Opening Hours
 

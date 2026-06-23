@@ -144,6 +144,12 @@ export function ItineraryView({
                         <p>{item.place.address}</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
                           <span>Provider: {formatPlaceCategory(item.place.provider || "unknown")}</span>
+                          {item.placeEnrichment?.status === "matched" ? (
+                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                              Auto-matched place
+                              {formatConfidence(item.placeEnrichment.confidence)}
+                            </span>
+                          ) : null}
                           {item.place.rating != null ? (
                             <span>
                               Rating {item.place.rating}
@@ -215,6 +221,13 @@ function formatPlaceCategory(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatConfidence(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) {
+    return "";
+  }
+  return ` (${Math.round(value * 100)}%)`;
 }
 
 function OpeningHoursStatus({

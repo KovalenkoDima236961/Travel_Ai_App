@@ -32,6 +32,12 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"WEATHER_CONTEXT_ENABLED",
 		"WEATHER_CONTEXT_TIMEOUT_SECONDS",
 		"WEATHER_CONTEXT_FAIL_OPEN",
+		"PLACE_ENRICHMENT_ENABLED",
+		"PLACE_ENRICHMENT_FAIL_OPEN",
+		"PLACE_ENRICHMENT_TIMEOUT_SECONDS",
+		"PLACE_ENRICHMENT_MIN_CONFIDENCE",
+		"PLACE_ENRICHMENT_MAX_ITEMS",
+		"PLACE_ENRICHMENT_OVERWRITE_EXISTING",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -101,6 +107,27 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if !cfg.WeatherContext.FailOpen {
 		t.Fatal("expected weather context to fail open by default")
 	}
+	if !cfg.PlaceEnrichment.Enabled {
+		t.Fatal("expected place enrichment to be enabled by default")
+	}
+	if cfg.PlaceEnrichment.ExternalIntegrationsServiceURL != "http://external-integrations-service:8084" {
+		t.Fatalf("expected default place enrichment URL, got %q", cfg.PlaceEnrichment.ExternalIntegrationsServiceURL)
+	}
+	if !cfg.PlaceEnrichment.FailOpen {
+		t.Fatal("expected place enrichment to fail open by default")
+	}
+	if cfg.PlaceEnrichment.TimeoutSeconds != 5 {
+		t.Fatalf("expected place enrichment timeout 5s, got %d", cfg.PlaceEnrichment.TimeoutSeconds)
+	}
+	if cfg.PlaceEnrichment.MinConfidence != 0.75 {
+		t.Fatalf("expected place enrichment min confidence 0.75, got %f", cfg.PlaceEnrichment.MinConfidence)
+	}
+	if cfg.PlaceEnrichment.MaxItems != 20 {
+		t.Fatalf("expected place enrichment max items 20, got %d", cfg.PlaceEnrichment.MaxItems)
+	}
+	if cfg.PlaceEnrichment.OverwriteExisting {
+		t.Fatal("expected place enrichment not to overwrite existing places by default")
+	}
 }
 
 func TestLoadReadsCORSOverrides(t *testing.T) {
@@ -126,6 +153,12 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"WEATHER_CONTEXT_ENABLED",
 		"WEATHER_CONTEXT_TIMEOUT_SECONDS",
 		"WEATHER_CONTEXT_FAIL_OPEN",
+		"PLACE_ENRICHMENT_ENABLED",
+		"PLACE_ENRICHMENT_FAIL_OPEN",
+		"PLACE_ENRICHMENT_TIMEOUT_SECONDS",
+		"PLACE_ENRICHMENT_MIN_CONFIDENCE",
+		"PLACE_ENRICHMENT_MAX_ITEMS",
+		"PLACE_ENRICHMENT_OVERWRITE_EXISTING",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
