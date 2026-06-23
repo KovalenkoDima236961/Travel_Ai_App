@@ -1,7 +1,24 @@
+"use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import {
+  canMoveItemDown,
+  canMoveItemToDay,
+  canMoveItemUp,
+  moveItemToDay,
+  moveItemWithinDay
+} from "@/lib/itinerary/editor-utils";
 import type { Itinerary, ItineraryItem } from "@/types/trip";
+
+export {
+  normalizeItineraryForSave,
+  prepareItineraryForEdit,
+  validateEditableItinerary
+} from "@/lib/itinerary/editor-utils";
 
 type ItineraryEditorProps = {
   itinerary: Itinerary;
@@ -25,6 +42,20 @@ export function ItineraryEditor({
   onChange
 }: ItineraryEditorProps) {
   const days = itinerary.days ?? [];
+  const [moveTargets, setMoveTargets] = useState<Record<string, number>>({});
+  const [reorderMessage, setReorderMessage] = useState<string | null>(null);
+
+  function moveTargetKey(dayIndex: number, itemIndex: number) {
+    return `${dayIndex}-${itemIndex}`;
+  }
+
+  function getMoveTargetDayIndex(dayIndex: number, itemIndex: number) {
+    return moveTargets[moveTargetKey(dayIndex, itemIndex)] ?? dayIndex;
+  }
+
+  function resetMoveTargets() {
+    setMoveTargets({});
+  }
 
   function updateDay(dayIndex: number, updates: Partial<Itinerary["days"][number]>) {
     onChange({
@@ -51,6 +82,8 @@ export function ItineraryEditor({
   }
 
   function addItem(dayIndex: number) {
+    resetMoveTargets();
+    setReorderMessage(null);
     onChange({
       ...itinerary,
       days: days.map((day, index) =>
@@ -60,6 +93,8 @@ export function ItineraryEditor({
   }
 
   function removeItem(dayIndex: number, itemIndex: number) {
+    resetMoveTargets();
+    setReorderMessage(null);
     onChange({
       ...itinerary,
       days: days.map((day, index) =>
@@ -71,6 +106,8 @@ export function ItineraryEditor({
   }
 
   function addDay() {
+    resetMoveTargets();
+    setReorderMessage(null);
     onChange({
       ...itinerary,
       days: [
@@ -85,10 +122,43 @@ export function ItineraryEditor({
   }
 
   function removeDay(dayIndex: number) {
+    resetMoveTargets();
+    setReorderMessage(null);
     const nextDays = days
       .filter((_, index) => index !== dayIndex)
       .map((day, index) => ({ ...day, day: index + 1 }));
     onChange({ ...itinerary, days: nextDays });
+  }
+
+  function moveItem(dayIndex: number, itemIndex: number, direction: "up" | "down") {
+    resetMoveTargets();
+    setReorderMessage(null);
+    onChange(moveItemWithinDay(itinerary, dayIndex, itemIndex, direction));
+  }
+
+  function updateMoveTarget(dayIndex: number, itemIndex: number, targetDayIndex: number) {
+    setReorderMessage(null);
+    setMoveTargets((currentTargets) => ({
+      ...currentTargets,
+      [moveTargetKey(dayIndex, itemIndex)]: targetDayIndex
+    }));
+  }
+
+  function moveItemAcrossDays(dayIndex: number, itemIndex: number) {
+    const targetDayIndex = getMoveTargetDayIndex(dayIndex, itemIndex);
+
+    if (targetDayIndex === dayIndex) {
+      return;
+    }
+
+    if (!canMoveItemToDay(itinerary, dayIndex, itemIndex, targetDayIndex)) {
+      setReorderMessage("A day must contain at least one item.");
+      return;
+    }
+
+    resetMoveTargets();
+    setReorderMessage(null);
+    onChange(moveItemToDay(itinerary, dayIndex, itemIndex, targetDayIndex));
   }
 
   return (
@@ -101,6 +171,12 @@ export function ItineraryEditor({
               <li key={error}>{error}</li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {reorderMessage ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          {reorderMessage}
         </div>
       ) : null}
 
@@ -243,6 +319,76 @@ export function ItineraryEditor({
                   </div>
                 </div>
 
+                <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Reorder</p>
+                  <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        aria-label="Move item up"
+                        disabled={disabled || !canMoveItemUp(day, itemIndex)}
+                        onClick={() => moveItem(dayIndex, itemIndex, "up")}
+                        size="sm"
+                        title="Move item up"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Up
+                      </Button>
+                      <Button
+                        aria-label="Move item down"
+                        disabled={disabled || !canMoveItemDown(day, itemIndex)}
+                        onClick={() => moveItem(dayIndex, itemIndex, "down")}
+                        size="sm"
+                        title="Move item down"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Down
+                      </Button>
+                    </div>
+
+                    {days.length > 1 ? (
+                      <div className="grid gap-2 sm:grid-cols-[minmax(8rem,1fr)_auto] sm:items-end">
+                        <div className="grid gap-2">
+                          <label
+                            className="text-sm font-medium text-slate-700"
+                            htmlFor={`move-item-day-${dayIndex}-${itemIndex}`}
+                          >
+                            Move to day
+                          </label>
+                          <Select
+                            className="h-9"
+                            disabled={disabled}
+                            id={`move-item-day-${dayIndex}-${itemIndex}`}
+                            onChange={(event) =>
+                              updateMoveTarget(dayIndex, itemIndex, Number(event.target.value))
+                            }
+                            value={getMoveTargetDayIndex(dayIndex, itemIndex)}
+                          >
+                            {days.map((targetDay, targetDayIndex) => (
+                              <option key={`${targetDay.day}-${targetDayIndex}`} value={targetDayIndex}>
+                                Day {targetDayIndex + 1}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                        <Button
+                          disabled={
+                            disabled ||
+                            getMoveTargetDayIndex(dayIndex, itemIndex) === dayIndex
+                          }
+                          onClick={() => moveItemAcrossDays(dayIndex, itemIndex)}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          Move
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
                 <div className="mt-4 grid gap-2">
                   <label
                     className="text-sm font-medium text-slate-700"
@@ -277,80 +423,4 @@ export function ItineraryEditor({
       ))}
     </div>
   );
-}
-
-export function prepareItineraryForEdit(itinerary: Itinerary): Itinerary {
-  return {
-    ...itinerary,
-    days: (itinerary.days ?? []).map((day, dayIndex) => ({
-      ...day,
-      day: day.day || dayIndex + 1,
-      title: day.title ?? "",
-      items: (day.items ?? []).map((item) => ({
-        time: item.time ?? "",
-        type: item.type ?? "",
-        name: item.name ?? "",
-        note: item.note ?? "",
-        estimatedCost: item.estimatedCost ?? null
-      }))
-    }))
-  };
-}
-
-export function normalizeItineraryForSave(itinerary: Itinerary): Itinerary {
-  return {
-    ...itinerary,
-    days: itinerary.days.map((day, dayIndex) => ({
-      ...day,
-      day: dayIndex + 1,
-      title: day.title.trim(),
-      items: day.items.map((item) => ({
-        time: item.time.trim(),
-        type: item.type.trim(),
-        name: item.name.trim(),
-        note: typeof item.note === "string" ? item.note.trim() : item.note ?? "",
-        estimatedCost: item.estimatedCost ?? null
-      }))
-    }))
-  };
-}
-
-export function validateEditableItinerary(itinerary: Itinerary): string[] {
-  const errors: string[] = [];
-
-  if (!itinerary.days || itinerary.days.length === 0) {
-    return ["Add at least one day."];
-  }
-
-  itinerary.days.forEach((day, dayIndex) => {
-    const dayLabel = `Day ${dayIndex + 1}`;
-    if (!day.title.trim()) {
-      errors.push(`${dayLabel} needs a title.`);
-    }
-    if (!day.items || day.items.length === 0) {
-      errors.push(`${dayLabel} needs at least one item.`);
-      return;
-    }
-
-    day.items.forEach((item, itemIndex) => {
-      const itemLabel = `${dayLabel}, item ${itemIndex + 1}`;
-      if (!item.time.trim()) {
-        errors.push(`${itemLabel} needs a time.`);
-      }
-      if (!item.type.trim()) {
-        errors.push(`${itemLabel} needs a type.`);
-      }
-      if (!item.name.trim()) {
-        errors.push(`${itemLabel} needs a name.`);
-      }
-      if (item.estimatedCost != null && item.estimatedCost < 0) {
-        errors.push(`${itemLabel} cost must be 0 or more.`);
-      }
-      if (item.estimatedCost != null && Number.isNaN(item.estimatedCost)) {
-        errors.push(`${itemLabel} cost must be a valid number.`);
-      }
-    });
-  });
-
-  return errors;
 }
