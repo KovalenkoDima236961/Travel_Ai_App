@@ -57,6 +57,39 @@ func TestProtectedTripRoutesRequireValidBearerToken(t *testing.T) {
 	}
 }
 
+func TestUpdateItineraryRequiresValidBearerToken(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	tripID := uuid.New().String()
+
+	for _, tc := range []struct {
+		name  string
+		token string
+	}{
+		{name: "missing token"},
+		{name: "invalid token", token: "Bearer invalid-token"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPut, "/trips/"+tripID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.token != "" {
+				req.Header.Set("Authorization", tc.token)
+			}
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("expected HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestHealthAndReadyRemainPublic(t *testing.T) {
 	router, _ := newAuthTestRouter(t, config.AuthConfig{
 		Required:        true,
@@ -176,6 +209,160 @@ func TestValidTokenCreatesAndScopesTripsToCurrentUser(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected non-owner generate HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUpdateItineraryOwnerCanEditAndChangesPersist(t *testing.T) {
+	router, repo := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	otherID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	otherToken := signAccessToken(t, otherID, "other@example.com", testJWTSecret, time.Hour)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips", bytes.NewReader([]byte(validCreateTripJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create HTTP 201, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	tripID := uuid.MustParse(created.ID)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID.String()+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected owner update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	var updated struct {
+		Status    entity.Status `json:"status"`
+		Itinerary struct {
+			Days []struct {
+				Title string `json:"title"`
+				Items []struct {
+					Name string `json:"name"`
+				} `json:"items"`
+			} `json:"days"`
+		} `json:"itinerary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode update response: %v", err)
+	}
+	if updated.Status != entity.StatusCompleted {
+		t.Fatalf("expected update status COMPLETED, got %s", updated.Status)
+	}
+	if updated.Itinerary.Days[0].Title != "Edited Day" {
+		t.Fatalf("expected edited day title, got %+v", updated.Itinerary.Days)
+	}
+	if updated.Itinerary.Days[0].Items[0].Name != "Edited Activity" {
+		t.Fatalf("expected edited item name, got %+v", updated.Itinerary.Days[0].Items)
+	}
+	if repo.trips[tripID].Status != entity.StatusCompleted || len(repo.trips[tripID].Itinerary) == 0 {
+		t.Fatalf("expected repository to persist completed itinerary, got %+v", repo.trips[tripID])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+tripID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected owner get HTTP 200 after update, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var fetched struct {
+		Status    entity.Status `json:"status"`
+		Itinerary struct {
+			Days []struct {
+				Title string `json:"title"`
+				Items []struct {
+					Name string `json:"name"`
+				} `json:"items"`
+			} `json:"days"`
+		} `json:"itinerary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &fetched); err != nil {
+		t.Fatalf("decode get response: %v", err)
+	}
+	if fetched.Status != entity.StatusCompleted ||
+		fetched.Itinerary.Days[0].Title != "Edited Day" ||
+		fetched.Itinerary.Days[0].Items[0].Name != "Edited Activity" {
+		t.Fatalf("expected GET to return persisted edited itinerary, got %+v", fetched)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID.String()+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+otherToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected non-owner update HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUpdateItineraryValidationErrors(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips", bytes.NewReader([]byte(validCreateTripJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create HTTP 201, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "invalid json", body: `{`},
+		{name: "missing itinerary", body: `{}`},
+		{name: "empty days", body: `{"itinerary":{"days":[]}}`},
+		{name: "missing item name", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":" "}]}]}}`},
+		{name: "negative estimated cost", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":"Walk","estimatedCost":-1}]}]}}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(tc.body)))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+ownerToken)
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected HTTP 400, got %d with %s", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 
@@ -305,6 +492,28 @@ func validCreateTripJSON() string {
 		"travelers": 2,
 		"interests": ["food", "history"],
 		"pace": "balanced"
+	}`
+}
+
+func validUpdateItineraryJSON() string {
+	return `{
+		"itinerary": {
+			"days": [
+				{
+					"day": 1,
+					"title": "Edited Day",
+					"items": [
+						{
+							"time": "10:00",
+							"type": "activity",
+							"name": "Edited Activity",
+							"note": "Updated note",
+							"estimatedCost": 12
+						}
+					]
+				}
+			]
+		}
 	}`
 }
 

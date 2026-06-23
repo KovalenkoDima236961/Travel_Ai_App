@@ -54,10 +54,15 @@ http://localhost:3000
 11. Wait for completion.
 12. Confirm the itinerary appears.
 13. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
-14. Refresh the page.
-15. Confirm the itinerary persists.
-16. Go to `/trips`.
-17. Confirm the trip appears in the list.
+14. Click `Edit itinerary`.
+15. Change one item name.
+16. Add one item.
+17. Remove one item.
+18. Click `Save`.
+19. Refresh the page.
+20. Confirm the edited itinerary persists.
+21. Go to `/trips`.
+22. Confirm the trip appears in the list.
 
 ## Troubleshooting
 

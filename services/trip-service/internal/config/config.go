@@ -44,7 +44,7 @@ type AuthConfig struct {
 // CORSConfig controls browser access to the Trip Service API.
 type CORSConfig struct {
 	AllowedOrigins string `yaml:"allowed_origins" env:"CORS_ALLOWED_ORIGINS"`
-	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,PATCH,DELETE,OPTIONS"`
+	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,PUT,PATCH,DELETE,OPTIONS"`
 	AllowedHeaders string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
 }
 
@@ -108,7 +108,7 @@ func (c *Config) applyDefaults() {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
-		c.CORS.AllowedMethods = "GET,POST,PATCH,DELETE,OPTIONS"
+		c.CORS.AllowedMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
 	}
 	if strings.TrimSpace(c.CORS.AllowedHeaders) == "" {
 		c.CORS.AllowedHeaders = "Content-Type,Authorization"

@@ -64,7 +64,7 @@ func TestCORSMiddlewareHandlesPreflight(t *testing.T) {
 	called := false
 	handler := corsMiddleware(config.CORSConfig{
 		AllowedOrigins: "http://localhost:3000",
-		AllowedMethods: "GET,POST,PATCH,DELETE,OPTIONS",
+		AllowedMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowedHeaders: "Content-Type,Authorization",
 	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
@@ -87,7 +87,7 @@ func TestCORSMiddlewareHandlesPreflight(t *testing.T) {
 	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
 		t.Fatalf("expected allowed origin header, got %q", got)
 	}
-	if got := recorder.Header().Get("Access-Control-Allow-Methods"); got != "GET,POST,PATCH,DELETE,OPTIONS" {
+	if got := recorder.Header().Get("Access-Control-Allow-Methods"); got != "GET,POST,PUT,PATCH,DELETE,OPTIONS" {
 		t.Fatalf("expected allowed methods header, got %q", got)
 	}
 }

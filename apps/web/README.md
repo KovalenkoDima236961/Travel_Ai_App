@@ -2,7 +2,8 @@
 
 Next.js Web App v1 for registering/logging in, managing profile and travel
 preferences, creating trip requests, listing trips, opening trip details,
-generating itineraries, and viewing generated plans.
+generating itineraries, viewing generated plans, and editing completed
+itineraries.
 
 ## Source Layout
 
@@ -51,6 +52,36 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips?limit=20&offset=0`
 - `GET /trips/{id}`
 - `POST /trips/{id}/generate`
+- `PUT /trips/{id}/itinerary`
+
+To edit an itinerary, open a completed trip and click `Edit itinerary`. The
+editor supports changing day titles and item fields, adding/removing days, and
+adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:
+
+```json
+{
+  "itinerary": {
+    "days": [
+      {
+        "day": 1,
+        "title": "Edited Day",
+        "items": [
+          {
+            "time": "10:00",
+            "type": "activity",
+            "name": "Edited Activity",
+            "note": "",
+            "estimatedCost": null
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Itinerary editing v1 replaces the whole itinerary JSON. It does not support
+drag-and-drop, partial regeneration, or real-time collaboration yet.
 
 The frontend calls the protected User Service endpoints from `/settings`:
 

@@ -1,22 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { GenerateItineraryButton } from "@/components/trips/GenerateItineraryButton";
+import {
+  ItineraryEditor,
+  normalizeItineraryForSave,
+  prepareItineraryForEdit,
+  validateEditableItinerary
+} from "@/components/trips/ItineraryEditor";
 import { ItineraryView } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
+import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { buttonStyles } from "@/components/ui/Button";
-import { getTrip, tripKeys } from "@/lib/api/trips";
+import { getTrip, tripKeys, updateTripItinerary } from "@/lib/api/trips";
 import {
   formatBudget,
   formatDate,
   formatInterestLabel,
   formatPaceLabel
 } from "@/lib/utils";
+import type { Itinerary } from "@/types/trip";
 
 export default function TripDetailPage() {
   return (
@@ -29,6 +37,11 @@ export default function TripDetailPage() {
 function TripDetailPageContent() {
   const params = useParams<{ id: string }>();
   const tripId = params.id;
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftItinerary, setDraftItinerary] = useState<Itinerary | null>(null);
+  const [editorErrors, setEditorErrors] = useState<string[]>([]);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const tripQuery = useQuery({
     queryKey: tripKeys.detail(tripId),
@@ -36,6 +49,10 @@ function TripDetailPageContent() {
     enabled: Boolean(tripId),
     refetchInterval: (query) =>
       query.state.data?.status === "PROCESSING" ? 3000 : false
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (itinerary: Itinerary) => updateTripItinerary(tripId, itinerary)
   });
 
   if (tripQuery.isPending) {
@@ -63,6 +80,50 @@ function TripDetailPageContent() {
 
   const trip = tripQuery.data;
   const canGenerate = trip.status === "DRAFT" || trip.status === "FAILED";
+  const canEditItinerary = trip.status === "COMPLETED" && Boolean(trip.itinerary);
+
+  function startEditing() {
+    if (!trip.itinerary) {
+      return;
+    }
+    setDraftItinerary(prepareItineraryForEdit(trip.itinerary));
+    setEditorErrors([]);
+    setSuccessMessage(null);
+    setIsEditing(true);
+  }
+
+  function cancelEditing() {
+    setIsEditing(false);
+    setDraftItinerary(null);
+    setEditorErrors([]);
+  }
+
+  async function saveItinerary() {
+    if (!draftItinerary) {
+      return;
+    }
+
+    const normalized = normalizeItineraryForSave(draftItinerary);
+    const errors = validateEditableItinerary(normalized);
+    if (errors.length > 0) {
+      setEditorErrors(errors);
+      return;
+    }
+
+    try {
+      setEditorErrors([]);
+      const updated = await updateMutation.mutateAsync(normalized);
+      queryClient.setQueryData(tripKeys.detail(tripId), updated);
+      await tripQuery.refetch();
+      setDraftItinerary(null);
+      setIsEditing(false);
+      setSuccessMessage("Itinerary saved.");
+    } catch (error) {
+      setEditorErrors([
+        error instanceof Error ? error.message : "Could not save itinerary."
+      ]);
+    }
+  }
 
   return (
     <PageContainer>
@@ -116,6 +177,12 @@ function TripDetailPageContent() {
         </Card>
 
         <section className="min-w-0">
+          {successMessage ? (
+            <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+              {successMessage}
+            </div>
+          ) : null}
+
           {trip.status === "PROCESSING" ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
               The itinerary is being generated. This page will refresh while processing.
@@ -123,7 +190,44 @@ function TripDetailPageContent() {
           ) : null}
 
           {trip.status === "COMPLETED" && trip.itinerary ? (
-            <ItineraryView itinerary={trip.itinerary} currency={trip.budgetCurrency} />
+            isEditing && draftItinerary ? (
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-end">
+                  <Button
+                    disabled={updateMutation.isPending}
+                    onClick={cancelEditing}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={updateMutation.isPending}
+                    onClick={saveItinerary}
+                    type="button"
+                  >
+                    {updateMutation.isPending ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+                <ItineraryEditor
+                  disabled={updateMutation.isPending}
+                  errors={editorErrors}
+                  itinerary={draftItinerary}
+                  onChange={setDraftItinerary}
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {canEditItinerary ? (
+                  <div className="flex justify-end">
+                    <Button onClick={startEditing} type="button" variant="secondary">
+                      Edit itinerary
+                    </Button>
+                  </div>
+                ) : null}
+                <ItineraryView itinerary={trip.itinerary} currency={trip.budgetCurrency} />
+              </div>
+            )
           ) : null}
 
           {trip.status === "COMPLETED" && !trip.itinerary ? (

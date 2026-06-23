@@ -16,6 +16,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
@@ -24,10 +25,24 @@ const (
 	defaultCurrency = "EUR"
 	defaultPace     = "balanced"
 
-	maxDays      = 30
-	defaultLimit = 20
-	maxLimit     = 100
+	maxDays                 = 30
+	maxItineraryDays        = 60
+	maxItineraryItemsPerDay = 30
+	defaultLimit            = 20
+	maxLimit                = 100
 )
+
+type editableItinerary struct {
+	Destination string                   `json:"destination,omitempty"`
+	Summary     string                   `json:"summary,omitempty"`
+	Travelers   int32                    `json:"travelers,omitempty"`
+	Pace        string                   `json:"pace,omitempty"`
+	Currency    string                   `json:"currency,omitempty"`
+	TotalBudget *float64                 `json:"totalBudget,omitempty"`
+	Days        []aggregate.ItineraryDay `json:"days"`
+	GeneratedAt *time.Time               `json:"generatedAt,omitempty"`
+	Source      string                   `json:"source,omitempty"`
+}
 
 // tripRepository is the persistence port the use case depends on. The concrete
 // postgres adapter satisfies it; tests substitute a mock. It is intentionally
@@ -232,6 +247,120 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		zap.String("user_id", user.ID.String()),
 	)
 	return updated, nil
+}
+
+// UpdateItinerary validates and replaces the full itinerary JSON for a trip
+// owned by the authenticated user. It does not call the itinerary generator.
+func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.UpdateItineraryInput) (*entity.Trip, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := []zap.Field{
+		zap.String("action", "itinerary_update"),
+		zap.String("trip_id", id.String()),
+		zap.String("user_id", user.ID.String()),
+	}
+
+	normalized, err := validateAndNormalizeItinerary(in.Itinerary)
+	if err != nil {
+		s.log.Warn("itinerary update failed",
+			append(fields,
+				zap.Bool("success", false),
+				zap.Error(err),
+			)...,
+		)
+		return nil, err
+	}
+
+	updated, err := s.repo.UpdateItineraryByUserID(ctx, id, user.ID, normalized, entity.StatusCompleted)
+	if err != nil {
+		s.log.Warn("itinerary update failed",
+			append(fields,
+				zap.Bool("success", false),
+				zap.Error(err),
+			)...,
+		)
+		return nil, err
+	}
+
+	s.log.Info("itinerary updated",
+		append(fields,
+			zap.Bool("success", true),
+		)...,
+	)
+	return updated, nil
+}
+
+func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error) {
+	if len(raw) == 0 || strings.EqualFold(strings.TrimSpace(string(raw)), "null") {
+		return nil, apperrs.NewInvalidInput("itinerary is required")
+	}
+
+	var itinerary editableItinerary
+	if err := json.Unmarshal(raw, &itinerary); err != nil {
+		return nil, apperrs.NewInvalidInput("invalid itinerary")
+	}
+
+	itinerary.Destination = strings.TrimSpace(itinerary.Destination)
+	itinerary.Summary = strings.TrimSpace(itinerary.Summary)
+	itinerary.Pace = strings.TrimSpace(itinerary.Pace)
+	itinerary.Currency = strings.ToUpper(strings.TrimSpace(itinerary.Currency))
+	itinerary.Source = strings.TrimSpace(itinerary.Source)
+	if itinerary.TotalBudget != nil && *itinerary.TotalBudget < 0 {
+		return nil, apperrs.NewInvalidInput("itinerary.totalBudget must be >= 0")
+	}
+
+	if len(itinerary.Days) == 0 {
+		return nil, apperrs.NewInvalidInput("itinerary.days must contain at least 1 day")
+	}
+	if len(itinerary.Days) > maxItineraryDays {
+		return nil, apperrs.NewInvalidInput("itinerary.days must contain at most %d days", maxItineraryDays)
+	}
+
+	for dayIndex := range itinerary.Days {
+		day := &itinerary.Days[dayIndex]
+		if day.Day < 1 {
+			return nil, apperrs.NewInvalidInput("itinerary.days[%d].day must be >= 1", dayIndex)
+		}
+		day.Title = strings.TrimSpace(day.Title)
+		if day.Title == "" {
+			return nil, apperrs.NewInvalidInput("itinerary.days[%d].title is required", dayIndex)
+		}
+		if len(day.Items) == 0 {
+			return nil, apperrs.NewInvalidInput("itinerary.days[%d].items must contain at least 1 item", dayIndex)
+		}
+		if len(day.Items) > maxItineraryItemsPerDay {
+			return nil, apperrs.NewInvalidInput("itinerary.days[%d].items must contain at most %d items", dayIndex, maxItineraryItemsPerDay)
+		}
+
+		for itemIndex := range day.Items {
+			item := &day.Items[itemIndex]
+			item.Time = strings.TrimSpace(item.Time)
+			if item.Time == "" {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].time is required", dayIndex, itemIndex)
+			}
+			item.Type = strings.TrimSpace(item.Type)
+			if item.Type == "" {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].type is required", dayIndex, itemIndex)
+			}
+			item.Name = strings.TrimSpace(item.Name)
+			if item.Name == "" {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].name is required", dayIndex, itemIndex)
+			}
+			item.Note = strings.TrimSpace(item.Note)
+			if item.EstimatedCost != nil && *item.EstimatedCost < 0 {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].estimatedCost must be >= 0", dayIndex, itemIndex)
+			}
+		}
+	}
+
+	normalized, err := json.Marshal(itinerary)
+	if err != nil {
+		return nil, err
+	}
+	return normalized, nil
 }
 
 func (s *Service) loadUserContext(ctx context.Context, user auth.AuthenticatedUser, tripID uuid.UUID) (usercontext.UserContext, error) {

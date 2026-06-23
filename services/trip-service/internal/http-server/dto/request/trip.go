@@ -3,6 +3,8 @@
 package request
 
 import (
+	"encoding/json"
+
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 )
 
@@ -31,4 +33,14 @@ func (r CreateTrip) ToInput() appdto.CreateTripInput {
 		Interests:      r.Interests,
 		Pace:           r.Pace,
 	}
+}
+
+// UpdateTripItinerary is the JSON body accepted by PUT /trips/{id}/itinerary.
+type UpdateTripItinerary struct {
+	Itinerary json.RawMessage `json:"itinerary"`
+}
+
+// ToInput maps the transport request to the application-level input.
+func (r UpdateTripItinerary) ToInput() appdto.UpdateItineraryInput {
+	return appdto.UpdateItineraryInput{Itinerary: r.Itinerary}
 }

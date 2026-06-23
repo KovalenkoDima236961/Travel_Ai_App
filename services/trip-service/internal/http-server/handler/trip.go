@@ -41,6 +41,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/{id}", h.Get)
 		r.Post("/{id}/generate", h.Generate)
+		r.Put("/{id}/itinerary", h.UpdateItinerary)
 	})
 }
 
@@ -111,6 +112,28 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t, err := h.svc.Generate(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewTrip(t))
+}
+
+// UpdateItinerary handles PUT /trips/{id}/itinerary.
+func (h *Handler) UpdateItinerary(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	var req request.UpdateTripItinerary
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	t, err := h.svc.UpdateItinerary(r.Context(), id, req.ToInput())
 	if err != nil {
 		h.writeServiceError(w, err)
 		return

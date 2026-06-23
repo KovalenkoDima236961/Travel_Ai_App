@@ -326,6 +326,51 @@ if grep -Eiq '\bnightclubs?\b' <<<"${ITINERARY_TEXT}"; then
 fi
 echo "Personalization context path exercised through Trip Service -> User Service -> AI Planning Service."
 
+echo "Editing itinerary with Authorization header..."
+EDIT_ITINERARY_PAYLOAD='{
+  "itinerary": {
+    "days": [
+      {
+        "day": 1,
+        "title": "Edited Smoke Test Day",
+        "items": [
+          {
+            "time": "10:00",
+            "type": "activity",
+            "name": "Edited Smoke Test Activity",
+            "note": "Updated by smoke test",
+            "estimatedCost": 12
+          }
+        ]
+      }
+    ]
+  }
+}'
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${ACCESS_TOKEN}" "${EDIT_ITINERARY_PAYLOAD}"
+assert_2xx "Edit itinerary"
+
+EDIT_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
+EDIT_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
+EDIT_ITEM_NAME="$(jq -r '.itinerary.days[0].items[0].name // empty' <<<"${LAST_BODY}")"
+if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test Day" || "${EDIT_ITEM_NAME}" != "Edited Smoke Test Activity" ]]; then
+  echo "Edited itinerary response did not include expected values." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching edited trip with Authorization header..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch edited trip"
+
+EDITED_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
+EDITED_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
+EDITED_ITEM_NAME="$(jq -r '.itinerary.days[0].items[0].name // empty' <<<"${LAST_BODY}")"
+if [[ "${EDITED_STATUS}" != "COMPLETED" || "${EDITED_TITLE}" != "Edited Smoke Test Day" || "${EDITED_ITEM_NAME}" != "Edited Smoke Test Activity" ]]; then
+  echo "Edited itinerary did not persist after fetch." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Listing trips for current user..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips?limit=20&offset=0" "${ACCESS_TOKEN}"
 assert_2xx "List trips"
@@ -357,6 +402,9 @@ assert_status "Second user fetch first user's trip" "404"
 
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user generate first user's trip" "404"
+
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${OTHER_ACCESS_TOKEN}" "${EDIT_ITINERARY_PAYLOAD}"
+assert_status "Second user edit first user's trip" "404"
 
 echo "Logging out smoke test users..."
 LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"

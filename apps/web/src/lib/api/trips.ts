@@ -46,6 +46,13 @@ export function generateItinerary(id: string) {
   });
 }
 
+export function updateTripItinerary(tripId: string, itinerary: Itinerary) {
+  return apiFetch<Trip>(`/trips/${tripId}/itinerary`, {
+    method: "PUT",
+    body: JSON.stringify({ itinerary })
+  });
+}
+
 function cleanCreateTripPayload(input: CreateTripInput) {
   return {
     destination: input.destination.trim(),

@@ -7,7 +7,7 @@ or AI Planning Service v1 over HTTP.
 
 Trip endpoints require Auth Service JWT access tokens by default. The service
 validates tokens locally with the shared `JWT_ACCESS_SECRET`, reads the user ID
-from the `sub` claim, and scopes trip create/list/get/generate operations to
+from the `sub` claim, and scopes trip create/list/get/generate/edit operations to
 that user.
 
 ## Tech stack
@@ -146,7 +146,7 @@ Key environment variables:
 | `AUTH_HEADER_NAME`   | `Authorization` | Header read for bearer tokens. |
 | `DEV_USER_ID`        | `00000000-0000-0000-0000-000000000001` | Owner used when `AUTH_REQUIRED=false` and no valid token is present. |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` in development | Comma-separated browser origins allowed to call the API. |
-| `CORS_ALLOWED_METHODS` | `GET,POST,PATCH,DELETE,OPTIONS` | Methods returned for CORS preflight responses. |
+| `CORS_ALLOWED_METHODS` | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | Methods returned for CORS preflight responses. |
 | `CORS_ALLOWED_HEADERS` | `Content-Type,Authorization` | Headers returned for CORS preflight responses. |
 | `POSTGRES_HOST`      | —              | Database host.                       |
 | `POSTGRES_PORT`      | —              | Database port.                       |
@@ -243,6 +243,7 @@ make migrate-down    # roll back the last migration
 | GET    | `/trips`                | List authenticated user's trips (paginated, newest first). |
 | GET    | `/trips/{id}`           | Fetch an authenticated user's trip by UUID.  |
 | POST   | `/trips/{id}/generate`  | Generate the itinerary for an authenticated user's trip; status `COMPLETED`. |
+| PUT    | `/trips/{id}/itinerary` | Replace the full itinerary JSON for an authenticated user's trip; status `COMPLETED`. |
 
 Trip statuses: `DRAFT` → `PROCESSING` → `COMPLETED` (or `FAILED`).
 
@@ -291,6 +292,51 @@ When the AI Planning Service runs in Ollama mode with fallback enabled, set
 `AI_PLANNING_TIMEOUT_SECONDS`. Otherwise the trip-service can time out before
 the AI service returns its fallback itinerary.
 
+### Itinerary editing
+
+`PUT /trips/{id}/itinerary` replaces the full itinerary JSON for the
+authenticated owner. It never calls AI Planning Service. On success, Trip Service
+stores the new itinerary JSONB value, sets status to `COMPLETED`, updates
+`updated_at`, and returns the same Trip response shape as `GET /trips/{id}`.
+
+Request body:
+
+```json
+{
+  "itinerary": {
+    "days": [
+      {
+        "day": 1,
+        "title": "Historic Rome and local food",
+        "items": [
+          {
+            "time": "09:00",
+            "type": "place",
+            "name": "Colosseum",
+            "note": "Start early to avoid crowds.",
+            "estimatedCost": 18
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Validation rules:
+
+- `itinerary` is required.
+- `itinerary.days` must contain between 1 and 60 days.
+- Each day needs `day >= 1`, a non-empty `title`, and 1 to 30 items.
+- Each item needs non-empty `time`, `type`, and `name`.
+- `note` is optional.
+- `estimatedCost` is optional/null and must be `>= 0` when present.
+- String fields are trimmed before saving.
+
+Missing/invalid tokens return `401`. Missing trips and trips owned by another
+user both return `404` so ownership is not leaked. Invalid itinerary shapes
+return `400` with `{ "error": "message" }`.
+
 Errors use a uniform envelope; validation failures add a `fields` map:
 
 ```json
@@ -327,6 +373,30 @@ curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/generate" \
 # Fetch the completed trip
 curl -s "http://localhost:8080/trips/${TRIP_ID}" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}"
+
+# Replace the itinerary
+curl -s -X PUT "http://localhost:8080/trips/${TRIP_ID}/itinerary" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itinerary": {
+      "days": [
+        {
+          "day": 1,
+          "title": "Edited Day",
+          "items": [
+            {
+              "time": "10:00",
+              "type": "activity",
+              "name": "Edited Activity",
+              "note": "Updated note",
+              "estimatedCost": 12
+            }
+          ]
+        }
+      ]
+    }
+  }'
 
 # List (paginated, newest first)
 curl -s "http://localhost:8080/trips?limit=20&offset=0" \

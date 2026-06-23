@@ -55,7 +55,7 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if cfg.CORS.AllowedOrigins != "http://localhost:3000" {
 		t.Fatalf("expected default CORS origin, got %q", cfg.CORS.AllowedOrigins)
 	}
-	if cfg.CORS.AllowedMethods != "GET,POST,PATCH,DELETE,OPTIONS" {
+	if cfg.CORS.AllowedMethods != "GET,POST,PUT,PATCH,DELETE,OPTIONS" {
 		t.Fatalf("expected default CORS methods, got %q", cfg.CORS.AllowedMethods)
 	}
 	if cfg.CORS.AllowedHeaders != "Content-Type,Authorization" {
