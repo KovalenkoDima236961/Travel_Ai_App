@@ -319,8 +319,22 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+COMPLETED_TRIP_BODY="${LAST_BODY}"
 
-ITINERARY_TEXT="$(jq -r '.itinerary | .. | scalars? | tostring' <<<"${LAST_BODY}" | tr '\n' ' ')"
+echo "Listing itinerary versions after generation..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions" "${ACCESS_TOKEN}"
+assert_2xx "List itinerary versions after generation"
+
+VERSION_COUNT_AFTER_GENERATE="$(jq '.items | length' <<<"${LAST_BODY}")"
+GENERATED_VERSION_ID="$(jq -r '[.items[] | select(.source == "GENERATED")][0].id // empty' <<<"${LAST_BODY}")"
+GENERATED_VERSION_SOURCE="$(jq -r '[.items[] | select(.source == "GENERATED")][0].source // empty' <<<"${LAST_BODY}")"
+if [[ "${VERSION_COUNT_AFTER_GENERATE}" -lt 1 || -z "${GENERATED_VERSION_ID}" || "${GENERATED_VERSION_SOURCE}" != "GENERATED" ]]; then
+  echo "Expected at least one GENERATED itinerary version after generation." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+ITINERARY_TEXT="$(jq -r '.itinerary | .. | scalars? | tostring' <<<"${COMPLETED_TRIP_BODY}" | tr '\n' ' ')"
 if grep -Eiq '\bnightclubs?\b' <<<"${ITINERARY_TEXT}"; then
   echo "Generated itinerary mentioned an avoided nightlife term; continuing because AI wording can vary." >&2
 fi
@@ -358,15 +372,61 @@ if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test D
   exit 1
 fi
 
-echo "Fetching edited trip with Authorization header..."
+echo "Listing itinerary versions after manual edit..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions" "${ACCESS_TOKEN}"
+assert_2xx "List itinerary versions after manual edit"
+
+VERSION_COUNT_AFTER_EDIT="$(jq '.items | length' <<<"${LAST_BODY}")"
+MANUAL_VERSION_COUNT="$(jq '[.items[] | select(.source == "MANUAL_EDIT")] | length' <<<"${LAST_BODY}")"
+if [[ "${VERSION_COUNT_AFTER_EDIT}" -le "${VERSION_COUNT_AFTER_GENERATE}" || "${MANUAL_VERSION_COUNT}" -lt 1 ]]; then
+  echo "Expected manual edit to add a MANUAL_EDIT itinerary version." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching generated itinerary version detail..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${GENERATED_VERSION_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Get generated itinerary version"
+
+GENERATED_VERSION_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
+if [[ -z "${GENERATED_VERSION_TITLE}" ]]; then
+  echo "Generated version detail did not include an itinerary day title." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Restoring generated itinerary version..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${GENERATED_VERSION_ID}/restore" "${ACCESS_TOKEN}"
+assert_2xx "Restore generated itinerary version"
+
+RESTORED_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
+if [[ "${RESTORED_TITLE}" != "${GENERATED_VERSION_TITLE}" ]]; then
+  echo "Restored itinerary did not match generated version title." >&2
+  echo "Expected: ${GENERATED_VERSION_TITLE}" >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching restored trip with Authorization header..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
-assert_2xx "Fetch edited trip"
+assert_2xx "Fetch restored trip"
 
 EDITED_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
 EDITED_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
-EDITED_ITEM_NAME="$(jq -r '.itinerary.days[0].items[0].name // empty' <<<"${LAST_BODY}")"
-if [[ "${EDITED_STATUS}" != "COMPLETED" || "${EDITED_TITLE}" != "Edited Smoke Test Day" || "${EDITED_ITEM_NAME}" != "Edited Smoke Test Activity" ]]; then
-  echo "Edited itinerary did not persist after fetch." >&2
+if [[ "${EDITED_STATUS}" != "COMPLETED" || "${EDITED_TITLE}" != "${GENERATED_VERSION_TITLE}" ]]; then
+  echo "Restored itinerary did not persist after fetch." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking RESTORED itinerary version exists..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions" "${ACCESS_TOKEN}"
+assert_2xx "List itinerary versions after restore"
+
+VERSION_COUNT_AFTER_RESTORE="$(jq '.items | length' <<<"${LAST_BODY}")"
+RESTORED_VERSION_COUNT="$(jq '[.items[] | select(.source == "RESTORED")] | length' <<<"${LAST_BODY}")"
+if [[ "${VERSION_COUNT_AFTER_RESTORE}" -le "${VERSION_COUNT_AFTER_EDIT}" || "${RESTORED_VERSION_COUNT}" -lt 1 ]]; then
+  echo "Expected restore to append a RESTORED itinerary version." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
@@ -406,6 +466,15 @@ assert_status "Second user generate first user's trip" "404"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${OTHER_ACCESS_TOKEN}" "${EDIT_ITINERARY_PAYLOAD}"
 assert_status "Second user edit first user's trip" "404"
 
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user list first user's itinerary versions" "404"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${GENERATED_VERSION_ID}" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user get first user's itinerary version" "404"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${GENERATED_VERSION_ID}/restore" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user restore first user's itinerary version" "404"
+
 echo "Logging out smoke test users..."
 LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
 request POST "${AUTH_SERVICE_URL}/auth/logout" "${LOGOUT_PAYLOAD}"
@@ -415,5 +484,5 @@ OTHER_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${OTHER_REFRESH_TOKEN}" '{ref
 request POST "${AUTH_SERVICE_URL}/auth/logout" "${OTHER_LOGOUT_PAYLOAD}"
 assert_2xx "Logout second user"
 
-echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), and owner isolation was enforced."
+echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), version restore worked, and owner isolation was enforced."
 echo "Open ${WEB_APP_URL}/login to run the manual browser flow."

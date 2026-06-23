@@ -19,6 +19,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
 
@@ -46,6 +47,17 @@ type mockRepo struct {
 	updateItinRaw    json.RawMessage
 	updateItinErr    error
 	updateItinUserID uuid.UUID
+	updateItinSource entity.ItineraryVersionSource
+	updateItinMeta   map[string]any
+
+	versions          []entity.ItineraryVersion
+	listVersionsTrip  uuid.UUID
+	listVersionsUser  uuid.UUID
+	listVersionsLimit int
+	listVersionsOff   int
+	getVersionID      uuid.UUID
+	getVersionTripID  uuid.UUID
+	getVersionUserID  uuid.UUID
 }
 
 func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -87,14 +99,71 @@ func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID,
 	return &entity.Trip{ID: id, Status: status}, nil
 }
 
-func (m *mockRepo) UpdateItineraryByUserID(_ context.Context, id, userID uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error) {
+func (m *mockRepo) UpdateItineraryByUserIDAndCreateVersion(
+	_ context.Context,
+	id, userID uuid.UUID,
+	itinerary json.RawMessage,
+	status entity.Status,
+	source entity.ItineraryVersionSource,
+	metadata map[string]any,
+) (*entity.Trip, *entity.ItineraryVersion, error) {
 	m.updateItinRaw = itinerary
 	m.updateItinStatus = status
 	m.updateItinUserID = userID
+	m.updateItinSource = source
+	m.updateItinMeta = metadata
 	if m.updateItinErr != nil {
-		return nil, m.updateItinErr
+		return nil, nil, m.updateItinErr
 	}
-	return &entity.Trip{ID: id, Status: status, Itinerary: itinerary}, nil
+	version := entity.ItineraryVersion{
+		ID:            uuid.New(),
+		TripID:        id,
+		UserID:        userID,
+		VersionNumber: countTripVersions(m.versions, id) + 1,
+		Source:        source,
+		Itinerary:     itinerary,
+		Metadata:      metadata,
+		CreatedAt:     time.Now(),
+	}
+	m.versions = append(m.versions, version)
+	return &entity.Trip{ID: id, Status: status, Itinerary: itinerary}, &version, nil
+}
+
+func (m *mockRepo) ListItineraryVersionsByTripAndUser(_ context.Context, tripID, userID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error) {
+	m.listVersionsTrip = tripID
+	m.listVersionsUser = userID
+	m.listVersionsLimit = limit
+	m.listVersionsOff = offset
+	out := make([]entity.ItineraryVersion, 0)
+	for _, version := range m.versions {
+		if version.TripID == tripID && version.UserID == userID {
+			out = append(out, version)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) GetItineraryVersionByIDTripAndUser(_ context.Context, id, tripID, userID uuid.UUID) (*entity.ItineraryVersion, error) {
+	m.getVersionID = id
+	m.getVersionTripID = tripID
+	m.getVersionUserID = userID
+	for i := range m.versions {
+		version := m.versions[i]
+		if version.ID == id && version.TripID == tripID && version.UserID == userID {
+			return &version, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func countTripVersions(versions []entity.ItineraryVersion, tripID uuid.UUID) int {
+	count := 0
+	for _, version := range versions {
+		if version.TripID == tripID {
+			count++
+		}
+	}
+	return count
 }
 
 // mockGenerator is an application.ItineraryGenerator test double.
@@ -342,6 +411,18 @@ func TestGenerate_Success_SetsCompleted(t *testing.T) {
 	if repo.getByIDUserID != testUserID() || repo.updateItinUserID != testUserID() {
 		t.Fatalf("expected generate repository calls for user %s", testUserID())
 	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one itinerary version, got %d", len(repo.versions))
+	}
+	if repo.versions[0].Source != entity.ItineraryVersionSourceGenerated {
+		t.Fatalf("expected GENERATED version, got %s", repo.versions[0].Source)
+	}
+	if repo.versions[0].VersionNumber != 1 {
+		t.Fatalf("expected version number 1, got %d", repo.versions[0].VersionNumber)
+	}
+	if repo.versions[0].Metadata["generator"] != "full" {
+		t.Fatalf("expected full generator metadata, got %+v", repo.versions[0].Metadata)
+	}
 }
 
 func TestGenerate_UserContextSuccess_PassesProfileAndPreferencesToGenerator(t *testing.T) {
@@ -513,6 +594,48 @@ func TestGenerate_GeneratorError_SetsFailed(t *testing.T) {
 			t.Fatalf("expected status update %d for user %s, got %s", i, testUserID(), repo.statusUserIDs[i])
 		}
 	}
+	if len(repo.versions) != 0 {
+		t.Fatalf("failed generation must not create itinerary versions, got %+v", repo.versions)
+	}
+}
+
+func TestUpdateItinerary_CreatesManualEditVersion(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+		Itinerary: validExistingItineraryRaw(t),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Status != entity.StatusCompleted || repo.updateItinStatus != entity.StatusCompleted {
+		t.Fatalf("expected completed update, got returned=%s persisted=%s", got.Status, repo.updateItinStatus)
+	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one itinerary version, got %d", len(repo.versions))
+	}
+	if repo.versions[0].Source != entity.ItineraryVersionSourceManualEdit {
+		t.Fatalf("expected MANUAL_EDIT version, got %s", repo.versions[0].Source)
+	}
+	if len(repo.versions[0].Metadata) != 0 {
+		t.Fatalf("expected empty metadata, got %+v", repo.versions[0].Metadata)
+	}
+}
+
+func TestUpdateItinerary_InvalidPayloadDoesNotCreateVersion(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	_, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+		Itinerary: json.RawMessage(`{"days":[]}`),
+	})
+	assertInvalidInput(t, err)
+	if len(repo.versions) != 0 {
+		t.Fatalf("invalid manual edit must not create versions, got %+v", repo.versions)
+	}
 }
 
 func TestRegenerateDay_ReplacesOnlySelectedDay(t *testing.T) {
@@ -559,6 +682,18 @@ func TestRegenerateDay_ReplacesOnlySelectedDay(t *testing.T) {
 	if updated.Days[1].Items[0].Name != "Local bakery" {
 		t.Fatalf("expected replacement item, got %+v", updated.Days[1].Items[0])
 	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one itinerary version, got %d", len(repo.versions))
+	}
+	if repo.versions[0].Source != entity.ItineraryVersionSourceRegenerateDay {
+		t.Fatalf("expected REGENERATE_DAY version, got %s", repo.versions[0].Source)
+	}
+	if repo.versions[0].Metadata["dayNumber"] != float64(2) && repo.versions[0].Metadata["dayNumber"] != 2 {
+		t.Fatalf("expected dayNumber metadata, got %+v", repo.versions[0].Metadata)
+	}
+	if repo.versions[0].Metadata["instructionPresent"] != true {
+		t.Fatalf("expected instructionPresent metadata, got %+v", repo.versions[0].Metadata)
+	}
 }
 
 func TestRegenerateItem_ReplacesOnlySelectedItem(t *testing.T) {
@@ -597,6 +732,21 @@ func TestRegenerateItem_ReplacesOnlySelectedItem(t *testing.T) {
 	}
 	if updated.Days[1].Title != "Original Day 2" || updated.Days[1].Items[0].Name != "Original Item 2A" {
 		t.Fatalf("day 2 should be preserved, got %+v", updated.Days[1])
+	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one itinerary version, got %d", len(repo.versions))
+	}
+	if repo.versions[0].Source != entity.ItineraryVersionSourceRegenerateItem {
+		t.Fatalf("expected REGENERATE_ITEM version, got %s", repo.versions[0].Source)
+	}
+	if repo.versions[0].Metadata["dayNumber"] != float64(1) && repo.versions[0].Metadata["dayNumber"] != 1 {
+		t.Fatalf("expected dayNumber metadata, got %+v", repo.versions[0].Metadata)
+	}
+	if repo.versions[0].Metadata["itemIndex"] != float64(1) && repo.versions[0].Metadata["itemIndex"] != 1 {
+		t.Fatalf("expected itemIndex metadata, got %+v", repo.versions[0].Metadata)
+	}
+	if repo.versions[0].Metadata["instructionPresent"] != true {
+		t.Fatalf("expected instructionPresent metadata, got %+v", repo.versions[0].Metadata)
 	}
 }
 
@@ -803,6 +953,140 @@ func TestList_RejectsNegativeOffset(t *testing.T) {
 
 	_, _, _, err := svc.List(authContext(), 20, -1)
 	assertInvalidInput(t, err)
+}
+
+func TestListItineraryVersions_ReturnsOwnedTripVersions(t *testing.T) {
+	tripID := uuid.New()
+	otherTripID := uuid.New()
+	userID := testUserID()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: tripID, UserID: &userID},
+		versions: []entity.ItineraryVersion{
+			{ID: uuid.New(), TripID: tripID, UserID: userID, VersionNumber: 2, Source: entity.ItineraryVersionSourceManualEdit},
+			{ID: uuid.New(), TripID: otherTripID, UserID: userID, VersionNumber: 1, Source: entity.ItineraryVersionSourceGenerated},
+		},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	versions, limit, offset, err := svc.ListItineraryVersions(authContext(), tripID, 0, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if limit != defaultLimit || offset != 0 {
+		t.Fatalf("expected default pagination, got limit=%d offset=%d", limit, offset)
+	}
+	if len(versions) != 1 || versions[0].TripID != tripID {
+		t.Fatalf("expected only requested trip versions, got %+v", versions)
+	}
+	if repo.getByIDUserID != userID || repo.listVersionsUser != userID || repo.listVersionsTrip != tripID {
+		t.Fatalf("expected owner-scoped repository calls, got trip=%s user=%s", repo.listVersionsTrip, repo.listVersionsUser)
+	}
+}
+
+func TestListItineraryVersions_RejectsInvalidPagination(t *testing.T) {
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	_, _, _, err := svc.ListItineraryVersions(authContext(), uuid.New(), maxLimit+1, 0)
+	assertInvalidInput(t, err)
+
+	_, _, _, err = svc.ListItineraryVersions(authContext(), uuid.New(), 20, -1)
+	assertInvalidInput(t, err)
+}
+
+func TestGetItineraryVersion_ReturnsDetailForOwner(t *testing.T) {
+	tripID := uuid.New()
+	versionID := uuid.New()
+	userID := testUserID()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: tripID, UserID: &userID},
+		versions: []entity.ItineraryVersion{
+			{
+				ID:            versionID,
+				TripID:        tripID,
+				UserID:        userID,
+				VersionNumber: 1,
+				Source:        entity.ItineraryVersionSourceGenerated,
+				Itinerary:     validExistingItineraryRaw(t),
+			},
+		},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	version, err := svc.GetItineraryVersion(authContext(), tripID, versionID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version.ID != versionID || len(version.Itinerary) == 0 {
+		t.Fatalf("expected version detail with itinerary, got %+v", version)
+	}
+	if repo.getVersionID != versionID || repo.getVersionTripID != tripID || repo.getVersionUserID != userID {
+		t.Fatalf("expected owner-scoped version lookup, got version=%s trip=%s user=%s", repo.getVersionID, repo.getVersionTripID, repo.getVersionUserID)
+	}
+}
+
+func TestRestoreItineraryVersion_UpdatesTripAndCreatesRestoredVersion(t *testing.T) {
+	tripID := uuid.New()
+	versionID := uuid.New()
+	userID := testUserID()
+	original := validExistingItineraryRaw(t)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: tripID, UserID: &userID},
+		versions: []entity.ItineraryVersion{
+			{
+				ID:            versionID,
+				TripID:        tripID,
+				UserID:        userID,
+				VersionNumber: 1,
+				Source:        entity.ItineraryVersionSourceGenerated,
+				Itinerary:     original,
+			},
+		},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Status != entity.StatusCompleted || repo.updateItinStatus != entity.StatusCompleted {
+		t.Fatalf("expected completed restore, got returned=%s persisted=%s", got.Status, repo.updateItinStatus)
+	}
+	if len(repo.versions) != 2 {
+		t.Fatalf("restore should append a new version without deleting old ones, got %d", len(repo.versions))
+	}
+	restored := repo.versions[1]
+	if restored.Source != entity.ItineraryVersionSourceRestored {
+		t.Fatalf("expected RESTORED version, got %s", restored.Source)
+	}
+	if restored.VersionNumber != 2 {
+		t.Fatalf("expected next version number 2, got %d", restored.VersionNumber)
+	}
+	if restored.Metadata["restoredFromVersionId"] != versionID.String() || restored.Metadata["restoredFromVersionNumber"] != 1 {
+		t.Fatalf("unexpected restore metadata: %+v", restored.Metadata)
+	}
+}
+
+func TestItineraryVersionNumbersIncrementPerTrip(t *testing.T) {
+	userID := testUserID()
+	firstTripID := uuid.New()
+	secondTripID := uuid.New()
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), firstTripID, appdto.UpdateItineraryInput{Itinerary: validExistingItineraryRaw(t)}); err != nil {
+		t.Fatalf("first trip first update: %v", err)
+	}
+	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), firstTripID, appdto.UpdateItineraryInput{Itinerary: validExistingItineraryRaw(t)}); err != nil {
+		t.Fatalf("first trip second update: %v", err)
+	}
+	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), secondTripID, appdto.UpdateItineraryInput{Itinerary: validExistingItineraryRaw(t)}); err != nil {
+		t.Fatalf("second trip first update: %v", err)
+	}
+
+	if repo.versions[0].VersionNumber != 1 || repo.versions[1].VersionNumber != 2 || repo.versions[2].VersionNumber != 1 {
+		t.Fatalf("expected per-trip version numbering [1,2,1], got [%d,%d,%d]", repo.versions[0].VersionNumber, repo.versions[1].VersionNumber, repo.versions[2].VersionNumber)
+	}
 }
 
 func validExistingItineraryRaw(t *testing.T) json.RawMessage {

@@ -41,6 +41,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}", h.Get)
 		r.Post("/{id}/generate", h.Generate)
 		r.Put("/{id}/itinerary", h.UpdateItinerary)
+		r.Get("/{id}/itinerary/versions", h.ListItineraryVersions)
+		r.Get("/{id}/itinerary/versions/{versionId}", h.GetItineraryVersion)
+		r.Post("/{id}/itinerary/versions/{versionId}/restore", h.RestoreItineraryVersion)
 		r.Post("/{id}/itinerary/days/{dayNumber}/regenerate", h.RegenerateDay)
 		r.Post("/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate", h.RegenerateItem)
 	})
@@ -198,10 +201,79 @@ func (h *Handler) RegenerateItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response.NewTrip(t))
 }
 
-func (h *Handler) parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
+// ListItineraryVersions handles GET /trips/{id}/itinerary/versions.
+func (h *Handler) ListItineraryVersions(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseQueryInt(w, r, "limit")
+	if !ok {
+		return
+	}
+	offset, ok := parseQueryInt(w, r, "offset")
+	if !ok {
+		return
+	}
+
+	versions, appliedLimit, appliedOffset, err := h.svc.ListItineraryVersions(r.Context(), id, limit, offset)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid trip id")
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewListItineraryVersions(versions, appliedLimit, appliedOffset))
+}
+
+// GetItineraryVersion handles GET /trips/{id}/itinerary/versions/{versionId}.
+func (h *Handler) GetItineraryVersion(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	versionID, ok := parseUUIDParam(w, r, "versionId", "invalid version id")
+	if !ok {
+		return
+	}
+
+	version, err := h.svc.GetItineraryVersion(r.Context(), id, versionID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewItineraryVersionDetail(version))
+}
+
+// RestoreItineraryVersion handles
+// POST /trips/{id}/itinerary/versions/{versionId}/restore.
+func (h *Handler) RestoreItineraryVersion(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	versionID, ok := parseUUIDParam(w, r, "versionId", "invalid version id")
+	if !ok {
+		return
+	}
+
+	t, err := h.svc.RestoreItineraryVersion(r.Context(), id, versionID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewTrip(t))
+}
+
+func (h *Handler) parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	return parseUUIDParam(w, r, "id", "invalid trip id")
+}
+
+func parseUUIDParam(w http.ResponseWriter, r *http.Request, key, errorMessage string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, key))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, errorMessage)
 		return uuid.Nil, false
 	}
 	return id, true

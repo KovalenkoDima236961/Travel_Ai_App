@@ -127,6 +127,45 @@ func TestPartialRegenerationRequiresValidBearerToken(t *testing.T) {
 	}
 }
 
+func TestItineraryVersionRoutesRequireValidBearerToken(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	tripID := uuid.New().String()
+	versionID := uuid.New().String()
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		token  string
+	}{
+		{name: "list missing token", method: http.MethodGet, path: "/trips/" + tripID + "/itinerary/versions"},
+		{name: "list invalid token", method: http.MethodGet, path: "/trips/" + tripID + "/itinerary/versions", token: "Bearer invalid-token"},
+		{name: "detail missing token", method: http.MethodGet, path: "/trips/" + tripID + "/itinerary/versions/" + versionID},
+		{name: "detail invalid token", method: http.MethodGet, path: "/trips/" + tripID + "/itinerary/versions/" + versionID, token: "Bearer invalid-token"},
+		{name: "restore missing token", method: http.MethodPost, path: "/trips/" + tripID + "/itinerary/versions/" + versionID + "/restore"},
+		{name: "restore invalid token", method: http.MethodPost, path: "/trips/" + tripID + "/itinerary/versions/" + versionID + "/restore", token: "Bearer invalid-token"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			if tc.token != "" {
+				req.Header.Set("Authorization", tc.token)
+			}
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("expected HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestHealthAndReadyRemainPublic(t *testing.T) {
 	router, _ := newAuthTestRouter(t, config.AuthConfig{
 		Required:        true,
@@ -472,6 +511,171 @@ func TestUpdateItineraryValidationErrors(t *testing.T) {
 	}
 }
 
+func TestItineraryVersionHistoryOwnerCanPreviewRestoreAndNonOwnerReceives404(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	otherID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	otherToken := signAccessToken(t, otherID, "other@example.com", testJWTSecret, time.Hour)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips", bytes.NewReader([]byte(validCreateTripJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create HTTP 201, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/generate", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected generate HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected edit HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+created.ID+"/itinerary/versions?limit=20&offset=0", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected list versions HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var listResp struct {
+		Items []struct {
+			ID            string                        `json:"id"`
+			VersionNumber int                           `json:"versionNumber"`
+			Source        entity.ItineraryVersionSource `json:"source"`
+			Itinerary     json.RawMessage               `json:"itinerary"`
+			Metadata      map[string]any                `json:"metadata"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("decode list versions response: %v", err)
+	}
+	if len(listResp.Items) != 2 {
+		t.Fatalf("expected two versions, got %+v", listResp.Items)
+	}
+	if len(listResp.Items[0].Itinerary) != 0 {
+		t.Fatalf("list response must not include itinerary JSON, got %+v", listResp.Items[0])
+	}
+
+	var generatedVersionID string
+	for _, item := range listResp.Items {
+		if item.Source == entity.ItineraryVersionSourceGenerated {
+			generatedVersionID = item.ID
+			break
+		}
+	}
+	if generatedVersionID == "" {
+		t.Fatalf("expected generated version in list, got %+v", listResp.Items)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+created.ID+"/itinerary/versions/"+generatedVersionID, nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected get version HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var detailResp struct {
+		Source    entity.ItineraryVersionSource `json:"source"`
+		Itinerary struct {
+			Days []struct {
+				Title string `json:"title"`
+			} `json:"days"`
+		} `json:"itinerary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &detailResp); err != nil {
+		t.Fatalf("decode version detail: %v", err)
+	}
+	if detailResp.Source != entity.ItineraryVersionSourceGenerated ||
+		len(detailResp.Itinerary.Days) != 1 ||
+		detailResp.Itinerary.Days[0].Title != "Arrival" {
+		t.Fatalf("expected generated itinerary detail, got %+v", detailResp)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/versions/"+generatedVersionID+"/restore", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected restore HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var restoredResp struct {
+		Itinerary struct {
+			Days []struct {
+				Title string `json:"title"`
+			} `json:"days"`
+		} `json:"itinerary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &restoredResp); err != nil {
+		t.Fatalf("decode restore response: %v", err)
+	}
+	if len(restoredResp.Itinerary.Days) != 1 || restoredResp.Itinerary.Days[0].Title != "Arrival" {
+		t.Fatalf("expected current itinerary restored to generated version, got %+v", restoredResp.Itinerary.Days)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+created.ID+"/itinerary/versions", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected list after restore HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("decode restored versions response: %v", err)
+	}
+	if len(listResp.Items) != 3 || listResp.Items[0].Source != entity.ItineraryVersionSourceRestored {
+		t.Fatalf("expected restore to append latest RESTORED version, got %+v", listResp.Items)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+created.ID+"/itinerary/versions", nil)
+	req.Header.Set("Authorization", "Bearer "+otherToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected non-owner list HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+created.ID+"/itinerary/versions/"+generatedVersionID, nil)
+	req.Header.Set("Authorization", "Bearer "+otherToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected non-owner get version HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/versions/"+generatedVersionID+"/restore", nil)
+	req.Header.Set("Authorization", "Bearer "+otherToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected non-owner restore HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAuthDisabledUsesDevUserID(t *testing.T) {
 	devUserID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	router, repo := newAuthTestRouter(t, config.AuthConfig{
@@ -514,8 +718,9 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 }
 
 type routeTestRepo struct {
-	trips   map[uuid.UUID]entity.Trip
-	created *entity.Trip
+	trips    map[uuid.UUID]entity.Trip
+	versions []entity.ItineraryVersion
+	created  *entity.Trip
 }
 
 func (r *routeTestRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -558,16 +763,72 @@ func (r *routeTestRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.
 	return trip, nil
 }
 
-func (r *routeTestRepo) UpdateItineraryByUserID(_ context.Context, id, userID uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error) {
+func (r *routeTestRepo) UpdateItineraryByUserIDAndCreateVersion(
+	_ context.Context,
+	id, userID uuid.UUID,
+	itinerary json.RawMessage,
+	status entity.Status,
+	source entity.ItineraryVersionSource,
+	metadata map[string]any,
+) (*entity.Trip, *entity.ItineraryVersion, error) {
 	trip, err := r.GetByIDAndUserID(context.Background(), id, userID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	trip.Itinerary = itinerary
 	trip.Status = status
 	trip.UpdatedAt = time.Now().UTC()
 	r.trips[id] = *trip
-	return trip, nil
+	version := entity.ItineraryVersion{
+		ID:            uuid.New(),
+		TripID:        id,
+		UserID:        userID,
+		VersionNumber: routeTestNextVersionNumber(r.versions, id),
+		Source:        source,
+		Itinerary:     itinerary,
+		Metadata:      metadata,
+		CreatedAt:     time.Now().UTC(),
+	}
+	r.versions = append(r.versions, version)
+	return trip, &version, nil
+}
+
+func (r *routeTestRepo) ListItineraryVersionsByTripAndUser(_ context.Context, tripID, userID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error) {
+	versions := make([]entity.ItineraryVersion, 0)
+	for i := len(r.versions) - 1; i >= 0; i-- {
+		version := r.versions[i]
+		if version.TripID == tripID && version.UserID == userID {
+			versions = append(versions, version)
+		}
+	}
+	if offset >= len(versions) {
+		return []entity.ItineraryVersion{}, nil
+	}
+	end := offset + limit
+	if end > len(versions) {
+		end = len(versions)
+	}
+	return versions[offset:end], nil
+}
+
+func (r *routeTestRepo) GetItineraryVersionByIDTripAndUser(_ context.Context, id, tripID, userID uuid.UUID) (*entity.ItineraryVersion, error) {
+	for i := range r.versions {
+		version := r.versions[i]
+		if version.ID == id && version.TripID == tripID && version.UserID == userID {
+			return &version, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func routeTestNextVersionNumber(versions []entity.ItineraryVersion, tripID uuid.UUID) int {
+	next := 1
+	for _, version := range versions {
+		if version.TripID == tripID && version.VersionNumber >= next {
+			next = version.VersionNumber + 1
+		}
+	}
+	return next
 }
 
 type routeTestGenerator struct{}

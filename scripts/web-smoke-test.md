@@ -54,15 +54,23 @@ http://localhost:3000
 11. Wait for completion.
 12. Confirm the itinerary appears.
 13. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
-14. Click `Edit itinerary`.
-15. Change one item name.
-16. Add one item.
-17. Remove one item.
-18. Click `Save`.
-19. Refresh the page.
-20. Confirm the edited itinerary persists.
-21. Go to `/trips`.
-22. Confirm the trip appears in the list.
+14. Open `Version History`.
+15. Confirm a `Generated` version exists.
+16. Click `Edit itinerary`.
+17. Change one item name.
+18. Add one item.
+19. Remove one item.
+20. Click `Save`.
+21. Open `Version History` again.
+22. Confirm a `Manual edit` version exists.
+23. Preview the older generated version.
+24. Restore the generated version.
+25. Refresh the page.
+26. Confirm the restored itinerary persists.
+27. Open `Version History`.
+28. Confirm the restore created another version.
+29. Go to `/trips`.
+30. Confirm the trip appears in the list.
 
 ## Troubleshooting
 

@@ -13,6 +13,7 @@ import {
   prepareItineraryForEdit,
   validateEditableItinerary
 } from "@/components/trips/ItineraryEditor";
+import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { Button, buttonStyles } from "@/components/ui/Button";
@@ -30,7 +31,7 @@ import {
   formatInterestLabel,
   formatPaceLabel
 } from "@/lib/utils";
-import type { Itinerary } from "@/types/trip";
+import type { Itinerary, Trip } from "@/types/trip";
 
 export default function TripDetailPage() {
   return (
@@ -138,6 +139,7 @@ function TripDetailPageContent() {
       setRegenerationError(null);
       const updated = await updateMutation.mutateAsync(normalized);
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
+      await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
       await tripQuery.refetch();
       setDraftItinerary(null);
       setIsEditing(false);
@@ -174,6 +176,7 @@ function TripDetailPageContent() {
       setRegeneratingTarget(target);
       const updated = await regenerationMutation.mutateAsync({ ...target, instruction });
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
+      await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
       await tripQuery.refetch();
       setSuccessMessage(message);
     } catch (error) {
@@ -183,6 +186,13 @@ function TripDetailPageContent() {
     } finally {
       setRegeneratingTarget(null);
     }
+  }
+
+  async function handleVersionRestored(updatedTrip: Trip) {
+    queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
+    await tripQuery.refetch();
+    setRegenerationError(null);
+    setSuccessMessage("Itinerary restored.");
   }
 
   return (
@@ -298,6 +308,12 @@ function TripDetailPageContent() {
                   onRegenerateDay={regenerateDay}
                   onRegenerateItem={regenerateItem}
                   regeneratingTarget={regeneratingTarget}
+                />
+                <ItineraryVersionHistory
+                  currency={trip.budgetCurrency}
+                  onRestored={handleVersionRestored}
+                  restoreDisabled={isEditing}
+                  tripId={trip.id}
                 />
               </div>
             )

@@ -52,7 +52,9 @@ Trip Service applies PostgreSQL migrations automatically on startup, so there is
 no separate migration container in this stack. Auth Service does the same for
 its own `auth_service` database. The Postgres init script in
 `infra/postgres/init` creates `auth_service` when the database volume is first
-initialized.
+initialized. Trip Service migrations create both `trips` and
+`itinerary_versions`; version history starts from the point the migration is
+deployed and existing itineraries are not backfilled.
 
 ## Running The Web App
 
@@ -157,9 +159,11 @@ Service health, registers and logs in a unique test user, calls `/auth/me`,
 creates/updates profile and preferences with a bearer token, creates a Rome
 trip, generates its itinerary through Trip Service's personalized context path,
 fetches and lists the trip with the same token, verifies `status=COMPLETED` with
-at least one itinerary day, warns if avoided nightlife wording appears,
-registers a second user, confirms the second user gets `404` for the first
-user's trip, then logs both users out.
+at least one itinerary day, lists itinerary versions, checks `GENERATED`,
+`MANUAL_EDIT`, and `RESTORED` version sources, restores the generated version,
+warns if avoided nightlife wording appears, registers a second user, confirms
+the second user gets `404` for the first user's trip and itinerary versions,
+then logs both users out.
 
 The trip-service timeout must be longer than the AI service's Ollama timeout so
 `OLLAMA_FALLBACK_TO_MOCK=true` has time to return a fallback itinerary. The
@@ -202,6 +206,7 @@ Adminer local defaults:
 
 Use database `auth_service` in Adminer to inspect Auth Service users and
 refresh tokens. Use database `user_service` to inspect profiles and preferences.
+Use database `trip_service` to inspect trips and itinerary version snapshots.
 
 ## Troubleshooting
 

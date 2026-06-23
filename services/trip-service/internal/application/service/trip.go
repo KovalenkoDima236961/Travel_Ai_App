@@ -53,7 +53,16 @@ type tripRepository interface {
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
 	UpdateStatusByUserID(ctx context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error)
-	UpdateItineraryByUserID(ctx context.Context, id, userID uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error)
+	UpdateItineraryByUserIDAndCreateVersion(
+		ctx context.Context,
+		id, userID uuid.UUID,
+		itinerary json.RawMessage,
+		status entity.Status,
+		source entity.ItineraryVersionSource,
+		metadata map[string]any,
+	) (*entity.Trip, *entity.ItineraryVersion, error)
+	ListItineraryVersionsByTripAndUser(ctx context.Context, tripID, userID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error)
+	GetItineraryVersionByIDTripAndUser(ctx context.Context, id, tripID, userID uuid.UUID) (*entity.ItineraryVersion, error)
 }
 
 type userContextProvider interface {
@@ -237,7 +246,9 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		return nil, err
 	}
 
-	updated, err := s.repo.UpdateItineraryByUserID(ctx, id, user.ID, raw, entity.StatusCompleted)
+	updated, err := s.saveItineraryWithVersion(ctx, id, user.ID, raw, entity.ItineraryVersionSourceGenerated, map[string]any{
+		"generator": "full",
+	})
 	if err != nil {
 		s.markFailed(ctx, id, user.ID)
 		return nil, err
@@ -275,7 +286,7 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 		return nil, err
 	}
 
-	updated, err := s.repo.UpdateItineraryByUserID(ctx, id, user.ID, normalized, entity.StatusCompleted)
+	updated, err := s.saveItineraryWithVersion(ctx, id, user.ID, normalized, entity.ItineraryVersionSourceManualEdit, map[string]any{})
 	if err != nil {
 		s.log.Warn("itinerary update failed",
 			append(fields,
@@ -349,7 +360,10 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	}
 
 	currentItinerary.Days[dayIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary)
+	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateDay, map[string]any{
+		"dayNumber":          dayNumber,
+		"instructionPresent": instruction != "",
+	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
 		return nil, err
@@ -420,7 +434,11 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 	}
 
 	currentItinerary.Days[dayIndex].Items[itemIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary)
+	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateItem, map[string]any{
+		"dayNumber":          dayNumber,
+		"itemIndex":          itemIndex,
+		"instructionPresent": instruction != "",
+	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
 		return nil, err
@@ -617,12 +635,37 @@ func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.Itinerar
 	return normalized, nil
 }
 
-func (s *Service) saveRegeneratedItinerary(ctx context.Context, tripID, userID uuid.UUID, itinerary aggregate.Itinerary) (*entity.Trip, error) {
+func (s *Service) saveRegeneratedItinerary(
+	ctx context.Context,
+	tripID, userID uuid.UUID,
+	itinerary aggregate.Itinerary,
+	source entity.ItineraryVersionSource,
+	metadata map[string]any,
+) (*entity.Trip, error) {
 	raw, err := json.Marshal(itinerary)
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.UpdateItineraryByUserID(ctx, tripID, userID, raw, entity.StatusCompleted)
+	return s.saveItineraryWithVersion(ctx, tripID, userID, raw, source, metadata)
+}
+
+func (s *Service) saveItineraryWithVersion(
+	ctx context.Context,
+	tripID, userID uuid.UUID,
+	itinerary json.RawMessage,
+	source entity.ItineraryVersionSource,
+	metadata map[string]any,
+) (*entity.Trip, error) {
+	updated, _, err := s.repo.UpdateItineraryByUserIDAndCreateVersion(
+		ctx,
+		tripID,
+		userID,
+		itinerary,
+		entity.StatusCompleted,
+		source,
+		metadata,
+	)
+	return updated, err
 }
 
 func currentItineraryInvalidError() error {

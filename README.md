@@ -7,6 +7,9 @@ Auth Service v1 lives in `services/auth-service` and supports email/password
 registration, login, refresh token rotation, logout, and JWT-backed `/auth/me`.
 Trip Service validates those JWT access tokens locally with the shared
 `JWT_ACCESS_SECRET` and scopes `/trips` data by the authenticated `sub` user ID.
+Trip Service also records itinerary version snapshots after generation, manual
+edits, partial regeneration, and restores; users can preview older versions and
+restore them without deleting history.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.
@@ -44,7 +47,8 @@ Run the full app smoke test with:
 The smoke test registers/logs in a unique user, checks profile/preferences
 defaults and updates, creates and generates a trip with
 `Authorization: Bearer <accessToken>`, exercises personalized generation,
-verifies only that user can access it, and logs out.
+verifies itinerary version history and restore behavior, confirms only that user
+can access the trip and versions, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,
 knowledge indexing, useful URLs, and troubleshooting. The full app can be

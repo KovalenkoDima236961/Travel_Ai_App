@@ -8,7 +8,8 @@ or AI Planning Service v1 over HTTP.
 Trip endpoints require Auth Service JWT access tokens by default. The service
 validates tokens locally with the shared `JWT_ACCESS_SECRET`, reads the user ID
 from the `sub` claim, and scopes trip create/list/get/generate/edit operations to
-that user.
+that user. It also stores itinerary version snapshots for successful itinerary
+changes so users can preview and restore earlier plans.
 
 ## Tech stack
 
@@ -41,7 +42,7 @@ trip-service/
 │   ├── app/                           # composition root (app.go) + wiring (di.go)
 │   ├── config/                        # cleanenv config + validation
 │   ├── domain/                        # enterprise core (no outward deps)
-│   │   ├── entity/                    #   Trip, Status
+│   │   ├── entity/                    #   Trip, Status, ItineraryVersion
 │   │   ├── aggregate/                 #   Itinerary, ItineraryDay, ItineraryItem
 │   │   └── errs/                      #   ErrNotFound (domain sentinel)
 │   ├── application/                   # use cases + ports
@@ -246,6 +247,9 @@ make migrate-down    # roll back the last migration
 | PUT    | `/trips/{id}/itinerary` | Replace the full itinerary JSON for an authenticated user's trip; status `COMPLETED`. |
 | POST   | `/trips/{id}/itinerary/days/{dayNumber}/regenerate` | Regenerate one itinerary day with AI and preserve all other days. |
 | POST   | `/trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate` | Regenerate one itinerary item with AI and preserve all other items. |
+| GET    | `/trips/{id}/itinerary/versions` | List itinerary version summaries for an authenticated user's trip. |
+| GET    | `/trips/{id}/itinerary/versions/{versionId}` | Fetch one itinerary version detail with snapshot JSON. |
+| POST   | `/trips/{id}/itinerary/versions/{versionId}/restore` | Restore an older itinerary snapshot and create a new `RESTORED` version. |
 
 Partial itinerary regeneration uses `dayNumber` as a one-based value matching
 the itinerary `day` field. `itemIndex` is zero-based and matches the selected
@@ -350,6 +354,86 @@ Missing/invalid tokens return `401`. Missing trips and trips owned by another
 user both return `404` so ownership is not leaked. Invalid itinerary shapes
 return `400` with `{ "error": "message" }`.
 
+### Itinerary version history
+
+Every successful itinerary-changing action writes a full JSONB snapshot to
+`itinerary_versions` in the same transaction as the current `trips.itinerary`
+update. If version creation fails, the itinerary update rolls back. Version
+history starts after this feature is deployed; existing itineraries are not
+backfilled.
+
+Version source values:
+
+- `GENERATED`
+- `MANUAL_EDIT`
+- `REGENERATE_DAY`
+- `REGENERATE_ITEM`
+- `RESTORED`
+
+List versions:
+
+```http
+GET /trips/{id}/itinerary/versions?limit=20&offset=0
+```
+
+The list response is newest first and omits the full itinerary payload:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "tripId": "uuid",
+      "versionNumber": 2,
+      "source": "MANUAL_EDIT",
+      "metadata": {},
+      "createdAt": "2026-06-23T12:00:00Z"
+    }
+  ],
+  "limit": 20,
+  "offset": 0
+}
+```
+
+Fetch version detail:
+
+```http
+GET /trips/{id}/itinerary/versions/{versionId}
+```
+
+The detail response includes `itinerary` for previewing:
+
+```json
+{
+  "id": "uuid",
+  "tripId": "uuid",
+  "versionNumber": 1,
+  "source": "GENERATED",
+  "itinerary": { "days": [] },
+  "metadata": { "generator": "full" },
+  "createdAt": "2026-06-23T12:00:00Z"
+}
+```
+
+Restore a version:
+
+```http
+POST /trips/{id}/itinerary/versions/{versionId}/restore
+```
+
+Restore validates the selected snapshot, updates the current trip itinerary,
+sets trip status to `COMPLETED`, and appends a new version with source
+`RESTORED` and metadata containing `restoredFromVersionId` and
+`restoredFromVersionNumber`. Restoring version 1 does not delete versions 2 or
+3; the restore becomes the next version number.
+
+Version endpoints are protected by the same ownership rules as trip endpoints:
+the `user_id` comes only from the JWT `sub` claim, non-owners receive `404`, and
+metadata must not contain access tokens or sensitive payloads.
+
+Version history v1 intentionally does not include diff view, branching, named
+versions, or version comparison.
+
 Errors use a uniform envelope; validation failures add a `fields` map:
 
 ```json
@@ -410,6 +494,18 @@ curl -s -X PUT "http://localhost:8080/trips/${TRIP_ID}/itinerary" \
       ]
     }
   }'
+
+# List itinerary version summaries
+curl -s "http://localhost:8080/trips/${TRIP_ID}/itinerary/versions" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+
+# Fetch and restore a version
+VERSION_ID="..."
+curl -s "http://localhost:8080/trips/${TRIP_ID}/itinerary/versions/${VERSION_ID}" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+
+curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/itinerary/versions/${VERSION_ID}/restore" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
 
 # List (paginated, newest first)
 curl -s "http://localhost:8080/trips?limit=20&offset=0" \

@@ -17,6 +17,7 @@ export function GenerateItineraryButton({ tripId }: GenerateItineraryButtonProps
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
       ]);
     }

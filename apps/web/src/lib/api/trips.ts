@@ -1,4 +1,8 @@
 import { apiFetch } from "@/lib/api/client";
+import type {
+  ItineraryVersionDetail,
+  ListItineraryVersionsResponse
+} from "@/types/itinerary-version";
 import type { CreateTripInput, Itinerary, Trip, TripsListResponse } from "@/types/trip";
 
 type ListTripsParams = {
@@ -11,7 +15,10 @@ export const tripKeys = {
   lists: () => [...tripKeys.all, "list"] as const,
   list: (params: ListTripsParams) => [...tripKeys.lists(), params] as const,
   details: () => [...tripKeys.all, "detail"] as const,
-  detail: (id: string) => [...tripKeys.details(), id] as const
+  detail: (id: string) => [...tripKeys.details(), id] as const,
+  itineraryVersions: (tripId: string) => [...tripKeys.detail(tripId), "itinerary-versions"] as const,
+  itineraryVersion: (tripId: string, versionId: string) =>
+    [...tripKeys.itineraryVersions(tripId), versionId] as const
 };
 
 export function listTrips(params: ListTripsParams = {}) {
@@ -75,6 +82,27 @@ export function regenerateItineraryItem(
     {
       method: "POST",
       body: JSON.stringify(cleanRegenerationPayload(instruction))
+    }
+  );
+}
+
+export function listItineraryVersions(tripId: string) {
+  return apiFetch<ListItineraryVersionsResponse>(
+    `/trips/${tripId}/itinerary/versions`
+  );
+}
+
+export function getItineraryVersion(tripId: string, versionId: string) {
+  return apiFetch<ItineraryVersionDetail>(
+    `/trips/${tripId}/itinerary/versions/${versionId}`
+  );
+}
+
+export function restoreItineraryVersion(tripId: string, versionId: string) {
+  return apiFetch<Trip>(
+    `/trips/${tripId}/itinerary/versions/${versionId}/restore`,
+    {
+      method: "POST"
     }
   );
 }

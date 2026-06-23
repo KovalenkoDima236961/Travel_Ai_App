@@ -3,7 +3,8 @@
 Next.js Web App v1 for registering/logging in, managing profile and travel
 preferences, creating trip requests, listing trips, opening trip details,
 generating itineraries, viewing generated plans, and editing completed
-itineraries.
+itineraries. Completed trips with itineraries also show version history with
+read-only preview and restore actions.
 
 ## Source Layout
 
@@ -53,6 +54,11 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}`
 - `POST /trips/{id}/generate`
 - `PUT /trips/{id}/itinerary`
+- `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`
+- `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`
+- `GET /trips/{id}/itinerary/versions`
+- `GET /trips/{id}/itinerary/versions/{versionId}`
+- `POST /trips/{id}/itinerary/versions/{versionId}/restore`
 
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and
@@ -80,8 +86,21 @@ adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:
 }
 ```
 
-Itinerary editing v1 replaces the whole itinerary JSON. It does not support
-drag-and-drop, partial regeneration, or real-time collaboration yet.
+Itinerary editing v1 replaces the whole itinerary JSON. Partial regeneration
+buttons call Trip Service to regenerate a day or item while preserving the rest
+of the itinerary.
+
+The Version History panel appears on completed trips that have an itinerary. It
+fetches version summaries, displays source labels such as `Generated`,
+`Manual edit`, `Regenerated day`, `Regenerated item`, and `Restored`, and loads
+full itinerary JSON only when the user clicks `View`. `Restore` asks for
+confirmation, replaces the current itinerary through Trip Service, refetches the
+trip, and refreshes the version list. Viewing a version never changes the current
+trip.
+
+Version history v1 starts after the backend feature is deployed. It does not
+support diff view, branching, named versions, version comparison,
+drag-and-drop, maps/place integration, payments, admin flows, or collaboration.
 
 The frontend calls the protected User Service endpoints from `/settings`:
 
