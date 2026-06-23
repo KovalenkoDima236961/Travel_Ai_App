@@ -13,6 +13,7 @@ import {
   prepareItineraryForEdit,
   validateEditableItinerary
 } from "@/components/trips/ItineraryEditor";
+import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
@@ -292,6 +293,9 @@ function TripDetailPageContent() {
                   itinerary={draftItinerary}
                   onChange={setDraftItinerary}
                 />
+                <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                  Map view is available after saving or leaving edit mode.
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -310,6 +314,7 @@ function TripDetailPageContent() {
                   onRegenerateItem={regenerateItem}
                   regeneratingTarget={regeneratingTarget}
                 />
+                <ItineraryMap itinerary={trip.itinerary} />
                 <ItineraryVersionHistory
                   currency={trip.budgetCurrency}
                   onRestored={handleVersionRestored}

@@ -115,8 +115,20 @@ of the itinerary.
 To attach a real-place-shaped mock place, open a completed trip, click
 `Edit itinerary`, click `Attach real place` on an item, search, select a result,
 then click `Save`. Existing itinerary items without `place` metadata continue to
-render normally. v1 intentionally has no full map view, opening hours, route
-optimization, flights, hotels, weather, or real Google Places provider.
+render normally. v1 intentionally has no opening hours, route optimization,
+distance calculation, flights, hotels, weather, or real Google Places provider.
+
+## Map View
+
+Completed trips with itinerary items that have attached places and valid
+coordinates show a read-only Map View on the trip detail page. The map uses
+Leaflet with OpenStreetMap tiles and renders markers only for itinerary items
+with numeric latitude and longitude values. Use the day filter to view all
+mapped places or only the mapped places for a single day.
+
+Attach places in itinerary edit mode first, then save or leave edit mode to see
+them on the map. Map View v1 does not support route optimization, distance
+calculation, marker dragging, or editing places from the map.
 
 The Version History panel appears on completed trips that have an itinerary. It
 fetches version summaries, displays source labels such as `Generated`,

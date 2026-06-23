@@ -61,23 +61,29 @@ http://localhost:3000
 18. Search for `Colosseum` with destination `Rome`.
 19. Select `Colosseum`.
 20. Confirm the item shows address, rating/category, and an `Open map` link.
-21. Change one item name.
-22. Add one item.
-23. Remove one item.
-24. Click `Save`.
-25. Refresh the page.
-26. Confirm the attached place address/rating/map link still appears.
-27. Open `Version History` again.
-28. Confirm a `Manual edit` version exists.
-29. Preview the manual edit version and confirm it keeps the place metadata.
-30. Preview the older generated version.
-31. Restore the generated version.
-32. Refresh the page.
-33. Confirm the restored itinerary persists.
-34. Open `Version History`.
-35. Confirm the restore created another version.
-36. Go to `/trips`.
-37. Confirm the trip appears in the list.
+21. Attach a second mock place with coordinates to another itinerary item.
+22. Change one item name.
+23. Add one item.
+24. Remove one item.
+25. Click `Save`.
+26. Refresh the page.
+27. Confirm the attached place address/rating/map link still appears.
+28. Confirm Map View appears on the trip detail page.
+29. Confirm map markers are visible.
+30. Click a marker and confirm the popup shows item/place details.
+31. Use the day filter and confirm markers change.
+32. Refresh the page and confirm the map still shows markers.
+33. Open `Version History` again.
+34. Confirm a `Manual edit` version exists.
+35. Preview the manual edit version and confirm it keeps the place metadata.
+36. Preview the older generated version.
+37. Restore the generated version.
+38. Refresh the page.
+39. Confirm the restored itinerary persists.
+40. Open `Version History`.
+41. Confirm the restore created another version.
+42. Go to `/trips`.
+43. Confirm the trip appears in the list.
 
 ## Troubleshooting
 
