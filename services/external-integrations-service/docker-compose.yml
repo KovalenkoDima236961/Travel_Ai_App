@@ -9,6 +9,10 @@ services:
       CORS_ALLOWED_METHODS: GET,OPTIONS
       CORS_ALLOWED_HEADERS: Content-Type,Authorization
       PLACE_PROVIDER: mock
+      PLACE_PROVIDER_FALLBACK_TO_MOCK: "true"
+      FOURSQUARE_API_KEY: ""
+      FOURSQUARE_BASE_URL: https://api.foursquare.com/v3
+      FOURSQUARE_TIMEOUT_SECONDS: "8"
       GOOGLE_PLACES_API_KEY: ""
       MAPBOX_API_KEY: ""
     ports:

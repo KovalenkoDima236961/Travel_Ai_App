@@ -371,6 +371,9 @@ export function ItineraryEditor({
                           <p className="font-semibold text-slate-950">{item.place.name}</p>
                           <p className="leading-5 text-slate-600">{item.place.address}</p>
                           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+                            <span>
+                              Provider: {formatPlaceCategory(item.place.provider || "unknown")}
+                            </span>
                             {item.place.rating != null ? (
                               <span>
                                 Rating {item.place.rating}

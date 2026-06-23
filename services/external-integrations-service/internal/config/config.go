@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	PlaceProviderMock   = "mock"
-	RouteProviderMock   = "mock"
-	WeatherProviderMock = "mock"
+	PlaceProviderMock       = "mock"
+	PlaceProviderFoursquare = "foursquare"
+	RouteProviderMock       = "mock"
+	WeatherProviderMock     = "mock"
 )
 
 // Config is the root application configuration. It is loaded from a YAML file
@@ -44,9 +45,13 @@ type CORSConfig struct {
 
 // PlaceProviderConfig selects the place provider adapter.
 type PlaceProviderConfig struct {
-	Provider           string `yaml:"provider" env:"PLACE_PROVIDER" env-default:"mock"`
-	GooglePlacesAPIKey string `yaml:"google_places_api_key" env:"GOOGLE_PLACES_API_KEY"`
-	MapboxAPIKey       string `yaml:"mapbox_api_key" env:"MAPBOX_API_KEY"`
+	Provider                 string `yaml:"provider" env:"PLACE_PROVIDER" env-default:"mock"`
+	FallbackToMock           bool   `yaml:"fallback_to_mock" env:"PLACE_PROVIDER_FALLBACK_TO_MOCK" env-default:"true"`
+	FoursquareAPIKey         string `yaml:"foursquare_api_key" env:"FOURSQUARE_API_KEY"`
+	FoursquareBaseURL        string `yaml:"foursquare_base_url" env:"FOURSQUARE_BASE_URL" env-default:"https://api.foursquare.com/v3"`
+	FoursquareTimeoutSeconds int    `yaml:"foursquare_timeout_seconds" env:"FOURSQUARE_TIMEOUT_SECONDS" env-default:"8"`
+	GooglePlacesAPIKey       string `yaml:"google_places_api_key" env:"GOOGLE_PLACES_API_KEY"`
+	MapboxAPIKey             string `yaml:"mapbox_api_key" env:"MAPBOX_API_KEY"`
 }
 
 // RouteProviderConfig selects the route-estimation provider adapter. v1 ships
@@ -104,6 +109,14 @@ func Load(path string) (*Config, error) {
 
 	cfg.PlaceProvider.GooglePlacesAPIKey = strings.TrimSpace(cfg.PlaceProvider.GooglePlacesAPIKey)
 	cfg.PlaceProvider.MapboxAPIKey = strings.TrimSpace(cfg.PlaceProvider.MapboxAPIKey)
+	cfg.PlaceProvider.FoursquareAPIKey = strings.TrimSpace(cfg.PlaceProvider.FoursquareAPIKey)
+	cfg.PlaceProvider.FoursquareBaseURL = strings.TrimRight(strings.TrimSpace(cfg.PlaceProvider.FoursquareBaseURL), "/")
+	if cfg.PlaceProvider.FoursquareBaseURL == "" {
+		cfg.PlaceProvider.FoursquareBaseURL = "https://api.foursquare.com/v3"
+	}
+	if cfg.PlaceProvider.FoursquareTimeoutSeconds <= 0 {
+		cfg.PlaceProvider.FoursquareTimeoutSeconds = 8
+	}
 
 	cfg.RouteProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.RouteProvider.Provider))
 	if cfg.RouteProvider.Provider == "" {

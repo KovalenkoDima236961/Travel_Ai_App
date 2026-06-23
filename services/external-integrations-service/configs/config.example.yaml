@@ -14,6 +14,10 @@ cors:
 
 place_provider:
   provider: mock
+  fallback_to_mock: true
+  foursquare_api_key: ""
+  foursquare_base_url: "https://api.foursquare.com/v3"
+  foursquare_timeout_seconds: 8
   google_places_api_key: ""
   mapbox_api_key: ""
 

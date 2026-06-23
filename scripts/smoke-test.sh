@@ -143,7 +143,14 @@ echo "Checking External Integrations Service health..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/health"
 assert_2xx "External Integrations Service health check"
 
-echo "Searching mock places..."
+PLACE_PROVIDER_MODE="${PLACE_PROVIDER:-mock}"
+PLACE_PROVIDER_FALLBACK="${PLACE_PROVIDER_FALLBACK_TO_MOCK:-true}"
+
+if [[ "${PLACE_PROVIDER_MODE}" == "foursquare" && -n "${FOURSQUARE_API_KEY:-}" ]]; then
+  echo "Searching places with Foursquare provider..."
+else
+  echo "Searching mock places..."
+fi
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/places/search?query=Colosseum&destination=Rome"
 assert_2xx "Place search"
 
@@ -155,30 +162,57 @@ if [[ "${PLACE_JSON}" == "null" ]]; then
 fi
 PLACE_ID="$(jq -r '.providerPlaceId // empty' <<<"${PLACE_JSON}")"
 PLACE_NAME="$(jq -r '.name // empty' <<<"${PLACE_JSON}")"
+PLACE_PROVIDER_NAME="$(jq -r '.provider // empty' <<<"${PLACE_JSON}")"
 PLACE_OPENING_HOURS_COUNT="$(jq '.openingHours | length' <<<"${PLACE_JSON}")"
-if [[ -z "${PLACE_ID}" || "${PLACE_NAME}" != "Colosseum" ]]; then
-  echo "Place search did not return Colosseum as the first result." >&2
+if [[ -z "${PLACE_ID}" || -z "${PLACE_NAME}" || -z "${PLACE_PROVIDER_NAME}" ]]; then
+  echo "Place search did not return a normalized place." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
-if [[ "${PLACE_OPENING_HOURS_COUNT}" -lt 1 ]]; then
-  echo "Place search result did not include openingHours." >&2
-  echo "${LAST_BODY}" >&2
-  exit 1
+if [[ "${PLACE_PROVIDER_MODE}" == "foursquare" && -n "${FOURSQUARE_API_KEY:-}" ]]; then
+  if [[ "${PLACE_PROVIDER_NAME}" != "foursquare" ]]; then
+    if [[ "${PLACE_PROVIDER_FALLBACK}" == "true" && "${PLACE_PROVIDER_NAME}" == "mock" ]]; then
+      echo "Foursquare search fell back to mock provider."
+    else
+      echo "Expected Foursquare provider result, got '${PLACE_PROVIDER_NAME}'." >&2
+      echo "${LAST_BODY}" >&2
+      exit 1
+    fi
+  else
+    echo "Foursquare place search returned ${PLACE_NAME}."
+  fi
+else
+  if [[ "${PLACE_PROVIDER_NAME}" != "mock" || "${PLACE_NAME}" != "Colosseum" ]]; then
+    echo "Mock place search did not return Colosseum as the first result." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  if [[ "${PLACE_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+    echo "Mock place search result did not include openingHours." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
 fi
 
-echo "Fetching mock place details..."
+echo "Fetching place details..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/places/${PLACE_ID}"
 assert_2xx "Place details"
 
 DETAIL_PLACE_ID="$(jq -r '.providerPlaceId // empty' <<<"${LAST_BODY}")"
+DETAIL_PROVIDER_NAME="$(jq -r '.provider // empty' <<<"${LAST_BODY}")"
 DETAIL_OPENING_HOURS_COUNT="$(jq '.openingHours | length' <<<"${LAST_BODY}")"
-if [[ "${DETAIL_PLACE_ID}" != "${PLACE_ID}" || "${DETAIL_OPENING_HOURS_COUNT}" -lt 1 ]]; then
-  echo "Place details did not include expected openingHours." >&2
+if [[ "${DETAIL_PLACE_ID}" != "${PLACE_ID}" ]]; then
+  echo "Place details did not return the requested place." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ "${DETAIL_PROVIDER_NAME}" == "mock" && "${DETAIL_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+  echo "Mock place details did not include expected openingHours." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
 PLACE_JSON="$(jq -c '.' <<<"${LAST_BODY}")"
+PLACE_PROVIDER_NAME="${DETAIL_PROVIDER_NAME}"
 
 echo "Estimating a mock walking route..."
 ROUTE_PAYLOAD='{"mode":"walking","stops":[{"name":"Colosseum","latitude":41.8902,"longitude":12.4922},{"name":"Trevi Fountain","latitude":41.9009,"longitude":12.4833}]}'
@@ -455,8 +489,13 @@ EDIT_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
 EDIT_ITEM_NAME="$(jq -r '.itinerary.days[0].items[0].name // empty' <<<"${LAST_BODY}")"
 EDIT_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
 EDIT_OPENING_HOURS_COUNT="$(jq '.itinerary.days[0].items[0].place.openingHours | length' <<<"${LAST_BODY}")"
-if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test Day" || "${EDIT_ITEM_NAME}" != "Edited Smoke Test Activity" || "${EDIT_PLACE_ID}" != "${PLACE_ID}" || "${EDIT_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test Day" || "${EDIT_ITEM_NAME}" != "Edited Smoke Test Activity" || "${EDIT_PLACE_ID}" != "${PLACE_ID}" ]]; then
   echo "Edited itinerary response did not include expected values." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ "${PLACE_PROVIDER_NAME}" == "mock" && "${EDIT_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+  echo "Edited itinerary response did not preserve mock openingHours." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
@@ -467,8 +506,13 @@ assert_2xx "Fetch edited trip"
 
 FETCHED_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
 FETCHED_OPENING_HOURS_COUNT="$(jq '.itinerary.days[0].items[0].place.openingHours | length' <<<"${LAST_BODY}")"
-if [[ "${FETCHED_PLACE_ID}" != "${PLACE_ID}" || "${FETCHED_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+if [[ "${FETCHED_PLACE_ID}" != "${PLACE_ID}" ]]; then
   echo "Fetched trip did not preserve attached place metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ "${PLACE_PROVIDER_NAME}" == "mock" && "${FETCHED_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+  echo "Fetched trip did not preserve mock openingHours." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
@@ -492,8 +536,13 @@ assert_2xx "Get manual edit itinerary version"
 
 MANUAL_VERSION_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
 MANUAL_VERSION_OPENING_HOURS_COUNT="$(jq '.itinerary.days[0].items[0].place.openingHours | length' <<<"${LAST_BODY}")"
-if [[ "${MANUAL_VERSION_PLACE_ID}" != "${PLACE_ID}" || "${MANUAL_VERSION_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+if [[ "${MANUAL_VERSION_PLACE_ID}" != "${PLACE_ID}" ]]; then
   echo "Manual edit version did not store attached place metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ "${PLACE_PROVIDER_NAME}" == "mock" && "${MANUAL_VERSION_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+  echo "Manual edit version did not preserve mock openingHours." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi

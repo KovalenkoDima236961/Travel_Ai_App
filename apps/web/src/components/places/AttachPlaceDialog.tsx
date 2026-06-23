@@ -150,6 +150,8 @@ export function AttachPlaceDialog({
                   <h3 className="font-semibold text-slate-950">{place.name}</h3>
                   <p className="mt-1 text-sm leading-5 text-slate-600">{place.address}</p>
                   <p className="mt-2 text-xs font-medium uppercase text-slate-500">
+                    Provider: {formatProvider(place.provider)}
+                    {" · "}
                     {place.category ? formatCategory(place.category) : "Place"}
                     {place.rating != null ? ` · Rating ${place.rating}` : ""}
                     {place.ratingCount != null ? ` (${place.ratingCount.toLocaleString()})` : ""}
@@ -184,4 +186,8 @@ function formatCategory(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatProvider(value: string) {
+  return formatCategory(value || "unknown");
 }

@@ -61,8 +61,8 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}/itinerary/versions/{versionId}`
 - `POST /trips/{id}/itinerary/versions/{versionId}/restore`
 
-The frontend calls External Integrations Service v1 directly for mock place
-search, route estimates, and weather forecasts:
+The frontend calls External Integrations Service v1 directly for place search,
+route estimates, and weather forecasts:
 
 - `GET /places/search?query=Colosseum&destination=Rome`
 - `GET /places/{placeId}`
@@ -70,6 +70,9 @@ search, route estimates, and weather forecasts:
 - `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
 
 The Web App does not call third-party place, route, or weather APIs directly.
+If External Integrations Service is configured with `PLACE_PROVIDER=foursquare`,
+the browser still calls the same `/places/search` and `/places/{placeId}`
+endpoints and receives normalized `Place` objects.
 
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and
@@ -118,16 +121,21 @@ Itinerary editing v1 replaces the whole itinerary JSON. Partial regeneration
 buttons call Trip Service to regenerate a day or item while preserving the rest
 of the itinerary.
 
-To attach a real-place-shaped mock place, open a completed trip, click
+To attach a normalized place, open a completed trip, click
 `Edit itinerary`, click `Attach real place` on an item, search, select a result,
 then click `Save`. Existing itinerary items without `place` metadata continue to
 render normally. Mock places can include optional `openingHours` using
 `dayOfWeek` values `1 = Monday` through `7 = Sunday` and local `HH:mm` times.
+Search results and attached-place displays include a provider label such as
+`Provider: Mock` or `Provider: Foursquare`.
 When an attached place has hours and the trip has a start date, the read-only
 itinerary shows an advisory `Likely open at this time`, `May be closed at this
 time`, or `May be closed on this day` badge plus that day's hours. The warning
-is advisory because v1 uses mock schedules, simple local trip dates, no
-timezones, no holidays, and no special-date overrides.
+is advisory because schedules are optional, simple local trip dates are used,
+and there are no timezone, holiday, or special-date overrides. Real provider
+results may omit rating, website, coordinates, or `openingHours`; the UI hides
+missing ratings, shows unknown opening hours, and maps only places with valid
+coordinates.
 
 v1 intentionally has no flights, hotels, real weather provider, real Google
 Places provider, real opening-hours provider, or turn-by-turn route geometry.

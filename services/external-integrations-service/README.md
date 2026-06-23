@@ -1,6 +1,10 @@
 # External Integrations Service
 
-External Integrations Service owns third-party integration boundaries for the travel app. v1 exposes place search/details, route estimates, and weather forecasts through deterministic mock providers so the Web App can use integration-shaped data without calling third-party APIs directly.
+External Integrations Service owns third-party integration boundaries for the
+travel app. v1 exposes place search/details, route estimates, and weather
+forecasts through stable application APIs so the Web App can use
+integration-shaped data without calling third-party APIs directly. Mock providers
+remain the local default; place search/details can optionally use Foursquare.
 
 ## Tech Stack
 
@@ -55,6 +59,11 @@ curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
 - `APP_ENV` defaults to `development`
 - `HTTP_ADDR` defaults to `:8084`
 - `PLACE_PROVIDER` defaults to `mock`
+- `PLACE_PROVIDER_FALLBACK_TO_MOCK` defaults to `true`
+- `FOURSQUARE_API_KEY` is required when `PLACE_PROVIDER=foursquare` and fallback
+  is disabled
+- `FOURSQUARE_BASE_URL` defaults to `https://api.foursquare.com/v3`
+- `FOURSQUARE_TIMEOUT_SECONDS` defaults to `8`
 - `ROUTE_PROVIDER` defaults to `mock`
 - `WEATHER_PROVIDER` defaults to `mock`
 - `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:3000`
@@ -116,6 +125,72 @@ Rome, Paris, Vienna, and Bratislava. Search is case-insensitive across place
 name, category, and address. When a destination is provided, results are
 filtered to that city. Unknown city-specific queries return a small fallback set
 for that city.
+
+## Real Place Provider v1
+
+`PLACE_PROVIDER` options:
+
+- `mock`: deterministic local data, no API key required. This is the default.
+- `foursquare`: calls the Foursquare Places API and normalizes responses to the
+  same `Place` JSON shape.
+
+Foursquare configuration:
+
+```bash
+PLACE_PROVIDER=foursquare
+FOURSQUARE_API_KEY=...
+FOURSQUARE_BASE_URL=https://api.foursquare.com/v3
+FOURSQUARE_TIMEOUT_SECONDS=8
+PLACE_PROVIDER_FALLBACK_TO_MOCK=true
+```
+
+Search uses:
+
+```text
+GET /places/search?query={query}&near={destination}&limit=10
+Authorization: <FOURSQUARE_API_KEY>
+Accept: application/json
+```
+
+Details uses:
+
+```text
+GET /places/{fsq_id}
+Authorization: <FOURSQUARE_API_KEY>
+Accept: application/json
+```
+
+Foursquare fields are normalized as follows:
+
+- `provider`: `foursquare`
+- `providerPlaceId`: raw `fsq_id`
+- `name`: Foursquare `name`
+- `address`: `location.formatted_address` or a joined address fallback
+- `latitude`/`longitude`: `geocodes.main`
+- `rating`: Foursquare 0-10 rating converted to a 0-5 value
+- `ratingCount`: `stats.total_ratings`
+- `category`: first category name
+- `website`: Foursquare `website`, when present
+- `mapUrl`: provider URL when available, otherwise a Google Maps coordinate
+  search URL when coordinates are available
+- `openingHours`: empty in v1 for real provider results
+
+Missing real-provider fields are valid. The Web App hides missing ratings,
+ignores places without coordinates in map/distance features, and treats empty
+`openingHours` as unknown.
+
+When `PLACE_PROVIDER_FALLBACK_TO_MOCK=true`, startup can fall back to mock in
+development if Foursquare configuration is missing, and runtime provider
+request/response failures fall back to mock. Fallbacks are logged with
+`fallbackUsed=true`, `provider=foursquare`, and `fallbackProvider=mock`. Disable
+fallback with `PLACE_PROVIDER_FALLBACK_TO_MOCK=false` when provider failures
+should surface as API errors.
+
+Example:
+
+```bash
+curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
+```
 
 ## Routing API v1
 

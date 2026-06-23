@@ -103,7 +103,7 @@ identity, Trip Service owns trips, and AI Planning Service owns itinerary
 generation.
 
 External Integrations Service is exposed directly at `http://localhost:8084`.
-v1 uses `PLACE_PROVIDER=mock`, `ROUTE_PROVIDER=mock`, and
+The local default uses `PLACE_PROVIDER=mock`, `ROUTE_PROVIDER=mock`, and
 `WEATHER_PROVIDER=mock`, returning deterministic data for local development.
 Mock place search/details can include optional `openingHours` intervals using
 `dayOfWeek` `1 = Monday` through `7 = Sunday` and local `HH:mm` times. These
@@ -128,9 +128,40 @@ curl "http://localhost:8084/weather/forecast?destination=Rome&startDate=2026-08-
 (Haversine × 1.25 at 5 km/h). Because the Web App calls it from the browser, the
 service's CORS allows `POST` (`CORS_ALLOWED_METHODS=GET,POST,OPTIONS` by
 default). Weather forecast calls are read-only `GET` requests. Future provider
-candidates include Google Places, Mapbox, Foursquare, OSRM, Google Maps routing,
-Open-Meteo, and real opening-hours providers, but no real third-party provider
-is enabled in v1.
+candidates include Google Places, Mapbox, OSRM, Google Maps routing,
+Open-Meteo, and real opening-hours providers.
+
+### Place Provider
+
+Mock provider, no API key required:
+
+```bash
+PLACE_PROVIDER=mock
+docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
+```
+
+Foursquare provider:
+
+1. Set `PLACE_PROVIDER=foursquare` in `infra/.env`.
+2. Set `FOURSQUARE_API_KEY=...`.
+3. Optionally keep `PLACE_PROVIDER_FALLBACK_TO_MOCK=true` for local fallback.
+4. Start the stack:
+
+```bash
+docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
+```
+
+Troubleshooting:
+
+- Missing API key: with fallback enabled, development falls back to mock and
+  logs `fallbackUsed=true`; with fallback disabled, startup fails.
+- `401` or `403`: the Foursquare API key is missing, invalid, or unauthorized.
+- `429`: Foursquare rate limit reached.
+- Provider `5xx` or malformed responses: the service returns a stable app error
+  unless fallback is enabled, in which case it logs the fallback and returns mock
+  results.
+- Real provider results may omit rating, website, coordinates, or opening hours;
+  those fields are optional in the Web App.
 
 Trip Service requires `Authorization: Bearer <accessToken>` on `/trips` routes
 by default. To temporarily disable that for local debugging, set

@@ -143,6 +143,7 @@ export function ItineraryView({
                       <div className="mt-2 space-y-1 text-sm text-slate-600">
                         <p>{item.place.address}</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+                          <span>Provider: {formatPlaceCategory(item.place.provider || "unknown")}</span>
                           {item.place.rating != null ? (
                             <span>
                               Rating {item.place.rating}

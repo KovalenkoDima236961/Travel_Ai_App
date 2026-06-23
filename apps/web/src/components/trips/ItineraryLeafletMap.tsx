@@ -56,6 +56,7 @@ export function ItineraryLeafletMap({
               ) : null}
               <p className="mt-2 leading-5 text-slate-600">{marker.place.address}</p>
               <div className="mt-3 space-y-1 text-xs font-medium text-slate-500">
+                <p>Provider: {formatInterestLabel(marker.place.provider || "unknown")}</p>
                 <p>{formatInterestLabel(marker.itemType)}</p>
                 {marker.place.category ? (
                   <p>{formatInterestLabel(marker.place.category)}</p>

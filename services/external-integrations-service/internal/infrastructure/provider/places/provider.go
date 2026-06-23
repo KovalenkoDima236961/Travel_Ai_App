@@ -21,7 +21,36 @@ func New(cfg *config.Config, log *zap.Logger) (service.PlaceProvider, error) {
 	case config.PlaceProviderMock:
 		log.Info("place provider configured", zap.String("provider", config.PlaceProviderMock))
 		return NewMockPlaceProvider(), nil
+	case config.PlaceProviderFoursquare:
+		foursquareProvider, err := NewFoursquarePlaceProvider(cfg.PlaceProvider, log)
+		if err != nil {
+			if cfg.PlaceProvider.FallbackToMock {
+				log.Warn("falling back to mock place provider",
+					zap.String("provider", config.PlaceProviderFoursquare),
+					zap.String("fallbackProvider", config.PlaceProviderMock),
+					zap.Bool("fallbackUsed", true),
+					zap.String("errorType", providerErrorKind(err)),
+					zap.Error(err),
+				)
+				return NewMockPlaceProvider(), nil
+			}
+			return nil, err
+		}
+
+		log.Info("place provider configured",
+			zap.String("provider", config.PlaceProviderFoursquare),
+			zap.Bool("fallbackToMock", cfg.PlaceProvider.FallbackToMock),
+		)
+		if cfg.PlaceProvider.FallbackToMock {
+			return newFallbackPlaceProvider(
+				config.PlaceProviderFoursquare,
+				foursquareProvider,
+				NewMockPlaceProvider(),
+				log,
+			), nil
+		}
+		return foursquareProvider, nil
 	default:
-		return nil, fmt.Errorf("unsupported PLACE_PROVIDER %q: supported providers: mock", cfg.PlaceProvider.Provider)
+		return nil, fmt.Errorf("unsupported PLACE_PROVIDER %q: supported providers: mock, foursquare", cfg.PlaceProvider.Provider)
 	}
 }
