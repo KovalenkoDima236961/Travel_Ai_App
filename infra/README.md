@@ -30,7 +30,8 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 
 The web app is included in this stack and waits for Trip Service to become
 healthy before starting. Auth Service also runs in the stack at
-`http://localhost:8082`, and User Service runs at `http://localhost:8083`.
+`http://localhost:8082`, User Service runs at `http://localhost:8083`, and
+External Integrations Service runs at `http://localhost:8084`.
 Auth Service, Trip Service, and User Service share `JWT_ACCESS_SECRET` locally
 so downstream services can validate Auth Service access tokens without calling
 Auth Service on every request.
@@ -71,6 +72,7 @@ Useful local URLs:
 - Trip Service: http://localhost:8080
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083
+- External Integrations Service: http://localhost:8084
 - AI Planning Service: http://localhost:8000
 
 The `web-app` service receives browser-facing and internal service URLs:
@@ -81,6 +83,8 @@ The `web-app` service receives browser-facing and internal service URLs:
   Service calls.
 - `NEXT_PUBLIC_USER_SERVICE_URL=http://localhost:8083` for browser-facing User
   Service calls.
+- `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084` for
+  browser-facing Place Service calls.
 - `TRIP_SERVICE_INTERNAL_URL=http://trip-service:8080` for server-side Next.js
   proxy calls inside Docker Compose.
 - `USER_SERVICE_INTERNAL_URL=http://user-service:8083` for future server-side
@@ -93,6 +97,17 @@ User Service is exposed directly at `http://localhost:8083` for profile and
 preferences API testing. It owns travel preferences; Auth Service owns
 identity, Trip Service owns trips, and AI Planning Service owns itinerary
 generation.
+
+External Integrations Service is exposed directly at `http://localhost:8084`.
+v1 uses `PLACE_PROVIDER=mock` and returns deterministic place data for local
+development. Example:
+
+```bash
+curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
+```
+
+Future provider candidates include Google Places, Mapbox, and Foursquare, but
+no real third-party provider is enabled in v1.
 
 Trip Service requires `Authorization: Bearer <accessToken>` on `/trips` routes
 by default. To temporarily disable that for local debugging, set
@@ -154,16 +169,17 @@ With the stack running:
 ./scripts/smoke-test.sh
 ```
 
-The smoke test checks Auth Service, Trip Service, User Service, and AI Planning
-Service health, registers and logs in a unique test user, calls `/auth/me`,
-creates/updates profile and preferences with a bearer token, creates a Rome
-trip, generates its itinerary through Trip Service's personalized context path,
-fetches and lists the trip with the same token, verifies `status=COMPLETED` with
-at least one itinerary day, lists itinerary versions, checks `GENERATED`,
-`MANUAL_EDIT`, and `RESTORED` version sources, restores the generated version,
-warns if avoided nightlife wording appears, registers a second user, confirms
-the second user gets `404` for the first user's trip and itinerary versions,
-then logs both users out.
+The smoke test checks Auth Service, Trip Service, User Service, External
+Integrations Service, and AI Planning Service health, registers and logs in a
+unique test user, calls `/auth/me`, creates/updates profile and preferences with
+a bearer token, searches mock places for Colosseum in Rome, creates a Rome trip,
+generates its itinerary through Trip Service's personalized context path, saves
+a manual itinerary edit with attached place metadata, verifies the metadata
+persists after fetch and in the manual-edit version snapshot, lists itinerary
+versions, checks `GENERATED`, `MANUAL_EDIT`, and `RESTORED` version sources,
+restores the generated version, warns if avoided nightlife wording appears,
+registers a second user, confirms the second user gets `404` for the first
+user's trip and itinerary versions, then logs both users out.
 
 The trip-service timeout must be longer than the AI service's Ollama timeout so
 `OLLAMA_FALLBACK_TO_MOCK=true` has time to return a fallback itinerary. The
@@ -177,6 +193,7 @@ TRIP_SERVICE_URL=http://localhost:8080 \
 AUTH_SERVICE_URL=http://localhost:8082 \
 SMOKE_USER_SERVICE_URL=http://localhost:8083 \
 SMOKE_AI_PLANNING_SERVICE_URL=http://localhost:8000 \
+SMOKE_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084 \
 WEB_APP_URL=http://localhost:3000 \
 ./scripts/smoke-test.sh
 ```
@@ -192,6 +209,7 @@ The smoke script also tolerates `USER_SERVICE_URL=http://user-service:8083` and
 - Trip Service: http://localhost:8080
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083
+- External Integrations Service: http://localhost:8084
 - AI Planning Service: http://localhost:8000
 - Ollama: http://localhost:11434
 - Adminer: http://localhost:8081
@@ -228,6 +246,10 @@ Use database `trip_service` to inspect trips and itinerary version snapshots.
   `NEXT_PUBLIC_AUTH_SERVICE_URL=http://localhost:8082` and rebuild the web app.
 - Browser points at the wrong Trip Service URL: confirm
   `NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080` and rebuild the web app.
+- Place search fails in the browser: confirm
+  `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084`, confirm
+  External Integrations Service is healthy, and confirm
+  `CORS_ALLOWED_ORIGINS=http://localhost:3000`.
 - Ollama model not found: run the two `ollama pull` commands above or rerun
   `./scripts/dev-setup.sh`.
 - Ollama slow first response: the first local generation can take a while after

@@ -115,7 +115,8 @@ export function prepareItineraryForEdit(itinerary: Itinerary): Itinerary {
         type: item.type ?? "",
         name: item.name ?? "",
         note: item.note ?? "",
-        estimatedCost: item.estimatedCost ?? null
+        estimatedCost: item.estimatedCost ?? null,
+        place: item.place ?? null
       }))
     }))
   };
@@ -167,6 +168,20 @@ export function validateEditableItinerary(itinerary: Itinerary): string[] {
       if (item.estimatedCost != null && Number.isNaN(item.estimatedCost)) {
         errors.push(`${itemLabel} cost must be a valid number.`);
       }
+      if (item.place) {
+        if (!item.place.provider.trim()) {
+          errors.push(`${itemLabel} attached place needs a provider.`);
+        }
+        if (!item.place.providerPlaceId.trim()) {
+          errors.push(`${itemLabel} attached place needs a provider place ID.`);
+        }
+        if (!item.place.name.trim()) {
+          errors.push(`${itemLabel} attached place needs a name.`);
+        }
+        if (!item.place.address.trim()) {
+          errors.push(`${itemLabel} attached place needs an address.`);
+        }
+      }
     });
   });
 
@@ -180,6 +195,18 @@ function normalizeItemForSave(item: ItineraryItem): ItineraryItem {
     type: item.type.trim(),
     name: item.name.trim(),
     note: typeof item.note === "string" ? item.note.trim() : item.note ?? "",
-    estimatedCost: item.estimatedCost ?? null
+    estimatedCost: item.estimatedCost ?? null,
+    place: item.place
+      ? {
+          ...item.place,
+          provider: item.place.provider.trim(),
+          providerPlaceId: item.place.providerPlaceId.trim(),
+          name: item.place.name.trim(),
+          address: item.place.address.trim(),
+          mapUrl: item.place.mapUrl?.trim() || null,
+          category: item.place.category?.trim() || null,
+          website: item.place.website?.trim() || null
+        }
+      : null
   };
 }

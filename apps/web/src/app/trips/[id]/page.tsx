@@ -286,6 +286,7 @@ function TripDetailPageContent() {
                   </Button>
                 </div>
                 <ItineraryEditor
+                  destination={trip.destination}
                   disabled={updateMutation.isPending}
                   errors={editorErrors}
                   itinerary={draftItinerary}

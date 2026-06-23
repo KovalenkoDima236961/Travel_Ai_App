@@ -5,6 +5,7 @@ TRIP_SERVICE_URL="${TRIP_SERVICE_URL:-http://localhost:8080}"
 AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8082}"
 USER_SERVICE_URL="${SMOKE_USER_SERVICE_URL:-${USER_SERVICE_URL:-http://localhost:8083}}"
 AI_PLANNING_SERVICE_URL="${SMOKE_AI_PLANNING_SERVICE_URL:-${AI_PLANNING_SERVICE_URL:-http://localhost:8000}}"
+EXTERNAL_INTEGRATIONS_SERVICE_URL="${SMOKE_EXTERNAL_INTEGRATIONS_SERVICE_URL:-${NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL:-http://localhost:8084}}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
 
 if [[ "${USER_SERVICE_URL}" == "http://user-service:8083" ]]; then
@@ -12,6 +13,9 @@ if [[ "${USER_SERVICE_URL}" == "http://user-service:8083" ]]; then
 fi
 if [[ "${AI_PLANNING_SERVICE_URL}" == "http://ai-planning-service:8000" ]]; then
   AI_PLANNING_SERVICE_URL="http://localhost:${AI_HTTP_PORT:-8000}"
+fi
+if [[ "${EXTERNAL_INTEGRATIONS_SERVICE_URL}" == "http://external-integrations-service:8084" ]]; then
+  EXTERNAL_INTEGRATIONS_SERVICE_URL="http://localhost:${EXTERNAL_INTEGRATIONS_SERVICE_PORT:-8084}"
 fi
 
 if ! command -v curl >/dev/null 2>&1; then
@@ -134,6 +138,28 @@ assert_2xx "User Service health check"
 echo "Checking AI Planning Service health..."
 request GET "${AI_PLANNING_SERVICE_URL}/health"
 assert_2xx "AI Planning Service health check"
+
+echo "Checking External Integrations Service health..."
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/health"
+assert_2xx "External Integrations Service health check"
+
+echo "Searching mock places..."
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/places/search?query=Colosseum&destination=Rome"
+assert_2xx "Place search"
+
+PLACE_JSON="$(jq -c '.items[0] // null' <<<"${LAST_BODY}")"
+if [[ "${PLACE_JSON}" == "null" ]]; then
+  echo "Place search did not return any results." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+PLACE_ID="$(jq -r '.providerPlaceId // empty' <<<"${PLACE_JSON}")"
+PLACE_NAME="$(jq -r '.name // empty' <<<"${PLACE_JSON}")"
+if [[ -z "${PLACE_ID}" || "${PLACE_NAME}" != "Colosseum" ]]; then
+  echo "Place search did not return Colosseum as the first result." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 echo "Web App URL: ${WEB_APP_URL}"
 if request GET "${WEB_APP_URL}"; then
@@ -341,33 +367,48 @@ fi
 echo "Personalization context path exercised through Trip Service -> User Service -> AI Planning Service."
 
 echo "Editing itinerary with Authorization header..."
-EDIT_ITINERARY_PAYLOAD='{
-  "itinerary": {
-    "days": [
-      {
-        "day": 1,
-        "title": "Edited Smoke Test Day",
-        "items": [
-          {
-            "time": "10:00",
-            "type": "activity",
-            "name": "Edited Smoke Test Activity",
-            "note": "Updated by smoke test",
-            "estimatedCost": 12
-          }
-        ]
-      }
-    ]
-  }
-}'
+EDIT_ITINERARY_PAYLOAD="$(
+  jq -nc --argjson place "${PLACE_JSON}" '{
+    itinerary: {
+      days: [
+        {
+          day: 1,
+          title: "Edited Smoke Test Day",
+          items: [
+            {
+              time: "10:00",
+              type: "activity",
+              name: "Edited Smoke Test Activity",
+              note: "Updated by smoke test",
+              estimatedCost: 12,
+              place: $place
+            }
+          ]
+        }
+      ]
+    }
+  }'
+)"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${ACCESS_TOKEN}" "${EDIT_ITINERARY_PAYLOAD}"
 assert_2xx "Edit itinerary"
 
 EDIT_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
 EDIT_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
 EDIT_ITEM_NAME="$(jq -r '.itinerary.days[0].items[0].name // empty' <<<"${LAST_BODY}")"
-if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test Day" || "${EDIT_ITEM_NAME}" != "Edited Smoke Test Activity" ]]; then
+EDIT_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
+if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test Day" || "${EDIT_ITEM_NAME}" != "Edited Smoke Test Activity" || "${EDIT_PLACE_ID}" != "${PLACE_ID}" ]]; then
   echo "Edited itinerary response did not include expected values." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching edited trip to confirm place metadata persisted..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch edited trip"
+
+FETCHED_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
+if [[ "${FETCHED_PLACE_ID}" != "${PLACE_ID}" ]]; then
+  echo "Fetched trip did not preserve attached place metadata." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
@@ -378,8 +419,20 @@ assert_2xx "List itinerary versions after manual edit"
 
 VERSION_COUNT_AFTER_EDIT="$(jq '.items | length' <<<"${LAST_BODY}")"
 MANUAL_VERSION_COUNT="$(jq '[.items[] | select(.source == "MANUAL_EDIT")] | length' <<<"${LAST_BODY}")"
+MANUAL_VERSION_ID="$(jq -r '[.items[] | select(.source == "MANUAL_EDIT")][0].id // empty' <<<"${LAST_BODY}")"
 if [[ "${VERSION_COUNT_AFTER_EDIT}" -le "${VERSION_COUNT_AFTER_GENERATE}" || "${MANUAL_VERSION_COUNT}" -lt 1 ]]; then
   echo "Expected manual edit to add a MANUAL_EDIT itinerary version." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching manual edit itinerary version detail..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${MANUAL_VERSION_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Get manual edit itinerary version"
+
+MANUAL_VERSION_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
+if [[ "${MANUAL_VERSION_PLACE_ID}" != "${PLACE_ID}" ]]; then
+  echo "Manual edit version did not store attached place metadata." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi

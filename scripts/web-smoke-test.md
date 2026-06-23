@@ -57,20 +57,27 @@ http://localhost:3000
 14. Open `Version History`.
 15. Confirm a `Generated` version exists.
 16. Click `Edit itinerary`.
-17. Change one item name.
-18. Add one item.
-19. Remove one item.
-20. Click `Save`.
-21. Open `Version History` again.
-22. Confirm a `Manual edit` version exists.
-23. Preview the older generated version.
-24. Restore the generated version.
+17. Open an itinerary item and click `Attach real place`.
+18. Search for `Colosseum` with destination `Rome`.
+19. Select `Colosseum`.
+20. Confirm the item shows address, rating/category, and an `Open map` link.
+21. Change one item name.
+22. Add one item.
+23. Remove one item.
+24. Click `Save`.
 25. Refresh the page.
-26. Confirm the restored itinerary persists.
-27. Open `Version History`.
-28. Confirm the restore created another version.
-29. Go to `/trips`.
-30. Confirm the trip appears in the list.
+26. Confirm the attached place address/rating/map link still appears.
+27. Open `Version History` again.
+28. Confirm a `Manual edit` version exists.
+29. Preview the manual edit version and confirm it keeps the place metadata.
+30. Preview the older generated version.
+31. Restore the generated version.
+32. Refresh the page.
+33. Confirm the restored itinerary persists.
+34. Open `Version History`.
+35. Confirm the restore created another version.
+36. Go to `/trips`.
+37. Confirm the trip appears in the list.
 
 ## Troubleshooting
 
@@ -81,6 +88,8 @@ http://localhost:3000
   and `docker compose -f infra/docker-compose.yml logs trip-service`.
 - User Service offline: check `docker compose -f infra/docker-compose.yml ps`
   and `docker compose -f infra/docker-compose.yml logs user-service`.
+- External Integrations Service offline: check
+  `docker compose -f infra/docker-compose.yml logs external-integrations-service`.
 - AI Planning Service offline: check
   `docker compose -f infra/docker-compose.yml logs ai-planning-service`.
 - Ollama model not pulled: run

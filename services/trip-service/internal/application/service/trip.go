@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ const (
 	maxItineraryDays        = 60
 	maxItineraryItemsPerDay = 30
 	maxInstructionLength    = 500
+	maxPlaceURLLength       = 2048
 	defaultLimit            = 20
 	maxLimit                = 100
 )
@@ -508,6 +510,9 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 			if item.EstimatedCost != nil && *item.EstimatedCost < 0 {
 				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].estimatedCost must be >= 0", dayIndex, itemIndex)
 			}
+			if err := validateAndNormalizePlaceRef(item.Place, "itinerary.days[%d].items[%d].place", dayIndex, itemIndex); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -578,6 +583,9 @@ func validateCurrentItinerary(itinerary aggregate.Itinerary) error {
 			if item.EstimatedCost != nil && *item.EstimatedCost < 0 {
 				return currentItineraryInvalidError()
 			}
+			if err := validateAndNormalizePlaceRef(item.Place, "place"); err != nil {
+				return currentItineraryInvalidError()
+			}
 		}
 	}
 
@@ -631,8 +639,68 @@ func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.Itinerar
 	if normalized.EstimatedCost != nil && *normalized.EstimatedCost < 0 {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item estimated cost must be >= 0")
 	}
+	if err := validateAndNormalizePlaceRef(normalized.Place, "replacement item place"); err != nil {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item place is invalid")
+	}
 
 	return normalized, nil
+}
+
+func validateAndNormalizePlaceRef(place *aggregate.PlaceRef, path string, args ...any) error {
+	if place == nil {
+		return nil
+	}
+
+	label := path
+	if len(args) > 0 {
+		label = fmt.Sprintf(path, args...)
+	}
+
+	place.Provider = strings.TrimSpace(place.Provider)
+	if place.Provider == "" {
+		return apperrs.NewInvalidInput("%s.provider is required", label)
+	}
+
+	place.ProviderPlaceID = strings.TrimSpace(place.ProviderPlaceID)
+	if place.ProviderPlaceID == "" {
+		return apperrs.NewInvalidInput("%s.providerPlaceId is required", label)
+	}
+
+	place.Name = strings.TrimSpace(place.Name)
+	if place.Name == "" {
+		return apperrs.NewInvalidInput("%s.name is required", label)
+	}
+
+	place.Address = strings.TrimSpace(place.Address)
+	if place.Address == "" {
+		return apperrs.NewInvalidInput("%s.address is required", label)
+	}
+
+	if place.Latitude != nil && (*place.Latitude < -90 || *place.Latitude > 90) {
+		return apperrs.NewInvalidInput("%s.latitude must be between -90 and 90", label)
+	}
+	if place.Longitude != nil && (*place.Longitude < -180 || *place.Longitude > 180) {
+		return apperrs.NewInvalidInput("%s.longitude must be between -180 and 180", label)
+	}
+	if place.Rating != nil && (*place.Rating < 0 || *place.Rating > 5) {
+		return apperrs.NewInvalidInput("%s.rating must be between 0 and 5", label)
+	}
+	if place.RatingCount != nil && *place.RatingCount < 0 {
+		return apperrs.NewInvalidInput("%s.ratingCount must be >= 0", label)
+	}
+
+	place.MapURL = strings.TrimSpace(place.MapURL)
+	if len(place.MapURL) > maxPlaceURLLength {
+		return apperrs.NewInvalidInput("%s.mapUrl must be at most %d characters", label, maxPlaceURLLength)
+	}
+
+	place.Category = strings.TrimSpace(place.Category)
+	place.Website = strings.TrimSpace(place.Website)
+	if len(place.Website) > maxPlaceURLLength {
+		return apperrs.NewInvalidInput("%s.website must be at most %d characters", label, maxPlaceURLLength)
+	}
+
+	return nil
 }
 
 func (s *Service) saveRegeneratedItinerary(

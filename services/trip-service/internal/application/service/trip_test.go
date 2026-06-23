@@ -624,6 +624,77 @@ func TestUpdateItinerary_CreatesManualEditVersion(t *testing.T) {
 	}
 }
 
+func TestUpdateItinerary_WithItemPlaceSucceedsAndVersionsPlaceMetadata(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+		Itinerary: validItineraryWithPlaceRaw(t),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	updated := decodeItinerary(t, got.Itinerary)
+	place := updated.Days[0].Items[0].Place
+	if place == nil || place.ProviderPlaceID != "mock-colosseum-rome" || place.Name != "Colosseum" {
+		t.Fatalf("expected persisted place metadata, got %+v", place)
+	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one itinerary version, got %d", len(repo.versions))
+	}
+	version := decodeItinerary(t, repo.versions[0].Itinerary)
+	versionPlace := version.Days[0].Items[0].Place
+	if versionPlace == nil || versionPlace.ProviderPlaceID != "mock-colosseum-rome" {
+		t.Fatalf("expected version to store place metadata, got %+v", versionPlace)
+	}
+}
+
+func TestUpdateItinerary_InvalidPlaceMetadataReturnsInvalidInput(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*aggregate.PlaceRef)
+	}{
+		{
+			name: "invalid latitude",
+			mutate: func(place *aggregate.PlaceRef) {
+				value := 91.0
+				place.Latitude = &value
+			},
+		},
+		{
+			name: "invalid longitude",
+			mutate: func(place *aggregate.PlaceRef) {
+				value := -181.0
+				place.Longitude = &value
+			},
+		},
+		{
+			name: "invalid rating",
+			mutate: func(place *aggregate.PlaceRef) {
+				value := 5.1
+				place.Rating = &value
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockRepo{}
+			svc := newTestService(repo, &mockGenerator{})
+
+			_, err := svc.UpdateItinerary(authContext(), uuid.New(), appdto.UpdateItineraryInput{
+				Itinerary: itineraryWithMutatedPlaceRaw(t, tt.mutate),
+			})
+			assertInvalidInput(t, err)
+			if len(repo.versions) != 0 {
+				t.Fatalf("invalid place metadata must not create versions, got %+v", repo.versions)
+			}
+		})
+	}
+}
+
 func TestUpdateItinerary_InvalidPayloadDoesNotCreateVersion(t *testing.T) {
 	id := uuid.New()
 	repo := &mockRepo{}
@@ -635,6 +706,23 @@ func TestUpdateItinerary_InvalidPayloadDoesNotCreateVersion(t *testing.T) {
 	assertInvalidInput(t, err)
 	if len(repo.versions) != 0 {
 		t.Fatalf("invalid manual edit must not create versions, got %+v", repo.versions)
+	}
+}
+
+func TestGet_ReturnsSavedPlaceMetadata(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{getByIDResult: &entity.Trip{ID: id, Itinerary: validItineraryWithPlaceRaw(t)}}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.Get(authContext(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	itinerary := decodeItinerary(t, got.Itinerary)
+	place := itinerary.Days[0].Items[0].Place
+	if place == nil || place.ProviderPlaceID != "mock-colosseum-rome" {
+		t.Fatalf("expected GET trip to return saved place metadata, got %+v", place)
 	}
 }
 
@@ -1067,6 +1155,43 @@ func TestRestoreItineraryVersion_UpdatesTripAndCreatesRestoredVersion(t *testing
 	}
 }
 
+func TestRestoreItineraryVersion_RestoresPlaceMetadata(t *testing.T) {
+	tripID := uuid.New()
+	versionID := uuid.New()
+	userID := testUserID()
+	original := validItineraryWithPlaceRaw(t)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: tripID, UserID: &userID},
+		versions: []entity.ItineraryVersion{
+			{
+				ID:            versionID,
+				TripID:        tripID,
+				UserID:        userID,
+				VersionNumber: 1,
+				Source:        entity.ItineraryVersionSourceManualEdit,
+				Itinerary:     original,
+			},
+		},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	itinerary := decodeItinerary(t, got.Itinerary)
+	place := itinerary.Days[0].Items[0].Place
+	if place == nil || place.ProviderPlaceID != "mock-colosseum-rome" {
+		t.Fatalf("expected restored trip to include place metadata, got %+v", place)
+	}
+	restoredVersion := decodeItinerary(t, repo.versions[1].Itinerary)
+	restoredPlace := restoredVersion.Days[0].Items[0].Place
+	if restoredPlace == nil || restoredPlace.ProviderPlaceID != "mock-colosseum-rome" {
+		t.Fatalf("expected restored version to include place metadata, got %+v", restoredPlace)
+	}
+}
+
 func TestItineraryVersionNumbersIncrementPerTrip(t *testing.T) {
 	userID := testUserID()
 	firstTripID := uuid.New()
@@ -1122,6 +1247,54 @@ func validExistingItineraryRaw(t *testing.T) json.RawMessage {
 		t.Fatalf("marshal itinerary: %v", err)
 	}
 	return raw
+}
+
+func validItineraryWithPlaceRaw(t *testing.T) json.RawMessage {
+	t.Helper()
+	raw := validExistingItineraryRaw(t)
+	itinerary := decodeItinerary(t, raw)
+	itinerary.Days[0].Items[0].Place = validPlaceRef()
+
+	out, err := json.Marshal(itinerary)
+	if err != nil {
+		t.Fatalf("marshal itinerary with place: %v", err)
+	}
+	return out
+}
+
+func itineraryWithMutatedPlaceRaw(t *testing.T, mutate func(*aggregate.PlaceRef)) json.RawMessage {
+	t.Helper()
+	raw := validExistingItineraryRaw(t)
+	itinerary := decodeItinerary(t, raw)
+	place := validPlaceRef()
+	mutate(place)
+	itinerary.Days[0].Items[0].Place = place
+
+	out, err := json.Marshal(itinerary)
+	if err != nil {
+		t.Fatalf("marshal mutated place itinerary: %v", err)
+	}
+	return out
+}
+
+func validPlaceRef() *aggregate.PlaceRef {
+	lat := 41.8902
+	lng := 12.4922
+	rating := 4.7
+	ratingCount := 120000
+	return &aggregate.PlaceRef{
+		Provider:        "mock",
+		ProviderPlaceID: "mock-colosseum-rome",
+		Name:            "Colosseum",
+		Address:         "Piazza del Colosseo, 1, 00184 Roma RM, Italy",
+		Latitude:        &lat,
+		Longitude:       &lng,
+		Rating:          &rating,
+		RatingCount:     &ratingCount,
+		MapURL:          "https://maps.example.com/mock-colosseum-rome",
+		Category:        "landmark",
+		Website:         "https://example.com/colosseum",
+	}
 }
 
 func decodeItinerary(t *testing.T, raw json.RawMessage) aggregate.Itinerary {

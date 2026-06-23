@@ -1,7 +1,8 @@
 # Travel AI App
 
 AI travel planning project with Go Auth Service, Go Trip Service, Go User
-Service, Python/FastAPI AI Planning Service, and a Next.js web app.
+Service, Go External Integrations Service, Python/FastAPI AI Planning Service,
+and a Next.js web app.
 
 Auth Service v1 lives in `services/auth-service` and supports email/password
 registration, login, refresh token rotation, logout, and JWT-backed `/auth/me`.
@@ -17,6 +18,12 @@ When a user generates an itinerary, Trip Service fetches that user's profile and
 preferences from User Service by forwarding the user's JWT, then sends optional
 `userProfile` and `userPreferences` to AI Planning Service for prompt
 personalization. Access tokens and full preference payloads should not be logged.
+External Integrations Service v1 lives in
+`services/external-integrations-service` and owns place search/details provider
+boundaries. v1 uses deterministic mock data for Rome, Paris, Vienna, and
+Bratislava; the Web App calls this service when attaching optional place
+metadata to itinerary items. No real Google Places provider, full map view,
+opening hours, or route optimization is enabled yet.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token
@@ -47,6 +54,7 @@ Run the full app smoke test with:
 The smoke test registers/logs in a unique user, checks profile/preferences
 defaults and updates, creates and generates a trip with
 `Authorization: Bearer <accessToken>`, exercises personalized generation,
+searches mock places, saves attached place metadata through Trip Service,
 verifies itinerary version history and restore behavior, confirms only that user
 can access the trip and versions, and logs out.
 

@@ -331,7 +331,20 @@ Request body:
             "type": "place",
             "name": "Colosseum",
             "note": "Start early to avoid crowds.",
-            "estimatedCost": 18
+            "estimatedCost": 18,
+            "place": {
+              "provider": "mock",
+              "providerPlaceId": "mock-colosseum-rome",
+              "name": "Colosseum",
+              "address": "Piazza del Colosseo, 1, 00184 Roma RM, Italy",
+              "latitude": 41.8902,
+              "longitude": 12.4922,
+              "rating": 4.7,
+              "ratingCount": 120000,
+              "mapUrl": "https://maps.example.com/mock-colosseum-rome",
+              "category": "landmark",
+              "website": "https://example.com/colosseum"
+            }
           }
         ]
       }
@@ -348,11 +361,25 @@ Validation rules:
 - Each item needs non-empty `time`, `type`, and `name`.
 - `note` is optional.
 - `estimatedCost` is optional/null and must be `>= 0` when present.
+- `place` is optional and is preserved in the itinerary JSONB when present.
+- `place.provider`, `place.providerPlaceId`, `place.name`, and `place.address`
+  are required when `place` is present.
+- `place.latitude` must be between `-90` and `90` when present.
+- `place.longitude` must be between `-180` and `180` when present.
+- `place.rating` must be between `0` and `5` when present.
+- `place.ratingCount` must be `>= 0` when present.
+- `place.mapUrl` and `place.website` are optional and capped at 2048
+  characters.
 - String fields are trimmed before saving.
 
 Missing/invalid tokens return `401`. Missing trips and trips owned by another
 user both return `404` so ownership is not leaked. Invalid itinerary shapes
 return `400` with `{ "error": "message" }`.
+
+External place lookup is owned by External Integrations Service. Trip Service
+does not call Google Places or other third-party place APIs; it only validates,
+stores, returns, versions, and restores optional place metadata submitted as
+part of the full itinerary JSON.
 
 ### Itinerary version history
 

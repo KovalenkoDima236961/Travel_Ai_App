@@ -30,6 +30,7 @@ The app expects the service URLs in:
 NEXT_PUBLIC_AUTH_SERVICE_URL=http://localhost:8082
 NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080
 NEXT_PUBLIC_USER_SERVICE_URL=http://localhost:8083
+NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084
 TRIP_SERVICE_INTERNAL_URL=http://localhost:8080
 ```
 
@@ -60,6 +61,14 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}/itinerary/versions/{versionId}`
 - `POST /trips/{id}/itinerary/versions/{versionId}/restore`
 
+The frontend calls External Integrations Service v1 directly for mock place
+search while editing itinerary items:
+
+- `GET /places/search?query=Colosseum&destination=Rome`
+- `GET /places/{placeId}`
+
+The Web App does not call third-party place APIs directly.
+
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and
 adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:
@@ -77,7 +86,20 @@ adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:
             "type": "activity",
             "name": "Edited Activity",
             "note": "",
-            "estimatedCost": null
+            "estimatedCost": null,
+            "place": {
+              "provider": "mock",
+              "providerPlaceId": "mock-colosseum-rome",
+              "name": "Colosseum",
+              "address": "Piazza del Colosseo, 1, 00184 Roma RM, Italy",
+              "latitude": 41.8902,
+              "longitude": 12.4922,
+              "rating": 4.7,
+              "ratingCount": 120000,
+              "mapUrl": "https://maps.example.com/mock-colosseum-rome",
+              "category": "landmark",
+              "website": "https://example.com/colosseum"
+            }
           }
         ]
       }
@@ -90,6 +112,12 @@ Itinerary editing v1 replaces the whole itinerary JSON. Partial regeneration
 buttons call Trip Service to regenerate a day or item while preserving the rest
 of the itinerary.
 
+To attach a real-place-shaped mock place, open a completed trip, click
+`Edit itinerary`, click `Attach real place` on an item, search, select a result,
+then click `Save`. Existing itinerary items without `place` metadata continue to
+render normally. v1 intentionally has no full map view, opening hours, route
+optimization, flights, hotels, weather, or real Google Places provider.
+
 The Version History panel appears on completed trips that have an itinerary. It
 fetches version summaries, displays source labels such as `Generated`,
 `Manual edit`, `Regenerated day`, `Regenerated item`, and `Restored`, and loads
@@ -100,7 +128,7 @@ trip.
 
 Version history v1 starts after the backend feature is deployed. It does not
 support diff view, branching, named versions, version comparison,
-drag-and-drop, maps/place integration, payments, admin flows, or collaboration.
+drag-and-drop, full map views, payments, admin flows, or collaboration.
 
 The frontend calls the protected User Service endpoints from `/settings`:
 
@@ -118,7 +146,9 @@ which forwards to `TRIP_SERVICE_INTERNAL_URL` when set, then falls back to
 Auth Service, Trip Service, and User Service enable CORS for
 `http://localhost:3000`, so direct browser calls to
 `NEXT_PUBLIC_AUTH_SERVICE_URL`, `NEXT_PUBLIC_TRIP_SERVICE_URL`, and
-`NEXT_PUBLIC_USER_SERVICE_URL` remain possible during local development.
+`NEXT_PUBLIC_USER_SERVICE_URL` remain possible during local development. External
+Integrations Service enables CORS for `http://localhost:3000` and is called via
+`NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL`.
 
 Open the settings page at:
 

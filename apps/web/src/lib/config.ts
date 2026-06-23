@@ -1,6 +1,7 @@
 const DEFAULT_TRIP_SERVICE_URL = "http://localhost:8080";
 const DEFAULT_AUTH_SERVICE_URL = "http://localhost:8082";
 const DEFAULT_USER_SERVICE_URL = "http://localhost:8083";
+const DEFAULT_EXTERNAL_INTEGRATIONS_SERVICE_URL = "http://localhost:8084";
 
 export function getTripServiceUrl() {
   const value = process.env.NEXT_PUBLIC_TRIP_SERVICE_URL?.trim();
@@ -60,4 +61,14 @@ export function getUserServiceUrl() {
   }
 
   throw new Error("NEXT_PUBLIC_USER_SERVICE_URL is not configured.");
+}
+
+export function getExternalIntegrationsServiceUrl() {
+  const value = process.env.NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL?.trim();
+
+  if (value) {
+    return value.replace(/\/+$/, "");
+  }
+
+  return DEFAULT_EXTERNAL_INTEGRATIONS_SERVICE_URL;
 }

@@ -218,6 +218,34 @@ services:
     networks:
       - backend
 
+  external-integrations-service:
+    build:
+      context: ../services/external-integrations-service
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      HTTP_ADDR: ${EXTERNAL_INTEGRATIONS_HTTP_ADDR:-:8084}
+      PLACE_PROVIDER: ${PLACE_PROVIDER:-mock}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      CORS_ALLOWED_METHODS: ${EXTERNAL_INTEGRATIONS_CORS_ALLOWED_METHODS:-GET,OPTIONS}
+      CORS_ALLOWED_HEADERS: ${CORS_ALLOWED_HEADERS:-Content-Type,Authorization}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      MAPBOX_API_KEY: ${MAPBOX_API_KEY:-}
+    ports:
+      - "${EXTERNAL_INTEGRATIONS_SERVICE_PORT:-8084}:8084"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8084/health",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
   web-app:
     build:
       context: ../apps/web
@@ -227,6 +255,7 @@ services:
       NEXT_PUBLIC_AUTH_SERVICE_URL: ${NEXT_PUBLIC_AUTH_SERVICE_URL:-http://localhost:8082}
       NEXT_PUBLIC_TRIP_SERVICE_URL: ${NEXT_PUBLIC_TRIP_SERVICE_URL:-http://localhost:8080}
       NEXT_PUBLIC_USER_SERVICE_URL: ${NEXT_PUBLIC_USER_SERVICE_URL:-http://localhost:8083}
+      NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL: ${NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL:-http://localhost:8084}
       TRIP_SERVICE_INTERNAL_URL: ${TRIP_SERVICE_INTERNAL_URL:-http://trip-service:8080}
       USER_SERVICE_INTERNAL_URL: ${USER_SERVICE_INTERNAL_URL:-http://user-service:8083}
     depends_on:
@@ -235,6 +264,8 @@ services:
       auth-service:
         condition: service_healthy
       user-service:
+        condition: service_healthy
+      external-integrations-service:
         condition: service_healthy
     ports:
       - "${WEB_APP_PORT:-3000}:3000"

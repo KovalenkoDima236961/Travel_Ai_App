@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AttachPlaceDialog } from "@/components/places/AttachPlaceDialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -12,6 +13,7 @@ import {
   moveItemToDay,
   moveItemWithinDay
 } from "@/lib/itinerary/editor-utils";
+import type { Place } from "@/types/place";
 import type { Itinerary, ItineraryItem } from "@/types/trip";
 
 export {
@@ -22,6 +24,7 @@ export {
 
 type ItineraryEditorProps = {
   itinerary: Itinerary;
+  destination?: string;
   errors?: string[];
   disabled?: boolean;
   onChange: (itinerary: Itinerary) => void;
@@ -32,11 +35,13 @@ const defaultItem: ItineraryItem = {
   type: "activity",
   name: "",
   note: "",
-  estimatedCost: null
+  estimatedCost: null,
+  place: null
 };
 
 export function ItineraryEditor({
   itinerary,
+  destination,
   errors = [],
   disabled = false,
   onChange
@@ -44,6 +49,11 @@ export function ItineraryEditor({
   const days = itinerary.days ?? [];
   const [moveTargets, setMoveTargets] = useState<Record<string, number>>({});
   const [reorderMessage, setReorderMessage] = useState<string | null>(null);
+  const [attachTarget, setAttachTarget] = useState<{ dayIndex: number; itemIndex: number } | null>(
+    null
+  );
+  const attachTargetItem =
+    attachTarget == null ? null : days[attachTarget.dayIndex]?.items[attachTarget.itemIndex] ?? null;
 
   function moveTargetKey(dayIndex: number, itemIndex: number) {
     return `${dayIndex}-${itemIndex}`;
@@ -161,8 +171,31 @@ export function ItineraryEditor({
     onChange(moveItemToDay(itinerary, dayIndex, itemIndex, targetDayIndex));
   }
 
+  function openAttachDialog(dayIndex: number, itemIndex: number) {
+    setAttachTarget({ dayIndex, itemIndex });
+  }
+
+  function closeAttachDialog() {
+    setAttachTarget(null);
+  }
+
+  function attachPlace(place: Place) {
+    if (attachTarget == null) {
+      return;
+    }
+    updateItem(attachTarget.dayIndex, attachTarget.itemIndex, { place });
+  }
+
   return (
     <div className="space-y-5">
+      <AttachPlaceDialog
+        destination={destination ?? itinerary.destination}
+        initialQuery={attachTargetItem?.name ?? ""}
+        onClose={closeAttachDialog}
+        onSelect={attachPlace}
+        open={attachTarget != null}
+      />
+
       {errors.length > 0 ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           <p className="font-semibold">Fix these before saving:</p>
@@ -320,6 +353,74 @@ export function ItineraryEditor({
                 </div>
 
                 <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase text-slate-500">
+                        Attached place
+                      </p>
+                      {item.place ? (
+                        <div className="mt-2 space-y-1 text-sm">
+                          <p className="font-semibold text-slate-950">{item.place.name}</p>
+                          <p className="leading-5 text-slate-600">{item.place.address}</p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+                            {item.place.rating != null ? (
+                              <span>
+                                Rating {item.place.rating}
+                                {item.place.ratingCount != null
+                                  ? ` (${item.place.ratingCount.toLocaleString()})`
+                                  : ""}
+                              </span>
+                            ) : null}
+                            {item.place.category ? (
+                              <span>{formatPlaceCategory(item.place.category)}</span>
+                            ) : null}
+                            {item.place.mapUrl ? (
+                              <a
+                                className="text-primary-700 hover:text-primary-600"
+                                href={item.place.mapUrl}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Open map
+                              </a>
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            Place changes are saved when you save the itinerary.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-600">
+                          No real place attached.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        disabled={disabled}
+                        onClick={() => openAttachDialog(dayIndex, itemIndex)}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        {item.place ? "Change place" : "Attach real place"}
+                      </Button>
+                      {item.place ? (
+                        <Button
+                          disabled={disabled}
+                          onClick={() => updateItem(dayIndex, itemIndex, { place: null })}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          Remove place
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-semibold uppercase text-slate-500">Reorder</p>
                   <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <div className="flex flex-wrap gap-2">
@@ -423,4 +524,12 @@ export function ItineraryEditor({
       ))}
     </div>
   );
+}
+
+function formatPlaceCategory(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

@@ -127,6 +127,34 @@ export function ItineraryView({
                   {item.note ? (
                     <p className="mt-2 text-sm leading-6 text-slate-600">{item.note}</p>
                   ) : null}
+                  {item.place ? (
+                    <div className="mt-2 space-y-1 text-sm text-slate-600">
+                      <p>{item.place.address}</p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+                        {item.place.rating != null ? (
+                          <span>
+                            Rating {item.place.rating}
+                            {item.place.ratingCount != null
+                              ? ` (${item.place.ratingCount.toLocaleString()})`
+                              : ""}
+                          </span>
+                        ) : null}
+                        {item.place.category ? (
+                          <span>{formatPlaceCategory(item.place.category)}</span>
+                        ) : null}
+                        {item.place.mapUrl ? (
+                          <a
+                            className="text-primary-700 hover:text-primary-600"
+                            href={item.place.mapUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Open map
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex items-start justify-between gap-3 sm:flex-col sm:items-end">
                   {item.estimatedCost != null ? (
@@ -159,4 +187,12 @@ export function ItineraryView({
       ))}
     </div>
   );
+}
+
+function formatPlaceCategory(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

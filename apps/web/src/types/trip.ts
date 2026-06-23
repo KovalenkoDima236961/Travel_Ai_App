@@ -1,3 +1,5 @@
+import type { Place } from "@/types/place";
+
 export type TripStatus = "DRAFT" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export type Pace = "relaxed" | "balanced" | "packed" | "intensive" | string;
@@ -8,6 +10,7 @@ export type ItineraryItem = {
   name: string;
   note?: string | null;
   estimatedCost?: number | null;
+  place?: Place | null;
 };
 
 export type ItineraryDay = {
