@@ -15,6 +15,7 @@ import {
 } from "@/components/trips/ItineraryEditor";
 import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
+import { OptimizeDayOrderDialog } from "@/components/trips/OptimizeDayOrderDialog";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
@@ -54,6 +55,7 @@ function TripDetailPageContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
   const [regeneratingTarget, setRegeneratingTarget] = useState<RegeneratingTarget | null>(null);
+  const [optimizingDayNumber, setOptimizingDayNumber] = useState<number | null>(null);
 
   const tripQuery = useQuery({
     queryKey: tripKeys.detail(tripId),
@@ -117,6 +119,12 @@ function TripDetailPageContent() {
   const trip = tripQuery.data;
   const canGenerate = trip.status === "DRAFT" || trip.status === "FAILED";
   const canEditItinerary = trip.status === "COMPLETED" && Boolean(trip.itinerary);
+  const optimizingDay =
+    optimizingDayNumber != null
+      ? (trip.itinerary?.days ?? []).find(
+          (day, index) => (day.day || index + 1) === optimizingDayNumber
+        ) ?? null
+      : null;
 
   function startEditing() {
     if (!trip.itinerary) {
@@ -206,6 +214,19 @@ function TripDetailPageContent() {
     await tripQuery.refetch();
     setRegenerationError(null);
     setSuccessMessage("Itinerary restored.");
+  }
+
+  async function handleOptimizationApplied(updatedTrip: Trip) {
+    const optimizedDayNumber = optimizingDayNumber;
+    queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
+    await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+    await tripQuery.refetch();
+    setRegenerationError(null);
+    setSuccessMessage(
+      optimizedDayNumber != null
+        ? `Day ${optimizedDayNumber} order optimized.`
+        : "Day order optimized."
+    );
   }
 
   return (
@@ -331,6 +352,7 @@ function TripDetailPageContent() {
                 <DistanceSummary
                   itinerary={trip.itinerary}
                   maxWalkingKmPerDay={maxWalkingKmPerDay}
+                  onOptimizeDay={setOptimizingDayNumber}
                 />
                 <ItineraryVersionHistory
                   currency={trip.budgetCurrency}
@@ -338,6 +360,16 @@ function TripDetailPageContent() {
                   restoreDisabled={isEditing}
                   tripId={trip.id}
                 />
+                {trip.itinerary && optimizingDay ? (
+                  <OptimizeDayOrderDialog
+                    day={optimizingDay}
+                    itinerary={trip.itinerary}
+                    onApplied={handleOptimizationApplied}
+                    onClose={() => setOptimizingDayNumber(null)}
+                    open
+                    tripId={trip.id}
+                  />
+                ) : null}
               </div>
             )
           ) : null}

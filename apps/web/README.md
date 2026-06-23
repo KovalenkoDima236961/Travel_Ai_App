@@ -157,6 +157,34 @@ and reappear after saving or leaving edit mode. The estimate logic lives in
 `src/lib/itinerary/distance-utils.ts` as pure functions covered by
 `distance-utils.test.ts`.
 
+## Route Optimization v1
+
+Completed trips can suggest a better visiting order for a single day. The
+`Distance estimate` panel shows an `Optimize order` button for any day with at
+least three mapped places (items with valid coordinates). Clicking it opens a
+preview dialog; nothing is saved until the user confirms.
+
+- Optimizes one day at a time. It never reorders across days.
+- Uses a simple nearest-neighbour algorithm over straight-line (Haversine)
+  distance. It is **not** real routing — no external routing APIs and no
+  Google/Mapbox routing are involved, and the UI labels the figures as
+  approximate.
+- Keeps the first mapped place fixed so the day keeps its starting point.
+- Reorders mapped places into the existing time slots: the place that lands in a
+  position inherits that position's original time.
+- Keeps unmapped items (notes, rest, free time) in their original positions.
+- Shows current vs suggested order side by side, plus the original/optimized
+  distance and the estimated saving (km and walking minutes). If the saving is
+  negligible it says so but still allows applying.
+- Applying saves the full itinerary through the existing
+  `PUT /trips/{id}/itinerary` endpoint, which creates a `MANUAL_EDIT` version
+  through the existing Trip Service versioning. The order persists after refresh.
+
+Optimize controls only appear in read-only mode, so they are hidden while
+editing the itinerary manually. The pure logic lives in
+`src/lib/itinerary/route-optimization-utils.ts` and is covered by
+`route-optimization-utils.test.ts`; the UI is `OptimizeDayOrderDialog`.
+
 The Version History panel appears on completed trips that have an itinerary. It
 fetches version summaries, displays source labels such as `Generated`,
 `Manual edit`, `Regenerated day`, `Regenerated item`, and `Restored`, and loads

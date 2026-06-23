@@ -100,6 +100,27 @@ http://localhost:3000
 51. Go to `/trips`.
 52. Confirm the trip appears in the list.
 
+## Route Optimization
+
+1. Log in and open a completed trip.
+2. Click `Edit itinerary`.
+3. Attach real/mock places with coordinates to at least three items in one day.
+4. Click `Save`.
+5. Confirm the `Distance estimate` panel appears for that day.
+6. Confirm the day shows an `Optimize order` button (it appears only when the day
+   has at least three mapped places and you are not in edit mode).
+7. Click `Optimize order` for that day.
+8. Confirm the dialog shows the current order and the suggested order side by
+   side, and that it is labelled as approximate straight-line distance.
+9. Confirm the distance comparison shows `Original`, `Optimized`, and
+   `Estimated saving` (km and walking minutes).
+10. Click `Apply optimized order`.
+11. Confirm the dialog closes and a success message appears.
+12. Refresh the page.
+13. Confirm the new order persists.
+14. Open `Version History`.
+15. Confirm a `Manual edit` version exists for this change.
+
 ## Troubleshooting
 
 - CORS error in browser console: confirm Trip Service has

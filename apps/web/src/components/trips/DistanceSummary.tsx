@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
   formatDistanceKm,
@@ -9,6 +10,7 @@ import {
   getTripDistanceTotal,
   type DayDistanceSummary
 } from "@/lib/itinerary/distance-utils";
+import { MIN_OPTIMIZABLE_STOPS } from "@/lib/itinerary/route-optimization-utils";
 import { cn } from "@/lib/utils";
 import type { Itinerary } from "@/types/trip";
 
@@ -16,12 +18,18 @@ type DistanceSummaryProps = {
   itinerary: Itinerary;
   maxWalkingKmPerDay?: number | null;
   className?: string;
+  /**
+   * Called when the user asks to optimize a day's order. When omitted (e.g. in
+   * read-only previews) the optimize controls are not rendered.
+   */
+  onOptimizeDay?: (dayNumber: number) => void;
 };
 
 export function DistanceSummary({
   itinerary,
   maxWalkingKmPerDay,
-  className
+  className,
+  onOptimizeDay
 }: DistanceSummaryProps) {
   const summaries = useMemo(
     () => getDayDistanceSummaries(itinerary, maxWalkingKmPerDay),
@@ -59,7 +67,11 @@ export function DistanceSummary({
 
       <ul className="mt-5 space-y-3">
         {measuredDays.map((summary) => (
-          <DaySummaryRow key={summary.dayNumber} summary={summary} />
+          <DaySummaryRow
+            key={summary.dayNumber}
+            summary={summary}
+            onOptimizeDay={onOptimizeDay}
+          />
         ))}
       </ul>
 
@@ -75,12 +87,16 @@ export function DistanceSummary({
 
 type DaySummaryRowProps = {
   summary: DayDistanceSummary;
+  onOptimizeDay?: (dayNumber: number) => void;
 };
 
-function DaySummaryRow({ summary }: DaySummaryRowProps) {
+function DaySummaryRow({ summary, onOptimizeDay }: DaySummaryRowProps) {
   const stopsLabel = `${summary.mappedStops} mapped ${
     summary.mappedStops === 1 ? "stop" : "stops"
   }`;
+  // The summary already counts mapped stops with valid coordinates using the
+  // same validation as the optimizer, so this matches canOptimizeDay(day).
+  const canOptimize = Boolean(onOptimizeDay) && summary.mappedStops >= MIN_OPTIMIZABLE_STOPS;
 
   return (
     <li
@@ -93,11 +109,23 @@ function DaySummaryRow({ summary }: DaySummaryRowProps) {
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-950">Day {summary.dayNumber}</p>
-        {summary.exceedsPreference ? (
-          <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
-            Above your walking preference
-          </span>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {summary.exceedsPreference ? (
+            <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+              Above your walking preference
+            </span>
+          ) : null}
+          {canOptimize ? (
+            <Button
+              onClick={() => onOptimizeDay?.(summary.dayNumber)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Optimize order
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <p className="mt-1 text-sm text-slate-700">
