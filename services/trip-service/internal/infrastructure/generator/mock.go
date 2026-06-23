@@ -92,6 +92,78 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 	}, nil
 }
 
+// RegenerateDay returns a deterministic replacement for a single existing day.
+func (g *MockItineraryGenerator) RegenerateDay(_ context.Context, input application.RegenerateDayInput) (*aggregate.ItineraryDay, error) {
+	if input.DayNumber < 1 {
+		return nil, fmt.Errorf("day number must be at least 1")
+	}
+
+	trip := input.Trip
+	g.logger.Info("regenerating mock itinerary day",
+		zap.String("trip_id", trip.ID.String()),
+		zap.Int("day_number", input.DayNumber),
+		zap.Bool("instruction_present", input.Instruction != ""),
+	)
+
+	focus := "refreshed local highlights"
+	if input.Instruction != "" {
+		focus = "instruction-aware local highlights"
+	}
+
+	return &aggregate.ItineraryDay{
+		Day:   input.DayNumber,
+		Title: fmt.Sprintf("Regenerated day %d in %s", input.DayNumber, trip.Destination),
+		Items: []aggregate.ItineraryItem{
+			{
+				Time: "10:00",
+				Type: "activity",
+				Name: fmt.Sprintf("Updated %s experience", trip.Destination),
+				Note: fmt.Sprintf("A deterministic mock replacement focused on %s.", focus),
+			},
+			{
+				Time:          "13:00",
+				Type:          "food",
+				Name:          "Updated local lunch",
+				Note:          "Keeps the partial regeneration flow predictable in mock mode.",
+				EstimatedCost: floatPtr(15),
+			},
+			{
+				Time: "16:00",
+				Type: "rest",
+				Name: "Flexible neighborhood break",
+				Note: "Leaves room to adjust the rest of the itinerary manually.",
+			},
+		},
+	}, nil
+}
+
+// RegenerateItem returns a deterministic replacement item for the selected
+// zero-based item index.
+func (g *MockItineraryGenerator) RegenerateItem(_ context.Context, input application.RegenerateItemInput) (*aggregate.ItineraryItem, error) {
+	if input.DayNumber < 1 {
+		return nil, fmt.Errorf("day number must be at least 1")
+	}
+	if input.ItemIndex < 0 {
+		return nil, fmt.Errorf("item index must be >= 0")
+	}
+
+	trip := input.Trip
+	g.logger.Info("regenerating mock itinerary item",
+		zap.String("trip_id", trip.ID.String()),
+		zap.Int("day_number", input.DayNumber),
+		zap.Int("item_index", input.ItemIndex),
+		zap.Bool("instruction_present", input.Instruction != ""),
+	)
+
+	return &aggregate.ItineraryItem{
+		Time:          "12:30",
+		Type:          "food",
+		Name:          fmt.Sprintf("Updated local option %d", input.ItemIndex+1),
+		Note:          fmt.Sprintf("Mock replacement for day %d in %s.", input.DayNumber, trip.Destination),
+		EstimatedCost: floatPtr(12),
+	}, nil
+}
+
 // titleCase upper-cases the first rune of s.
 func titleCase(s string) string {
 	if s == "" {
@@ -100,4 +172,8 @@ func titleCase(s string) string {
 	r := []rune(s)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
+}
+
+func floatPtr(value float64) *float64 {
+	return &value
 }

@@ -1,11 +1,10 @@
-// Package handler exposes the trip HTTP endpoints. It is responsible only for
-// request decoding, validation, response encoding, and status-code mapping.
 package handler
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,6 +41,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}", h.Get)
 		r.Post("/{id}/generate", h.Generate)
 		r.Put("/{id}/itinerary", h.UpdateItinerary)
+		r.Post("/{id}/itinerary/days/{dayNumber}/regenerate", h.RegenerateDay)
+		r.Post("/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate", h.RegenerateItem)
 	})
 }
 
@@ -142,6 +143,61 @@ func (h *Handler) UpdateItinerary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response.NewTrip(t))
 }
 
+// RegenerateDay handles POST /trips/{id}/itinerary/days/{dayNumber}/regenerate.
+func (h *Handler) RegenerateDay(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	dayNumber, ok := parseURLInt(w, r, "dayNumber")
+	if !ok {
+		return
+	}
+
+	req, ok := decodeRegenerateRequest(w, r)
+	if !ok {
+		return
+	}
+
+	t, err := h.svc.RegenerateDay(r.Context(), id, dayNumber, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewTrip(t))
+}
+
+// RegenerateItem handles POST
+// /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate.
+func (h *Handler) RegenerateItem(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	dayNumber, ok := parseURLInt(w, r, "dayNumber")
+	if !ok {
+		return
+	}
+	itemIndex, ok := parseURLInt(w, r, "itemIndex")
+	if !ok {
+		return
+	}
+
+	req, ok := decodeRegenerateRequest(w, r)
+	if !ok {
+		return
+	}
+
+	t, err := h.svc.RegenerateItem(r.Context(), id, dayNumber, itemIndex, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewTrip(t))
+}
+
 func (h *Handler) parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -149,6 +205,25 @@ func (h *Handler) parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bo
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+func parseURLInt(w http.ResponseWriter, r *http.Request, key string) (int, bool) {
+	raw := strings.TrimSpace(chi.URLParam(r, key))
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid %s", key))
+		return 0, false
+	}
+	return v, true
+}
+
+func decodeRegenerateRequest(w http.ResponseWriter, r *http.Request) (request.RegenerateItineraryPart, bool) {
+	var req request.RegenerateItineraryPart
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return request.RegenerateItineraryPart{}, false
+	}
+	return req, true
 }
 
 // parseQueryInt reads an integer query parameter. A missing/empty value yields 0

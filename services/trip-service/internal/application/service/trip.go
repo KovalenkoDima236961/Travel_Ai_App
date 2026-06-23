@@ -28,6 +28,7 @@ const (
 	maxDays                 = 30
 	maxItineraryDays        = 60
 	maxItineraryItemsPerDay = 30
+	maxInstructionLength    = 500
 	defaultLimit            = 20
 	maxLimit                = 100
 )
@@ -293,6 +294,142 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 	return updated, nil
 }
 
+// RegenerateDay replaces only one existing itinerary day with an AI-generated
+// replacement. DayNumber is one-based and matched against itinerary.days[].day.
+func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int, in appdto.RegenerateItineraryPartInput) (*entity.Trip, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	started := time.Now()
+	instruction, err := normalizeRegenerationInstruction(in.Instruction)
+	fields := regenerateLogFields("regenerate_day", id, user.ID, dayNumber, nil, instruction)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+
+	current, err := s.repo.GetByIDAndUserID(ctx, id, user.ID)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+
+	currentItinerary, dayIndex, err := currentItineraryAndDayIndex(current, dayNumber)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+
+	userContext, err := s.loadUserContext(ctx, user, id)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	userContextLoaded := userContext.Profile != nil || userContext.Preferences != nil
+
+	replacement, err := s.generator.RegenerateDay(ctx, application.RegenerateDayInput{
+		Trip:             *current,
+		CurrentItinerary: currentItinerary,
+		DayNumber:        dayNumber,
+		Instruction:      instruction,
+		UserProfile:      userContext.Profile,
+		UserPreferences:  userContext.Preferences,
+	})
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
+	normalizedReplacement, err := normalizeReplacementDay(replacement, dayNumber)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, apperrs.NewDependencyError("AI returned invalid replacement")
+	}
+
+	currentItinerary.Days[dayIndex] = normalizedReplacement
+	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
+	s.logRegenerationSuccess("itinerary day regenerated", fields, started, userContextLoaded)
+	return updated, nil
+}
+
+// RegenerateItem replaces only one item in one itinerary day. DayNumber is
+// one-based; ItemIndex is zero-based to match the items array index.
+func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, itemIndex int, in appdto.RegenerateItineraryPartInput) (*entity.Trip, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	started := time.Now()
+	instruction, err := normalizeRegenerationInstruction(in.Instruction)
+	fields := regenerateLogFields("regenerate_item", id, user.ID, dayNumber, &itemIndex, instruction)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+
+	current, err := s.repo.GetByIDAndUserID(ctx, id, user.ID)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+
+	currentItinerary, dayIndex, err := currentItineraryAndDayIndex(current, dayNumber)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	if itemIndex < 0 || itemIndex >= len(currentItinerary.Days[dayIndex].Items) {
+		err := currentItineraryInvalidError()
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+
+	userContext, err := s.loadUserContext(ctx, user, id)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	userContextLoaded := userContext.Profile != nil || userContext.Preferences != nil
+
+	replacement, err := s.generator.RegenerateItem(ctx, application.RegenerateItemInput{
+		Trip:             *current,
+		CurrentItinerary: currentItinerary,
+		DayNumber:        dayNumber,
+		ItemIndex:        itemIndex,
+		Instruction:      instruction,
+		UserProfile:      userContext.Profile,
+		UserPreferences:  userContext.Preferences,
+	})
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
+	normalizedReplacement, err := normalizeReplacementItem(replacement)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, apperrs.NewDependencyError("AI returned invalid replacement")
+	}
+
+	currentItinerary.Days[dayIndex].Items[itemIndex] = normalizedReplacement
+	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
+	s.logRegenerationSuccess("itinerary item regenerated", fields, started, userContextLoaded)
+	return updated, nil
+}
+
 func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error) {
 	if len(raw) == 0 || strings.EqualFold(strings.TrimSpace(string(raw)), "null") {
 		return nil, apperrs.NewInvalidInput("itinerary is required")
@@ -361,6 +498,170 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 		return nil, err
 	}
 	return normalized, nil
+}
+
+func normalizeRegenerationInstruction(raw string) (string, error) {
+	instruction := strings.TrimSpace(raw)
+	if len(instruction) > maxInstructionLength {
+		return "", apperrs.NewInvalidInput("instruction must be at most %d characters", maxInstructionLength)
+	}
+	return instruction, nil
+}
+
+func currentItineraryAndDayIndex(t *entity.Trip, dayNumber int) (aggregate.Itinerary, int, error) {
+	if t == nil || len(t.Itinerary) == 0 || strings.EqualFold(strings.TrimSpace(string(t.Itinerary)), "null") {
+		return aggregate.Itinerary{}, -1, currentItineraryInvalidError()
+	}
+
+	var itinerary aggregate.Itinerary
+	if err := json.Unmarshal(t.Itinerary, &itinerary); err != nil {
+		return aggregate.Itinerary{}, -1, currentItineraryInvalidError()
+	}
+	if err := validateCurrentItinerary(itinerary); err != nil {
+		return aggregate.Itinerary{}, -1, err
+	}
+
+	for index := range itinerary.Days {
+		if itinerary.Days[index].Day == dayNumber {
+			return itinerary, index, nil
+		}
+	}
+
+	return aggregate.Itinerary{}, -1, currentItineraryInvalidError()
+}
+
+func validateCurrentItinerary(itinerary aggregate.Itinerary) error {
+	if len(itinerary.Days) == 0 || len(itinerary.Days) > maxItineraryDays {
+		return currentItineraryInvalidError()
+	}
+
+	seenDays := make(map[int]struct{}, len(itinerary.Days))
+	for _, day := range itinerary.Days {
+		if day.Day < 1 {
+			return currentItineraryInvalidError()
+		}
+		if _, exists := seenDays[day.Day]; exists {
+			return currentItineraryInvalidError()
+		}
+		seenDays[day.Day] = struct{}{}
+
+		if strings.TrimSpace(day.Title) == "" {
+			return currentItineraryInvalidError()
+		}
+		if len(day.Items) == 0 || len(day.Items) > maxItineraryItemsPerDay {
+			return currentItineraryInvalidError()
+		}
+		for _, item := range day.Items {
+			if strings.TrimSpace(item.Time) == "" ||
+				strings.TrimSpace(item.Type) == "" ||
+				strings.TrimSpace(item.Name) == "" {
+				return currentItineraryInvalidError()
+			}
+			if item.EstimatedCost != nil && *item.EstimatedCost < 0 {
+				return currentItineraryInvalidError()
+			}
+		}
+	}
+
+	return nil
+}
+
+func normalizeReplacementDay(day *aggregate.ItineraryDay, dayNumber int) (aggregate.ItineraryDay, error) {
+	if day == nil {
+		return aggregate.ItineraryDay{}, apperrs.NewDependencyError("replacement day is required")
+	}
+
+	normalized := *day
+	normalized.Day = dayNumber
+	normalized.Title = strings.TrimSpace(normalized.Title)
+	if normalized.Title == "" {
+		return aggregate.ItineraryDay{}, apperrs.NewDependencyError("replacement day title is required")
+	}
+	if len(normalized.Items) == 0 || len(normalized.Items) > maxItineraryItemsPerDay {
+		return aggregate.ItineraryDay{}, apperrs.NewDependencyError("replacement day item count is invalid")
+	}
+	for index := range normalized.Items {
+		item, err := normalizeReplacementItem(&normalized.Items[index])
+		if err != nil {
+			return aggregate.ItineraryDay{}, err
+		}
+		normalized.Items[index] = item
+	}
+
+	return normalized, nil
+}
+
+func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.ItineraryItem, error) {
+	if item == nil {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item is required")
+	}
+
+	normalized := *item
+	normalized.Time = strings.TrimSpace(normalized.Time)
+	normalized.Type = strings.TrimSpace(normalized.Type)
+	normalized.Name = strings.TrimSpace(normalized.Name)
+	normalized.Note = strings.TrimSpace(normalized.Note)
+	if normalized.Time == "" {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item time is required")
+	}
+	if normalized.Type == "" {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item type is required")
+	}
+	if normalized.Name == "" {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item name is required")
+	}
+	if normalized.EstimatedCost != nil && *normalized.EstimatedCost < 0 {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item estimated cost must be >= 0")
+	}
+
+	return normalized, nil
+}
+
+func (s *Service) saveRegeneratedItinerary(ctx context.Context, tripID, userID uuid.UUID, itinerary aggregate.Itinerary) (*entity.Trip, error) {
+	raw, err := json.Marshal(itinerary)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.UpdateItineraryByUserID(ctx, tripID, userID, raw, entity.StatusCompleted)
+}
+
+func currentItineraryInvalidError() error {
+	return apperrs.NewInvalidInput("current itinerary is invalid")
+}
+
+func regenerateLogFields(action string, tripID, userID uuid.UUID, dayNumber int, itemIndex *int, instruction string) []zap.Field {
+	fields := []zap.Field{
+		zap.String("action", action),
+		zap.String("tripId", tripID.String()),
+		zap.String("userId", userID.String()),
+		zap.Int("dayNumber", dayNumber),
+		zap.Bool("instructionPresent", instruction != ""),
+	}
+	if itemIndex != nil {
+		fields = append(fields, zap.Int("itemIndex", *itemIndex))
+	}
+	return fields
+}
+
+func (s *Service) logRegenerationSuccess(message string, fields []zap.Field, started time.Time, userContextLoaded bool) {
+	s.log.Info(message,
+		append(fields,
+			zap.Bool("userContextLoaded", userContextLoaded),
+			zap.Int64("durationMs", time.Since(started).Milliseconds()),
+			zap.Bool("success", true),
+		)...,
+	)
+}
+
+func (s *Service) logRegenerationFailure(message string, fields []zap.Field, started time.Time, userContextLoaded bool, err error) {
+	s.log.Warn(message,
+		append(fields,
+			zap.Bool("userContextLoaded", userContextLoaded),
+			zap.Int64("durationMs", time.Since(started).Milliseconds()),
+			zap.Bool("success", false),
+			zap.Error(err),
+		)...,
+	)
 }
 
 func (s *Service) loadUserContext(ctx context.Context, user auth.AuthenticatedUser, tripID uuid.UUID) (usercontext.UserContext, error) {

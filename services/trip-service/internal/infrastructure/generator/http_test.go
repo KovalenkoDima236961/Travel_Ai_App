@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
@@ -266,6 +267,100 @@ func TestAIPlanningHTTPGeneratorGenerate_SerializesUserContext(t *testing.T) {
 	}
 }
 
+func TestAIPlanningHTTPGeneratorRegenerateDay_SendsCorrectPayload(t *testing.T) {
+	var captured aiPlanningRegenerateDayRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/regenerate-day" {
+			t.Errorf("expected path /regenerate-day, got %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"day":{"day":2,"title":"Relaxed food day","items":[{"time":"10:00","type":"food","name":"Bakery","note":"Local start","estimatedCost":8}]}}`)
+	}))
+	defer server.Close()
+
+	client := server.Client()
+	client.Timeout = time.Second
+	gen := newTestHTTPGenerator(t, server.URL, client)
+	walking := 8.0
+	input := application.RegenerateDayInput{
+		Trip:             validTrip(),
+		CurrentItinerary: validHTTPTestItinerary(),
+		DayNumber:        2,
+		Instruction:      "Make it more relaxed",
+		UserPreferences:  &usercontext.UserPreferences{TravelStyles: []string{"food"}, MaxWalkingKmPerDay: &walking},
+	}
+
+	got, err := gen.RegenerateDay(context.Background(), input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Day != 2 || got.Title != "Relaxed food day" {
+		t.Fatalf("unexpected replacement day: %+v", got)
+	}
+	if captured.Trip.ID != input.Trip.ID.String() || captured.Trip.Destination != "Rome" {
+		t.Fatalf("unexpected trip payload: %+v", captured.Trip)
+	}
+	if len(captured.CurrentItinerary.Days) != 2 || captured.CurrentItinerary.Days[1].Day != 2 {
+		t.Fatalf("expected current itinerary in payload, got %+v", captured.CurrentItinerary)
+	}
+	if captured.DayNumber != 2 || captured.Instruction != "Make it more relaxed" {
+		t.Fatalf("unexpected partial fields: %+v", captured)
+	}
+	if captured.UserPreferences == nil || captured.UserPreferences.MaxWalkingKmPerDay == nil || *captured.UserPreferences.MaxWalkingKmPerDay != 8 {
+		t.Fatalf("expected userPreferences to be serialized, got %+v", captured.UserPreferences)
+	}
+}
+
+func TestAIPlanningHTTPGeneratorRegenerateItem_SendsCorrectPayload(t *testing.T) {
+	var captured aiPlanningRegenerateItemRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/regenerate-item" {
+			t.Errorf("expected path /regenerate-item, got %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"item":{"time":"12:30","type":"food","name":"Local trattoria","note":"Cheaper option","estimatedCost":15}}`)
+	}))
+	defer server.Close()
+
+	client := server.Client()
+	client.Timeout = time.Second
+	gen := newTestHTTPGenerator(t, server.URL, client)
+	input := application.RegenerateItemInput{
+		Trip:             validTrip(),
+		CurrentItinerary: validHTTPTestItinerary(),
+		DayNumber:        2,
+		ItemIndex:        1,
+		Instruction:      "Replace with cheaper food",
+	}
+
+	got, err := gen.RegenerateItem(context.Background(), input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Name != "Local trattoria" || got.EstimatedCost == nil || *got.EstimatedCost != 15 {
+		t.Fatalf("unexpected replacement item: %+v", got)
+	}
+	if captured.Trip.ID != input.Trip.ID.String() || captured.DayNumber != 2 || captured.ItemIndex != 1 {
+		t.Fatalf("unexpected item regeneration payload: %+v", captured)
+	}
+	if captured.Instruction != "Replace with cheaper food" {
+		t.Fatalf("expected instruction to be serialized, got %q", captured.Instruction)
+	}
+	if len(captured.CurrentItinerary.Days) != 2 {
+		t.Fatalf("expected current itinerary in payload, got %+v", captured.CurrentItinerary)
+	}
+}
+
 func assertCapturedPayload(t *testing.T, got aiPlanningGenerateRequest, tripID, startDate string, budget *float64) {
 	t.Helper()
 
@@ -316,5 +411,28 @@ func validTrip() entity.Trip {
 		BudgetCurrency: "EUR",
 		Travelers:      2,
 		Pace:           "balanced",
+	}
+}
+
+func validHTTPTestItinerary() aggregate.Itinerary {
+	return aggregate.Itinerary{
+		Destination: "Rome",
+		Days: []aggregate.ItineraryDay{
+			{
+				Day:   1,
+				Title: "Day 1",
+				Items: []aggregate.ItineraryItem{
+					{Time: "09:00", Type: "activity", Name: "Walk"},
+				},
+			},
+			{
+				Day:   2,
+				Title: "Day 2",
+				Items: []aggregate.ItineraryItem{
+					{Time: "10:00", Type: "place", Name: "Museum"},
+					{Time: "13:00", Type: "food", Name: "Lunch"},
+				},
+			},
+		},
 	}
 }

@@ -13,11 +13,17 @@ import {
   prepareItineraryForEdit,
   validateEditableItinerary
 } from "@/components/trips/ItineraryEditor";
-import { ItineraryView } from "@/components/trips/ItineraryView";
+import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { getTrip, tripKeys, updateTripItinerary } from "@/lib/api/trips";
+import {
+  getTrip,
+  regenerateItineraryDay,
+  regenerateItineraryItem,
+  tripKeys,
+  updateTripItinerary
+} from "@/lib/api/trips";
 import {
   formatBudget,
   formatDate,
@@ -42,6 +48,8 @@ function TripDetailPageContent() {
   const [draftItinerary, setDraftItinerary] = useState<Itinerary | null>(null);
   const [editorErrors, setEditorErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [regenerationError, setRegenerationError] = useState<string | null>(null);
+  const [regeneratingTarget, setRegeneratingTarget] = useState<RegeneratingTarget | null>(null);
 
   const tripQuery = useQuery({
     queryKey: tripKeys.detail(tripId),
@@ -53,6 +61,20 @@ function TripDetailPageContent() {
 
   const updateMutation = useMutation({
     mutationFn: (itinerary: Itinerary) => updateTripItinerary(tripId, itinerary)
+  });
+
+  const regenerationMutation = useMutation({
+    mutationFn: (target: RegeneratingTarget & { instruction?: string }) => {
+      if (target.type === "day") {
+        return regenerateItineraryDay(tripId, target.dayNumber, target.instruction);
+      }
+      return regenerateItineraryItem(
+        tripId,
+        target.dayNumber,
+        target.itemIndex,
+        target.instruction
+      );
+    }
   });
 
   if (tripQuery.isPending) {
@@ -88,6 +110,7 @@ function TripDetailPageContent() {
     }
     setDraftItinerary(prepareItineraryForEdit(trip.itinerary));
     setEditorErrors([]);
+    setRegenerationError(null);
     setSuccessMessage(null);
     setIsEditing(true);
   }
@@ -112,6 +135,7 @@ function TripDetailPageContent() {
 
     try {
       setEditorErrors([]);
+      setRegenerationError(null);
       const updated = await updateMutation.mutateAsync(normalized);
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await tripQuery.refetch();
@@ -122,6 +146,42 @@ function TripDetailPageContent() {
       setEditorErrors([
         error instanceof Error ? error.message : "Could not save itinerary."
       ]);
+    }
+  }
+
+  async function regenerateDay(dayNumber: number, instruction?: string) {
+    const target: RegeneratingTarget = { type: "day", dayNumber };
+    await regenerateItineraryPart(target, instruction, `Day ${dayNumber} regenerated.`);
+  }
+
+  async function regenerateItem(dayNumber: number, itemIndex: number, instruction?: string) {
+    const target: RegeneratingTarget = { type: "item", dayNumber, itemIndex };
+    await regenerateItineraryPart(
+      target,
+      instruction,
+      `Day ${dayNumber} item ${itemIndex + 1} regenerated.`
+    );
+  }
+
+  async function regenerateItineraryPart(
+    target: RegeneratingTarget,
+    instruction: string | undefined,
+    message: string
+  ) {
+    try {
+      setRegenerationError(null);
+      setSuccessMessage(null);
+      setRegeneratingTarget(target);
+      const updated = await regenerationMutation.mutateAsync({ ...target, instruction });
+      queryClient.setQueryData(tripKeys.detail(tripId), updated);
+      await tripQuery.refetch();
+      setSuccessMessage(message);
+    } catch (error) {
+      setRegenerationError(
+        error instanceof Error ? error.message : "Could not regenerate itinerary."
+      );
+    } finally {
+      setRegeneratingTarget(null);
     }
   }
 
@@ -183,6 +243,12 @@ function TripDetailPageContent() {
             </div>
           ) : null}
 
+          {regenerationError ? (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              {regenerationError}
+            </div>
+          ) : null}
+
           {trip.status === "PROCESSING" ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
               The itinerary is being generated. This page will refresh while processing.
@@ -225,7 +291,14 @@ function TripDetailPageContent() {
                     </Button>
                   </div>
                 ) : null}
-                <ItineraryView itinerary={trip.itinerary} currency={trip.budgetCurrency} />
+                <ItineraryView
+                  currency={trip.budgetCurrency}
+                  disabled={regenerationMutation.isPending}
+                  itinerary={trip.itinerary}
+                  onRegenerateDay={regenerateDay}
+                  onRegenerateItem={regenerateItem}
+                  regeneratingTarget={regeneratingTarget}
+                />
               </div>
             )
           ) : null}

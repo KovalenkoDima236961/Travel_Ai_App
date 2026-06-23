@@ -53,6 +53,32 @@ export function updateTripItinerary(tripId: string, itinerary: Itinerary) {
   });
 }
 
+export function regenerateItineraryDay(
+  tripId: string,
+  dayNumber: number,
+  instruction?: string
+) {
+  return apiFetch<Trip>(`/trips/${tripId}/itinerary/days/${dayNumber}/regenerate`, {
+    method: "POST",
+    body: JSON.stringify(cleanRegenerationPayload(instruction))
+  });
+}
+
+export function regenerateItineraryItem(
+  tripId: string,
+  dayNumber: number,
+  itemIndex: number,
+  instruction?: string
+) {
+  return apiFetch<Trip>(
+    `/trips/${tripId}/itinerary/days/${dayNumber}/items/${itemIndex}/regenerate`,
+    {
+      method: "POST",
+      body: JSON.stringify(cleanRegenerationPayload(instruction))
+    }
+  );
+}
+
 function cleanCreateTripPayload(input: CreateTripInput) {
   return {
     destination: input.destination.trim(),
@@ -64,4 +90,9 @@ function cleanCreateTripPayload(input: CreateTripInput) {
     interests: input.interests,
     pace: input.pace
   };
+}
+
+function cleanRegenerationPayload(instruction?: string) {
+  const trimmed = instruction?.trim() ?? "";
+  return trimmed ? { instruction: trimmed } : {};
 }

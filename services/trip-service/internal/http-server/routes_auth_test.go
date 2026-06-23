@@ -90,6 +90,43 @@ func TestUpdateItineraryRequiresValidBearerToken(t *testing.T) {
 	}
 }
 
+func TestPartialRegenerationRequiresValidBearerToken(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	tripID := uuid.New().String()
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		token  string
+	}{
+		{name: "day missing token", method: http.MethodPost, path: "/trips/" + tripID + "/itinerary/days/1/regenerate"},
+		{name: "day invalid token", method: http.MethodPost, path: "/trips/" + tripID + "/itinerary/days/1/regenerate", token: "Bearer invalid-token"},
+		{name: "item missing token", method: http.MethodPost, path: "/trips/" + tripID + "/itinerary/days/1/items/0/regenerate"},
+		{name: "item invalid token", method: http.MethodPost, path: "/trips/" + tripID + "/itinerary/days/1/items/0/regenerate", token: "Bearer invalid-token"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, bytes.NewReader([]byte(`{}`)))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.token != "" {
+				req.Header.Set("Authorization", tc.token)
+			}
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("expected HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestHealthAndReadyRemainPublic(t *testing.T) {
 	router, _ := newAuthTestRouter(t, config.AuthConfig{
 		Required:        true,
@@ -107,6 +144,75 @@ func TestHealthAndReadyRemainPublic(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected %s to be public with HTTP 200, got %d", path, rec.Code)
 		}
+	}
+}
+
+func TestPartialRegenerationOwnerCanUpdateAndNonOwnerReceives404(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	otherID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	otherToken := signAccessToken(t, otherID, "other@example.com", testJWTSecret, time.Hour)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips", bytes.NewReader([]byte(validCreateTripJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create HTTP 201, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected itinerary update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/days/1/regenerate", bytes.NewReader([]byte(`{"instruction":"make it cheaper"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected owner regenerate day HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var updated struct {
+		Itinerary struct {
+			Days []struct {
+				Title string `json:"title"`
+			} `json:"days"`
+		} `json:"itinerary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode regenerate response: %v", err)
+	}
+	if len(updated.Itinerary.Days) != 1 || updated.Itinerary.Days[0].Title != "Regenerated Day" {
+		t.Fatalf("expected regenerated day in response, got %+v", updated.Itinerary.Days)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/days/1/items/0/regenerate", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+otherToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected non-owner regenerate item HTTP 404, got %d with %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -480,6 +586,20 @@ func (routeTestGenerator) Generate(_ context.Context, input application.Generate
 			},
 		},
 	}, nil
+}
+
+func (routeTestGenerator) RegenerateDay(_ context.Context, input application.RegenerateDayInput) (*aggregate.ItineraryDay, error) {
+	return &aggregate.ItineraryDay{
+		Day:   input.DayNumber,
+		Title: "Regenerated Day",
+		Items: []aggregate.ItineraryItem{
+			{Time: "11:00", Type: "activity", Name: "Regenerated Activity"},
+		},
+	}, nil
+}
+
+func (routeTestGenerator) RegenerateItem(_ context.Context, input application.RegenerateItemInput) (*aggregate.ItineraryItem, error) {
+	return &aggregate.ItineraryItem{Time: "12:30", Type: "food", Name: "Regenerated Item"}, nil
 }
 
 func validCreateTripJSON() string {

@@ -5,10 +5,18 @@ from pathlib import Path
 import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
-from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
+from app.schemas.itinerary import (
+    GenerateItineraryRequest,
+    ItineraryResponse,
+    RegenerateDayRequest,
+    RegenerateDayResponse,
+    RegenerateItemRequest,
+    RegenerateItemResponse,
+)
 from app.services.chroma_client import create_persistent_chroma_client
 from app.services.itinerary_generator import ItineraryGenerator
 
@@ -83,6 +91,66 @@ def generate_itinerary(
         raise
     except Exception as exc:
         raise ItineraryGenerationError("Failed to generate itinerary") from exc
+
+
+@router.post("/regenerate-day", response_model=RegenerateDayResponse)
+async def regenerate_day(
+    request: Request,
+    generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
+) -> RegenerateDayResponse | JSONResponse:
+    parsed = await _parse_partial_request(request, RegenerateDayRequest)
+    if isinstance(parsed, JSONResponse):
+        return parsed
+
+    try:
+        return generator.regenerate_day(parsed)
+    except ItineraryGenerationError:
+        raise
+    except Exception as exc:
+        raise ItineraryGenerationError("Failed to regenerate itinerary day") from exc
+
+
+@router.post("/regenerate-item", response_model=RegenerateItemResponse)
+async def regenerate_item(
+    request: Request,
+    generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
+) -> RegenerateItemResponse | JSONResponse:
+    parsed = await _parse_partial_request(request, RegenerateItemRequest)
+    if isinstance(parsed, JSONResponse):
+        return parsed
+
+    try:
+        return generator.regenerate_item(parsed)
+    except ItineraryGenerationError:
+        raise
+    except Exception as exc:
+        raise ItineraryGenerationError("Failed to regenerate itinerary item") from exc
+
+
+async def _parse_partial_request(
+    request: Request,
+    model: type[RegenerateDayRequest] | type[RegenerateItemRequest],
+) -> RegenerateDayRequest | RegenerateItemRequest | JSONResponse:
+    try:
+        payload = await request.json()
+    except ValueError:
+        return JSONResponse(status_code=400, content={"error": "invalid request body"})
+
+    try:
+        return model.model_validate(payload)
+    except ValidationError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"error": _validation_error_message(exc)},
+        )
+
+
+def _validation_error_message(exc: ValidationError) -> str:
+    if not exc.errors():
+        return "invalid request"
+    first_error = exc.errors()[0]
+    message = str(first_error.get("msg") or "invalid request")
+    return message.removeprefix("Value error, ")
 
 
 def _check_ollama(settings: Settings) -> BaseException | None:

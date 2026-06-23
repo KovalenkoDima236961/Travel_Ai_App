@@ -244,6 +244,19 @@ make migrate-down    # roll back the last migration
 | GET    | `/trips/{id}`           | Fetch an authenticated user's trip by UUID.  |
 | POST   | `/trips/{id}/generate`  | Generate the itinerary for an authenticated user's trip; status `COMPLETED`. |
 | PUT    | `/trips/{id}/itinerary` | Replace the full itinerary JSON for an authenticated user's trip; status `COMPLETED`. |
+| POST   | `/trips/{id}/itinerary/days/{dayNumber}/regenerate` | Regenerate one itinerary day with AI and preserve all other days. |
+| POST   | `/trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate` | Regenerate one itinerary item with AI and preserve all other items. |
+
+Partial itinerary regeneration uses `dayNumber` as a one-based value matching
+the itinerary `day` field. `itemIndex` is zero-based and matches the selected
+day's `items` array index. Both endpoints accept an optional body:
+
+```json
+{ "instruction": "Make this cheaper and avoid museums" }
+```
+
+The instruction is trimmed, may be omitted or empty, and must be at most 500
+characters.
 
 Trip statuses: `DRAFT` → `PROCESSING` → `COMPLETED` (or `FAILED`).
 

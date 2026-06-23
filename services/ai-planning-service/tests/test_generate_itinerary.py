@@ -20,6 +20,63 @@ VALID_PAYLOAD = {
     "pace": "balanced",
 }
 
+CURRENT_ITINERARY = {
+    "days": [
+        {
+            "day": 1,
+            "title": "Arrival",
+            "items": [
+                {
+                    "time": "09:00",
+                    "type": "activity",
+                    "name": "Original walk",
+                    "note": "Keep this item.",
+                    "estimatedCost": 0,
+                }
+            ],
+        },
+        {
+            "day": 2,
+            "title": "Museums",
+            "items": [
+                {
+                    "time": "10:00",
+                    "type": "place",
+                    "name": "Original museum",
+                    "note": "Candidate for replacement.",
+                    "estimatedCost": 18,
+                },
+                {
+                    "time": "13:00",
+                    "type": "food",
+                    "name": "Original lunch",
+                    "note": "Candidate for replacement.",
+                    "estimatedCost": 20,
+                },
+            ],
+        },
+    ]
+}
+
+
+def partial_payload() -> dict:
+    return {
+        "trip": {
+            "id": VALID_PAYLOAD["tripId"],
+            "destination": VALID_PAYLOAD["destination"],
+            "startDate": VALID_PAYLOAD["startDate"],
+            "days": VALID_PAYLOAD["days"],
+            "budgetAmount": VALID_PAYLOAD["budgetAmount"],
+            "budgetCurrency": VALID_PAYLOAD["budgetCurrency"],
+            "travelers": VALID_PAYLOAD["travelers"],
+            "interests": VALID_PAYLOAD["interests"],
+            "pace": VALID_PAYLOAD["pace"],
+        },
+        "currentItinerary": deepcopy(CURRENT_ITINERARY),
+        "dayNumber": 2,
+        "instruction": "make this cheaper and more relaxed",
+    }
+
 
 def test_health_endpoint_returns_ok() -> None:
     response = client.get("/health")
@@ -244,3 +301,76 @@ def test_mock_generator_uses_hidden_gems_and_local_food_preferences() -> None:
     assert "hidden-gem" in text
     assert "local neighborhood lunch" in text
     assert "nightclub" not in text
+
+
+def test_regenerate_day_success_returns_replacement_day_only() -> None:
+    response = client.post("/regenerate-day", json=partial_payload())
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"day"}
+    assert body["day"]["day"] == 2
+    assert body["day"]["title"]
+    assert len(body["day"]["items"]) >= 1
+    assert "days" not in body
+
+
+def test_regenerate_item_success_returns_replacement_item_only() -> None:
+    payload = partial_payload()
+    payload["itemIndex"] = 1
+
+    response = client.post("/regenerate-item", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"item"}
+    assert body["item"]["time"]
+    assert body["item"]["type"]
+    assert body["item"]["name"]
+    assert "day" not in body
+
+
+def test_regenerate_day_invalid_day_number_returns_400() -> None:
+    payload = partial_payload()
+    payload["dayNumber"] = 9
+
+    response = client.post("/regenerate-day", json=payload)
+
+    assert response.status_code == 400
+    assert "dayNumber" in response.json()["error"]
+
+
+def test_regenerate_item_invalid_item_index_returns_400() -> None:
+    payload = partial_payload()
+    payload["itemIndex"] = 9
+
+    response = client.post("/regenerate-item", json=payload)
+
+    assert response.status_code == 400
+    assert "itemIndex" in response.json()["error"]
+
+
+def test_regenerate_day_instruction_too_long_returns_400() -> None:
+    payload = partial_payload()
+    payload["instruction"] = "x" * 501
+
+    response = client.post("/regenerate-day", json=payload)
+
+    assert response.status_code == 400
+    assert "500" in response.json()["error"]
+
+
+def test_regenerate_item_accepts_optional_user_context() -> None:
+    payload = partial_payload()
+    payload["itemIndex"] = 0
+    payload["userPreferences"] = {
+        "travelStyles": ["budget", "food"],
+        "foodPreferences": ["local", "cheap"],
+        "avoid": ["museums"],
+    }
+
+    response = client.post("/regenerate-item", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["item"]["estimatedCost"] <= 15

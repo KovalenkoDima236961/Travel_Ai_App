@@ -10,6 +10,7 @@ from pydantic import (
     StringConstraints,
     field_serializer,
     field_validator,
+    model_validator,
 )
 
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -189,8 +190,116 @@ class ItineraryItem(APIModel):
 class ItineraryDay(APIModel):
     day: int = Field(ge=1)
     title: str
-    items: list[ItineraryItem] = Field(min_length=3)
+    items: list[ItineraryItem] = Field(min_length=1)
 
 
 class ItineraryResponse(APIModel):
     days: list[ItineraryDay]
+
+
+class PartialTrip(APIModel):
+    id: UUID
+    destination: NonEmptyString
+    start_date: date | None = Field(default=None, alias="startDate")
+    days: int = Field(ge=1, le=30)
+    budget_amount: Decimal | None = Field(default=None, ge=Decimal("0"), alias="budgetAmount")
+    budget_currency: CurrencyCode = Field(default="EUR", alias="budgetCurrency")
+    travelers: int = Field(ge=1)
+    interests: list[str] = Field(default_factory=list)
+    pace: str = "balanced"
+
+    @field_validator("budget_currency", mode="before")
+    @classmethod
+    def default_budget_currency(cls, value: object) -> object:
+        if value is None:
+            return "EUR"
+        if isinstance(value, str) and value.strip() == "":
+            return "EUR"
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
+
+    @field_validator("pace", mode="before")
+    @classmethod
+    def default_pace(cls, value: object) -> object:
+        if value is None:
+            return "balanced"
+        if isinstance(value, str) and value.strip() == "":
+            return "balanced"
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("interests", mode="before")
+    @classmethod
+    def default_interests(cls, value: object) -> object:
+        if value is None:
+            return []
+        return value
+
+    @field_validator("interests")
+    @classmethod
+    def normalize_interests(cls, value: list[str]) -> list[str]:
+        return [item.strip().lower() for item in value if item.strip()]
+
+
+class CurrentItinerary(APIModel):
+    days: list[ItineraryDay] = Field(min_length=1)
+
+
+class RegenerateDayRequest(APIModel):
+    trip: PartialTrip
+    current_itinerary: CurrentItinerary = Field(alias="currentItinerary")
+    day_number: int = Field(ge=1, alias="dayNumber")
+    instruction: str | None = Field(default=None, max_length=500)
+    user_profile: UserProfile | None = Field(default=None, alias="userProfile")
+    user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
+
+    @field_validator("instruction", mode="before")
+    @classmethod
+    def normalize_instruction(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+    @model_validator(mode="after")
+    def selected_day_must_exist(self) -> "RegenerateDayRequest":
+        if self.selected_day() is None:
+            raise ValueError("selected dayNumber does not exist in currentItinerary")
+        return self
+
+    def selected_day(self) -> ItineraryDay | None:
+        for day in self.current_itinerary.days:
+            if day.day == self.day_number:
+                return day
+        return None
+
+
+class RegenerateItemRequest(RegenerateDayRequest):
+    item_index: int = Field(ge=0, alias="itemIndex")
+
+    @model_validator(mode="after")
+    def selected_item_must_exist(self) -> "RegenerateItemRequest":
+        selected_day = self.selected_day()
+        if selected_day is None:
+            raise ValueError("selected dayNumber does not exist in currentItinerary")
+        if self.item_index >= len(selected_day.items):
+            raise ValueError("selected itemIndex does not exist in currentItinerary day")
+        return self
+
+    def selected_item(self) -> ItineraryItem | None:
+        selected_day = self.selected_day()
+        if selected_day is None or self.item_index >= len(selected_day.items):
+            return None
+        return selected_day.items[self.item_index]
+
+
+class RegenerateDayResponse(APIModel):
+    day: ItineraryDay
+
+
+class RegenerateItemResponse(APIModel):
+    item: ItineraryItem

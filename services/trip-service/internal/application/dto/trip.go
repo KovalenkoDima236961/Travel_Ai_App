@@ -1,5 +1,3 @@
-// Package dto holds application-level (use-case) input/output types. The HTTP
-// layer builds these from its transport payloads.
 package dto
 
 import "encoding/json"
@@ -21,4 +19,10 @@ type CreateTripInput struct {
 // itinerary JSON.
 type UpdateItineraryInput struct {
 	Itinerary json.RawMessage
+}
+
+// RegenerateItineraryPartInput is the application-level payload for partial AI
+// regeneration. Instruction is optional and normalized by the service.
+type RegenerateItineraryPartInput struct {
+	Instruction string
 }

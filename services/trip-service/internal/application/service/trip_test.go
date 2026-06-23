@@ -99,10 +99,18 @@ func (m *mockRepo) UpdateItineraryByUserID(_ context.Context, id, userID uuid.UU
 
 // mockGenerator is an application.ItineraryGenerator test double.
 type mockGenerator struct {
-	result        *aggregate.Itinerary
-	err           error
-	called        bool
-	capturedInput application.GenerateItineraryInput
+	result               *aggregate.Itinerary
+	err                  error
+	called               bool
+	capturedInput        application.GenerateItineraryInput
+	dayResult            *aggregate.ItineraryDay
+	dayErr               error
+	regenerateDayCalled  bool
+	capturedDayInput     application.RegenerateDayInput
+	itemResult           *aggregate.ItineraryItem
+	itemErr              error
+	regenerateItemCalled bool
+	capturedItemInput    application.RegenerateItemInput
 }
 
 func (g *mockGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
@@ -116,6 +124,42 @@ func (g *mockGenerator) Generate(_ context.Context, input application.GenerateIt
 	}
 	trip := input.Trip
 	return &aggregate.Itinerary{Destination: trip.Destination}, nil
+}
+
+func (g *mockGenerator) RegenerateDay(_ context.Context, input application.RegenerateDayInput) (*aggregate.ItineraryDay, error) {
+	g.regenerateDayCalled = true
+	g.capturedDayInput = input
+	if g.dayErr != nil {
+		return nil, g.dayErr
+	}
+	if g.dayResult != nil {
+		return g.dayResult, nil
+	}
+	return &aggregate.ItineraryDay{
+		Day:   input.DayNumber,
+		Title: "Regenerated day",
+		Items: []aggregate.ItineraryItem{{
+			Time: "10:00",
+			Type: "activity",
+			Name: "Replacement activity",
+		}},
+	}, nil
+}
+
+func (g *mockGenerator) RegenerateItem(_ context.Context, input application.RegenerateItemInput) (*aggregate.ItineraryItem, error) {
+	g.regenerateItemCalled = true
+	g.capturedItemInput = input
+	if g.itemErr != nil {
+		return nil, g.itemErr
+	}
+	if g.itemResult != nil {
+		return g.itemResult, nil
+	}
+	return &aggregate.ItineraryItem{
+		Time: "12:30",
+		Type: "food",
+		Name: "Replacement item",
+	}, nil
 }
 
 type mockUserContextProvider struct {
@@ -471,6 +515,247 @@ func TestGenerate_GeneratorError_SetsFailed(t *testing.T) {
 	}
 }
 
+func TestRegenerateDay_ReplacesOnlySelectedDay(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{
+		dayResult: &aggregate.ItineraryDay{
+			Day:   99,
+			Title: "  Cheaper food day  ",
+			Items: []aggregate.ItineraryItem{
+				{Time: " 10:00 ", Type: " food ", Name: " Local bakery ", Note: "  Budget start  "},
+			},
+		},
+	}
+	svc := newTestService(repo, gen)
+
+	got, err := svc.RegenerateDay(authContext(), id, 2, appdto.RegenerateItineraryPartInput{Instruction: " make it cheaper "})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Status != entity.StatusCompleted || repo.updateItinStatus != entity.StatusCompleted {
+		t.Fatalf("expected completed update, got returned=%s persisted=%s", got.Status, repo.updateItinStatus)
+	}
+	if !gen.regenerateDayCalled {
+		t.Fatal("expected RegenerateDay to be called")
+	}
+	if gen.capturedDayInput.DayNumber != 2 || gen.capturedDayInput.Instruction != "make it cheaper" {
+		t.Fatalf("unexpected generator input: %+v", gen.capturedDayInput)
+	}
+
+	updated := decodeItinerary(t, repo.updateItinRaw)
+	if len(updated.Days) != 2 {
+		t.Fatalf("expected two days, got %+v", updated.Days)
+	}
+	if updated.Days[0].Title != "Original Day 1" || updated.Days[0].Items[0].Name != "Original Item 1A" {
+		t.Fatalf("day 1 should be preserved, got %+v", updated.Days[0])
+	}
+	if updated.Days[1].Day != 2 || updated.Days[1].Title != "Cheaper food day" {
+		t.Fatalf("day 2 should be replaced and normalized, got %+v", updated.Days[1])
+	}
+	if updated.Days[1].Items[0].Name != "Local bakery" {
+		t.Fatalf("expected replacement item, got %+v", updated.Days[1].Items[0])
+	}
+}
+
+func TestRegenerateItem_ReplacesOnlySelectedItem(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{
+		itemResult: &aggregate.ItineraryItem{
+			Time: " 12:30 ",
+			Type: " food ",
+			Name: " Local trattoria ",
+			Note: "  Cheaper local option  ",
+		},
+	}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.RegenerateItem(authContext(), id, 1, 1, appdto.RegenerateItineraryPartInput{Instruction: "avoid museums"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !gen.regenerateItemCalled {
+		t.Fatal("expected RegenerateItem to be called")
+	}
+	if gen.capturedItemInput.DayNumber != 1 || gen.capturedItemInput.ItemIndex != 1 || gen.capturedItemInput.Instruction != "avoid museums" {
+		t.Fatalf("unexpected generator input: %+v", gen.capturedItemInput)
+	}
+
+	updated := decodeItinerary(t, repo.updateItinRaw)
+	if updated.Days[0].Items[0].Name != "Original Item 1A" {
+		t.Fatalf("item 0 should be preserved, got %+v", updated.Days[0].Items[0])
+	}
+	if updated.Days[0].Items[1].Name != "Local trattoria" || updated.Days[0].Items[1].Type != "food" {
+		t.Fatalf("item 1 should be replaced and normalized, got %+v", updated.Days[0].Items[1])
+	}
+	if updated.Days[1].Title != "Original Day 2" || updated.Days[1].Items[0].Name != "Original Item 2A" {
+		t.Fatalf("day 2 should be preserved, got %+v", updated.Days[1])
+	}
+}
+
+func TestRegenerateDay_MissingItineraryReturnsInvalidInput(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{getByIDResult: &entity.Trip{ID: id, Destination: "Rome"}}
+	gen := &mockGenerator{}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{})
+	assertInvalidInput(t, err)
+	if gen.regenerateDayCalled {
+		t.Fatal("generator must not be called for missing current itinerary")
+	}
+	if repo.updateItinRaw != nil {
+		t.Fatal("itinerary must not be saved for missing current itinerary")
+	}
+}
+
+func TestRegenerateDay_InvalidDayNumberReturnsInvalidInput(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.RegenerateDay(authContext(), id, 3, appdto.RegenerateItineraryPartInput{})
+	assertInvalidInput(t, err)
+	if gen.regenerateDayCalled {
+		t.Fatal("generator must not be called for invalid day number")
+	}
+}
+
+func TestRegenerateItem_InvalidItemIndexReturnsInvalidInput(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.RegenerateItem(authContext(), id, 1, 9, appdto.RegenerateItineraryPartInput{})
+	assertInvalidInput(t, err)
+	if gen.regenerateItemCalled {
+		t.Fatal("generator must not be called for invalid item index")
+	}
+}
+
+func TestRegenerateDay_InstructionTooLongReturnsInvalidInput(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{Instruction: strings.Repeat("x", maxInstructionLength+1)})
+	assertInvalidInput(t, err)
+	if gen.regenerateDayCalled {
+		t.Fatal("generator must not be called for overlong instruction")
+	}
+	if repo.updateItinRaw != nil {
+		t.Fatal("itinerary must not be saved for overlong instruction")
+	}
+}
+
+func TestRegenerateDay_InvalidAIReplacementDoesNotSave(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{
+		dayResult: &aggregate.ItineraryDay{Day: 1, Title: " ", Items: []aggregate.ItineraryItem{{Time: "10:00", Type: "activity", Name: "Walk"}}},
+	}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{})
+	var dependencyErr *apperrs.DependencyError
+	if !errors.As(err, &dependencyErr) {
+		t.Fatalf("expected dependency error, got %v", err)
+	}
+	if dependencyErr.Error() != "AI returned invalid replacement" {
+		t.Fatalf("unexpected dependency error: %v", dependencyErr)
+	}
+	if repo.updateItinRaw != nil {
+		t.Fatal("invalid replacement must not be saved")
+	}
+}
+
+func TestRegenerateItem_InvalidAIReplacementDoesNotSave(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{
+		itemResult: &aggregate.ItineraryItem{Time: "", Type: "food", Name: "Lunch"},
+	}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.RegenerateItem(authContext(), id, 1, 0, appdto.RegenerateItineraryPartInput{})
+	var dependencyErr *apperrs.DependencyError
+	if !errors.As(err, &dependencyErr) {
+		t.Fatalf("expected dependency error, got %v", err)
+	}
+	if dependencyErr.Error() != "AI returned invalid replacement" {
+		t.Fatalf("unexpected dependency error: %v", dependencyErr)
+	}
+	if repo.updateItinRaw != nil {
+		t.Fatal("invalid replacement must not be saved")
+	}
+}
+
+func TestRegenerateDay_UserContextFailOpen_ContinuesWithoutPersonalization(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{}
+	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
+	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, true))
+
+	_, err := svc.RegenerateDay(authContextWithToken("access-token-for-forwarding"), id, 1, appdto.RegenerateItineraryPartInput{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !gen.regenerateDayCalled {
+		t.Fatal("expected generator to be called when user context fails open")
+	}
+	if gen.capturedDayInput.UserProfile != nil || gen.capturedDayInput.UserPreferences != nil {
+		t.Fatalf("expected generator input without context, got %+v", gen.capturedDayInput)
+	}
+}
+
+func TestRegenerateItem_UserContextFailClosed_ReturnsDependencyError(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Itinerary: validExistingItineraryRaw(t)},
+	}
+	gen := &mockGenerator{}
+	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
+	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, false))
+
+	_, err := svc.RegenerateItem(authContextWithToken("access-token-for-forwarding"), id, 1, 0, appdto.RegenerateItineraryPartInput{})
+	var dependencyErr *apperrs.DependencyError
+	if !errors.As(err, &dependencyErr) {
+		t.Fatalf("expected dependency error, got %v", err)
+	}
+	if dependencyErr.Error() != "failed to load user preferences" {
+		t.Fatalf("unexpected dependency error: %v", dependencyErr)
+	}
+	if gen.regenerateItemCalled {
+		t.Fatal("generator must not be called when user context fails closed")
+	}
+	if repo.updateItinRaw != nil {
+		t.Fatal("itinerary must not be saved when user context fails closed")
+	}
+}
+
 func TestGet_NotFound(t *testing.T) {
 	wantErr := errors.New("trip not found")
 	repo := &mockRepo{getByIDErr: wantErr}
@@ -518,4 +803,48 @@ func TestList_RejectsNegativeOffset(t *testing.T) {
 
 	_, _, _, err := svc.List(authContext(), 20, -1)
 	assertInvalidInput(t, err)
+}
+
+func validExistingItineraryRaw(t *testing.T) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(aggregate.Itinerary{
+		Destination: "Rome",
+		Summary:     "Original summary",
+		Travelers:   2,
+		Pace:        "balanced",
+		Currency:    "EUR",
+		Days: []aggregate.ItineraryDay{
+			{
+				Day:   1,
+				Title: "Original Day 1",
+				Items: []aggregate.ItineraryItem{
+					{Time: "09:00", Type: "activity", Name: "Original Item 1A", Note: "Keep 1A"},
+					{Time: "12:00", Type: "food", Name: "Original Item 1B", Note: "Keep 1B"},
+				},
+			},
+			{
+				Day:   2,
+				Title: "Original Day 2",
+				Items: []aggregate.ItineraryItem{
+					{Time: "09:30", Type: "place", Name: "Original Item 2A", Note: "Keep 2A"},
+					{Time: "13:00", Type: "food", Name: "Original Item 2B", Note: "Keep 2B"},
+				},
+			},
+		},
+		GeneratedAt: time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC),
+		Source:      "test",
+	})
+	if err != nil {
+		t.Fatalf("marshal itinerary: %v", err)
+	}
+	return raw
+}
+
+func decodeItinerary(t *testing.T, raw json.RawMessage) aggregate.Itinerary {
+	t.Helper()
+	var itinerary aggregate.Itinerary
+	if err := json.Unmarshal(raw, &itinerary); err != nil {
+		t.Fatalf("decode itinerary: %v", err)
+	}
+	return itinerary
 }

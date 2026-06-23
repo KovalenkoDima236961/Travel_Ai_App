@@ -1,11 +1,13 @@
 package generator
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 )
 
@@ -87,5 +89,34 @@ func TestNewItineraryGenerator_InvalidAIPlanningURLReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid AI_PLANNING_SERVICE_URL") {
 		t.Fatalf("expected invalid URL error, got %v", err)
+	}
+}
+
+func TestMockItineraryGeneratorPartialRegeneration(t *testing.T) {
+	gen := NewMockItineraryGenerator(zap.NewNop())
+	trip := validTrip()
+
+	day, err := gen.RegenerateDay(context.Background(), application.RegenerateDayInput{
+		Trip:        trip,
+		DayNumber:   2,
+		Instruction: "make it cheaper",
+	})
+	if err != nil {
+		t.Fatalf("unexpected day regeneration error: %v", err)
+	}
+	if day.Day != 2 || day.Title == "" || len(day.Items) == 0 {
+		t.Fatalf("unexpected regenerated day: %+v", day)
+	}
+
+	item, err := gen.RegenerateItem(context.Background(), application.RegenerateItemInput{
+		Trip:      trip,
+		DayNumber: 2,
+		ItemIndex: 1,
+	})
+	if err != nil {
+		t.Fatalf("unexpected item regeneration error: %v", err)
+	}
+	if item.Time == "" || item.Type == "" || item.Name == "" {
+		t.Fatalf("unexpected regenerated item: %+v", item)
 	}
 }

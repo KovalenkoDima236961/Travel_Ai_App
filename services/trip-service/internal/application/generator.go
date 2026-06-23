@@ -18,8 +18,33 @@ type GenerateItineraryInput struct {
 	UserPreferences *usercontext.UserPreferences
 }
 
+// RegenerateDayInput is the internal generator request for replacing one day
+// in an existing itinerary.
+type RegenerateDayInput struct {
+	Trip             entity.Trip
+	CurrentItinerary aggregate.Itinerary
+	DayNumber        int
+	Instruction      string
+	UserProfile      *usercontext.UserProfile
+	UserPreferences  *usercontext.UserPreferences
+}
+
+// RegenerateItemInput is the internal generator request for replacing one item
+// in an existing itinerary day. ItemIndex is zero-based.
+type RegenerateItemInput struct {
+	Trip             entity.Trip
+	CurrentItinerary aggregate.Itinerary
+	DayNumber        int
+	ItemIndex        int
+	Instruction      string
+	UserProfile      *usercontext.UserProfile
+	UserPreferences  *usercontext.UserPreferences
+}
+
 // ItineraryGenerator is the port for turning a trip into a concrete itinerary.
 // Implementations (adapters) live under infrastructure.
 type ItineraryGenerator interface {
 	Generate(ctx context.Context, input GenerateItineraryInput) (*aggregate.Itinerary, error)
+	RegenerateDay(ctx context.Context, input RegenerateDayInput) (*aggregate.ItineraryDay, error)
+	RegenerateItem(ctx context.Context, input RegenerateItemInput) (*aggregate.ItineraryItem, error)
 }

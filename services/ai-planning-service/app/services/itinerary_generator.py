@@ -6,11 +6,17 @@ from app.schemas.itinerary import (
     ItineraryDay,
     ItineraryItem,
     ItineraryResponse,
+    RegenerateDayRequest,
+    RegenerateDayResponse,
+    RegenerateItemRequest,
+    RegenerateItemResponse,
 )
 
 
 class ItineraryGenerator(Protocol):
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse: ...
+    def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse: ...
+    def regenerate_item(self, request: RegenerateItemRequest) -> RegenerateItemResponse: ...
 
 
 class MockItineraryGenerator:
@@ -24,6 +30,58 @@ class MockItineraryGenerator:
             for day_number in range(1, request.days + 1)
         ]
         return ItineraryResponse(days=days)
+
+    def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse:
+        destination = request.trip.destination
+        cheap = _mentions(request.instruction, "cheap", "cheaper", "budget")
+        relaxed = _mentions(request.instruction, "relaxed", "slow", "easy")
+        first_time = "10:00" if relaxed else "09:30"
+        lunch_cost = Decimal("10") if cheap else Decimal("16")
+
+        return RegenerateDayResponse(
+            day=ItineraryDay(
+                day=request.day_number,
+                title=f"Day {request.day_number}: refreshed {destination} plan",
+                items=[
+                    ItineraryItem(
+                        time=first_time,
+                        type="activity",
+                        name=f"Updated {destination} neighborhood walk",
+                        note="A focused replacement day that keeps the rest of the trip intact.",
+                        estimated_cost=Decimal("0"),
+                    ),
+                    ItineraryItem(
+                        time="12:30",
+                        type="food",
+                        name="Budget local lunch" if cheap else "Local lunch stop",
+                        note="Simple local food option selected for partial regeneration.",
+                        estimated_cost=lunch_cost,
+                    ),
+                    ItineraryItem(
+                        time="15:30",
+                        type="rest" if relaxed else "place",
+                        name="Quiet cafe break" if relaxed else "Updated signature stop",
+                        note="Keeps timing realistic alongside the unchanged itinerary days.",
+                        estimated_cost=Decimal("6"),
+                    ),
+                ],
+            )
+        )
+
+    def regenerate_item(self, request: RegenerateItemRequest) -> RegenerateItemResponse:
+        cheap = _mentions(request.instruction, "cheap", "cheaper", "budget")
+        return RegenerateItemResponse(
+            item=ItineraryItem(
+                time="12:30",
+                type="food",
+                name="Budget local food option" if cheap else "Updated local option",
+                note=(
+                    f"Mock replacement for zero-based item index {request.item_index} "
+                    f"on day {request.day_number}."
+                ),
+                estimated_cost=Decimal("9") if cheap else Decimal("15"),
+            )
+        )
 
     def _title_for_day(self, request: GenerateItineraryRequest, day_number: int) -> str:
         interests = self._personalized_interests(request)
@@ -243,3 +301,10 @@ class MockItineraryGenerator:
 
 def _normalize_interest(value: str) -> str:
     return value.strip().lower().replace(" ", "_")
+
+
+def _mentions(value: str | None, *terms: str) -> bool:
+    if not value:
+        return False
+    normalized = value.casefold()
+    return any(term in normalized for term in terms)

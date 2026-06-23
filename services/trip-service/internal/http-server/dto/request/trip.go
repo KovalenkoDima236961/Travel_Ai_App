@@ -1,5 +1,3 @@
-// Package request holds the inbound HTTP payloads for the trip endpoints and
-// their mapping to application-level inputs.
 package request
 
 import (
@@ -43,4 +41,15 @@ type UpdateTripItinerary struct {
 // ToInput maps the transport request to the application-level input.
 func (r UpdateTripItinerary) ToInput() appdto.UpdateItineraryInput {
 	return appdto.UpdateItineraryInput{Itinerary: r.Itinerary}
+}
+
+// RegenerateItineraryPart is the JSON body accepted by partial itinerary
+// regeneration endpoints.
+type RegenerateItineraryPart struct {
+	Instruction string `json:"instruction"`
+}
+
+// ToInput maps the transport request to the application-level input.
+func (r RegenerateItineraryPart) ToInput() appdto.RegenerateItineraryPartInput {
+	return appdto.RegenerateItineraryPartInput{Instruction: r.Instruction}
 }
