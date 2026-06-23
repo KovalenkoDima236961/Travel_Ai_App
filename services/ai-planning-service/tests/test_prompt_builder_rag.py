@@ -1,10 +1,15 @@
 from copy import deepcopy
 
-from app.schemas.itinerary import GenerateItineraryRequest, RegenerateDayRequest
+from app.schemas.itinerary import (
+    GenerateItineraryRequest,
+    RegenerateDayRequest,
+    RegenerateItemRequest,
+)
 from app.schemas.knowledge import KnowledgeSearchResult
 from app.services.prompt_builder import (
     build_itinerary_prompt,
     build_regenerate_day_prompt,
+    build_regenerate_item_prompt,
     build_repair_prompt,
 )
 
@@ -249,3 +254,79 @@ def test_partial_regeneration_prompt_includes_weather_context() -> None:
     assert "WEATHER FORECAST:" in prompt
     assert "Rain likely: consider indoor alternatives" in prompt
     assert "Adapt the replacement day to the weather forecast when relevant." in prompt
+
+
+def test_regenerate_day_prompt_includes_attached_place_opening_hours() -> None:
+    request = RegenerateDayRequest.model_validate(_partial_payload_with_opening_hours())
+
+    prompt = build_regenerate_day_prompt(request)
+
+    assert "ATTACHED PLACE OPENING HOURS:" in prompt
+    assert "Day 1, 09:00, Colosseum: Monday 08:30\u201319:15" in prompt
+    assert "do not schedule it outside its opening hours" in prompt
+
+
+def test_regenerate_item_prompt_includes_selected_item_opening_hours() -> None:
+    payload = _partial_payload_with_opening_hours()
+    payload["itemIndex"] = 0
+    request = RegenerateItemRequest.model_validate(payload)
+
+    prompt = build_regenerate_item_prompt(request)
+
+    assert "ATTACHED PLACE OPENING HOURS:" in prompt
+    assert "Colosseum: Monday 08:30\u201319:15" in prompt
+    assert "adjust the time or suggest an alternative" in prompt
+
+
+def test_partial_regeneration_prompt_omits_opening_hours_section_without_hours() -> None:
+    payload = _partial_payload_with_opening_hours()
+    payload["currentItinerary"]["days"][0]["items"][0]["place"].pop("openingHours")
+    request = RegenerateDayRequest.model_validate(payload)
+
+    prompt = build_regenerate_day_prompt(request)
+
+    assert "ATTACHED PLACE OPENING HOURS:" not in prompt
+
+
+def _partial_payload_with_opening_hours() -> dict:
+    return {
+        "trip": {
+            "id": VALID_PAYLOAD["tripId"],
+            "destination": VALID_PAYLOAD["destination"],
+            "startDate": VALID_PAYLOAD["startDate"],
+            "days": VALID_PAYLOAD["days"],
+            "budgetAmount": VALID_PAYLOAD["budgetAmount"],
+            "budgetCurrency": VALID_PAYLOAD["budgetCurrency"],
+            "travelers": VALID_PAYLOAD["travelers"],
+            "interests": VALID_PAYLOAD["interests"],
+            "pace": VALID_PAYLOAD["pace"],
+        },
+        "currentItinerary": {
+            "days": [
+                {
+                    "day": 1,
+                    "title": "Original day",
+                    "items": [
+                        {
+                            "time": "09:00",
+                            "type": "activity",
+                            "name": "Colosseum visit",
+                            "note": "Start with the landmark.",
+                            "estimatedCost": 18,
+                            "place": {
+                                "provider": "mock",
+                                "providerPlaceId": "mock-colosseum-rome",
+                                "name": "Colosseum",
+                                "address": "Piazza del Colosseo, 1, Roma",
+                                "openingHours": [
+                                    {"dayOfWeek": day, "open": "08:30", "close": "19:15"}
+                                    for day in range(1, 8)
+                                ],
+                            },
+                        }
+                    ],
+                }
+            ]
+        },
+        "dayNumber": 1,
+    }

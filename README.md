@@ -28,10 +28,13 @@ data for Rome, Paris, Vienna, and Bratislava; the Web App calls this service
 when attaching optional place metadata to itinerary items, estimating per-day
 walking routes via `POST /routes/estimate` (mock provider: Haversine × 1.25 at
 5 km/h), and showing mock trip weather via `GET /weather/forecast`. Route and
-weather data are read-only and approximate; the Web App falls back gracefully
-when the service is unavailable. No real Google Places provider, real weather
-provider, full map view, opening hours, or real turn-by-turn routing is enabled
-yet.
+weather data are read-only and approximate; attached mock places can also carry
+optional local `openingHours` intervals (`dayOfWeek` 1 Monday through 7 Sunday,
+`HH:mm` local time). The Web App shows advisory closed-place warnings when an
+item appears scheduled outside those mock hours. The Web App falls back
+gracefully when the service is unavailable. No real Google Places provider, real
+opening-hours provider, real weather provider, or real turn-by-turn routing is
+enabled yet.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token
@@ -63,9 +66,9 @@ The smoke test registers/logs in a unique user, checks profile/preferences
 defaults and updates, creates and generates a trip with
 `Authorization: Bearer <accessToken>`, exercises personalized generation,
 searches mock places, checks mock route and weather endpoints, saves attached
-place metadata through Trip Service, verifies itinerary version history and
-restore behavior, confirms only that user can access the trip and versions, and
-logs out.
+place metadata with opening hours through Trip Service, verifies itinerary
+version history and restore behavior, confirms only that user can access the
+trip and versions, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,
 knowledge indexing, useful URLs, and troubleshooting. The full app can be

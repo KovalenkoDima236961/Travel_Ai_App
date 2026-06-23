@@ -155,11 +155,30 @@ if [[ "${PLACE_JSON}" == "null" ]]; then
 fi
 PLACE_ID="$(jq -r '.providerPlaceId // empty' <<<"${PLACE_JSON}")"
 PLACE_NAME="$(jq -r '.name // empty' <<<"${PLACE_JSON}")"
+PLACE_OPENING_HOURS_COUNT="$(jq '.openingHours | length' <<<"${PLACE_JSON}")"
 if [[ -z "${PLACE_ID}" || "${PLACE_NAME}" != "Colosseum" ]]; then
   echo "Place search did not return Colosseum as the first result." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+if [[ "${PLACE_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+  echo "Place search result did not include openingHours." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching mock place details..."
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/places/${PLACE_ID}"
+assert_2xx "Place details"
+
+DETAIL_PLACE_ID="$(jq -r '.providerPlaceId // empty' <<<"${LAST_BODY}")"
+DETAIL_OPENING_HOURS_COUNT="$(jq '.openingHours | length' <<<"${LAST_BODY}")"
+if [[ "${DETAIL_PLACE_ID}" != "${PLACE_ID}" || "${DETAIL_OPENING_HOURS_COUNT}" -lt 1 ]]; then
+  echo "Place details did not include expected openingHours." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+PLACE_JSON="$(jq -c '.' <<<"${LAST_BODY}")"
 
 echo "Estimating a mock walking route..."
 ROUTE_PAYLOAD='{"mode":"walking","stops":[{"name":"Colosseum","latitude":41.8902,"longitude":12.4922},{"name":"Trevi Fountain","latitude":41.9009,"longitude":12.4833}]}'
@@ -435,7 +454,8 @@ EDIT_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
 EDIT_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
 EDIT_ITEM_NAME="$(jq -r '.itinerary.days[0].items[0].name // empty' <<<"${LAST_BODY}")"
 EDIT_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
-if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test Day" || "${EDIT_ITEM_NAME}" != "Edited Smoke Test Activity" || "${EDIT_PLACE_ID}" != "${PLACE_ID}" ]]; then
+EDIT_OPENING_HOURS_COUNT="$(jq '.itinerary.days[0].items[0].place.openingHours | length' <<<"${LAST_BODY}")"
+if [[ "${EDIT_STATUS}" != "COMPLETED" || "${EDIT_TITLE}" != "Edited Smoke Test Day" || "${EDIT_ITEM_NAME}" != "Edited Smoke Test Activity" || "${EDIT_PLACE_ID}" != "${PLACE_ID}" || "${EDIT_OPENING_HOURS_COUNT}" -lt 1 ]]; then
   echo "Edited itinerary response did not include expected values." >&2
   echo "${LAST_BODY}" >&2
   exit 1
@@ -446,7 +466,8 @@ request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
 assert_2xx "Fetch edited trip"
 
 FETCHED_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
-if [[ "${FETCHED_PLACE_ID}" != "${PLACE_ID}" ]]; then
+FETCHED_OPENING_HOURS_COUNT="$(jq '.itinerary.days[0].items[0].place.openingHours | length' <<<"${LAST_BODY}")"
+if [[ "${FETCHED_PLACE_ID}" != "${PLACE_ID}" || "${FETCHED_OPENING_HOURS_COUNT}" -lt 1 ]]; then
   echo "Fetched trip did not preserve attached place metadata." >&2
   echo "${LAST_BODY}" >&2
   exit 1
@@ -470,7 +491,8 @@ request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions
 assert_2xx "Get manual edit itinerary version"
 
 MANUAL_VERSION_PLACE_ID="$(jq -r '.itinerary.days[0].items[0].place.providerPlaceId // empty' <<<"${LAST_BODY}")"
-if [[ "${MANUAL_VERSION_PLACE_ID}" != "${PLACE_ID}" ]]; then
+MANUAL_VERSION_OPENING_HOURS_COUNT="$(jq '.itinerary.days[0].items[0].place.openingHours | length' <<<"${LAST_BODY}")"
+if [[ "${MANUAL_VERSION_PLACE_ID}" != "${PLACE_ID}" || "${MANUAL_VERSION_OPENING_HOURS_COUNT}" -lt 1 ]]; then
   echo "Manual edit version did not store attached place metadata." >&2
   echo "${LAST_BODY}" >&2
   exit 1

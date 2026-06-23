@@ -356,7 +356,11 @@ Request body:
               "ratingCount": 120000,
               "mapUrl": "https://maps.example.com/mock-colosseum-rome",
               "category": "landmark",
-              "website": "https://example.com/colosseum"
+              "website": "https://example.com/colosseum",
+              "openingHours": [
+                { "dayOfWeek": 1, "open": "08:30", "close": "19:15" },
+                { "dayOfWeek": 2, "open": "08:30", "close": "19:15" }
+              ]
             }
           }
         ]
@@ -383,6 +387,10 @@ Validation rules:
 - `place.ratingCount` must be `>= 0` when present.
 - `place.mapUrl` and `place.website` are optional and capped at 2048
   characters.
+- `place.openingHours` is optional. When present, each interval must use
+  `dayOfWeek` from `1` Monday through `7` Sunday and `open`/`close` in local
+  `HH:mm` 24-hour time with `open` before `close`. Multiple intervals per day
+  are allowed, and no interval for a day means closed or unknown.
 - String fields are trimmed before saving.
 
 Missing/invalid tokens return `401`. Missing trips and trips owned by another
@@ -392,7 +400,8 @@ return `400` with `{ "error": "message" }`.
 External place lookup is owned by External Integrations Service. Trip Service
 does not call Google Places or other third-party place APIs; it only validates,
 stores, returns, versions, and restores optional place metadata submitted as
-part of the full itinerary JSON.
+part of the full itinerary JSON, including optional `openingHours`. Older saved
+itineraries without `place` or without `openingHours` remain valid.
 
 ### Itinerary version history
 

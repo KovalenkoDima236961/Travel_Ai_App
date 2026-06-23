@@ -91,9 +91,31 @@ go run ./cmd/server -config ./configs/config.yaml
 
 ## Places
 
-The canonical place shape includes provider metadata, address, optional coordinates, rating, category, website, and a map URL. Place metadata is optional on itinerary items and is persisted by Trip Service as part of itinerary JSONB.
+The canonical place shape includes provider metadata, address, optional
+coordinates, rating, category, website, a map URL, and optional
+`openingHours`. Place metadata is optional on itinerary items and is persisted
+by Trip Service as part of itinerary JSONB.
 
-The mock provider includes deterministic places for Rome, Paris, Vienna, and Bratislava. Search is case-insensitive across place name, category, and address. When a destination is provided, results are filtered to that city. Unknown city-specific queries return a small fallback set for that city.
+`openingHours` is an optional array of local-time intervals:
+
+```json
+{
+  "openingHours": [
+    { "dayOfWeek": 1, "open": "08:30", "close": "19:15" }
+  ]
+}
+```
+
+`dayOfWeek` uses `1 = Monday` through `7 = Sunday`. `open` and `close` use
+24-hour `HH:mm` local time. Missing or empty `openingHours` means unknown;
+closed all day is represented by no interval for that day. Multiple intervals
+for the same day are allowed.
+
+The mock provider includes deterministic places and simple opening hours for
+Rome, Paris, Vienna, and Bratislava. Search is case-insensitive across place
+name, category, and address. When a destination is provided, results are
+filtered to that city. Unknown city-specific queries return a small fallback set
+for that city.
 
 ## Routing API v1
 

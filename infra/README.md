@@ -105,6 +105,10 @@ generation.
 External Integrations Service is exposed directly at `http://localhost:8084`.
 v1 uses `PLACE_PROVIDER=mock`, `ROUTE_PROVIDER=mock`, and
 `WEATHER_PROVIDER=mock`, returning deterministic data for local development.
+Mock place search/details can include optional `openingHours` intervals using
+`dayOfWeek` `1 = Monday` through `7 = Sunday` and local `HH:mm` times. These
+hours are advisory only: there is no timezone, holiday, special-date, or real
+opening-hours provider in v1.
 Examples:
 
 ```bash
@@ -125,7 +129,8 @@ curl "http://localhost:8084/weather/forecast?destination=Rome&startDate=2026-08-
 service's CORS allows `POST` (`CORS_ALLOWED_METHODS=GET,POST,OPTIONS` by
 default). Weather forecast calls are read-only `GET` requests. Future provider
 candidates include Google Places, Mapbox, Foursquare, OSRM, Google Maps routing,
-and Open-Meteo, but no real third-party provider is enabled in v1.
+Open-Meteo, and real opening-hours providers, but no real third-party provider
+is enabled in v1.
 
 Trip Service requires `Authorization: Bearer <accessToken>` on `/trips` routes
 by default. To temporarily disable that for local debugging, set
@@ -195,12 +200,12 @@ walking route estimate and asserts a `mock` provider with positive distance,
 duration, and one segment (and that fewer than two stops is rejected), requests a
 mock Rome weather forecast and checks provider/day data, creates a Rome trip,
 generates its itinerary through Trip Service's personalized context path, saves
-a manual itinerary edit with attached place metadata, verifies the metadata
-persists after fetch and in the manual-edit version snapshot, lists itinerary
-versions, checks `GENERATED`, `MANUAL_EDIT`, and `RESTORED` version sources,
-restores the generated version, warns if avoided nightlife wording appears,
-registers a second user, confirms the second user gets `404` for the first
-user's trip and itinerary versions, then logs both users out.
+a manual itinerary edit with attached place metadata and opening hours, verifies
+the metadata persists after fetch and in the manual-edit version snapshot, lists
+itinerary versions, checks `GENERATED`, `MANUAL_EDIT`, and `RESTORED` version
+sources, restores the generated version, warns if avoided nightlife wording
+appears, registers a second user, confirms the second user gets `404` for the
+first user's trip and itinerary versions, then logs both users out.
 
 The trip-service timeout must be longer than the AI service's Ollama timeout so
 `OLLAMA_FALLBACK_TO_MOCK=true` has time to return a fallback itinerary. The

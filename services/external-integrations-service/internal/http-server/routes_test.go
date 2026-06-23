@@ -52,6 +52,14 @@ func TestSearchColosseumRomeReturnsColosseum(t *testing.T) {
 	if len(body.Items) == 0 || body.Items[0].Name != "Colosseum" {
 		t.Fatalf("expected Colosseum result, got %+v", body.Items)
 	}
+	if len(body.Items[0].OpeningHours) == 0 {
+		t.Fatalf("expected Colosseum search result to include opening hours, got %+v", body.Items[0])
+	}
+	if body.Items[0].OpeningHours[0].DayOfWeek != 1 ||
+		body.Items[0].OpeningHours[0].Open != "08:30" ||
+		body.Items[0].OpeningHours[0].Close != "19:15" {
+		t.Fatalf("unexpected Colosseum opening hours: %+v", body.Items[0].OpeningHours)
+	}
 }
 
 func TestSearchIsCaseInsensitive(t *testing.T) {
@@ -116,6 +124,24 @@ func TestGetDetailsReturnsPlace(t *testing.T) {
 	}
 	if body.Name != "Colosseum" || body.Provider != "mock" {
 		t.Fatalf("unexpected place response: %+v", body)
+	}
+	if len(body.OpeningHours) == 0 {
+		t.Fatalf("expected place details to include opening hours, got %+v", body)
+	}
+}
+
+func TestPlaceWithoutOpeningHoursOmitsField(t *testing.T) {
+	raw, err := json.Marshal(entity.Place{
+		Provider:        "mock",
+		ProviderPlaceID: "mock-no-hours",
+		Name:            "No Hours Place",
+		Address:         "Unknown",
+	})
+	if err != nil {
+		t.Fatalf("marshal place: %v", err)
+	}
+	if strings.Contains(string(raw), "openingHours") {
+		t.Fatalf("expected openingHours to be omitted when empty, got %s", raw)
 	}
 }
 

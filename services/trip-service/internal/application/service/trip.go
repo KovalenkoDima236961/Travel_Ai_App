@@ -738,7 +738,60 @@ func validateAndNormalizePlaceRef(place *aggregate.PlaceRef, path string, args .
 		return apperrs.NewInvalidInput("%s.website must be at most %d characters", label, maxPlaceURLLength)
 	}
 
+	if err := validateAndNormalizeOpeningHours(place, label); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func validateAndNormalizeOpeningHours(place *aggregate.PlaceRef, label string) error {
+	for index := range place.OpeningHours {
+		interval := &place.OpeningHours[index]
+		interval.Open = strings.TrimSpace(interval.Open)
+		interval.Close = strings.TrimSpace(interval.Close)
+
+		if interval.DayOfWeek < 1 || interval.DayOfWeek > 7 {
+			return apperrs.NewInvalidInput("%s.openingHours[%d].dayOfWeek must be between 1 and 7", label, index)
+		}
+
+		openMinutes, ok := parseHHMM(interval.Open)
+		if !ok {
+			return apperrs.NewInvalidInput("%s.openingHours[%d].open must be in HH:mm format", label, index)
+		}
+
+		closeMinutes, ok := parseHHMM(interval.Close)
+		if !ok {
+			return apperrs.NewInvalidInput("%s.openingHours[%d].close must be in HH:mm format", label, index)
+		}
+
+		if openMinutes >= closeMinutes {
+			return apperrs.NewInvalidInput("%s.openingHours[%d].open must be before close", label, index)
+		}
+	}
+
+	return nil
+}
+
+func parseHHMM(value string) (int, bool) {
+	if len(value) != len("15:04") || value[2] != ':' {
+		return 0, false
+	}
+	if !asciiDigit(value[0]) || !asciiDigit(value[1]) ||
+		!asciiDigit(value[3]) || !asciiDigit(value[4]) {
+		return 0, false
+	}
+
+	hour := int(value[0]-'0')*10 + int(value[1]-'0')
+	minute := int(value[3]-'0')*10 + int(value[4]-'0')
+	if hour > 23 || minute > 59 {
+		return 0, false
+	}
+	return hour*60 + minute, true
+}
+
+func asciiDigit(value byte) bool {
+	return value >= '0' && value <= '9'
 }
 
 func (s *Service) saveRegeneratedItinerary(

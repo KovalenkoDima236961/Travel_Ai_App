@@ -792,6 +792,9 @@ func TestUpdateItinerary_WithItemPlaceSucceedsAndVersionsPlaceMetadata(t *testin
 	if place == nil || place.ProviderPlaceID != "mock-colosseum-rome" || place.Name != "Colosseum" {
 		t.Fatalf("expected persisted place metadata, got %+v", place)
 	}
+	if len(place.OpeningHours) == 0 || place.OpeningHours[0].DayOfWeek != 1 {
+		t.Fatalf("expected persisted opening hours, got %+v", place.OpeningHours)
+	}
 	if len(repo.versions) != 1 {
 		t.Fatalf("expected one itinerary version, got %d", len(repo.versions))
 	}
@@ -799,6 +802,31 @@ func TestUpdateItinerary_WithItemPlaceSucceedsAndVersionsPlaceMetadata(t *testin
 	versionPlace := version.Days[0].Items[0].Place
 	if versionPlace == nil || versionPlace.ProviderPlaceID != "mock-colosseum-rome" {
 		t.Fatalf("expected version to store place metadata, got %+v", versionPlace)
+	}
+	if len(versionPlace.OpeningHours) == 0 || versionPlace.OpeningHours[0].Open != "08:30" {
+		t.Fatalf("expected version to store opening hours, got %+v", versionPlace.OpeningHours)
+	}
+}
+
+func TestUpdateItinerary_WithOldPlaceWithoutOpeningHoursStillSucceeds(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+		Itinerary: validItineraryWithPlaceWithoutOpeningHoursRaw(t),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	updated := decodeItinerary(t, got.Itinerary)
+	place := updated.Days[0].Items[0].Place
+	if place == nil || place.ProviderPlaceID != "mock-colosseum-rome" {
+		t.Fatalf("expected old place metadata to persist, got %+v", place)
+	}
+	if len(place.OpeningHours) != 0 {
+		t.Fatalf("expected old place metadata without opening hours to remain valid, got %+v", place.OpeningHours)
 	}
 }
 
@@ -826,6 +854,31 @@ func TestUpdateItinerary_InvalidPlaceMetadataReturnsInvalidInput(t *testing.T) {
 			mutate: func(place *aggregate.PlaceRef) {
 				value := 5.1
 				place.Rating = &value
+			},
+		},
+		{
+			name: "invalid opening hours day",
+			mutate: func(place *aggregate.PlaceRef) {
+				place.OpeningHours[0].DayOfWeek = 8
+			},
+		},
+		{
+			name: "invalid opening time format",
+			mutate: func(place *aggregate.PlaceRef) {
+				place.OpeningHours[0].Open = "9:00"
+			},
+		},
+		{
+			name: "invalid closing time format",
+			mutate: func(place *aggregate.PlaceRef) {
+				place.OpeningHours[0].Close = "24:00"
+			},
+		},
+		{
+			name: "opening after close",
+			mutate: func(place *aggregate.PlaceRef) {
+				place.OpeningHours[0].Open = "19:15"
+				place.OpeningHours[0].Close = "08:30"
 			},
 		},
 	}
@@ -874,6 +927,9 @@ func TestGet_ReturnsSavedPlaceMetadata(t *testing.T) {
 	place := itinerary.Days[0].Items[0].Place
 	if place == nil || place.ProviderPlaceID != "mock-colosseum-rome" {
 		t.Fatalf("expected GET trip to return saved place metadata, got %+v", place)
+	}
+	if len(place.OpeningHours) == 0 || place.OpeningHours[0].Close != "19:15" {
+		t.Fatalf("expected GET trip to return saved opening hours, got %+v", place.OpeningHours)
 	}
 }
 
@@ -1397,10 +1453,16 @@ func TestRestoreItineraryVersion_RestoresPlaceMetadata(t *testing.T) {
 	if place == nil || place.ProviderPlaceID != "mock-colosseum-rome" {
 		t.Fatalf("expected restored trip to include place metadata, got %+v", place)
 	}
+	if len(place.OpeningHours) == 0 || place.OpeningHours[0].Open != "08:30" {
+		t.Fatalf("expected restored trip to include opening hours, got %+v", place.OpeningHours)
+	}
 	restoredVersion := decodeItinerary(t, repo.versions[1].Itinerary)
 	restoredPlace := restoredVersion.Days[0].Items[0].Place
 	if restoredPlace == nil || restoredPlace.ProviderPlaceID != "mock-colosseum-rome" {
 		t.Fatalf("expected restored version to include place metadata, got %+v", restoredPlace)
+	}
+	if len(restoredPlace.OpeningHours) == 0 || restoredPlace.OpeningHours[0].Close != "19:15" {
+		t.Fatalf("expected restored version to include opening hours, got %+v", restoredPlace.OpeningHours)
 	}
 }
 
@@ -1474,6 +1536,21 @@ func validItineraryWithPlaceRaw(t *testing.T) json.RawMessage {
 	return out
 }
 
+func validItineraryWithPlaceWithoutOpeningHoursRaw(t *testing.T) json.RawMessage {
+	t.Helper()
+	raw := validExistingItineraryRaw(t)
+	itinerary := decodeItinerary(t, raw)
+	place := validPlaceRef()
+	place.OpeningHours = nil
+	itinerary.Days[0].Items[0].Place = place
+
+	out, err := json.Marshal(itinerary)
+	if err != nil {
+		t.Fatalf("marshal itinerary with old place: %v", err)
+	}
+	return out
+}
+
 func itineraryWithMutatedPlaceRaw(t *testing.T, mutate func(*aggregate.PlaceRef)) json.RawMessage {
 	t.Helper()
 	raw := validExistingItineraryRaw(t)
@@ -1506,6 +1583,15 @@ func validPlaceRef() *aggregate.PlaceRef {
 		MapURL:          "https://maps.example.com/mock-colosseum-rome",
 		Category:        "landmark",
 		Website:         "https://example.com/colosseum",
+		OpeningHours: []aggregate.OpeningHoursInterval{
+			{DayOfWeek: 1, Open: "08:30", Close: "19:15"},
+			{DayOfWeek: 2, Open: "08:30", Close: "19:15"},
+			{DayOfWeek: 3, Open: "08:30", Close: "19:15"},
+			{DayOfWeek: 4, Open: "08:30", Close: "19:15"},
+			{DayOfWeek: 5, Open: "08:30", Close: "19:15"},
+			{DayOfWeek: 6, Open: "08:30", Close: "19:15"},
+			{DayOfWeek: 7, Open: "08:30", Close: "19:15"},
+		},
 	}
 }
 

@@ -108,6 +108,23 @@ http://localhost:3000
 53. Go to `/trips`.
 54. Confirm the trip appears in the list.
 
+## Opening Hours
+
+1. Log in and open a completed trip with a start date.
+2. Click `Edit itinerary`.
+3. Open an itinerary item and click `Attach real place`.
+4. Search for `Colosseum` with destination `Rome`.
+5. Select `Colosseum` and confirm the search result says opening hours are
+   available.
+6. Set the item time to `10:00` and click `Save`.
+7. Confirm the read-only itinerary shows `Likely open at this time` and daily
+   hours for the attached place.
+8. Click `Edit itinerary`, change the same item time to `22:00`, and save.
+9. Confirm the itinerary shows `May be closed at this time` and the `Opening
+   hours warnings` summary lists the item.
+10. Open `Version History`, preview the manual edit version, and confirm the
+    restored/saved itinerary keeps the attached place `openingHours`.
+
 ## Weather Context
 
 1. Log in.

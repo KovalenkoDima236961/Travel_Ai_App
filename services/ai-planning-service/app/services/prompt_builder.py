@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import (
     GenerateItineraryRequest,
+    OpeningHoursInterval,
     RegenerateDayRequest,
     RegenerateItemRequest,
 )
@@ -191,6 +194,7 @@ def build_regenerate_day_prompt(
         selected_day.model_dump_json(by_alias=True, exclude_none=True) if selected_day else "{}"
     )
     instruction = request.instruction or "No extra user instruction provided."
+    opening_hours_section = _attached_place_opening_hours_section(request)
 
     return f"""
 You are regenerating exactly one itinerary day for a web-based travel planning application.
@@ -219,6 +223,7 @@ Trip request:
 {_weather_context_section(request.weather_forecast)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
+{opening_hours_section}
 
 Current full itinerary JSON:
 {request.current_itinerary.model_dump_json(by_alias=True, exclude_none=True)}
@@ -261,6 +266,7 @@ def build_regenerate_item_prompt(
         selected_item.model_dump_json(by_alias=True, exclude_none=True) if selected_item else "{}"
     )
     instruction = request.instruction or "No extra user instruction provided."
+    opening_hours_section = _attached_place_opening_hours_section(request)
 
     return f"""
 You are regenerating exactly one itinerary item for a web-based travel planning application.
@@ -283,6 +289,7 @@ Trip request:
 {_weather_context_section(request.weather_forecast)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
+{opening_hours_section}
 
 Current full itinerary JSON:
 {request.current_itinerary.model_dump_json(by_alias=True, exclude_none=True)}
@@ -528,11 +535,76 @@ def _weather_context_section(weather_forecast: object | None) -> str:
             "- Avoid long outdoor walks during high heat.",
             "- Schedule parks, viewpoints, and walking-heavy activities on better weather days.",
             "- Add indoor backup suggestions when rain chance is high.",
-            "- If weather conflicts with user interests, preserve user goals but adapt timing or activity type.",
+            "- If weather conflicts with user interests, preserve user goals but adapt timing "
+            "or activity type.",
         ]
     )
 
     return "\n" + "\n".join(lines)
+
+
+def _attached_place_opening_hours_section(request: RegenerateDayRequest) -> str:
+    lines: list[str] = []
+    for day in request.current_itinerary.days:
+        for item in day.items:
+            place = item.place
+            if place is None or not place.opening_hours:
+                continue
+
+            place_name = place.name or item.name
+            hours = _format_opening_hours_for_trip_day(request, day.day, place.opening_hours)
+            lines.append(f"- Day {day.day}, {item.time}, {place_name}: {hours}")
+
+    if not lines:
+        return ""
+
+    section = [
+        "ATTACHED PLACE OPENING HOURS:",
+        *lines[:20],
+        "Opening hours instructions:",
+        "- If keeping an attached place, do not schedule it outside its opening hours.",
+        "- If replacing an item, prefer a realistic time for that place type.",
+        "- If a place appears closed at the scheduled time, adjust the time or suggest an "
+        "alternative.",
+    ]
+    return "\n" + "\n".join(section)
+
+
+def _format_opening_hours_for_trip_day(
+    request: RegenerateDayRequest,
+    day_number: int,
+    opening_hours: list[OpeningHoursInterval],
+) -> str:
+    if request.trip.start_date is None:
+        return "opening hours available; trip start date not provided"
+
+    trip_day = request.trip.start_date + timedelta(days=day_number - 1)
+    day_of_week = trip_day.isoweekday()
+    day_name = _format_day_of_week(day_of_week)
+    intervals = [
+        interval
+        for interval in opening_hours
+        if getattr(interval, "day_of_week", None) == day_of_week
+    ]
+    if not intervals:
+        return f"{day_name} closed"
+    return f"{day_name} {', '.join(_format_opening_interval(interval) for interval in intervals)}"
+
+
+def _format_opening_interval(interval: OpeningHoursInterval) -> str:
+    return f"{interval.open}\u2013{interval.close}"
+
+
+def _format_day_of_week(day_of_week: int) -> str:
+    return {
+        1: "Monday",
+        2: "Tuesday",
+        3: "Wednesday",
+        4: "Thursday",
+        5: "Friday",
+        6: "Saturday",
+        7: "Sunday",
+    }.get(day_of_week, "Unknown day")
 
 
 def _destination_context_section(

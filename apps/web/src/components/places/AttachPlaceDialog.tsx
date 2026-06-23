@@ -154,6 +154,11 @@ export function AttachPlaceDialog({
                     {place.rating != null ? ` · Rating ${place.rating}` : ""}
                     {place.ratingCount != null ? ` (${place.ratingCount.toLocaleString()})` : ""}
                   </p>
+                  {place.openingHours && place.openingHours.length > 0 ? (
+                    <p className="mt-2 text-xs font-medium text-emerald-700">
+                      Opening hours available
+                    </p>
+                  ) : null}
                 </div>
                 <Button onClick={() => selectPlace(place)} size="sm" type="button">
                   Select

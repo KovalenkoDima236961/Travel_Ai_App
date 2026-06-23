@@ -5,17 +5,25 @@ import L from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { formatInterestLabel, formatMoney } from "@/lib/utils";
 import type { MapItineraryMarker } from "@/lib/itinerary/map-utils";
+import {
+  formatOpeningHoursForDay,
+  getDayOfWeekMondayBased,
+  getOpeningStatus,
+  getTripItemDate
+} from "@/lib/itinerary/opening-hours-utils";
 
 type ItineraryLeafletMapProps = {
   markers: MapItineraryMarker[];
   center: [number, number];
   currency: string;
+  startDate?: string | null;
 };
 
 export function ItineraryLeafletMap({
   markers,
   center,
-  currency
+  currency,
+  startDate
 }: ItineraryLeafletMapProps) {
   return (
     <MapContainer
@@ -64,6 +72,7 @@ export function ItineraryLeafletMap({
                   <p>Estimated cost {formatMoney(marker.estimatedCost, currency)}</p>
                 ) : null}
               </div>
+              <MapOpeningHoursStatus marker={marker} startDate={startDate} />
               {marker.note ? <p className="mt-3 leading-5 text-slate-600">{marker.note}</p> : null}
               {marker.place.mapUrl ? (
                 <a
@@ -80,6 +89,38 @@ export function ItineraryLeafletMap({
         </Marker>
       ))}
     </MapContainer>
+  );
+}
+
+function MapOpeningHoursStatus({
+  marker,
+  startDate
+}: {
+  marker: MapItineraryMarker;
+  startDate?: string | null;
+}) {
+  if (!marker.place.openingHours || marker.place.openingHours.length === 0) {
+    return null;
+  }
+
+  const status = getOpeningStatus({
+    startDate,
+    dayNumber: marker.dayNumber,
+    itemTime: marker.time,
+    openingHours: marker.place.openingHours
+  });
+  const itemDate = startDate ? getTripItemDate(startDate, marker.dayNumber) : null;
+  const dayOfWeek = itemDate ? getDayOfWeekMondayBased(itemDate) : null;
+  const hours =
+    dayOfWeek == null
+      ? "Closed or unknown"
+      : formatOpeningHoursForDay(marker.place.openingHours, dayOfWeek);
+
+  return (
+    <div className="mt-3 space-y-1 text-xs font-medium text-slate-500">
+      <p>{status.label}</p>
+      <p>Hours: {hours}</p>
+    </div>
   );
 }
 

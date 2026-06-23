@@ -26,6 +26,15 @@ forwards it without persisting it. When present, prompt generation adds a
 rainy days, avoid long outdoor walks during high heat, schedule parks/viewpoints
 on better weather days, and add indoor backups when rain chance is high.
 
+Partial regeneration requests also accept attached place metadata inside
+`currentItinerary.days[].items[].place`. When those places include optional
+`openingHours`, prompt generation adds an `ATTACHED PLACE OPENING HOURS` section
+for regeneration prompts. The section uses the shared convention
+`dayOfWeek: 1 = Monday ... 7 = Sunday` and local `HH:mm` intervals, then asks
+the model not to keep an attached place scheduled outside its hours. Full
+generation is unchanged because opening hours are normally only known after a
+place has been attached.
+
 Example weather payload:
 
 ```json

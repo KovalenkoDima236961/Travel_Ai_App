@@ -100,7 +100,11 @@ adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:
               "ratingCount": 120000,
               "mapUrl": "https://maps.example.com/mock-colosseum-rome",
               "category": "landmark",
-              "website": "https://example.com/colosseum"
+              "website": "https://example.com/colosseum",
+              "openingHours": [
+                { "dayOfWeek": 1, "open": "08:30", "close": "19:15" },
+                { "dayOfWeek": 2, "open": "08:30", "close": "19:15" }
+              ]
             }
           }
         ]
@@ -117,8 +121,16 @@ of the itinerary.
 To attach a real-place-shaped mock place, open a completed trip, click
 `Edit itinerary`, click `Attach real place` on an item, search, select a result,
 then click `Save`. Existing itinerary items without `place` metadata continue to
-render normally. v1 intentionally has no opening hours, flights, hotels, real
-weather provider, real Google Places provider, or turn-by-turn route geometry.
+render normally. Mock places can include optional `openingHours` using
+`dayOfWeek` values `1 = Monday` through `7 = Sunday` and local `HH:mm` times.
+When an attached place has hours and the trip has a start date, the read-only
+itinerary shows an advisory `Likely open at this time`, `May be closed at this
+time`, or `May be closed on this day` badge plus that day's hours. The warning
+is advisory because v1 uses mock schedules, simple local trip dates, no
+timezones, no holidays, and no special-date overrides.
+
+v1 intentionally has no flights, hotels, real weather provider, real Google
+Places provider, real opening-hours provider, or turn-by-turn route geometry.
 See Distance / Walking Estimate below for the approximate route and straight-line
 distances the Web App shows.
 
@@ -149,7 +161,8 @@ mapped places or only the mapped places for a single day.
 
 Attach places in itinerary edit mode first, then save or leave edit mode to see
 them on the map. Map View v1 does not support route optimization, marker
-dragging, or editing places from the map.
+dragging, or editing places from the map. Marker popups show opening-hours
+status when the attached place includes `openingHours`.
 
 ## Distance / Walking Estimate
 

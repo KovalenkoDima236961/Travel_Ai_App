@@ -15,6 +15,7 @@ import {
 } from "@/components/trips/ItineraryEditor";
 import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
+import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/components/trips/OptimizeDayOrderDialog";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
@@ -333,6 +334,7 @@ function TripDetailPageContent() {
                   errors={editorErrors}
                   itinerary={draftItinerary}
                   onChange={setDraftItinerary}
+                  startDate={trip.startDate}
                 />
                 <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
                   Map view and distance estimates are available after saving or leaving edit
@@ -348,6 +350,7 @@ function TripDetailPageContent() {
                     </Button>
                   </div>
                 ) : null}
+                <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
                 <ItineraryView
                   currency={trip.budgetCurrency}
                   disabled={regenerationMutation.isPending}
@@ -355,8 +358,9 @@ function TripDetailPageContent() {
                   onRegenerateDay={regenerateDay}
                   onRegenerateItem={regenerateItem}
                   regeneratingTarget={regeneratingTarget}
+                  startDate={trip.startDate}
                 />
-                <ItineraryMap itinerary={trip.itinerary} />
+                <ItineraryMap itinerary={trip.itinerary} startDate={trip.startDate} />
                 <DistanceSummary
                   itinerary={trip.itinerary}
                   maxWalkingKmPerDay={maxWalkingKmPerDay}
@@ -399,7 +403,11 @@ function TripDetailPageContent() {
           ) : null}
 
           {(trip.status === "DRAFT" || trip.status === "FAILED") && trip.itinerary ? (
-            <ItineraryView itinerary={trip.itinerary} currency={trip.budgetCurrency} />
+            <ItineraryView
+              currency={trip.budgetCurrency}
+              itinerary={trip.itinerary}
+              startDate={trip.startDate}
+            />
           ) : null}
         </section>
       </div>

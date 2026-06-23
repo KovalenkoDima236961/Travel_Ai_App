@@ -193,6 +193,27 @@ class GenerateItineraryRequest(APIModel):
         return [item.strip().lower() for item in value if item.strip()]
 
 
+class OpeningHoursInterval(APIModel):
+    day_of_week: int = Field(ge=1, le=7, alias="dayOfWeek")
+    open: str
+    close: str
+
+
+class PlaceRef(APIModel):
+    provider: str
+    provider_place_id: str = Field(alias="providerPlaceId")
+    name: str
+    address: str
+    latitude: float | None = None
+    longitude: float | None = None
+    rating: float | None = None
+    rating_count: int | None = Field(default=None, alias="ratingCount")
+    map_url: str | None = Field(default=None, alias="mapUrl")
+    category: str | None = None
+    website: str | None = None
+    opening_hours: list[OpeningHoursInterval] = Field(default_factory=list, alias="openingHours")
+
+
 class ItineraryItem(APIModel):
     time: str
     type: str
@@ -261,8 +282,18 @@ class PartialTrip(APIModel):
         return [item.strip().lower() for item in value if item.strip()]
 
 
+class CurrentItineraryItem(ItineraryItem):
+    place: PlaceRef | None = None
+
+
+class CurrentItineraryDay(APIModel):
+    day: int = Field(ge=1)
+    title: str
+    items: list[CurrentItineraryItem] = Field(min_length=1)
+
+
 class CurrentItinerary(APIModel):
-    days: list[ItineraryDay] = Field(min_length=1)
+    days: list[CurrentItineraryDay] = Field(min_length=1)
 
 
 class RegenerateDayRequest(APIModel):
@@ -290,7 +321,7 @@ class RegenerateDayRequest(APIModel):
             raise ValueError("selected dayNumber does not exist in currentItinerary")
         return self
 
-    def selected_day(self) -> ItineraryDay | None:
+    def selected_day(self) -> CurrentItineraryDay | None:
         for day in self.current_itinerary.days:
             if day.day == self.day_number:
                 return day
@@ -309,7 +340,7 @@ class RegenerateItemRequest(RegenerateDayRequest):
             raise ValueError("selected itemIndex does not exist in currentItinerary day")
         return self
 
-    def selected_item(self) -> ItineraryItem | None:
+    def selected_item(self) -> CurrentItineraryItem | None:
         selected_day = self.selected_day()
         if selected_day is None or self.item_index >= len(selected_day.items):
             return None

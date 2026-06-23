@@ -25,10 +25,11 @@ const LeafletItineraryMap = dynamic(
 
 type ItineraryMapProps = {
   itinerary: Itinerary;
+  startDate?: string | null;
   className?: string;
 };
 
-export function ItineraryMap({ itinerary, className }: ItineraryMapProps) {
+export function ItineraryMap({ itinerary, startDate, className }: ItineraryMapProps) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const markers = useMemo(() => getItineraryMapMarkers(itinerary), [itinerary]);
   const availableDays = useMemo(() => getAvailableDays(markers), [markers]);
@@ -99,6 +100,7 @@ export function ItineraryMap({ itinerary, className }: ItineraryMapProps) {
             center={center}
             currency={currency}
             markers={filteredMarkers}
+            startDate={startDate}
           />
         </div>
       )}

@@ -179,8 +179,55 @@ func mock(city, id, name, address string, lat, lng, rating float64, ratingCount 
 			MapURL:          "https://maps.example.com/" + id,
 			Category:        category,
 			Website:         website,
+			OpeningHours:    mockOpeningHours(id, category),
 		},
 	}
+}
+
+func mockOpeningHours(id, category string) []entity.OpeningHoursInterval {
+	switch id {
+	case "mock-colosseum-rome":
+		return everyDay("08:30", "19:15")
+	case "mock-louvre-museum-paris":
+		return append(hoursForDays([]int{1, 3, 4, 6, 7}, "09:00", "18:00"), hours(5, "09:00", "21:45"))
+	case "mock-naschmarkt-vienna":
+		return hoursForDays([]int{1, 2, 3, 4, 5, 6}, "06:00", "21:00")
+	case "mock-urban-house-cafe-bratislava":
+		return everyDay("08:00", "22:00")
+	case "mock-testaccio-market-rome":
+		return hoursForDays([]int{1, 2, 3, 4, 5, 6}, "08:00", "18:00")
+	case "mock-musee-dorsay-paris", "mock-belvedere-palace-vienna":
+		return hoursForDays([]int{2, 3, 4, 5, 6, 7}, "09:30", "18:00")
+	}
+
+	switch normalizeSearchText(category) {
+	case "park", "neighborhood":
+		return everyDay("00:00", "23:59")
+	case "cafe", "restaurant":
+		return everyDay("08:00", "22:00")
+	case "market":
+		return hoursForDays([]int{1, 2, 3, 4, 5, 6}, "08:00", "18:00")
+	case "museum":
+		return hoursForDays([]int{2, 3, 4, 5, 6, 7}, "09:00", "18:00")
+	default:
+		return everyDay("09:00", "18:00")
+	}
+}
+
+func everyDay(open, close string) []entity.OpeningHoursInterval {
+	return hoursForDays([]int{1, 2, 3, 4, 5, 6, 7}, open, close)
+}
+
+func hoursForDays(days []int, open, close string) []entity.OpeningHoursInterval {
+	intervals := make([]entity.OpeningHoursInterval, 0, len(days))
+	for _, day := range days {
+		intervals = append(intervals, hours(day, open, close))
+	}
+	return intervals
+}
+
+func hours(day int, open, close string) entity.OpeningHoursInterval {
+	return entity.OpeningHoursInterval{DayOfWeek: day, Open: open, Close: close}
 }
 
 func floatPtr(value float64) *float64 {

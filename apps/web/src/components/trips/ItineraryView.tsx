@@ -1,4 +1,11 @@
 import type { Itinerary } from "@/types/trip";
+import type { OpeningHoursInterval } from "@/types/place";
+import {
+  formatOpeningHoursForDay,
+  getDayOfWeekMondayBased,
+  getOpeningStatus,
+  getTripItemDate
+} from "@/lib/itinerary/opening-hours-utils";
 import { formatDate, formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 
@@ -9,6 +16,7 @@ export type RegeneratingTarget =
 type ItineraryViewProps = {
   itinerary: Itinerary;
   currency?: string;
+  startDate?: string | null;
   disabled?: boolean;
   regeneratingTarget?: RegeneratingTarget | null;
   onRegenerateDay?: (dayNumber: number, instruction?: string) => void;
@@ -18,6 +26,7 @@ type ItineraryViewProps = {
 export function ItineraryView({
   itinerary,
   currency = "EUR",
+  startDate,
   disabled = false,
   regeneratingTarget = null,
   onRegenerateDay,
@@ -90,101 +99,111 @@ export function ItineraryView({
         </div>
       </div>
 
-      {itinerary.days.map((day) => (
-        <section key={day.day} className="rounded-lg border border-slate-200 bg-white p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <h3 className="text-lg font-semibold text-slate-950">
-              Day {day.day} — {day.title}
-            </h3>
-            {onRegenerateDay ? (
-              <Button
-                disabled={regenerationDisabled}
-                onClick={() => regenerateDay(day.day)}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                {regeneratingTarget?.type === "day" && regeneratingTarget.dayNumber === day.day
-                  ? "Regenerating..."
-                  : "Regenerate day"}
-              </Button>
-            ) : null}
-          </div>
-          <ol className="mt-5 divide-y divide-slate-100">
-            {day.items.map((item, index) => (
-              <li
-                key={`${day.day}-${item.time}-${item.name}-${index}`}
-                className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[6.5rem_minmax(0,1fr)_9rem]"
-              >
-                <div className="text-sm font-semibold text-slate-900">{item.time}</div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700">
-                      {formatInterestLabel(item.type)}
-                    </span>
-                    <p className="font-semibold text-slate-950">{item.name}</p>
-                  </div>
-                  {item.note ? (
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{item.note}</p>
-                  ) : null}
-                  {item.place ? (
-                    <div className="mt-2 space-y-1 text-sm text-slate-600">
-                      <p>{item.place.address}</p>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
-                        {item.place.rating != null ? (
-                          <span>
-                            Rating {item.place.rating}
-                            {item.place.ratingCount != null
-                              ? ` (${item.place.ratingCount.toLocaleString()})`
-                              : ""}
-                          </span>
-                        ) : null}
-                        {item.place.category ? (
-                          <span>{formatPlaceCategory(item.place.category)}</span>
-                        ) : null}
-                        {item.place.mapUrl ? (
-                          <a
-                            className="text-primary-700 hover:text-primary-600"
-                            href={item.place.mapUrl}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            Open map
-                          </a>
-                        ) : null}
+      {itinerary.days.map((day, dayIndex) => {
+        const dayNumber = day.day || dayIndex + 1;
+
+        return (
+          <section key={dayNumber} className="rounded-lg border border-slate-200 bg-white p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <h3 className="text-lg font-semibold text-slate-950">
+                Day {dayNumber} — {day.title}
+              </h3>
+              {onRegenerateDay ? (
+                <Button
+                  disabled={regenerationDisabled}
+                  onClick={() => regenerateDay(dayNumber)}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  {regeneratingTarget?.type === "day" && regeneratingTarget.dayNumber === dayNumber
+                    ? "Regenerating..."
+                    : "Regenerate day"}
+                </Button>
+              ) : null}
+            </div>
+            <ol className="mt-5 divide-y divide-slate-100">
+              {day.items.map((item, index) => (
+                <li
+                  key={`${dayNumber}-${item.time}-${item.name}-${index}`}
+                  className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[6.5rem_minmax(0,1fr)_9rem]"
+                >
+                  <div className="text-sm font-semibold text-slate-900">{item.time}</div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700">
+                        {formatInterestLabel(item.type)}
+                      </span>
+                      <p className="font-semibold text-slate-950">{item.name}</p>
+                    </div>
+                    {item.note ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-600">{item.note}</p>
+                    ) : null}
+                    {item.place ? (
+                      <div className="mt-2 space-y-1 text-sm text-slate-600">
+                        <p>{item.place.address}</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+                          {item.place.rating != null ? (
+                            <span>
+                              Rating {item.place.rating}
+                              {item.place.ratingCount != null
+                                ? ` (${item.place.ratingCount.toLocaleString()})`
+                                : ""}
+                            </span>
+                          ) : null}
+                          {item.place.category ? (
+                            <span>{formatPlaceCategory(item.place.category)}</span>
+                          ) : null}
+                          {item.place.mapUrl ? (
+                            <a
+                              className="text-primary-700 hover:text-primary-600"
+                              href={item.place.mapUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              Open map
+                            </a>
+                          ) : null}
+                        </div>
+                        <OpeningHoursStatus
+                          dayNumber={dayNumber}
+                          itemTime={item.time}
+                          openingHours={item.place.openingHours}
+                          startDate={startDate}
+                        />
                       </div>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="flex items-start justify-between gap-3 sm:flex-col sm:items-end">
-                  {item.estimatedCost != null ? (
-                    <div className="text-sm font-semibold text-slate-900">
-                      {formatMoney(item.estimatedCost, displayCurrency)}
-                    </div>
-                  ) : (
-                    <span className="hidden sm:block" />
-                  )}
-                  {onRegenerateItem ? (
-                    <Button
-                      disabled={regenerationDisabled}
-                      onClick={() => regenerateItem(day.day, index)}
-                      size="sm"
-                      type="button"
-                      variant="secondary"
-                    >
-                      {regeneratingTarget?.type === "item" &&
-                      regeneratingTarget.dayNumber === day.day &&
-                      regeneratingTarget.itemIndex === index
-                        ? "Regenerating..."
-                        : "Regenerate item"}
-                    </Button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-      ))}
+                    ) : null}
+                  </div>
+                  <div className="flex items-start justify-between gap-3 sm:flex-col sm:items-end">
+                    {item.estimatedCost != null ? (
+                      <div className="text-sm font-semibold text-slate-900">
+                        {formatMoney(item.estimatedCost, displayCurrency)}
+                      </div>
+                    ) : (
+                      <span className="hidden sm:block" />
+                    )}
+                    {onRegenerateItem ? (
+                      <Button
+                        disabled={regenerationDisabled}
+                        onClick={() => regenerateItem(dayNumber, index)}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        {regeneratingTarget?.type === "item" &&
+                        regeneratingTarget.dayNumber === dayNumber &&
+                        regeneratingTarget.itemIndex === index
+                          ? "Regenerating..."
+                          : "Regenerate item"}
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -195,4 +214,48 @@ function formatPlaceCategory(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function OpeningHoursStatus({
+  openingHours,
+  startDate,
+  dayNumber,
+  itemTime
+}: {
+  openingHours?: OpeningHoursInterval[] | null;
+  startDate?: string | null;
+  dayNumber: number;
+  itemTime?: string | null;
+}) {
+  const status = getOpeningStatus({ startDate, dayNumber, itemTime, openingHours });
+  const itemDate = startDate ? getTripItemDate(startDate, dayNumber) : null;
+  const dayOfWeek = itemDate ? getDayOfWeekMondayBased(itemDate) : null;
+  const dailyHours =
+    dayOfWeek == null ? "Closed or unknown" : formatOpeningHoursForDay(openingHours, dayOfWeek);
+  const badgeLabel =
+    status.status === "open"
+      ? "Likely open"
+      : status.status === "closed"
+        ? "May be closed"
+        : "Unknown";
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <span
+        className={
+          status.status === "open"
+            ? "rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700"
+            : status.status === "closed"
+              ? "rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-800"
+              : "rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-500"
+        }
+      >
+        {badgeLabel}
+      </span>
+      <span className={status.status === "closed" ? "font-medium text-amber-800" : "text-slate-500"}>
+        {status.label}
+      </span>
+      <span className="text-slate-500">Hours: {dailyHours}</span>
+    </div>
+  );
 }

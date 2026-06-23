@@ -494,6 +494,10 @@ func TestUpdateItineraryValidationErrors(t *testing.T) {
 		{name: "empty days", body: `{"itinerary":{"days":[]}}`},
 		{name: "missing item name", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":" "}]}]}}`},
 		{name: "negative estimated cost", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":"Walk","estimatedCost":-1}]}]}}`},
+		{name: "invalid opening hours day", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":"Walk","place":{"provider":"mock","providerPlaceId":"mock-place","name":"Mock Place","address":"Mock address","openingHours":[{"dayOfWeek":0,"open":"09:00","close":"18:00"}]}}]}]}}`},
+		{name: "invalid opening time", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":"Walk","place":{"provider":"mock","providerPlaceId":"mock-place","name":"Mock Place","address":"Mock address","openingHours":[{"dayOfWeek":1,"open":"9:00","close":"18:00"}]}}]}]}}`},
+		{name: "invalid closing time", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":"Walk","place":{"provider":"mock","providerPlaceId":"mock-place","name":"Mock Place","address":"Mock address","openingHours":[{"dayOfWeek":1,"open":"09:00","close":"24:00"}]}}]}]}}`},
+		{name: "opening after close", body: `{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":"Walk","place":{"provider":"mock","providerPlaceId":"mock-place","name":"Mock Place","address":"Mock address","openingHours":[{"dayOfWeek":1,"open":"18:00","close":"09:00"}]}}]}]}}`},
 	}
 
 	for _, tc := range cases {

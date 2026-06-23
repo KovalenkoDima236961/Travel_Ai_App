@@ -13,6 +13,12 @@ import {
   moveItemToDay,
   moveItemWithinDay
 } from "@/lib/itinerary/editor-utils";
+import {
+  formatOpeningHoursForDay,
+  getDayOfWeekMondayBased,
+  getTripItemDate
+} from "@/lib/itinerary/opening-hours-utils";
+import type { OpeningHoursInterval } from "@/types/place";
 import type { Place } from "@/types/place";
 import type { Itinerary, ItineraryItem } from "@/types/trip";
 
@@ -25,6 +31,7 @@ export {
 type ItineraryEditorProps = {
   itinerary: Itinerary;
   destination?: string;
+  startDate?: string | null;
   errors?: string[];
   disabled?: boolean;
   onChange: (itinerary: Itinerary) => void;
@@ -42,6 +49,7 @@ const defaultItem: ItineraryItem = {
 export function ItineraryEditor({
   itinerary,
   destination,
+  startDate,
   errors = [],
   disabled = false,
   onChange
@@ -388,6 +396,11 @@ export function ItineraryEditor({
                           <p className="text-xs text-slate-500">
                             Place changes are saved when you save the itinerary.
                           </p>
+                          <OpeningHoursEditorSummary
+                            dayNumber={day.day || dayIndex + 1}
+                            openingHours={item.place.openingHours}
+                            startDate={startDate}
+                          />
                         </div>
                       ) : (
                         <p className="mt-2 text-sm text-slate-600">
@@ -532,4 +545,30 @@ function formatPlaceCategory(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function OpeningHoursEditorSummary({
+  openingHours,
+  startDate,
+  dayNumber
+}: {
+  openingHours?: OpeningHoursInterval[] | null;
+  startDate?: string | null;
+  dayNumber: number;
+}) {
+  if (!openingHours || openingHours.length === 0 || !startDate) {
+    return <p className="text-xs text-slate-500">Opening hours unknown</p>;
+  }
+
+  const itemDate = getTripItemDate(startDate, dayNumber);
+  if (!itemDate) {
+    return <p className="text-xs text-slate-500">Opening hours unknown</p>;
+  }
+
+  const dayOfWeek = getDayOfWeekMondayBased(itemDate);
+  return (
+    <p className="text-xs text-slate-500">
+      Opening hours on this day: {formatOpeningHoursForDay(openingHours, dayOfWeek)}
+    </p>
+  );
 }
