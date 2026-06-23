@@ -188,7 +188,7 @@ func TestPatchPreferencesMergesProvidedFieldsAndSanitizesArrays(t *testing.T) {
 
 	got, err := svc.PatchPreferences(authContext(userID), appdto.PatchPreferencesInput{
 		TravelStyles:       &styles,
-		MaxWalkingKmPerDay: &maxWalking,
+		MaxWalkingKmPerDay: &appdto.OptionalFloat64{Value: &maxWalking},
 		Avoid:              &avoid,
 	})
 	if err != nil {
@@ -223,13 +223,43 @@ func TestPatchPreferencesRejectsInvalidPace(t *testing.T) {
 	}
 }
 
+func TestPatchPreferencesClearsMaxWalkingWhenExplicitlyNull(t *testing.T) {
+	userID := testUserID()
+	existingMaxWalking := 8.0
+	styles := []string{"food"}
+	repo := &mockRepo{
+		getPreferencesResult: &entity.Preferences{
+			UserID:             userID,
+			TravelStyles:       []string{"budget"},
+			Pace:               "balanced",
+			MaxWalkingKmPerDay: &existingMaxWalking,
+		},
+	}
+	svc := New(repo, zap.NewNop())
+
+	got, err := svc.PatchPreferences(authContext(userID), appdto.PatchPreferencesInput{
+		TravelStyles:       &styles,
+		MaxWalkingKmPerDay: &appdto.OptionalFloat64{},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.MaxWalkingKmPerDay != nil {
+		t.Fatalf("expected max walking to be cleared, got %v", got.MaxWalkingKmPerDay)
+	}
+	assertStrings(t, got.TravelStyles, []string{"food"})
+}
+
 func TestPatchPreferencesRejectsMaxWalkingOver50(t *testing.T) {
 	userID := testUserID()
 	maxWalking := 51.0
 	repo := &mockRepo{getPreferencesResult: defaultPreferences(userID)}
 	svc := New(repo, zap.NewNop())
 
-	_, err := svc.PatchPreferences(authContext(userID), appdto.PatchPreferencesInput{MaxWalkingKmPerDay: &maxWalking})
+	_, err := svc.PatchPreferences(authContext(userID), appdto.PatchPreferencesInput{
+		MaxWalkingKmPerDay: &appdto.OptionalFloat64{Value: &maxWalking},
+	})
 	assertInvalidInput(t, err)
 	if repo.upsertPreferencesInput != nil {
 		t.Fatal("repository must not be called for invalid max walking distance")

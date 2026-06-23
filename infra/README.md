@@ -65,6 +65,7 @@ docker compose -f infra/docker-compose.yml up --build
 Useful local URLs:
 
 - Web App: http://localhost:3000
+- Web Settings Page: http://localhost:3000/settings
 - Trip Service: http://localhost:8080
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083
@@ -103,6 +104,15 @@ Run the API smoke test from the repository root:
 ```
 
 Run the manual browser flow in [scripts/web-smoke-test.md](../scripts/web-smoke-test.md).
+
+Manual personalization check:
+
+1. Register or log in.
+2. Open http://localhost:3000/settings.
+3. Update profile and travel preferences.
+4. Create a trip.
+5. Generate the itinerary.
+6. Confirm the itinerary reflects the saved preferences.
 
 ## Pull Ollama Models
 
@@ -174,6 +184,7 @@ The smoke script also tolerates `USER_SERVICE_URL=http://user-service:8083` and
 ## Useful URLs
 
 - Web App: http://localhost:3000
+- Web Settings Page: http://localhost:3000/settings
 - Trip Service: http://localhost:8080
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083

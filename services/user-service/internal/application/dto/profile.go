@@ -15,10 +15,16 @@ type UpdateProfileInput struct {
 type PatchPreferencesInput struct {
 	TravelStyles        *[]string
 	Pace                *string
-	MaxWalkingKmPerDay  *float64
+	MaxWalkingKmPerDay  *OptionalFloat64
 	FoodPreferences     *[]string
 	Avoid               *[]string
 	PreferredTransport  *[]string
 	AccommodationStyle  *[]string
 	DietaryRestrictions *[]string
+}
+
+// OptionalFloat64 represents a nullable numeric field that was explicitly
+// provided by a PATCH request. Value nil means the caller wants to clear it.
+type OptionalFloat64 struct {
+	Value *float64
 }

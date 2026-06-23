@@ -12,6 +12,11 @@ type ApiErrorPayload = {
   fields?: Record<string, string>;
 };
 
+type ApiFetchOptions = {
+  baseUrl?: string;
+  serviceName?: string;
+};
+
 export class ApiError extends Error {
   status: number;
   fields?: Record<string, string>;
@@ -24,16 +29,21 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  return apiFetchInternal<T>(path, init, true);
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  options: ApiFetchOptions = {}
+): Promise<T> {
+  return apiFetchInternal<T>(path, init, true, options);
 }
 
 async function apiFetchInternal<T>(
   path: string,
   init: RequestInit = {},
-  allowRefresh: boolean
+  allowRefresh: boolean,
+  options: ApiFetchOptions
 ): Promise<T> {
-  const url = buildApiUrl(path);
+  const url = buildApiUrl(path, options.baseUrl);
   const headers = new Headers(init.headers);
   const accessToken = getAccessToken();
 
@@ -56,8 +66,9 @@ async function apiFetchInternal<T>(
       headers
     });
   } catch {
+    const serviceName = options.serviceName ?? "Trip Service";
     throw new ApiError(
-      "Could not reach Trip Service. Confirm the local stack is running and CORS allows this origin.",
+      `Could not reach ${serviceName}. Confirm the local stack is running and CORS allows this origin.`,
       0
     );
   }
@@ -68,7 +79,7 @@ async function apiFetchInternal<T>(
       try {
         const refreshed = await refreshAuthTokens(refreshToken);
         saveTokens(refreshed.accessToken, refreshed.refreshToken);
-        return apiFetchInternal<T>(path, init, false);
+        return apiFetchInternal<T>(path, init, false, options);
       } catch {
         clearTokens();
         notifySessionExpired();
@@ -102,8 +113,7 @@ async function apiFetchInternal<T>(
   return JSON.parse(text) as T;
 }
 
-function buildApiUrl(path: string) {
-  const baseUrl = getTripApiBaseUrl();
+function buildApiUrl(path: string, baseUrl = getTripApiBaseUrl()) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
 
   if (baseUrl.startsWith("/")) {

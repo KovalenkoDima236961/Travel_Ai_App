@@ -205,10 +205,15 @@ func mergePreferences(current *entity.Preferences, in appdto.PatchPreferencesInp
 		current.Pace = pace
 	}
 	if in.MaxWalkingKmPerDay != nil {
-		if *in.MaxWalkingKmPerDay < 0 || *in.MaxWalkingKmPerDay > 50 {
-			return apperrs.NewInvalidInput("maxWalkingKmPerDay must be between 0 and 50")
+		if in.MaxWalkingKmPerDay.Value == nil {
+			current.MaxWalkingKmPerDay = nil
+		} else {
+			value := *in.MaxWalkingKmPerDay.Value
+			if value < 0 || value > 50 {
+				return apperrs.NewInvalidInput("maxWalkingKmPerDay must be between 0 and 50")
+			}
+			current.MaxWalkingKmPerDay = &value
 		}
-		current.MaxWalkingKmPerDay = in.MaxWalkingKmPerDay
 	}
 	if in.FoodPreferences != nil {
 		current.FoodPreferences = cleanStringArray(*in.FoodPreferences)

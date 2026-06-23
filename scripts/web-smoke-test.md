@@ -25,22 +25,39 @@ http://localhost:3000
 ## Browser Flow
 
 1. Go to `http://localhost:3000`.
-2. Open the create trip page.
-3. Create a trip with:
+2. Register or log in.
+3. Open `http://localhost:3000/settings`.
+4. Set profile:
+   - displayName: `Test Traveler`
+   - homeCity: `Bratislava`
+   - homeCountry: `Slovakia`
+   - preferredCurrency: `EUR`
+   - preferredLanguage: `en`
+5. Set preferences:
+   - travelStyles: `budget`, `food`, `hidden_gems`
+   - pace: `balanced`
+   - maxWalkingKmPerDay: `8`
+   - foodPreferences: `local`, `cheap`
+   - avoid: `nightclubs`
+   - preferredTransport: `walking`, `public_transport`
+6. Save profile and preferences.
+7. Open the create trip page.
+8. Create a trip with:
    - destination: `Rome`
    - days: `2`
    - budget: `500 EUR`
    - travelers: `2`
    - interests: `food`, `history`, `hidden_gems`
    - pace: `balanced`
-4. Confirm the app redirects to the trip detail page.
-5. Click `Generate itinerary`.
-6. Wait for completion.
-7. Confirm the itinerary appears.
-8. Refresh the page.
-9. Confirm the itinerary persists.
-10. Go to `/trips`.
-11. Confirm the trip appears in the list.
+9. Confirm the app redirects to the trip detail page.
+10. Click `Generate itinerary`.
+11. Wait for completion.
+12. Confirm the itinerary appears.
+13. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+14. Refresh the page.
+15. Confirm the itinerary persists.
+16. Go to `/trips`.
+17. Confirm the trip appears in the list.
 
 ## Troubleshooting
 
@@ -49,6 +66,8 @@ http://localhost:3000
   `trip-service`.
 - Trip Service offline: check `docker compose -f infra/docker-compose.yml ps`
   and `docker compose -f infra/docker-compose.yml logs trip-service`.
+- User Service offline: check `docker compose -f infra/docker-compose.yml ps`
+  and `docker compose -f infra/docker-compose.yml logs user-service`.
 - AI Planning Service offline: check
   `docker compose -f infra/docker-compose.yml logs ai-planning-service`.
 - Ollama model not pulled: run

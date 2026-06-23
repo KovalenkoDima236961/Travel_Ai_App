@@ -27,6 +27,9 @@ export function GenerateItineraryButton({ tripId }: GenerateItineraryButtonProps
       <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
         {mutation.isPending ? "Generating..." : "Generate itinerary"}
       </Button>
+      <p className="max-w-xs text-left text-xs leading-5 text-slate-500 sm:text-right">
+        Your saved travel preferences will be used when generating this itinerary.
+      </p>
       {mutation.isError ? (
         <p className="max-w-xs text-sm text-red-700" role="alert">
           {getErrorMessage(mutation.error, "Could not generate itinerary.")}

@@ -136,14 +136,42 @@ func TestValidTokenAllowsProfileAndPreferences(t *testing.T) {
 	}
 
 	var preferencesResp struct {
-		UserID       string   `json:"userId"`
-		TravelStyles []string `json:"travelStyles"`
+		UserID             string   `json:"userId"`
+		TravelStyles       []string `json:"travelStyles"`
+		MaxWalkingKmPerDay *float64 `json:"maxWalkingKmPerDay"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &preferencesResp); err != nil {
 		t.Fatalf("decode preferences response: %v", err)
 	}
 	if preferencesResp.UserID != userID.String() || len(preferencesResp.TravelStyles) != 2 {
 		t.Fatalf("unexpected preferences response: %+v", preferencesResp)
+	}
+	if preferencesResp.MaxWalkingKmPerDay == nil || *preferencesResp.MaxWalkingKmPerDay != 8 {
+		t.Fatalf("expected maxWalkingKmPerDay=8, got %+v", preferencesResp.MaxWalkingKmPerDay)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/users/me/preferences", strings.NewReader(`{
+		"maxWalkingKmPerDay":null,
+		"avoid":["nightclubs"]
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected clear preferences HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	preferencesResp = struct {
+		UserID             string   `json:"userId"`
+		TravelStyles       []string `json:"travelStyles"`
+		MaxWalkingKmPerDay *float64 `json:"maxWalkingKmPerDay"`
+	}{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &preferencesResp); err != nil {
+		t.Fatalf("decode cleared preferences response: %v", err)
+	}
+	if preferencesResp.MaxWalkingKmPerDay != nil {
+		t.Fatalf("expected maxWalkingKmPerDay to clear, got %+v", preferencesResp.MaxWalkingKmPerDay)
 	}
 }
 
