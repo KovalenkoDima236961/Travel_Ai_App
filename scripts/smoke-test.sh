@@ -3,6 +3,7 @@ set -euo pipefail
 
 TRIP_SERVICE_URL="${TRIP_SERVICE_URL:-http://localhost:8080}"
 AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8082}"
+USER_SERVICE_URL="${USER_SERVICE_URL:-http://localhost:8083}"
 AI_PLANNING_SERVICE_URL="${AI_PLANNING_SERVICE_URL:-http://localhost:8000}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
 
@@ -119,6 +120,10 @@ echo "Checking Trip Service health..."
 request GET "${TRIP_SERVICE_URL}/health"
 assert_2xx "Trip Service health check"
 
+echo "Checking User Service health..."
+request GET "${USER_SERVICE_URL}/health"
+assert_2xx "User Service health check"
+
 echo "Checking AI Planning Service health..."
 request GET "${AI_PLANNING_SERVICE_URL}/health"
 assert_2xx "AI Planning Service health check"
@@ -158,8 +163,79 @@ request_with_bearer GET "${AUTH_SERVICE_URL}/auth/me" "${ACCESS_TOKEN}"
 assert_2xx "Auth me"
 
 AUTH_ME_EMAIL="$(jq -r '.email // empty' <<<"${LAST_BODY}")"
+AUTH_ME_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
 if [[ "${AUTH_ME_EMAIL}" != "${AUTH_EMAIL}" ]]; then
   echo "Expected /auth/me email ${AUTH_EMAIL}, got ${AUTH_ME_EMAIL}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ -z "${AUTH_ME_ID}" ]]; then
+  echo "/auth/me did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking default user profile..."
+request_with_bearer GET "${USER_SERVICE_URL}/users/me/profile" "${ACCESS_TOKEN}"
+assert_2xx "Get default profile"
+
+PROFILE_USER_ID="$(jq -r '.userId // empty' <<<"${LAST_BODY}")"
+PROFILE_CURRENCY="$(jq -r '.preferredCurrency // empty' <<<"${LAST_BODY}")"
+PROFILE_LANGUAGE="$(jq -r '.preferredLanguage // empty' <<<"${LAST_BODY}")"
+if [[ "${PROFILE_USER_ID}" != "${AUTH_ME_ID}" || "${PROFILE_CURRENCY}" != "EUR" || "${PROFILE_LANGUAGE}" != "en" ]]; then
+  echo "Default profile did not match expected user/default values." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Updating user profile..."
+UPDATE_PROFILE_PAYLOAD='{
+  "displayName": "Test Traveler",
+  "homeCity": "Bratislava",
+  "homeCountry": "Slovakia",
+  "preferredCurrency": "EUR",
+  "preferredLanguage": "en"
+}'
+request_with_bearer PUT "${USER_SERVICE_URL}/users/me/profile" "${ACCESS_TOKEN}" "${UPDATE_PROFILE_PAYLOAD}"
+assert_2xx "Update profile"
+
+UPDATED_DISPLAY_NAME="$(jq -r '.displayName // empty' <<<"${LAST_BODY}")"
+UPDATED_HOME_CITY="$(jq -r '.homeCity // empty' <<<"${LAST_BODY}")"
+if [[ "${UPDATED_DISPLAY_NAME}" != "Test Traveler" || "${UPDATED_HOME_CITY}" != "Bratislava" ]]; then
+  echo "Updated profile did not include expected values." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking default user preferences..."
+request_with_bearer GET "${USER_SERVICE_URL}/users/me/preferences" "${ACCESS_TOKEN}"
+assert_2xx "Get default preferences"
+
+DEFAULT_PACE="$(jq -r '.pace // empty' <<<"${LAST_BODY}")"
+DEFAULT_TRAVEL_STYLE_COUNT="$(jq '.travelStyles | length' <<<"${LAST_BODY}")"
+if [[ "${DEFAULT_PACE}" != "balanced" || "${DEFAULT_TRAVEL_STYLE_COUNT}" -ne 0 ]]; then
+  echo "Default preferences did not match expected values." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Patching user preferences..."
+PATCH_PREFERENCES_PAYLOAD='{
+  "travelStyles": ["budget", "food", "hidden_gems"],
+  "pace": "balanced",
+  "maxWalkingKmPerDay": 8,
+  "foodPreferences": ["local", "cheap"],
+  "avoid": ["nightclubs"],
+  "preferredTransport": ["walking", "public_transport"]
+}'
+request_with_bearer PATCH "${USER_SERVICE_URL}/users/me/preferences" "${ACCESS_TOKEN}" "${PATCH_PREFERENCES_PAYLOAD}"
+assert_2xx "Patch preferences"
+
+PATCHED_STYLE_COUNT="$(jq '.travelStyles | length' <<<"${LAST_BODY}")"
+PATCHED_WALKING="$(jq -r '.maxWalkingKmPerDay // empty' <<<"${LAST_BODY}")"
+PATCHED_AVOID="$(jq -r '.avoid[0] // empty' <<<"${LAST_BODY}")"
+if [[ "${PATCHED_STYLE_COUNT}" -ne 3 || "${PATCHED_WALKING}" != "8" || "${PATCHED_AVOID}" != "nightclubs" ]]; then
+  echo "Patched preferences did not include expected values." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi

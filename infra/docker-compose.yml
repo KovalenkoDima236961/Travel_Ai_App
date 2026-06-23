@@ -136,11 +136,20 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-development}
       HTTP_ADDR: ${AUTH_HTTP_ADDR:-:8082}
+      HTTP_ADDRESS: ${AUTH_HTTP_ADDRESS:-:8082}
       DATABASE_URL: ${AUTH_DATABASE_URL:-postgres://postgres:postgres@postgres:5432/auth_service?sslmode=disable}
       DATABASE_MIGRATIONS_PATH: ${AUTH_DATABASE_MIGRATIONS_PATH:-/app/migrations}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-development}
       ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_service}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_MIN_CONNS: ${POSTGRES_MIN_CONNS:-2}
+      POSTGRES_MAX_CONNS: ${POSTGRES_MAX_CONNS:-10}
+      POSTGRES_MIG_PATH: ${AUTH_POSTGRES_MIG_PATH:-/app/migrations}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       CORS_ALLOWED_METHODS: ${AUTH_CORS_ALLOWED_METHODS:-GET,POST,OPTIONS}
       CORS_ALLOWED_HEADERS: ${CORS_ALLOWED_HEADERS:-Content-Type,Authorization}
@@ -163,6 +172,46 @@ services:
     networks:
       - backend
 
+  user-service:
+    build:
+      context: ../services/user-service
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      HTTP_ADDRESS: ${USER_HTTP_ADDRESS:-:8083}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-development}
+      AUTH_HEADER_NAME: ${AUTH_HEADER_NAME:-Authorization}
+      DEV_USER_ID: ${DEV_USER_ID:-00000000-0000-0000-0000-000000000001}
+      POSTGRES_DB: ${USER_POSTGRES_DB:-user_service}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_MIN_CONNS: ${POSTGRES_MIN_CONNS:-2}
+      POSTGRES_MAX_CONNS: ${POSTGRES_MAX_CONNS:-10}
+      POSTGRES_MIG_PATH: ${USER_POSTGRES_MIG_PATH:-/app/migrations}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      CORS_ALLOWED_METHODS: ${USER_CORS_ALLOWED_METHODS:-GET,PUT,PATCH,OPTIONS}
+      CORS_ALLOWED_HEADERS: ${CORS_ALLOWED_HEADERS:-Content-Type,Authorization}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${USER_SERVICE_PORT:-8083}:8083"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8083/health",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
   web-app:
     build:
       context: ../apps/web
@@ -171,11 +220,15 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       NEXT_PUBLIC_AUTH_SERVICE_URL: ${NEXT_PUBLIC_AUTH_SERVICE_URL:-http://localhost:8082}
       NEXT_PUBLIC_TRIP_SERVICE_URL: ${NEXT_PUBLIC_TRIP_SERVICE_URL:-http://localhost:8080}
+      NEXT_PUBLIC_USER_SERVICE_URL: ${NEXT_PUBLIC_USER_SERVICE_URL:-http://localhost:8083}
       TRIP_SERVICE_INTERNAL_URL: ${TRIP_SERVICE_INTERNAL_URL:-http://trip-service:8080}
+      USER_SERVICE_INTERNAL_URL: ${USER_SERVICE_INTERNAL_URL:-http://user-service:8083}
     depends_on:
       trip-service:
         condition: service_healthy
       auth-service:
+        condition: service_healthy
+      user-service:
         condition: service_healthy
     ports:
       - "${WEB_APP_PORT:-3000}:3000"

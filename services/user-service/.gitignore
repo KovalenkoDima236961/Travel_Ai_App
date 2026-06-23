@@ -1,0 +1,4 @@
+.env
+configs/config.yaml
+bin/
+.cache/

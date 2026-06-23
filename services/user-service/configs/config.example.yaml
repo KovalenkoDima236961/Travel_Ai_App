@@ -1,0 +1,34 @@
+# Example configuration for the User Service.
+# Copy to configs/config.yaml and pass via: ./server -config ./configs/config.yaml
+# Any value can also be overridden by the matching environment variable.
+
+env: development # development | production
+
+http_server:
+  address: ":8083"
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 15s
+
+auth:
+  required: true
+  jwt_access_secret: change-me-in-development
+  header_name: Authorization
+  dev_user_id: 00000000-0000-0000-0000-000000000001
+
+cors:
+  allowed_origins: http://localhost:3000
+  allowed_methods: GET,PUT,PATCH,OPTIONS
+  allowed_headers: Content-Type,Authorization
+
+postgres:
+  database: user_service
+  username: postgres
+  password: postgres
+  host: localhost
+  port: 5432
+  min-conns: 2
+  max-conns: 10
+  mig-path: ./migrations
+
