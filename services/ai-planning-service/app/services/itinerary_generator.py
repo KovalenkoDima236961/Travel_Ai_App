@@ -10,6 +10,7 @@ from app.schemas.itinerary import (
     RegenerateDayResponse,
     RegenerateItemRequest,
     RegenerateItemResponse,
+    WeatherDay,
 )
 
 
@@ -37,6 +38,23 @@ class MockItineraryGenerator:
         relaxed = _mentions(request.instruction, "relaxed", "slow", "easy")
         first_time = "10:00" if relaxed else "09:30"
         lunch_cost = Decimal("10") if cheap else Decimal("16")
+        weather_day = _weather_day_for_number(
+            request.weather_forecast.days if request.weather_forecast else [], request.day_number
+        )
+        first_note = "A focused replacement day that keeps the rest of the trip intact."
+        third_type = "rest" if relaxed else "place"
+        third_name = "Quiet cafe break" if relaxed else "Updated signature stop"
+        third_note = "Keeps timing realistic alongside the unchanged itinerary days."
+        if weather_day and weather_day.precipitation_chance >= 60:
+            first_note = "Rain is likely, so start with an indoor museum or covered market."
+            third_type = "rest"
+            third_name = "Quiet cafe break"
+            third_note = "Use this as a dry indoor backup while the weather is unsettled."
+        elif weather_day and weather_day.temperature_max_c >= 32:
+            first_note = (
+                "High heat expected, so keep walking short and avoid exposed midday routes."
+            )
+            third_note = "Plan this slower indoor break to avoid the afternoon heat."
 
         return RegenerateDayResponse(
             day=ItineraryDay(
@@ -47,7 +65,7 @@ class MockItineraryGenerator:
                         time=first_time,
                         type="activity",
                         name=f"Updated {destination} neighborhood walk",
-                        note="A focused replacement day that keeps the rest of the trip intact.",
+                        note=first_note,
                         estimated_cost=Decimal("0"),
                     ),
                     ItineraryItem(
@@ -59,9 +77,9 @@ class MockItineraryGenerator:
                     ),
                     ItineraryItem(
                         time="15:30",
-                        type="rest" if relaxed else "place",
-                        name="Quiet cafe break" if relaxed else "Updated signature stop",
-                        note="Keeps timing realistic alongside the unchanged itinerary days.",
+                        type=third_type,
+                        name=third_name,
+                        note=third_note,
                         estimated_cost=Decimal("6"),
                     ),
                 ],
@@ -70,15 +88,27 @@ class MockItineraryGenerator:
 
     def regenerate_item(self, request: RegenerateItemRequest) -> RegenerateItemResponse:
         cheap = _mentions(request.instruction, "cheap", "cheaper", "budget")
+        weather_day = _weather_day_for_number(
+            request.weather_forecast.days if request.weather_forecast else [], request.day_number
+        )
+        note = (
+            f"Mock replacement for zero-based item index {request.item_index} "
+            f"on day {request.day_number}."
+        )
+        item_type = "food"
+        item_name = "Budget local food option" if cheap else "Updated local option"
+        if weather_day and weather_day.precipitation_chance >= 60:
+            item_type = "rest"
+            item_name = "Indoor cafe or covered market stop"
+            note = "Rain is likely, so this replacement keeps the plan indoors."
+        elif weather_day and weather_day.temperature_max_c >= 32:
+            note += " High heat expected; choose a shaded or indoor option."
         return RegenerateItemResponse(
             item=ItineraryItem(
                 time="12:30",
-                type="food",
-                name="Budget local food option" if cheap else "Updated local option",
-                note=(
-                    f"Mock replacement for zero-based item index {request.item_index} "
-                    f"on day {request.day_number}."
-                ),
+                type=item_type,
+                name=item_name,
+                note=note,
                 estimated_cost=Decimal("9") if cheap else Decimal("15"),
             )
         )
@@ -107,10 +137,25 @@ class MockItineraryGenerator:
         destination = request.destination
 
         if request.pace == "relaxed":
-            return self._relaxed_items(destination, interests, day_number)
+            return _apply_weather(
+                self._relaxed_items(destination, interests, day_number),
+                _weather_day_for_number(
+                    request.weather_forecast.days if request.weather_forecast else [], day_number
+                ),
+            )
         if request.pace == "intensive":
-            return self._intensive_items(destination, interests, day_number)
-        return self._balanced_items(destination, interests, day_number)
+            return _apply_weather(
+                self._intensive_items(destination, interests, day_number),
+                _weather_day_for_number(
+                    request.weather_forecast.days if request.weather_forecast else [], day_number
+                ),
+            )
+        return _apply_weather(
+            self._balanced_items(destination, interests, day_number),
+            _weather_day_for_number(
+                request.weather_forecast.days if request.weather_forecast else [], day_number
+            ),
+        )
 
     def _balanced_items(
         self, destination: str, interests: set[str], day_number: int
@@ -308,3 +353,37 @@ def _mentions(value: str | None, *terms: str) -> bool:
         return False
     normalized = value.casefold()
     return any(term in normalized for term in terms)
+
+
+def _weather_day_for_number(days: list[WeatherDay], day_number: int) -> WeatherDay | None:
+    index = day_number - 1
+    if index < 0 or index >= len(days):
+        return None
+    return days[index]
+
+
+def _apply_weather(
+    items: list[ItineraryItem], weather_day: WeatherDay | None
+) -> list[ItineraryItem]:
+    if weather_day is None or not items:
+        return items
+
+    adjusted = [item.model_copy() for item in items]
+    if weather_day.precipitation_chance >= 60:
+        adjusted[0] = ItineraryItem(
+            time=adjusted[0].time,
+            type="place",
+            name="Indoor museum or covered market",
+            note="Rain is likely, so start indoors and keep outdoor stops as backups.",
+            estimated_cost=Decimal("16"),
+        )
+        return adjusted
+
+    if weather_day.temperature_max_c >= 32:
+        midday_index = min(2, len(adjusted) - 1)
+        note = adjusted[midday_index].note or ""
+        adjusted[midday_index].note = (
+            note + " High heat expected; avoid long outdoor walks at midday."
+        ).strip()
+
+    return adjusted

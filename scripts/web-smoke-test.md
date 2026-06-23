@@ -44,65 +44,86 @@ http://localhost:3000
 7. Open the create trip page.
 8. Create a trip with:
    - destination: `Rome`
+   - startDate: `2026-08-10`
    - days: `2`
    - budget: `500 EUR`
    - travelers: `2`
    - interests: `food`, `history`, `hidden_gems`
    - pace: `balanced`
 9. Confirm the app redirects to the trip detail page.
-10. Click `Generate itinerary`.
-11. Wait for completion.
-12. Confirm the itinerary appears.
-13. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
-14. Open `Version History`.
-15. Confirm a `Generated` version exists.
-16. Click `Edit itinerary`.
-17. Open an itinerary item and click `Attach real place`.
-18. Search for `Colosseum` with destination `Rome`.
-19. Select `Colosseum`.
-20. Confirm the item shows address, rating/category, and an `Open map` link.
-21. Attach a second mock place with coordinates to another itinerary item.
-22. Change one item name.
-23. Add one item.
-24. Remove one item.
-25. Click `Save`.
-26. Refresh the page.
-27. Confirm the attached place address/rating/map link still appears.
-28. Confirm Map View appears on the trip detail page.
-29. Confirm map markers are visible.
-30. Click a marker and confirm the popup shows item/place details.
-31. Use the day filter and confirm markers change.
-32. Refresh the page and confirm the map still shows markers.
-33. Confirm the `Distance estimate` panel appears below the Map View.
-34. Confirm the panel explains that route estimates come from the External
+10. Confirm the `Weather context` card appears before the itinerary area.
+11. Confirm it shows `Provider: mock`, `Mock forecast for local development`,
+    forecast days, temperatures, rain chance, wind speed, and any warning badges.
+12. Click `Generate itinerary`.
+13. Wait for completion.
+14. Confirm the itinerary appears.
+15. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+16. Open `Version History`.
+17. Confirm a `Generated` version exists.
+18. Click `Edit itinerary`.
+19. Open an itinerary item and click `Attach real place`.
+20. Search for `Colosseum` with destination `Rome`.
+21. Select `Colosseum`.
+22. Confirm the item shows address, rating/category, and an `Open map` link.
+23. Attach a second mock place with coordinates to another itinerary item.
+24. Change one item name.
+25. Add one item.
+26. Remove one item.
+27. Click `Save`.
+28. Refresh the page.
+29. Confirm the attached place address/rating/map link still appears.
+30. Confirm Map View appears on the trip detail page.
+31. Confirm map markers are visible.
+32. Click a marker and confirm the popup shows item/place details.
+33. Use the day filter and confirm markers change.
+34. Refresh the page and confirm the map still shows markers.
+35. Confirm the `Distance estimate` panel appears below the Map View.
+36. Confirm the panel explains that route estimates come from the External
     Integrations Service and fall back to a straight-line Haversine estimate.
-35. Confirm the day with at least two mapped places shows a mapped-stops count
+37. Confirm the day with at least two mapped places shows a mapped-stops count
     and, with the External Integrations Service running, a
     `Route estimate: <km> · ~<time> walking` line plus a smaller
     `Straight-line fallback: <km>` line. Exact figures depend on the attached
     places. (If the service is down, a `Straight-line estimate` line is shown
     instead.)
-36. Expand the day's segment details and confirm per-segment distances appear
+38. Expand the day's segment details and confirm per-segment distances appear
     (e.g. `Colosseum → Roman Forum: 0.6 km · ~8 min`).
-37. Open `/settings`, set `maxWalkingKmPerDay` to a low value such as `1`, and
+39. Open `/settings`, set `maxWalkingKmPerDay` to a low value such as `1`, and
     save preferences.
-38. Return to the trip detail page.
-39. Confirm a day above the preference shows the `Above your walking preference`
+40. Return to the trip detail page.
+41. Confirm a day above the preference shows the `Above your walking preference`
     warning badge and the `Your preference: max 1 km/day` line.
-40. Click `Edit itinerary` and confirm the distance estimates are hidden with a
+42. Click `Edit itinerary` and confirm the distance estimates are hidden with a
     note that they are available after saving or leaving edit mode.
-41. Leave edit mode and confirm the distance estimates reappear.
-42. Open `Version History` again.
-43. Confirm a `Manual edit` version exists.
-44. Preview the manual edit version and confirm it keeps the place metadata.
-45. Preview the older generated version.
-46. Restore the generated version.
-47. Refresh the page.
-48. Confirm the restored itinerary persists.
-49. Open `Version History`.
-50. Confirm the restore created another version.
-51. Go to `/trips`.
-52. Confirm the trip appears in the list.
+43. Leave edit mode and confirm the distance estimates reappear.
+44. Open `Version History` again.
+45. Confirm a `Manual edit` version exists.
+46. Preview the manual edit version and confirm it keeps the place metadata.
+47. Preview the older generated version.
+48. Restore the generated version.
+49. Refresh the page.
+50. Confirm the restored itinerary persists.
+51. Open `Version History`.
+52. Confirm the restore created another version.
+53. Go to `/trips`.
+54. Confirm the trip appears in the list.
+
+## Weather Context
+
+1. Log in.
+2. Create a trip with destination `Rome`, start date `2026-08-10`, and `days=3`.
+3. Open the trip detail page.
+4. Confirm the `Weather context` card appears and renders three forecast days.
+5. Confirm mock provider labeling and warning badges are visible when thresholds match.
+6. Click `Generate itinerary` and confirm generation still completes.
+7. Stop only the External Integrations Service:
+   `docker compose -f infra/docker-compose.yml stop external-integrations-service`.
+8. Refresh the trip detail page.
+9. Confirm the weather card shows `Weather forecast unavailable.` and the page does not crash.
+10. With `WEATHER_CONTEXT_FAIL_OPEN=true`, generate or partially regenerate an itinerary and confirm it still works.
+11. Restart the service:
+    `docker compose -f infra/docker-compose.yml start external-integrations-service`,
+    refresh, and confirm the weather card returns.
 
 ## Route Optimization
 

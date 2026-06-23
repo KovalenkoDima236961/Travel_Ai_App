@@ -24,3 +24,10 @@ route_provider:
   osrm_base_url: ""
   mapbox_access_token: ""
   google_maps_api_key: ""
+
+weather_provider:
+  # v1 supports only the deterministic mock provider.
+  provider: mock
+  # Documented for future real providers; unused in v1.
+  open_meteo_base_url: ""
+  weather_api_key: ""

@@ -1,6 +1,6 @@
 # External Integrations Service
 
-External Integrations Service owns third-party integration boundaries for the travel app. v1 exposes place search and place details through a deterministic mock provider so the Web App can attach real-place shaped metadata without calling third-party APIs directly.
+External Integrations Service owns third-party integration boundaries for the travel app. v1 exposes place search/details, route estimates, and weather forecasts through deterministic mock providers so the Web App can use integration-shaped data without calling third-party APIs directly.
 
 ## Tech Stack
 
@@ -24,7 +24,7 @@ external-integrations-service/
 │   ├── app/                         # composition root
 │   ├── application/service/         # use cases and provider port
 │   ├── config/                      # cleanenv config
-│   ├── domain/entity/               # Place and Route entities
+│   ├── domain/entity/               # Place, Route, and Weather entities
 │   ├── http-server/                 # chi router, middleware, server
 │   │   └── handler/                 # HTTP handlers and DTOs
 │   └── infrastructure/provider/     # mock place and route provider adapters
@@ -42,6 +42,7 @@ external-integrations-service/
 - `GET /places/search?query=Colosseum&destination=Rome`
 - `GET /places/{placeId}`
 - `POST /routes/estimate`
+- `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
 
 Example:
 
@@ -55,6 +56,7 @@ curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
 - `HTTP_ADDR` defaults to `:8084`
 - `PLACE_PROVIDER` defaults to `mock`
 - `ROUTE_PROVIDER` defaults to `mock`
+- `WEATHER_PROVIDER` defaults to `mock`
 - `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:3000`
 - `CORS_ALLOWED_METHODS` defaults to `GET,POST,OPTIONS`
 - `CORS_ALLOWED_HEADERS` defaults to `Content-Type,Authorization`
@@ -66,9 +68,11 @@ Documented for future providers, but unused in v1:
 - `OSRM_BASE_URL`
 - `MAPBOX_ACCESS_TOKEN`
 - `GOOGLE_MAPS_API_KEY`
+- `OPEN_METEO_BASE_URL`
+- `WEATHER_API_KEY`
 
-Unsupported `PLACE_PROVIDER` or `ROUTE_PROVIDER` values fail startup with a
-clear error. The two providers are selected independently.
+Unsupported `PLACE_PROVIDER`, `ROUTE_PROVIDER`, or `WEATHER_PROVIDER` values
+fail startup with a clear error. Providers are selected independently.
 
 Run locally with environment config:
 
@@ -156,6 +160,70 @@ Limitations:
 - The Web App uses these estimates read-only and falls back to its own Haversine
   straight-line estimate when the service is unavailable.
 
+## Weather API v1
+
+`GET /weather/forecast` returns deterministic mock daily forecasts for a
+destination and date range. It is unauthenticated in v1 and does not call real
+weather APIs.
+
+Request:
+
+```bash
+curl "http://localhost:8084/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
+```
+
+Response:
+
+```json
+{
+  "destination": "Rome",
+  "provider": "mock",
+  "days": [
+    {
+      "date": "2026-08-10",
+      "condition": "hot",
+      "temperatureMinC": 24,
+      "temperatureMaxC": 35,
+      "precipitationChance": 5,
+      "windSpeedKph": 10,
+      "summary": "Hot and sunny",
+      "warnings": [
+        "High heat: avoid long outdoor walks at midday"
+      ]
+    }
+  ]
+}
+```
+
+Validation returns `400` with `{"error":"..."}`:
+
+- `destination` is required and must be at most 100 characters.
+- `startDate` is required in `YYYY-MM-DD` format.
+- `days` is required and must be between 1 and 30.
+
+Mock behavior:
+
+- Deterministic: identical destination/start date/days returns identical data.
+- Supports destination-aware patterns for Rome, Paris, Vienna, and Bratislava.
+- Unknown destinations return reasonable generic seasonal forecasts.
+- Rome in summer trends hotter and sunnier; Paris is milder with more rain;
+  Vienna and Bratislava use moderate seasonal patterns.
+
+Warnings:
+
+- `temperatureMaxC >= 32`: `High heat: avoid long outdoor walks at midday`
+- `precipitationChance >= 60`: `Rain likely: consider indoor alternatives`
+- `windSpeedKph >= 35`: `Windy: viewpoints and exposed areas may be uncomfortable`
+- `temperatureMaxC <= 5`: `Cold day: plan warm indoor breaks`
+
+Limitations:
+
+- Mock data only.
+- No hourly forecast.
+- No real provider.
+- No geocoding.
+- No weather caching.
+
 ## Limitations
 
 - Mock data only.
@@ -164,3 +232,4 @@ Limitations:
 - No opening hours.
 - No real routing — `POST /routes/estimate` returns approximate mock walking
   estimates (Haversine × 1.25), not turn-by-turn directions.
+- No real weather provider, hourly weather, geocoding, or weather caching yet.

@@ -19,6 +19,38 @@ work. Prompt generation includes a dedicated profile/preferences section when
 present and keeps the final model output constrained to the existing itinerary
 JSON schema.
 
+Full and partial generation requests also accept optional `weatherForecast`.
+Trip Service fetches this from External Integrations Service when enabled and
+forwards it without persisting it. When present, prompt generation adds a
+`WEATHER FORECAST` section and asks the model to prefer indoor activities on
+rainy days, avoid long outdoor walks during high heat, schedule parks/viewpoints
+on better weather days, and add indoor backups when rain chance is high.
+
+Example weather payload:
+
+```json
+{
+  "weatherForecast": {
+    "destination": "Rome",
+    "provider": "mock",
+    "days": [
+      {
+        "date": "2026-08-10",
+        "condition": "hot",
+        "temperatureMinC": 24,
+        "temperatureMaxC": 35,
+        "precipitationChance": 5,
+        "windSpeedKph": 10,
+        "summary": "Hot and sunny",
+        "warnings": [
+          "High heat: avoid long outdoor walks at midday"
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## Validation And Repair
 
 Ollama mode now validates generated itineraries in two layers:
@@ -31,7 +63,10 @@ Ollama mode now validates generated itineraries in two layers:
 Personalization checks are soft warnings, not hard failures. The validator warns
 when generated text mentions avoided terms, when dietary restrictions are
 present but food items do not reflect them, or when a low walking limit conflicts
-with repeated long-walk wording.
+with repeated long-walk wording. Weather checks are also soft warnings: rainy
+days without apparent indoor alternatives, long walks during high heat, and
+exposed viewpoints during cold/windy conditions are logged but do not reject the
+itinerary.
 
 When the first local model response is invalid, the service can make one repair request to
 Ollama with the original trip details, the validation error, and the invalid response. The

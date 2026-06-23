@@ -19,6 +19,7 @@ import { OptimizeDayOrderDialog } from "@/components/trips/OptimizeDayOrderDialo
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
+import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
@@ -281,6 +282,13 @@ function TripDetailPageContent() {
         </Card>
 
         <section className="min-w-0">
+          <WeatherForecastCard
+            className="mb-4"
+            days={trip.days}
+            destination={trip.destination}
+            startDate={trip.startDate}
+          />
+
           {successMessage ? (
             <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
               {successMessage}

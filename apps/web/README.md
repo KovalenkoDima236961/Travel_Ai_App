@@ -2,9 +2,9 @@
 
 Next.js Web App v1 for registering/logging in, managing profile and travel
 preferences, creating trip requests, listing trips, opening trip details,
-generating itineraries, viewing generated plans, and editing completed
-itineraries. Completed trips with itineraries also show version history with
-read-only preview and restore actions.
+generating itineraries, viewing generated plans, showing mock weather context,
+and editing completed itineraries. Completed trips with itineraries also show
+version history with read-only preview and restore actions.
 
 ## Source Layout
 
@@ -62,12 +62,14 @@ The frontend calls the protected Trip Service endpoints:
 - `POST /trips/{id}/itinerary/versions/{versionId}/restore`
 
 The frontend calls External Integrations Service v1 directly for mock place
-search while editing itinerary items:
+search, route estimates, and weather forecasts:
 
 - `GET /places/search?query=Colosseum&destination=Rome`
 - `GET /places/{placeId}`
+- `POST /routes/estimate`
+- `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
 
-The Web App does not call third-party place APIs directly.
+The Web App does not call third-party place, route, or weather APIs directly.
 
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and
@@ -115,10 +117,27 @@ of the itinerary.
 To attach a real-place-shaped mock place, open a completed trip, click
 `Edit itinerary`, click `Attach real place` on an item, search, select a result,
 then click `Save`. Existing itinerary items without `place` metadata continue to
-render normally. v1 intentionally has no opening hours, flights, hotels, weather,
-or real Google Places provider, and no turn-by-turn route geometry.
+render normally. v1 intentionally has no opening hours, flights, hotels, real
+weather provider, real Google Places provider, or turn-by-turn route geometry.
 See Distance / Walking Estimate below for the approximate route and straight-line
 distances the Web App shows.
+
+## Weather Context
+
+Trip detail pages show a `Weather context` card near the top of the page. When a
+trip has `destination`, `startDate`, and `days`, the card calls
+`GET /weather/forecast` on the External Integrations Service and renders daily
+mock forecast rows with summary, temperature range, precipitation chance, wind
+speed, provider label, and warning badges. When `provider` is `mock`, the UI
+labels it as a local-development mock forecast.
+
+If the trip has no start date, the card asks the user to add one. If the weather
+service is unavailable or returns an error, the card shows `Weather forecast
+unavailable.` and the rest of the trip detail page continues to work.
+
+Weather is not persisted by the Web App or Trip Service. During itinerary
+generation/regeneration, Trip Service may fetch weather and pass it to AI
+Planning Service so prompts can adapt to rain, heat, cold, or wind.
 
 ## Map View
 

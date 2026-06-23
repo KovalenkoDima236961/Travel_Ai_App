@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
 const (
@@ -71,6 +72,10 @@ type userContextProvider interface {
 	GetUserContext(ctx context.Context, accessToken string) (*usercontext.UserContext, error)
 }
 
+type weatherContextProvider interface {
+	GetForecast(ctx context.Context, destination string, startDate string, days int) (*weathercontext.WeatherForecast, error)
+}
+
 // Option customizes Service dependencies that are not required for the core
 // trip CRUD flow.
 type Option func(*Service)
@@ -85,15 +90,28 @@ func WithUserContext(provider userContextProvider, enabled, failOpen bool) Optio
 	}
 }
 
+// WithWeatherContext enables optional weather forecast loading during itinerary
+// generation and regeneration.
+func WithWeatherContext(provider weatherContextProvider, enabled, failOpen bool) Option {
+	return func(s *Service) {
+		s.weatherContextProvider = provider
+		s.weatherContextEnabled = enabled
+		s.weatherContextFailOpen = failOpen
+	}
+}
+
 // Service holds the trip business logic. It depends on the repository and
 // generator ports and a logger.
 type Service struct {
-	repo                tripRepository
-	generator           application.ItineraryGenerator
-	userContextProvider userContextProvider
-	userContextEnabled  bool
-	userContextFailOpen bool
-	log                 *zap.Logger
+	repo                   tripRepository
+	generator              application.ItineraryGenerator
+	userContextProvider    userContextProvider
+	userContextEnabled     bool
+	userContextFailOpen    bool
+	weatherContextProvider weatherContextProvider
+	weatherContextEnabled  bool
+	weatherContextFailOpen bool
+	log                    *zap.Logger
 }
 
 // New constructs the trip service.
@@ -224,6 +242,11 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		return nil, err
 	}
 
+	weatherForecast, err := s.loadWeatherContext(ctx, *current, id)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, err := s.repo.UpdateStatusByUserID(ctx, id, user.ID, entity.StatusProcessing); err != nil {
 		return nil, err
 	}
@@ -236,6 +259,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		Trip:            *current,
 		UserProfile:     userContext.Profile,
 		UserPreferences: userContext.Preferences,
+		WeatherForecast: weatherForecast,
 	})
 	if err != nil {
 		s.markFailed(ctx, id, user.ID)
@@ -342,6 +366,12 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	}
 	userContextLoaded := userContext.Profile != nil || userContext.Preferences != nil
 
+	weatherForecast, err := s.loadWeatherContext(ctx, *current, id)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
 	replacement, err := s.generator.RegenerateDay(ctx, application.RegenerateDayInput{
 		Trip:             *current,
 		CurrentItinerary: currentItinerary,
@@ -349,6 +379,7 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 		Instruction:      instruction,
 		UserProfile:      userContext.Profile,
 		UserPreferences:  userContext.Preferences,
+		WeatherForecast:  weatherForecast,
 	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
@@ -415,6 +446,12 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 	}
 	userContextLoaded := userContext.Profile != nil || userContext.Preferences != nil
 
+	weatherForecast, err := s.loadWeatherContext(ctx, *current, id)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+
 	replacement, err := s.generator.RegenerateItem(ctx, application.RegenerateItemInput{
 		Trip:             *current,
 		CurrentItinerary: currentItinerary,
@@ -423,6 +460,7 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		Instruction:      instruction,
 		UserProfile:      userContext.Profile,
 		UserPreferences:  userContext.Preferences,
+		WeatherForecast:  weatherForecast,
 	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
@@ -850,6 +888,73 @@ func classifyUserContextError(err error) string {
 
 func userContextError(errorType usercontext.ErrorType, message string) error {
 	return &usercontext.Error{Type: errorType, Message: message}
+}
+
+func (s *Service) loadWeatherContext(ctx context.Context, trip entity.Trip, tripID uuid.UUID) (*weathercontext.WeatherForecast, error) {
+	fields := []zap.Field{
+		zap.Bool("weatherContextEnabled", s.weatherContextEnabled),
+		zap.Bool("weatherContextFailOpen", s.weatherContextFailOpen),
+		zap.String("tripId", tripID.String()),
+		zap.String("destination", trip.Destination),
+		zap.Int32("days", trip.Days),
+	}
+
+	if !s.weatherContextEnabled {
+		s.log.Info("weather context disabled",
+			append(fields,
+				zap.Bool("weatherContextLoaded", false),
+			)...,
+		)
+		return nil, nil
+	}
+	if trip.StartDate == nil {
+		s.log.Debug("weather context skipped: missing trip start date",
+			append(fields,
+				zap.Bool("weatherContextLoaded", false),
+			)...,
+		)
+		return nil, nil
+	}
+	if strings.TrimSpace(trip.Destination) == "" || trip.Days < 1 {
+		s.log.Debug("weather context skipped: incomplete trip fields",
+			append(fields,
+				zap.Bool("weatherContextLoaded", false),
+			)...,
+		)
+		return nil, nil
+	}
+	if s.weatherContextProvider == nil {
+		return s.handleWeatherContextError(errors.New("weather context provider is not configured"), fields)
+	}
+
+	startDate := trip.StartDate.Format("2006-01-02")
+	forecast, err := s.weatherContextProvider.GetForecast(ctx, trip.Destination, startDate, int(trip.Days))
+	if err != nil {
+		return s.handleWeatherContextError(err, fields)
+	}
+
+	loaded := forecast != nil && len(forecast.Days) > 0
+	s.log.Info("weather context loaded",
+		append(fields,
+			zap.Bool("weatherContextLoaded", loaded),
+		)...,
+	)
+	return forecast, nil
+}
+
+func (s *Service) handleWeatherContextError(err error, fields []zap.Field) (*weathercontext.WeatherForecast, error) {
+	logFields := append(fields,
+		zap.Bool("weatherContextLoaded", false),
+		zap.Error(err),
+	)
+
+	if s.weatherContextFailOpen {
+		s.log.Warn("failed to load weather context; continuing without weather", logFields...)
+		return nil, nil
+	}
+
+	s.log.Warn("failed to load weather context; generation blocked", logFields...)
+	return nil, apperrs.NewDependencyError("failed to load weather forecast")
 }
 
 func (s *Service) markFailed(ctx context.Context, id, userID uuid.UUID) {

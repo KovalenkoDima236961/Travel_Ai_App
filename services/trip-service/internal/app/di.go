@@ -15,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
 	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
@@ -66,10 +67,26 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			return nil, fmt.Errorf("init user context client: %w", err)
 		}
 	}
+	var weatherContextClient interface {
+		GetForecast(context.Context, string, string, int) (*weathercontext.WeatherForecast, error)
+	}
+	if cfg.WeatherContext.Enabled {
+		weatherContextClient, err = weathercontext.New(weathercontext.Config{
+			BaseURL:        cfg.WeatherContext.ExternalIntegrationsServiceURL,
+			TimeoutSeconds: cfg.WeatherContext.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init weather context client: %w", err)
+		}
+	}
 	svc := service.New(repo, gen, log, service.WithUserContext(
 		userContextClient,
 		cfg.UserContext.Enabled,
 		cfg.UserContext.FailOpen,
+	), service.WithWeatherContext(
+		weatherContextClient,
+		cfg.WeatherContext.Enabled,
+		cfg.WeatherContext.FailOpen,
 	))
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(

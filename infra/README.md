@@ -40,6 +40,10 @@ current user's bearer token to load profile/preferences, then forwards optional
 personalization context to AI Planning Service. `USER_CONTEXT_ENABLED=true`
 enables this path and `USER_CONTEXT_FAIL_OPEN=true` lets generation continue
 without personalization if User Service is unavailable.
+Trip Service can also call External Integrations Service for mock weather
+forecasts before full or partial itinerary generation. `WEATHER_CONTEXT_ENABLED=true`
+enables this path and `WEATHER_CONTEXT_FAIL_OPEN=true` lets generation continue
+without weather if the service is unavailable.
 
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right
@@ -84,7 +88,7 @@ The `web-app` service receives browser-facing and internal service URLs:
 - `NEXT_PUBLIC_USER_SERVICE_URL=http://localhost:8083` for browser-facing User
   Service calls.
 - `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084` for
-  browser-facing Place Service calls.
+  browser-facing External Integrations Service calls.
 - `TRIP_SERVICE_INTERNAL_URL=http://trip-service:8080` for server-side Next.js
   proxy calls inside Docker Compose.
 - `USER_SERVICE_INTERNAL_URL=http://user-service:8083` for future server-side
@@ -99,8 +103,9 @@ identity, Trip Service owns trips, and AI Planning Service owns itinerary
 generation.
 
 External Integrations Service is exposed directly at `http://localhost:8084`.
-v1 uses `PLACE_PROVIDER=mock` and `ROUTE_PROVIDER=mock` and returns deterministic
-data for local development. Examples:
+v1 uses `PLACE_PROVIDER=mock`, `ROUTE_PROVIDER=mock`, and
+`WEATHER_PROVIDER=mock`, returning deterministic data for local development.
+Examples:
 
 ```bash
 curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
@@ -111,13 +116,16 @@ curl -X POST "http://localhost:8084/routes/estimate" \
     {"name":"Colosseum","latitude":41.8902,"longitude":12.4922},
     {"name":"Trevi Fountain","latitude":41.9009,"longitude":12.4833}
   ]}'
+
+curl "http://localhost:8084/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
 ```
 
 `POST /routes/estimate` returns approximate mock walking route estimates
 (Haversine × 1.25 at 5 km/h). Because the Web App calls it from the browser, the
 service's CORS allows `POST` (`CORS_ALLOWED_METHODS=GET,POST,OPTIONS` by
-default). Future provider candidates include Google Places, Mapbox, Foursquare,
-OSRM, and Google Maps routing, but no real third-party provider is enabled in v1.
+default). Weather forecast calls are read-only `GET` requests. Future provider
+candidates include Google Places, Mapbox, Foursquare, OSRM, Google Maps routing,
+and Open-Meteo, but no real third-party provider is enabled in v1.
 
 Trip Service requires `Authorization: Bearer <accessToken>` on `/trips` routes
 by default. To temporarily disable that for local debugging, set
@@ -184,8 +192,8 @@ Integrations Service, and AI Planning Service health, registers and logs in a
 unique test user, calls `/auth/me`, creates/updates profile and preferences with
 a bearer token, searches mock places for Colosseum in Rome, requests a mock
 walking route estimate and asserts a `mock` provider with positive distance,
-duration, and one segment (and that fewer than two stops is rejected), creates a
-Rome trip,
+duration, and one segment (and that fewer than two stops is rejected), requests a
+mock Rome weather forecast and checks provider/day data, creates a Rome trip,
 generates its itinerary through Trip Service's personalized context path, saves
 a manual itinerary edit with attached place metadata, verifies the metadata
 persists after fetch and in the manual-edit version snapshot, lists itinerary
@@ -253,6 +261,9 @@ Use database `trip_service` to inspect trips and itinerary version snapshots.
 - Personalized generation returns `failed to load user preferences`: User
   Service is unavailable and `USER_CONTEXT_FAIL_OPEN=false`. Restore User
   Service or set `USER_CONTEXT_FAIL_OPEN=true` for local fail-open behavior.
+- Generation returns `failed to load weather forecast`: External Integrations
+  Service is unavailable and `WEATHER_CONTEXT_FAIL_OPEN=false`. Restore the
+  service or set `WEATHER_CONTEXT_FAIL_OPEN=true` for local fail-open behavior.
 - Web app cannot reach Trip Service from Docker: confirm
   `TRIP_SERVICE_INTERNAL_URL=http://trip-service:8080` is set for `web-app`.
 - Browser points at the wrong Auth Service URL: confirm

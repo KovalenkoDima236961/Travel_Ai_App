@@ -15,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
 	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
 	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
+	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
 )
 
 func TestHealthReturnsOK(t *testing.T) {
@@ -147,7 +148,9 @@ func newTestRouter() http.Handler {
 	placesHandler := handler.NewPlacesHandler(svc, zap.NewNop(), cfg.PlaceProvider.Provider)
 	routesSvc := appservice.NewRoutesService(routeprovider.NewMockRouteProvider(), zap.NewNop())
 	routesHandler := handler.NewRoutesHandler(routesSvc, zap.NewNop())
-	return NewRouter(zap.NewNop(), placesHandler, routesHandler, NewReadinessHandler(zap.NewNop()), cfg.CORS)
+	weatherSvc := appservice.NewWeatherService(weatherprovider.NewMockWeatherProvider(), zap.NewNop())
+	weatherHandler := handler.NewWeatherHandler(weatherSvc, zap.NewNop())
+	return NewRouter(zap.NewNop(), placesHandler, routesHandler, weatherHandler, NewReadinessHandler(zap.NewNop()), cfg.CORS)
 }
 
 func testConfig() *config.Config {
@@ -156,8 +159,9 @@ func testConfig() *config.Config {
 		HTTPServer: config.HTTPServer{
 			Address: ":0",
 		},
-		PlaceProvider: config.PlaceProviderConfig{Provider: "mock"},
-		RouteProvider: config.RouteProviderConfig{Provider: "mock"},
+		PlaceProvider:   config.PlaceProviderConfig{Provider: "mock"},
+		RouteProvider:   config.RouteProviderConfig{Provider: "mock"},
+		WeatherProvider: config.WeatherProviderConfig{Provider: "mock"},
 		CORS: config.CORSConfig{
 			AllowedOrigins: "http://localhost:3000",
 			AllowedMethods: "GET,POST,OPTIONS",

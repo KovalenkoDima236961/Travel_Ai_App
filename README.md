@@ -17,17 +17,21 @@ AI Planning Service owns itinerary generation and local travel knowledge.
 When a user generates an itinerary, Trip Service fetches that user's profile and
 preferences from User Service by forwarding the user's JWT, then sends optional
 `userProfile` and `userPreferences` to AI Planning Service for prompt
-personalization. Access tokens and full preference payloads should not be logged.
+personalization. Trip Service can also fetch a mock weather forecast from
+External Integrations Service and forward optional `weatherForecast` context so
+AI prompts can adapt to rain, heat, cold, or wind. Access tokens and full
+preference payloads should not be logged.
 External Integrations Service v1 lives in
-`services/external-integrations-service` and owns place search/details and route
-estimation provider boundaries. v1 uses deterministic mock data for Rome, Paris,
-Vienna, and Bratislava; the Web App calls this service when attaching optional
-place metadata to itinerary items and to estimate per-day walking routes via
-`POST /routes/estimate` (mock provider: Haversine × 1.25 at 5 km/h). Route
-estimates are read-only and approximate; the Web App falls back to its own
-straight-line Haversine estimate when the service is unavailable. No real Google
-Places provider, full map view, opening hours, or real turn-by-turn routing is
-enabled yet.
+`services/external-integrations-service` and owns place search/details, route
+estimation, and weather forecast provider boundaries. v1 uses deterministic mock
+data for Rome, Paris, Vienna, and Bratislava; the Web App calls this service
+when attaching optional place metadata to itinerary items, estimating per-day
+walking routes via `POST /routes/estimate` (mock provider: Haversine × 1.25 at
+5 km/h), and showing mock trip weather via `GET /weather/forecast`. Route and
+weather data are read-only and approximate; the Web App falls back gracefully
+when the service is unavailable. No real Google Places provider, real weather
+provider, full map view, opening hours, or real turn-by-turn routing is enabled
+yet.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token
@@ -58,9 +62,10 @@ Run the full app smoke test with:
 The smoke test registers/logs in a unique user, checks profile/preferences
 defaults and updates, creates and generates a trip with
 `Authorization: Bearer <accessToken>`, exercises personalized generation,
-searches mock places, saves attached place metadata through Trip Service,
-verifies itinerary version history and restore behavior, confirms only that user
-can access the trip and versions, and logs out.
+searches mock places, checks mock route and weather endpoints, saves attached
+place metadata through Trip Service, verifies itinerary version history and
+restore behavior, confirms only that user can access the trip and versions, and
+logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,
 knowledge indexing, useful URLs, and troubleshooting. The full app can be

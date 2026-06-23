@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
 const maxAIPlanningErrorBodyBytes = 4 * 1024
@@ -30,17 +31,18 @@ type AIPlanningHTTPGenerator struct {
 }
 
 type aiPlanningGenerateRequest struct {
-	TripID          string                       `json:"tripId"`
-	Destination     string                       `json:"destination"`
-	StartDate       *string                      `json:"startDate,omitempty"`
-	Days            int32                        `json:"days"`
-	BudgetAmount    *float64                     `json:"budgetAmount,omitempty"`
-	BudgetCurrency  string                       `json:"budgetCurrency"`
-	Travelers       int32                        `json:"travelers"`
-	Interests       []string                     `json:"interests"`
-	Pace            string                       `json:"pace"`
-	UserProfile     *usercontext.UserProfile     `json:"userProfile,omitempty"`
-	UserPreferences *usercontext.UserPreferences `json:"userPreferences,omitempty"`
+	TripID          string                          `json:"tripId"`
+	Destination     string                          `json:"destination"`
+	StartDate       *string                         `json:"startDate,omitempty"`
+	Days            int32                           `json:"days"`
+	BudgetAmount    *float64                        `json:"budgetAmount,omitempty"`
+	BudgetCurrency  string                          `json:"budgetCurrency"`
+	Travelers       int32                           `json:"travelers"`
+	Interests       []string                        `json:"interests"`
+	Pace            string                          `json:"pace"`
+	UserProfile     *usercontext.UserProfile        `json:"userProfile,omitempty"`
+	UserPreferences *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
+	WeatherForecast *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
 }
 
 type aiPlanningTripRequest struct {
@@ -56,22 +58,24 @@ type aiPlanningTripRequest struct {
 }
 
 type aiPlanningRegenerateDayRequest struct {
-	Trip             aiPlanningTripRequest        `json:"trip"`
-	CurrentItinerary aggregate.Itinerary          `json:"currentItinerary"`
-	DayNumber        int                          `json:"dayNumber"`
-	Instruction      string                       `json:"instruction,omitempty"`
-	UserProfile      *usercontext.UserProfile     `json:"userProfile,omitempty"`
-	UserPreferences  *usercontext.UserPreferences `json:"userPreferences,omitempty"`
+	Trip             aiPlanningTripRequest           `json:"trip"`
+	CurrentItinerary aggregate.Itinerary             `json:"currentItinerary"`
+	DayNumber        int                             `json:"dayNumber"`
+	Instruction      string                          `json:"instruction,omitempty"`
+	UserProfile      *usercontext.UserProfile        `json:"userProfile,omitempty"`
+	UserPreferences  *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
+	WeatherForecast  *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
 }
 
 type aiPlanningRegenerateItemRequest struct {
-	Trip             aiPlanningTripRequest        `json:"trip"`
-	CurrentItinerary aggregate.Itinerary          `json:"currentItinerary"`
-	DayNumber        int                          `json:"dayNumber"`
-	ItemIndex        int                          `json:"itemIndex"`
-	Instruction      string                       `json:"instruction,omitempty"`
-	UserProfile      *usercontext.UserProfile     `json:"userProfile,omitempty"`
-	UserPreferences  *usercontext.UserPreferences `json:"userPreferences,omitempty"`
+	Trip             aiPlanningTripRequest           `json:"trip"`
+	CurrentItinerary aggregate.Itinerary             `json:"currentItinerary"`
+	DayNumber        int                             `json:"dayNumber"`
+	ItemIndex        int                             `json:"itemIndex"`
+	Instruction      string                          `json:"instruction,omitempty"`
+	UserProfile      *usercontext.UserProfile        `json:"userProfile,omitempty"`
+	UserPreferences  *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
+	WeatherForecast  *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
 }
 
 type aiPlanningRegenerateDayResponse struct {
@@ -193,6 +197,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input appli
 		Instruction:      input.Instruction,
 		UserProfile:      input.UserProfile,
 		UserPreferences:  input.UserPreferences,
+		WeatherForecast:  input.WeatherForecast,
 	}
 
 	var result aiPlanningRegenerateDayResponse
@@ -213,6 +218,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input appl
 		Instruction:      input.Instruction,
 		UserProfile:      input.UserProfile,
 		UserPreferences:  input.UserPreferences,
+		WeatherForecast:  input.WeatherForecast,
 	}
 
 	var result aiPlanningRegenerateItemResponse
@@ -255,6 +261,7 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		Pace:            pace,
 		UserProfile:     input.UserProfile,
 		UserPreferences: input.UserPreferences,
+		WeatherForecast: input.WeatherForecast,
 	}
 }
 

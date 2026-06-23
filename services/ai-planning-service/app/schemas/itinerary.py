@@ -127,6 +127,23 @@ class UserPreferences(APIModel):
         return value
 
 
+class WeatherDay(APIModel):
+    date: str
+    condition: str
+    temperature_min_c: float = Field(alias="temperatureMinC")
+    temperature_max_c: float = Field(alias="temperatureMaxC")
+    precipitation_chance: int = Field(ge=0, le=100, alias="precipitationChance")
+    wind_speed_kph: float = Field(alias="windSpeedKph")
+    summary: str
+    warnings: list[str] = Field(default_factory=list)
+
+
+class WeatherForecast(APIModel):
+    destination: str
+    provider: str | None = None
+    days: list[WeatherDay] = Field(default_factory=list)
+
+
 class GenerateItineraryRequest(APIModel):
     trip_id: UUID = Field(alias="tripId")
     destination: NonEmptyString
@@ -139,6 +156,7 @@ class GenerateItineraryRequest(APIModel):
     pace: Pace = "balanced"
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
+    weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
 
     @field_validator("budget_currency", mode="before")
     @classmethod
@@ -254,6 +272,7 @@ class RegenerateDayRequest(APIModel):
     instruction: str | None = Field(default=None, max_length=500)
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
+    weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
 
     @field_validator("instruction", mode="before")
     @classmethod

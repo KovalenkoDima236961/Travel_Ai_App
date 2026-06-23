@@ -28,6 +28,10 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"USER_CONTEXT_ENABLED",
 		"USER_CONTEXT_TIMEOUT_SECONDS",
 		"USER_CONTEXT_FAIL_OPEN",
+		"EXTERNAL_INTEGRATIONS_SERVICE_URL",
+		"WEATHER_CONTEXT_ENABLED",
+		"WEATHER_CONTEXT_TIMEOUT_SECONDS",
+		"WEATHER_CONTEXT_FAIL_OPEN",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -85,6 +89,18 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if !cfg.UserContext.FailOpen {
 		t.Fatal("expected user context to fail open by default")
 	}
+	if !cfg.WeatherContext.Enabled {
+		t.Fatal("expected weather context to be enabled by default")
+	}
+	if cfg.WeatherContext.ExternalIntegrationsServiceURL != "http://external-integrations-service:8084" {
+		t.Fatalf("expected default external integrations URL, got %q", cfg.WeatherContext.ExternalIntegrationsServiceURL)
+	}
+	if cfg.WeatherContext.TimeoutSeconds != 5 {
+		t.Fatalf("expected default weather context timeout 5s, got %d", cfg.WeatherContext.TimeoutSeconds)
+	}
+	if !cfg.WeatherContext.FailOpen {
+		t.Fatal("expected weather context to fail open by default")
+	}
 }
 
 func TestLoadReadsCORSOverrides(t *testing.T) {
@@ -106,6 +122,10 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"USER_CONTEXT_ENABLED",
 		"USER_CONTEXT_TIMEOUT_SECONDS",
 		"USER_CONTEXT_FAIL_OPEN",
+		"EXTERNAL_INTEGRATIONS_SERVICE_URL",
+		"WEATHER_CONTEXT_ENABLED",
+		"WEATHER_CONTEXT_TIMEOUT_SECONDS",
+		"WEATHER_CONTEXT_FAIL_OPEN",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")

@@ -186,6 +186,20 @@ echo "Checking route estimate validation rejects a single stop..."
 request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" '{"mode":"walking","stops":[{"name":"Colosseum","latitude":41.8902,"longitude":12.4922}]}'
 assert_status "Route estimate rejects fewer than 2 stops" "400"
 
+echo "Checking mock weather forecast..."
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
+assert_2xx "Weather forecast"
+
+WEATHER_PROVIDER_NAME="$(jq -r '.provider // empty' <<<"${LAST_BODY}")"
+WEATHER_DAY_COUNT="$(jq '.days | length' <<<"${LAST_BODY}")"
+WEATHER_FIRST_DATE="$(jq -r '.days[0].date // empty' <<<"${LAST_BODY}")"
+WEATHER_FIRST_CONDITION="$(jq -r '.days[0].condition // empty' <<<"${LAST_BODY}")"
+if [[ "${WEATHER_PROVIDER_NAME}" != "mock" || "${WEATHER_DAY_COUNT}" -ne 3 || -z "${WEATHER_FIRST_DATE}" || -z "${WEATHER_FIRST_CONDITION}" ]]; then
+  echo "Weather forecast did not include expected mock provider/day data." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Web App URL: ${WEB_APP_URL}"
 if request GET "${WEB_APP_URL}"; then
   if [[ "${LAST_STATUS}" =~ ^2 ]]; then

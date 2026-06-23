@@ -81,6 +81,7 @@ class ItineraryValidator:
             previous_time: str | None = None
             seen_times: set[str] = set()
             seen_item_names: set[str] = set()
+            day_item_texts: list[str] = []
 
             for item_index, item in enumerate(day.items, start=1):
                 if item.type not in _VALID_ITEM_TYPES:
@@ -139,10 +140,9 @@ class ItineraryValidator:
                     estimated_cost_count += 1
 
                 combined_text = " ".join(
-                    value
-                    for value in [item.type, item.name, item.note or ""]
-                    if value
+                    value for value in [item.type, item.name, item.note or ""] if value
                 )
+                day_item_texts.append(combined_text)
                 result.warnings.extend(
                     _avoidance_warnings(request, day.day, item_index, combined_text)
                 )
@@ -150,6 +150,8 @@ class ItineraryValidator:
                     food_texts.append(combined_text.casefold())
                 if _LONG_WALK_PATTERN.search(combined_text):
                     long_walk_mentions += 1
+
+            result.warnings.extend(_weather_warnings(request, day.day, day_item_texts))
 
         if (
             request.budget_amount is not None
@@ -196,8 +198,7 @@ def _avoidance_warnings(
                 ItineraryValidationWarning(
                     code="avoid_term_mentioned",
                     message=(
-                        f"Day {day_number} item {item_index} mentions avoided term "
-                        f"{avoid_term!r}"
+                        f"Day {day_number} item {item_index} mentions avoided term {avoid_term!r}"
                     ),
                 )
             )
@@ -252,9 +253,58 @@ def _walking_warnings(
             ItineraryValidationWarning(
                 code="walking_limit_may_be_exceeded",
                 message=(
-                    "Low maxWalkingKmPerDay is set but itinerary repeatedly suggests "
-                    "long walks."
+                    "Low maxWalkingKmPerDay is set but itinerary repeatedly suggests long walks."
                 ),
             )
         ]
     return []
+
+
+def _weather_warnings(
+    request: GenerateItineraryRequest,
+    day_number: int,
+    day_item_texts: list[str],
+) -> list[ItineraryValidationWarning]:
+    forecast = request.weather_forecast
+    if forecast is None or day_number < 1 or day_number > len(forecast.days):
+        return []
+
+    day_weather = forecast.days[day_number - 1]
+    normalized_text = " ".join(day_item_texts).casefold()
+    warnings: list[ItineraryValidationWarning] = []
+
+    if day_weather.precipitation_chance >= 60 and _looks_all_outdoor(normalized_text):
+        warnings.append(
+            ItineraryValidationWarning(
+                code="rainy_day_lacks_indoor_backup",
+                message=(
+                    f"Day {day_number} has high rain chance but does not appear to include "
+                    "indoor alternatives."
+                ),
+            )
+        )
+
+    if day_weather.temperature_max_c >= 32 and _LONG_WALK_PATTERN.search(normalized_text):
+        warnings.append(
+            ItineraryValidationWarning(
+                code="heat_with_long_walk",
+                message=f"Day {day_number} mentions a long walk during high heat.",
+            )
+        )
+
+    if (day_weather.temperature_max_c <= 5 or day_weather.wind_speed_kph >= 35) and any(
+        term in normalized_text for term in ["viewpoint", "exposed", "lookout", "rooftop"]
+    ):
+        warnings.append(
+            ItineraryValidationWarning(
+                code="cold_or_windy_exposed_stop",
+                message=f"Day {day_number} may include exposed stops during cold or windy weather.",
+            )
+        )
+
+    return warnings
+
+
+def _looks_all_outdoor(normalized_text: str) -> bool:
+    indoor_terms = ["museum", "gallery", "cafe", "restaurant", "covered", "indoor", "market"]
+    return not any(term in normalized_text for term in indoor_terms)

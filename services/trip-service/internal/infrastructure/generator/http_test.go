@@ -17,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
 func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
@@ -60,17 +61,20 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
 	budget := 600.0
 	tripID := uuid.New()
-	got, err := gen.Generate(context.Background(), application.GenerateItineraryInput{Trip: entity.Trip{
-		ID:             tripID,
-		Destination:    "Rome",
-		StartDate:      &startDate,
-		Days:           4,
-		BudgetAmount:   &budget,
-		BudgetCurrency: "EUR",
-		Travelers:      2,
-		Interests:      []string{"food", "history", "hidden_gems"},
-		Pace:           "balanced",
-	}})
+	got, err := gen.Generate(context.Background(), application.GenerateItineraryInput{
+		Trip: entity.Trip{
+			ID:             tripID,
+			Destination:    "Rome",
+			StartDate:      &startDate,
+			Days:           4,
+			BudgetAmount:   &budget,
+			BudgetCurrency: "EUR",
+			Travelers:      2,
+			Interests:      []string{"food", "history", "hidden_gems"},
+			Pace:           "balanced",
+		},
+		WeatherForecast: validWeatherForecast(),
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,6 +90,9 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 	}
 
 	assertCapturedPayload(t, captured, tripID.String(), "2026-08-10", &budget)
+	if captured.WeatherForecast == nil || captured.WeatherForecast.Days[0].Condition != "hot" {
+		t.Fatalf("expected weatherForecast to be serialized, got %+v", captured.WeatherForecast)
+	}
 }
 
 func TestAIPlanningHTTPGeneratorGenerate_DefaultsRequestPayload(t *testing.T) {
@@ -292,6 +299,7 @@ func TestAIPlanningHTTPGeneratorRegenerateDay_SendsCorrectPayload(t *testing.T) 
 		DayNumber:        2,
 		Instruction:      "Make it more relaxed",
 		UserPreferences:  &usercontext.UserPreferences{TravelStyles: []string{"food"}, MaxWalkingKmPerDay: &walking},
+		WeatherForecast:  validWeatherForecast(),
 	}
 
 	got, err := gen.RegenerateDay(context.Background(), input)
@@ -313,6 +321,9 @@ func TestAIPlanningHTTPGeneratorRegenerateDay_SendsCorrectPayload(t *testing.T) 
 	}
 	if captured.UserPreferences == nil || captured.UserPreferences.MaxWalkingKmPerDay == nil || *captured.UserPreferences.MaxWalkingKmPerDay != 8 {
 		t.Fatalf("expected userPreferences to be serialized, got %+v", captured.UserPreferences)
+	}
+	if captured.WeatherForecast == nil || captured.WeatherForecast.Provider != "mock" {
+		t.Fatalf("expected weatherForecast to be serialized, got %+v", captured.WeatherForecast)
 	}
 }
 
@@ -340,6 +351,7 @@ func TestAIPlanningHTTPGeneratorRegenerateItem_SendsCorrectPayload(t *testing.T)
 		DayNumber:        2,
 		ItemIndex:        1,
 		Instruction:      "Replace with cheaper food",
+		WeatherForecast:  validWeatherForecast(),
 	}
 
 	got, err := gen.RegenerateItem(context.Background(), input)
@@ -358,6 +370,9 @@ func TestAIPlanningHTTPGeneratorRegenerateItem_SendsCorrectPayload(t *testing.T)
 	}
 	if len(captured.CurrentItinerary.Days) != 2 {
 		t.Fatalf("expected current itinerary in payload, got %+v", captured.CurrentItinerary)
+	}
+	if captured.WeatherForecast == nil || captured.WeatherForecast.Days[0].TemperatureMaxC != 35 {
+		t.Fatalf("expected weatherForecast to be serialized, got %+v", captured.WeatherForecast)
 	}
 }
 
@@ -432,6 +447,25 @@ func validHTTPTestItinerary() aggregate.Itinerary {
 					{Time: "10:00", Type: "place", Name: "Museum"},
 					{Time: "13:00", Type: "food", Name: "Lunch"},
 				},
+			},
+		},
+	}
+}
+
+func validWeatherForecast() *weathercontext.WeatherForecast {
+	return &weathercontext.WeatherForecast{
+		Destination: "Rome",
+		Provider:    "mock",
+		Days: []weathercontext.WeatherDay{
+			{
+				Date:                "2026-08-10",
+				Condition:           "hot",
+				TemperatureMinC:     24,
+				TemperatureMaxC:     35,
+				PrecipitationChance: 5,
+				WindSpeedKph:        10,
+				Summary:             "Hot and sunny",
+				Warnings:            []string{"High heat: avoid long outdoor walks at midday"},
 			},
 		},
 	}

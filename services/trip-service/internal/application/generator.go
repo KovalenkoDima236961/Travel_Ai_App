@@ -8,6 +8,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
 // GenerateItineraryInput is the internal generator request. Trip Service owns
@@ -16,6 +17,7 @@ type GenerateItineraryInput struct {
 	Trip            entity.Trip
 	UserProfile     *usercontext.UserProfile
 	UserPreferences *usercontext.UserPreferences
+	WeatherForecast *weathercontext.WeatherForecast
 }
 
 // RegenerateDayInput is the internal generator request for replacing one day
@@ -27,6 +29,7 @@ type RegenerateDayInput struct {
 	Instruction      string
 	UserProfile      *usercontext.UserProfile
 	UserPreferences  *usercontext.UserPreferences
+	WeatherForecast  *weathercontext.WeatherForecast
 }
 
 // RegenerateItemInput is the internal generator request for replacing one item
@@ -39,6 +42,7 @@ type RegenerateItemInput struct {
 	Instruction      string
 	UserProfile      *usercontext.UserProfile
 	UserPreferences  *usercontext.UserPreferences
+	WeatherForecast  *weathercontext.WeatherForecast
 }
 
 // ItineraryGenerator is the port for turning a trip into a concrete itinerary.

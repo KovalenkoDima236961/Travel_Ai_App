@@ -29,6 +29,7 @@ def build_itinerary_prompt(
     destination_context_section = _destination_context_section(request, destination_context)
     rag_context_section = _rag_context_section(rag_chunks)
     user_context_section = _user_context_section(request)
+    weather_context_section = _weather_context_section(request.weather_forecast)
 
     return f"""
 You are generating an itinerary for a web-based travel planning application.
@@ -62,6 +63,7 @@ Trip request:
 - Interests: {interests}
 - Pace: {request.pace}
 {user_context_section}
+{weather_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -85,6 +87,10 @@ Rules:
 - Prefer food recommendations matching foodPreferences and dietaryRestrictions.
 - Use preferredCurrency for estimated costs when profile currency is available.
 - Keep the response in English for now, but consider preferredLanguage as context.
+- Prefer indoor activities during rainy days, avoid long outdoor walks during high heat,
+  and schedule parks/viewpoints/walking-heavy activities on better weather days.
+- Add indoor backup suggestions when rain chance is high.
+- Do not mention weather excessively unless relevant.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -108,6 +114,7 @@ def build_repair_prompt(
     destination_context_section = _destination_context_section(request, destination_context)
     rag_context_section = _rag_context_section(rag_chunks)
     user_context_section = _user_context_section(request)
+    weather_context_section = _weather_context_section(request.weather_forecast)
 
     return f"""
 You previously generated an itinerary JSON response, but it was invalid.
@@ -124,6 +131,7 @@ Original trip request:
 - Interests: {interests}
 - Pace: {request.pace}
 {user_context_section}
+{weather_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -167,6 +175,7 @@ Repair rules:
   the schema.
 - The corrected JSON should still use the destination context where relevant.
 - The corrected JSON should still use the RAG context where relevant.
+- Preserve weather-aware choices from the weather forecast where relevant.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -207,6 +216,7 @@ The JSON must exactly match this schema and must not include any other fields:
 Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
+{_weather_context_section(request.weather_forecast)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -226,6 +236,7 @@ Rules:
 - Avoid duplicating activities already scheduled on other days.
 - Respect user preferences and avoid list.
 - Follow the user instruction if provided.
+- Adapt the replacement day to the weather forecast when relevant.
 - Include at least one item.
 - Use realistic HH:MM 24-hour times.
 - Sort items by time ascending.
@@ -269,6 +280,7 @@ The JSON must exactly match this schema and must not include any other fields:
 Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
+{_weather_context_section(request.weather_forecast)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -290,6 +302,7 @@ Rules:
 - Avoid duplicating existing itinerary items.
 - Respect user preferences and avoid list.
 - Follow the user instruction if provided.
+- Adapt the replacement item to the weather forecast when relevant.
 - Use only these item types: place, food, activity, transport, rest.
 - Include estimatedCost as a non-negative number or null.
 - Do not include fields outside the schema.
@@ -330,6 +343,7 @@ Required schema:
 Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
+{_weather_context_section(request.weather_forecast)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -368,6 +382,7 @@ Required schema:
 Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
+{_weather_context_section(request.weather_forecast)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -479,6 +494,44 @@ def _partial_destination_context_section(destination_context: DestinationContext
 
     if len(lines) == 1:
         return ""
+    return "\n" + "\n".join(lines)
+
+
+def _weather_context_section(weather_forecast: object | None) -> str:
+    if weather_forecast is None:
+        return ""
+
+    days = getattr(weather_forecast, "days", [])
+    if not days:
+        return ""
+
+    lines = [
+        "WEATHER FORECAST:",
+        "Use this optional context to keep the itinerary realistic for weather conditions.",
+    ]
+    for day in days:
+        warnings = getattr(day, "warnings", []) or []
+        lines.append(
+            "- "
+            f"{day.date}: {day.summary}, "
+            f"{day.temperature_min_c:g}-{day.temperature_max_c:g}C, "
+            f"rain chance {day.precipitation_chance}%, "
+            f"wind {day.wind_speed_kph:g} kph"
+        )
+        if warnings:
+            lines.append(f"  Warnings: {_display_list(warnings)}")
+
+    lines.extend(
+        [
+            "Weather instructions:",
+            "- Prefer indoor activities during rainy periods or days.",
+            "- Avoid long outdoor walks during high heat.",
+            "- Schedule parks, viewpoints, and walking-heavy activities on better weather days.",
+            "- Add indoor backup suggestions when rain chance is high.",
+            "- If weather conflicts with user interests, preserve user goals but adapt timing or activity type.",
+        ]
+    )
+
     return "\n" + "\n".join(lines)
 
 

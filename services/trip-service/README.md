@@ -104,10 +104,12 @@ flowchart TD
     PG[("PostgreSQL\ntrips table")]
 AI{{"AI Planning Service v1\nFastAPI / HTTP"}}
     US{{"User Service v1\nProfile / Preferences"}}
+    EX{{"External Integrations Service v1\nWeather forecast"}}
 
     Client -->|"REST / JSON"| RT --> TH --> SV --> RP --> PGPKG -->|"pgxpool"| PG
     SV --> GEN
     SV -.->|"GET /users/me/profile + /preferences\nforward user JWT"| US
+    SV -.->|"GET /weather/forecast\nfail-open by default"| EX
     GEN -.->|"POST /generate-itinerary\nwhen mode=http"| AI
 
     subgraph BOOT["internal/app (composition root)"]
@@ -164,11 +166,22 @@ Key environment variables:
 | `USER_CONTEXT_ENABLED` | `true` | Fetch user profile/preferences before generating itineraries. |
 | `USER_CONTEXT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for User Service context calls. |
 | `USER_CONTEXT_FAIL_OPEN` | `true` | Continue generation without personalization when User Service fails. Set `false` to return `502` with `{"error":"failed to load user preferences"}`. |
+| `EXTERNAL_INTEGRATIONS_SERVICE_URL` | `http://external-integrations-service:8084` | Base URL for weather forecast lookup during generation. |
+| `WEATHER_CONTEXT_ENABLED` | `true` | Fetch weather before full and partial itinerary generation when the trip has a start date. |
+| `WEATHER_CONTEXT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for weather forecast calls. |
+| `WEATHER_CONTEXT_FAIL_OPEN` | `true` | Continue generation without weather when External Integrations Service fails. Set `false` to return `502` with `{"error":"failed to load weather forecast"}`. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
 Unknown generator modes fail startup. In `http` mode, startup also fails if
 `AI_PLANNING_SERVICE_URL` is missing or invalid.
+
+Weather context is optional and not persisted in Trip Service. When enabled and
+the trip has `destination`, `startDate`, and `days`, Trip Service requests
+`GET /weather/forecast` from External Integrations Service before full
+generation and before day/item regeneration, then forwards the optional
+`weatherForecast` payload to AI Planning Service. Missing start dates skip
+weather context.
 
 ## Run with Docker Compose
 

@@ -18,6 +18,7 @@ func NewRouter(
 	log *zap.Logger,
 	placesHandler *handler.PlacesHandler,
 	routesHandler *handler.RoutesHandler,
+	weatherHandler *handler.WeatherHandler,
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
 ) http.Handler {
@@ -35,6 +36,7 @@ func NewRouter(
 	}
 	placesHandler.RegisterRoutes(r)
 	routesHandler.RegisterRoutes(r)
+	weatherHandler.RegisterRoutes(r)
 
 	return r
 }

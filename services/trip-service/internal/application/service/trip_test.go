@@ -21,6 +21,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
 // mockRepo is a hand-written tripRepository that captures arguments and the
@@ -248,6 +249,29 @@ func (p *mockUserContextProvider) GetUserContext(_ context.Context, accessToken 
 		return p.result, nil
 	}
 	return &usercontext.UserContext{}, nil
+}
+
+type mockWeatherContextProvider struct {
+	result              *weathercontext.WeatherForecast
+	err                 error
+	called              bool
+	capturedDestination string
+	capturedStartDate   string
+	capturedDays        int
+}
+
+func (p *mockWeatherContextProvider) GetForecast(_ context.Context, destination string, startDate string, days int) (*weathercontext.WeatherForecast, error) {
+	p.called = true
+	p.capturedDestination = destination
+	p.capturedStartDate = startDate
+	p.capturedDays = days
+	if p.err != nil {
+		return nil, p.err
+	}
+	if p.result != nil {
+		return p.result, nil
+	}
+	return testWeatherForecast(), nil
 }
 
 func newTestService(repo tripRepository, gen *mockGenerator) *Service {
@@ -539,6 +563,133 @@ func TestGenerate_UserContextDisabled_DoesNotCallProvider(t *testing.T) {
 	}
 	if userContextProvider.called {
 		t.Fatal("user context provider should not be called when disabled")
+	}
+}
+
+func TestGenerate_WeatherContextSuccess_PassesForecastToGenerator(t *testing.T) {
+	id := uuid.New()
+	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{
+			ID:          id,
+			Destination: "Rome",
+			StartDate:   &startDate,
+			Days:        3,
+			Pace:        "balanced",
+		},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	weatherProvider := &mockWeatherContextProvider{result: testWeatherForecast()}
+	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
+
+	_, err := svc.Generate(authContext(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !weatherProvider.called {
+		t.Fatal("expected weather context provider to be called")
+	}
+	if weatherProvider.capturedDestination != "Rome" || weatherProvider.capturedStartDate != "2026-08-10" || weatherProvider.capturedDays != 3 {
+		t.Fatalf("unexpected weather request: destination=%q startDate=%q days=%d", weatherProvider.capturedDestination, weatherProvider.capturedStartDate, weatherProvider.capturedDays)
+	}
+	if gen.capturedInput.WeatherForecast == nil || len(gen.capturedInput.WeatherForecast.Days) != 1 {
+		t.Fatalf("expected weather forecast in generator input, got %+v", gen.capturedInput.WeatherForecast)
+	}
+}
+
+func TestGenerate_WeatherContextFailOpen_ContinuesWithoutWeather(t *testing.T) {
+	id := uuid.New()
+	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", StartDate: &startDate, Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	weatherProvider := &mockWeatherContextProvider{err: errors.New("weather service down")}
+	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
+
+	got, err := svc.Generate(authContext(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Status != entity.StatusCompleted {
+		t.Fatalf("expected completed trip, got %s", got.Status)
+	}
+	if !gen.called {
+		t.Fatal("expected generator to be called when weather context fails open")
+	}
+	if gen.capturedInput.WeatherForecast != nil {
+		t.Fatalf("expected generator input without weather, got %+v", gen.capturedInput.WeatherForecast)
+	}
+}
+
+func TestGenerate_WeatherContextFailClosed_ReturnsDependencyError(t *testing.T) {
+	id := uuid.New()
+	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", StartDate: &startDate, Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	weatherProvider := &mockWeatherContextProvider{err: errors.New("weather service down")}
+	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, false))
+
+	_, err := svc.Generate(authContext(), id)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var dependencyErr *apperrs.DependencyError
+	if !errors.As(err, &dependencyErr) {
+		t.Fatalf("expected DependencyError, got %v", err)
+	}
+	if dependencyErr.Error() != "failed to load weather forecast" {
+		t.Fatalf("unexpected dependency error: %v", dependencyErr)
+	}
+	if gen.called {
+		t.Fatal("generator must not be called when weather context fails closed")
+	}
+	if len(repo.statusSeq) != 0 {
+		t.Fatalf("trip should not enter PROCESSING before fail-closed weather load, got %v", repo.statusSeq)
+	}
+}
+
+func TestGenerate_WeatherContextDisabled_DoesNotCallProvider(t *testing.T) {
+	id := uuid.New()
+	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", StartDate: &startDate, Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	weatherProvider := &mockWeatherContextProvider{err: errors.New("should not be called")}
+	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, false, false))
+
+	_, err := svc.Generate(authContext(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if weatherProvider.called {
+		t.Fatal("weather context provider should not be called when disabled")
+	}
+}
+
+func TestGenerate_MissingStartDateSkipsWeatherContext(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	weatherProvider := &mockWeatherContextProvider{err: errors.New("should not be called")}
+	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, false))
+
+	_, err := svc.Generate(authContext(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if weatherProvider.called {
+		t.Fatal("weather context provider should not be called without startDate")
+	}
+	if gen.capturedInput.WeatherForecast != nil {
+		t.Fatalf("expected no weather forecast in generator input, got %+v", gen.capturedInput.WeatherForecast)
 	}
 }
 
@@ -835,6 +986,67 @@ func TestRegenerateItem_ReplacesOnlySelectedItem(t *testing.T) {
 	}
 	if repo.versions[0].Metadata["instructionPresent"] != true {
 		t.Fatalf("expected instructionPresent metadata, got %+v", repo.versions[0].Metadata)
+	}
+}
+
+func TestRegenerateDay_WeatherContextSuccess_PassesForecastToGenerator(t *testing.T) {
+	id := uuid.New()
+	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{
+			ID:          id,
+			Destination: "Rome",
+			StartDate:   &startDate,
+			Days:        2,
+			Itinerary:   validExistingItineraryRaw(t),
+		},
+	}
+	gen := &mockGenerator{}
+	weatherProvider := &mockWeatherContextProvider{result: testWeatherForecast()}
+	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
+
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !weatherProvider.called {
+		t.Fatal("expected weather context provider to be called")
+	}
+	if weatherProvider.capturedDestination != "Rome" || weatherProvider.capturedStartDate != "2026-08-10" || weatherProvider.capturedDays != 2 {
+		t.Fatalf("unexpected weather request: destination=%q startDate=%q days=%d", weatherProvider.capturedDestination, weatherProvider.capturedStartDate, weatherProvider.capturedDays)
+	}
+	if gen.capturedDayInput.WeatherForecast == nil {
+		t.Fatal("expected weather forecast in regenerate day input")
+	}
+}
+
+func TestRegenerateItem_WeatherContextSuccess_PassesForecastToGenerator(t *testing.T) {
+	id := uuid.New()
+	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{
+			ID:          id,
+			Destination: "Rome",
+			StartDate:   &startDate,
+			Days:        2,
+			Itinerary:   validExistingItineraryRaw(t),
+		},
+	}
+	gen := &mockGenerator{}
+	weatherProvider := &mockWeatherContextProvider{result: testWeatherForecast()}
+	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
+
+	_, err := svc.RegenerateItem(authContext(), id, 1, 0, appdto.RegenerateItineraryPartInput{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !weatherProvider.called {
+		t.Fatal("expected weather context provider to be called")
+	}
+	if gen.capturedItemInput.WeatherForecast == nil {
+		t.Fatal("expected weather forecast in regenerate item input")
 	}
 }
 
@@ -1294,6 +1506,25 @@ func validPlaceRef() *aggregate.PlaceRef {
 		MapURL:          "https://maps.example.com/mock-colosseum-rome",
 		Category:        "landmark",
 		Website:         "https://example.com/colosseum",
+	}
+}
+
+func testWeatherForecast() *weathercontext.WeatherForecast {
+	return &weathercontext.WeatherForecast{
+		Destination: "Rome",
+		Provider:    "mock",
+		Days: []weathercontext.WeatherDay{
+			{
+				Date:                "2026-08-10",
+				Condition:           "hot",
+				TemperatureMinC:     24,
+				TemperatureMaxC:     35,
+				PrecipitationChance: 5,
+				WindSpeedKph:        10,
+				Summary:             "Hot and sunny",
+				Warnings:            []string{"High heat: avoid long outdoor walks at midday"},
+			},
+		},
 	}
 }
 

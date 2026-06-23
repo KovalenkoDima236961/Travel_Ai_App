@@ -133,6 +133,34 @@ def test_generate_itinerary_accepts_optional_user_context() -> None:
     assert len(response.json()["days"]) == VALID_PAYLOAD["days"]
 
 
+def test_generate_itinerary_accepts_optional_weather_forecast() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["weatherForecast"] = {
+        "destination": "Rome",
+        "provider": "mock",
+        "days": [
+            {
+                "date": "2026-08-10",
+                "condition": "hot",
+                "temperatureMinC": 24,
+                "temperatureMaxC": 35,
+                "precipitationChance": 5,
+                "windSpeedKph": 10,
+                "summary": "Hot and sunny",
+                "warnings": ["High heat: avoid long outdoor walks at midday"],
+            }
+            for _ in range(VALID_PAYLOAD["days"])
+        ],
+    }
+
+    response = client.post("/generate-itinerary", json=payload)
+
+    assert response.status_code == 200
+    request = GenerateItineraryRequest.model_validate(payload)
+    assert request.weather_forecast is not None
+    assert request.weather_forecast.days[0].precipitation_chance == 5
+
+
 def test_user_preferences_arrays_are_trimmed_deduplicated_and_optional() -> None:
     payload = deepcopy(VALID_PAYLOAD)
     payload["userPreferences"] = {
@@ -303,6 +331,62 @@ def test_mock_generator_uses_hidden_gems_and_local_food_preferences() -> None:
     assert "nightclub" not in text
 
 
+def test_mock_generator_adapts_to_rainy_weather() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["weatherForecast"] = {
+        "destination": "Rome",
+        "provider": "mock",
+        "days": [
+            {
+                "date": "2026-08-10",
+                "condition": "rain",
+                "temperatureMinC": 20,
+                "temperatureMaxC": 25,
+                "precipitationChance": 80,
+                "windSpeedKph": 14,
+                "summary": "Rain likely",
+                "warnings": ["Rain likely: consider indoor alternatives"],
+            }
+            for _ in range(VALID_PAYLOAD["days"])
+        ],
+    }
+
+    response = client.post("/generate-itinerary", json=payload)
+
+    assert response.status_code == 200
+    first_item = response.json()["days"][0]["items"][0]
+    assert "Indoor" in first_item["name"]
+    assert "Rain is likely" in first_item["note"]
+
+
+def test_mock_generator_adapts_to_hot_weather() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["weatherForecast"] = {
+        "destination": "Rome",
+        "provider": "mock",
+        "days": [
+            {
+                "date": "2026-08-10",
+                "condition": "hot",
+                "temperatureMinC": 24,
+                "temperatureMaxC": 35,
+                "precipitationChance": 5,
+                "windSpeedKph": 10,
+                "summary": "Hot and sunny",
+                "warnings": ["High heat: avoid long outdoor walks at midday"],
+            }
+            for _ in range(VALID_PAYLOAD["days"])
+        ],
+    }
+
+    response = client.post("/generate-itinerary", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    text = " ".join(item.get("note") or "" for day in body["days"] for item in day["items"])
+    assert "High heat expected" in text
+
+
 def test_regenerate_day_success_returns_replacement_day_only() -> None:
     response = client.post("/regenerate-day", json=partial_payload())
 
@@ -328,6 +412,60 @@ def test_regenerate_item_success_returns_replacement_item_only() -> None:
     assert body["item"]["type"]
     assert body["item"]["name"]
     assert "day" not in body
+
+
+def test_regenerate_day_adapts_to_rainy_weather() -> None:
+    payload = partial_payload()
+    payload["weatherForecast"] = {
+        "destination": "Rome",
+        "provider": "mock",
+        "days": [
+            {
+                "date": "2026-08-10",
+                "condition": "rain",
+                "temperatureMinC": 20,
+                "temperatureMaxC": 25,
+                "precipitationChance": 80,
+                "windSpeedKph": 14,
+                "summary": "Rain likely",
+                "warnings": ["Rain likely: consider indoor alternatives"],
+            }
+            for _ in range(VALID_PAYLOAD["days"])
+        ],
+    }
+
+    response = client.post("/regenerate-day", json=payload)
+
+    assert response.status_code == 200
+    text = " ".join(item.get("note") or "" for item in response.json()["day"]["items"])
+    assert "Rain is likely" in text
+
+
+def test_regenerate_item_adapts_to_hot_weather() -> None:
+    payload = partial_payload()
+    payload["itemIndex"] = 1
+    payload["weatherForecast"] = {
+        "destination": "Rome",
+        "provider": "mock",
+        "days": [
+            {
+                "date": "2026-08-10",
+                "condition": "hot",
+                "temperatureMinC": 24,
+                "temperatureMaxC": 35,
+                "precipitationChance": 5,
+                "windSpeedKph": 10,
+                "summary": "Hot and sunny",
+                "warnings": ["High heat: avoid long outdoor walks at midday"],
+            }
+            for _ in range(VALID_PAYLOAD["days"])
+        ],
+    }
+
+    response = client.post("/regenerate-item", json=payload)
+
+    assert response.status_code == 200
+    assert "High heat expected" in response.json()["item"]["note"]
 
 
 def test_regenerate_day_invalid_day_number_returns_400() -> None:

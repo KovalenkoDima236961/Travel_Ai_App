@@ -12,6 +12,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
 // MockItineraryGenerator produces a deterministic, interest-aware sample plan
@@ -52,7 +53,10 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 					Time: "09:00",
 					Type: "activity",
 					Name: fmt.Sprintf("Explore %s highlights", trip.Destination),
-					Note: fmt.Sprintf("focused on %s", focus),
+					Note: weatherAwareNote(
+						fmt.Sprintf("focused on %s", focus),
+						weatherForDay(input.WeatherForecast, int(i)+1),
+					),
 				},
 				{
 					Time: "13:00",
@@ -109,6 +113,7 @@ func (g *MockItineraryGenerator) RegenerateDay(_ context.Context, input applicat
 	if input.Instruction != "" {
 		focus = "instruction-aware local highlights"
 	}
+	weatherDay := weatherForDay(input.WeatherForecast, input.DayNumber)
 
 	return &aggregate.ItineraryDay{
 		Day:   input.DayNumber,
@@ -118,7 +123,10 @@ func (g *MockItineraryGenerator) RegenerateDay(_ context.Context, input applicat
 				Time: "10:00",
 				Type: "activity",
 				Name: fmt.Sprintf("Updated %s experience", trip.Destination),
-				Note: fmt.Sprintf("A deterministic mock replacement focused on %s.", focus),
+				Note: weatherAwareNote(
+					fmt.Sprintf("A deterministic mock replacement focused on %s.", focus),
+					weatherDay,
+				),
 			},
 			{
 				Time:          "13:00",
@@ -155,13 +163,35 @@ func (g *MockItineraryGenerator) RegenerateItem(_ context.Context, input applica
 		zap.Bool("instruction_present", input.Instruction != ""),
 	)
 
+	weatherDay := weatherForDay(input.WeatherForecast, input.DayNumber)
+
 	return &aggregate.ItineraryItem{
 		Time:          "12:30",
 		Type:          "food",
 		Name:          fmt.Sprintf("Updated local option %d", input.ItemIndex+1),
-		Note:          fmt.Sprintf("Mock replacement for day %d in %s.", input.DayNumber, trip.Destination),
+		Note:          weatherAwareNote(fmt.Sprintf("Mock replacement for day %d in %s.", input.DayNumber, trip.Destination), weatherDay),
 		EstimatedCost: floatPtr(12),
 	}, nil
+}
+
+func weatherForDay(forecast *weathercontext.WeatherForecast, dayNumber int) *weathercontext.WeatherDay {
+	if forecast == nil || dayNumber < 1 || dayNumber > len(forecast.Days) {
+		return nil
+	}
+	return &forecast.Days[dayNumber-1]
+}
+
+func weatherAwareNote(base string, weatherDay *weathercontext.WeatherDay) string {
+	if weatherDay == nil {
+		return base
+	}
+	if weatherDay.PrecipitationChance >= 60 {
+		return base + " Rain is likely, so include an indoor backup such as a museum or cafe."
+	}
+	if weatherDay.TemperatureMaxC >= 32 {
+		return base + " High heat expected; avoid long outdoor walks at midday."
+	}
+	return base
 }
 
 // titleCase upper-cases the first rune of s.

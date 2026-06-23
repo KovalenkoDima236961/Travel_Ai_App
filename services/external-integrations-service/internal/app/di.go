@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
 	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
 	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
+	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
 )
 
 // container holds the wired dependencies. It is a small, explicit composition
@@ -34,12 +35,19 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 		return nil, fmt.Errorf("init route provider: %w", err)
 	}
 
+	weatherProvider, err := weatherprovider.New(cfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("init weather provider: %w", err)
+	}
+
 	svc := appservice.New(provider, log)
 	routesSvc := appservice.NewRoutesService(routeProvider, log)
+	weatherSvc := appservice.NewWeatherService(weatherProvider, log)
 	placesHandler := handler.NewPlacesHandler(svc, log, cfg.PlaceProvider.Provider)
 	routesHandler := handler.NewRoutesHandler(routesSvc, log)
+	weatherHandler := handler.NewWeatherHandler(weatherSvc, log)
 	readinessHandler := httpserver.NewReadinessHandler(log)
-	router := httpserver.NewRouter(log, placesHandler, routesHandler, readinessHandler, cfg.CORS)
+	router := httpserver.NewRouter(log, placesHandler, routesHandler, weatherHandler, readinessHandler, cfg.CORS)
 
 	return &container{router: router}, nil
 }

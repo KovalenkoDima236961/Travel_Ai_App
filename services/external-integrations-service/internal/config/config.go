@@ -10,18 +10,20 @@ import (
 )
 
 const (
-	PlaceProviderMock = "mock"
-	RouteProviderMock = "mock"
+	PlaceProviderMock   = "mock"
+	RouteProviderMock   = "mock"
+	WeatherProviderMock = "mock"
 )
 
 // Config is the root application configuration. It is loaded from a YAML file
 // with environment-variable overrides, then validated during bootstrap.
 type Config struct {
-	Env           string              `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production test"`
-	HTTPServer    HTTPServer          `yaml:"http_server" validate:"required"`
-	CORS          CORSConfig          `yaml:"cors" validate:"required"`
-	PlaceProvider PlaceProviderConfig `yaml:"place_provider" validate:"required"`
-	RouteProvider RouteProviderConfig `yaml:"route_provider" validate:"required"`
+	Env             string                `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production test"`
+	HTTPServer      HTTPServer            `yaml:"http_server" validate:"required"`
+	CORS            CORSConfig            `yaml:"cors" validate:"required"`
+	PlaceProvider   PlaceProviderConfig   `yaml:"place_provider" validate:"required"`
+	RouteProvider   RouteProviderConfig   `yaml:"route_provider" validate:"required"`
+	WeatherProvider WeatherProviderConfig `yaml:"weather_provider" validate:"required"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -55,6 +57,15 @@ type RouteProviderConfig struct {
 	OSRMBaseURL       string `yaml:"osrm_base_url" env:"OSRM_BASE_URL"`
 	MapboxAccessToken string `yaml:"mapbox_access_token" env:"MAPBOX_ACCESS_TOKEN"`
 	GoogleMapsAPIKey  string `yaml:"google_maps_api_key" env:"GOOGLE_MAPS_API_KEY"`
+}
+
+// WeatherProviderConfig selects the weather provider adapter. v1 ships only
+// deterministic mock forecasts; the remaining fields document future real
+// provider inputs and are unused today.
+type WeatherProviderConfig struct {
+	Provider         string `yaml:"provider" env:"WEATHER_PROVIDER" env-default:"mock"`
+	OpenMeteoBaseURL string `yaml:"open_meteo_base_url" env:"OPEN_METEO_BASE_URL"`
+	WeatherAPIKey    string `yaml:"weather_api_key" env:"WEATHER_API_KEY"`
 }
 
 // MustLoad loads and validates the configuration, panicking on any error.
@@ -102,6 +113,13 @@ func Load(path string) (*Config, error) {
 	cfg.RouteProvider.OSRMBaseURL = strings.TrimSpace(cfg.RouteProvider.OSRMBaseURL)
 	cfg.RouteProvider.MapboxAccessToken = strings.TrimSpace(cfg.RouteProvider.MapboxAccessToken)
 	cfg.RouteProvider.GoogleMapsAPIKey = strings.TrimSpace(cfg.RouteProvider.GoogleMapsAPIKey)
+
+	cfg.WeatherProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.WeatherProvider.Provider))
+	if cfg.WeatherProvider.Provider == "" {
+		cfg.WeatherProvider.Provider = WeatherProviderMock
+	}
+	cfg.WeatherProvider.OpenMeteoBaseURL = strings.TrimSpace(cfg.WeatherProvider.OpenMeteoBaseURL)
+	cfg.WeatherProvider.WeatherAPIKey = strings.TrimSpace(cfg.WeatherProvider.WeatherAPIKey)
 
 	return &cfg, nil
 }

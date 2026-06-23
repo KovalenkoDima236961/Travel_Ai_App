@@ -1,8 +1,12 @@
 from copy import deepcopy
 
-from app.schemas.itinerary import GenerateItineraryRequest
+from app.schemas.itinerary import GenerateItineraryRequest, RegenerateDayRequest
 from app.schemas.knowledge import KnowledgeSearchResult
-from app.services.prompt_builder import build_itinerary_prompt, build_repair_prompt
+from app.services.prompt_builder import (
+    build_itinerary_prompt,
+    build_regenerate_day_prompt,
+    build_repair_prompt,
+)
 
 VALID_PAYLOAD = {
     "tripId": "550e8400-e29b-41d4-a716-446655440000",
@@ -94,6 +98,39 @@ def test_itinerary_prompt_omits_user_context_when_not_provided() -> None:
     assert "USER TRAVEL PREFERENCES:" not in prompt
 
 
+def test_itinerary_prompt_includes_weather_forecast_and_warnings() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["weatherForecast"] = {
+        "destination": "Rome",
+        "provider": "mock",
+        "days": [
+            {
+                "date": "2026-08-10",
+                "condition": "hot",
+                "temperatureMinC": 24,
+                "temperatureMaxC": 35,
+                "precipitationChance": 5,
+                "windSpeedKph": 10,
+                "summary": "Hot and sunny",
+                "warnings": ["High heat: avoid long outdoor walks at midday"],
+            }
+        ],
+    }
+
+    prompt = build_itinerary_prompt(GenerateItineraryRequest.model_validate(payload))
+
+    assert "WEATHER FORECAST:" in prompt
+    assert "2026-08-10: Hot and sunny" in prompt
+    assert "Warnings: High heat: avoid long outdoor walks at midday" in prompt
+    assert "Avoid long outdoor walks during high heat." in prompt
+
+
+def test_itinerary_prompt_omits_weather_section_when_not_provided() -> None:
+    prompt = build_itinerary_prompt(_request())
+
+    assert "WEATHER FORECAST:" not in prompt
+
+
 def test_repair_prompt_includes_rag_context() -> None:
     prompt = build_repair_prompt(
         request=_request(),
@@ -125,3 +162,90 @@ def test_repair_prompt_includes_user_context() -> None:
     assert "USER TRAVEL PREFERENCES:" in prompt
     assert "- Avoid: nightclubs" in prompt
     assert "Preserve personalization from the user profile and travel preferences" in prompt
+
+
+def test_repair_prompt_preserves_weather_context() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["weatherForecast"] = {
+        "destination": "Rome",
+        "provider": "mock",
+        "days": [
+            {
+                "date": "2026-08-10",
+                "condition": "light_rain",
+                "temperatureMinC": 20,
+                "temperatureMaxC": 26,
+                "precipitationChance": 70,
+                "windSpeedKph": 18,
+                "summary": "Light rain likely",
+                "warnings": ["Rain likely: consider indoor alternatives"],
+            }
+        ],
+    }
+    request = GenerateItineraryRequest.model_validate(payload)
+
+    prompt = build_repair_prompt(
+        request=request,
+        invalid_response_text='{"days": []}',
+        validation_error="missing days",
+    )
+
+    assert "WEATHER FORECAST:" in prompt
+    assert "Rain likely: consider indoor alternatives" in prompt
+    assert "Preserve weather-aware choices from the weather forecast" in prompt
+
+
+def test_partial_regeneration_prompt_includes_weather_context() -> None:
+    payload = {
+        "trip": {
+            "id": VALID_PAYLOAD["tripId"],
+            "destination": VALID_PAYLOAD["destination"],
+            "startDate": VALID_PAYLOAD["startDate"],
+            "days": VALID_PAYLOAD["days"],
+            "budgetAmount": VALID_PAYLOAD["budgetAmount"],
+            "budgetCurrency": VALID_PAYLOAD["budgetCurrency"],
+            "travelers": VALID_PAYLOAD["travelers"],
+            "interests": VALID_PAYLOAD["interests"],
+            "pace": VALID_PAYLOAD["pace"],
+        },
+        "currentItinerary": {
+            "days": [
+                {
+                    "day": 1,
+                    "title": "Original day",
+                    "items": [
+                        {
+                            "time": "09:00",
+                            "type": "activity",
+                            "name": "Original walk",
+                            "note": "Outdoor route",
+                            "estimatedCost": 0,
+                        }
+                    ],
+                }
+            ]
+        },
+        "dayNumber": 1,
+        "weatherForecast": {
+            "destination": "Rome",
+            "provider": "mock",
+            "days": [
+                {
+                    "date": "2026-08-10",
+                    "condition": "rain",
+                    "temperatureMinC": 20,
+                    "temperatureMaxC": 25,
+                    "precipitationChance": 80,
+                    "windSpeedKph": 14,
+                    "summary": "Rain likely",
+                    "warnings": ["Rain likely: consider indoor alternatives"],
+                }
+            ],
+        },
+    }
+
+    prompt = build_regenerate_day_prompt(RegenerateDayRequest.model_validate(payload))
+
+    assert "WEATHER FORECAST:" in prompt
+    assert "Rain likely: consider indoor alternatives" in prompt
+    assert "Adapt the replacement day to the weather forecast when relevant." in prompt

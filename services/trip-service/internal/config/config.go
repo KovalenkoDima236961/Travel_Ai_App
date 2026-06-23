@@ -22,6 +22,7 @@ type Config struct {
 	Postgres           postgres.Config          `yaml:"postgres"`
 	ItineraryGenerator ItineraryGeneratorConfig `yaml:"itinerary_generator"`
 	UserContext        UserContextConfig        `yaml:"user_context"`
+	WeatherContext     WeatherContextConfig     `yaml:"weather_context"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -62,6 +63,15 @@ type UserContextConfig struct {
 	UserServiceURL string `yaml:"user_service_url" env:"USER_SERVICE_URL" env-default:"http://user-service:8083"`
 	TimeoutSeconds int    `yaml:"timeout_seconds" env:"USER_CONTEXT_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
 	FailOpen       bool   `yaml:"fail_open" env:"USER_CONTEXT_FAIL_OPEN" env-default:"true"`
+}
+
+// WeatherContextConfig controls optional weather forecast loading from External
+// Integrations Service before itinerary generation.
+type WeatherContextConfig struct {
+	Enabled                        bool   `yaml:"enabled" env:"WEATHER_CONTEXT_ENABLED" env-default:"true"`
+	ExternalIntegrationsServiceURL string `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
+	TimeoutSeconds                 int    `yaml:"timeout_seconds" env:"WEATHER_CONTEXT_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
+	FailOpen                       bool   `yaml:"fail_open" env:"WEATHER_CONTEXT_FAIL_OPEN" env-default:"true"`
 }
 
 // IsProduction reports whether the service runs in a production profile.
