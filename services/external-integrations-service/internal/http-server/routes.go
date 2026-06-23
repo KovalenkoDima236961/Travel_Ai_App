@@ -17,6 +17,7 @@ import (
 func NewRouter(
 	log *zap.Logger,
 	placesHandler *handler.PlacesHandler,
+	routesHandler *handler.RoutesHandler,
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
 ) http.Handler {
@@ -33,6 +34,7 @@ func NewRouter(
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
 	placesHandler.RegisterRoutes(r)
+	routesHandler.RegisterRoutes(r)
 
 	return r
 }

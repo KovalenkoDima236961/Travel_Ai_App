@@ -74,10 +74,14 @@ http://localhost:3000
 31. Use the day filter and confirm markers change.
 32. Refresh the page and confirm the map still shows markers.
 33. Confirm the `Distance estimate` panel appears below the Map View.
-34. Confirm the panel is labelled as approximate straight-line distance.
-35. Confirm the day with at least two mapped places shows a mapped-stops count,
-    an approximate distance (e.g. `approx. 1.6 km`), and an estimated walking
-    time (e.g. `~19 min walking`). Exact figures depend on the attached places.
+34. Confirm the panel explains that route estimates come from the External
+    Integrations Service and fall back to a straight-line Haversine estimate.
+35. Confirm the day with at least two mapped places shows a mapped-stops count
+    and, with the External Integrations Service running, a
+    `Route estimate: <km> · ~<time> walking` line plus a smaller
+    `Straight-line fallback: <km>` line. Exact figures depend on the attached
+    places. (If the service is down, a `Straight-line estimate` line is shown
+    instead.)
 36. Expand the day's segment details and confirm per-segment distances appear
     (e.g. `Colosseum → Roman Forum: 0.6 km · ~8 min`).
 37. Open `/settings`, set `maxWalkingKmPerDay` to a low value such as `1`, and
@@ -121,6 +125,34 @@ http://localhost:3000
 14. Open `Version History`.
 15. Confirm a `Manual edit` version exists for this change.
 
+## Route Estimate (External Integrations Service)
+
+This verifies the service-backed route estimate and its straight-line fallback.
+
+1. Log in.
+2. Open a completed trip.
+3. Click `Edit itinerary`.
+4. Attach mock places with coordinates to at least two items in one day.
+5. Click `Save`.
+6. Open the trip detail page.
+7. In the `Distance estimate` panel, confirm the day shows a
+   `Route estimate: <km> · ~<time> walking` line and a
+   `Route estimates by mock provider` badge.
+8. Confirm the smaller `Straight-line fallback: <km>` line is still shown.
+9. Expand the segment details and confirm they are labelled `(route)` with
+   per-segment distance and time.
+10. Stop only the External Integrations Service:
+    `docker compose -f infra/docker-compose.yml stop external-integrations-service`.
+11. Refresh the trip detail page.
+12. Confirm the app does not crash and the panel falls back to
+    `Route service unavailable. Showing straight-line estimate.` with the
+    straight-line Haversine figures (badge shows `Straight-line fallback estimate`).
+13. Confirm the walking-preference warning still works, now compared against the
+    straight-line estimate (the line ends with `(straight-line estimate)`).
+14. Restart the service:
+    `docker compose -f infra/docker-compose.yml start external-integrations-service`,
+    refresh, and confirm the route estimate returns.
+
 ## Troubleshooting
 
 - CORS error in browser console: confirm Trip Service has
@@ -132,6 +164,11 @@ http://localhost:3000
   and `docker compose -f infra/docker-compose.yml logs user-service`.
 - External Integrations Service offline: check
   `docker compose -f infra/docker-compose.yml logs external-integrations-service`.
+  The Distance estimate panel falls back to straight-line estimates and does not
+  crash the page.
+- Route estimate CORS error in browser console: confirm the External
+  Integrations Service allows `POST` (default `CORS_ALLOWED_METHODS=GET,POST,OPTIONS`),
+  then rebuild/restart `external-integrations-service`.
 - AI Planning Service offline: check
   `docker compose -f infra/docker-compose.yml logs ai-planning-service`.
 - Ollama model not pulled: run

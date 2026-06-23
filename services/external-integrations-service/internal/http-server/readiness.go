@@ -24,7 +24,13 @@ func NewReadinessHandler(log *zap.Logger) *ReadinessHandler {
 
 func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	startedAt := time.Now()
-	checks := map[string]string{"place_provider": "ok"}
+	// The mock providers have no external dependency, so readiness is static.
+	// When a future route provider needs a backing service (e.g. OSRM), add its
+	// health probe here.
+	checks := map[string]string{
+		"place_provider": "ok",
+		"route_provider": "ok",
+	}
 
 	h.log.Info(
 		"readiness check completed",

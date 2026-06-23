@@ -9,10 +9,18 @@ http_server:
 
 cors:
   allowed_origins: "http://localhost:3000"
-  allowed_methods: "GET,OPTIONS"
+  allowed_methods: "GET,POST,OPTIONS"
   allowed_headers: "Content-Type,Authorization"
 
 place_provider:
   provider: mock
   google_places_api_key: ""
   mapbox_api_key: ""
+
+route_provider:
+  # v1 supports only the deterministic mock provider.
+  provider: mock
+  # Documented for future real providers; unused in v1.
+  osrm_base_url: ""
+  mapbox_access_token: ""
+  google_maps_api_key: ""

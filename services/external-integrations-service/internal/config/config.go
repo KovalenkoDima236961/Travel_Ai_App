@@ -11,6 +11,7 @@ import (
 
 const (
 	PlaceProviderMock = "mock"
+	RouteProviderMock = "mock"
 )
 
 // Config is the root application configuration. It is loaded from a YAML file
@@ -20,6 +21,7 @@ type Config struct {
 	HTTPServer    HTTPServer          `yaml:"http_server" validate:"required"`
 	CORS          CORSConfig          `yaml:"cors" validate:"required"`
 	PlaceProvider PlaceProviderConfig `yaml:"place_provider" validate:"required"`
+	RouteProvider RouteProviderConfig `yaml:"route_provider" validate:"required"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -34,7 +36,7 @@ type HTTPServer struct {
 // CORSConfig controls browser access to External Integrations Service.
 type CORSConfig struct {
 	AllowedOrigins string `yaml:"allowed_origins" env:"CORS_ALLOWED_ORIGINS" env-default:"http://localhost:3000"`
-	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,OPTIONS"`
+	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,OPTIONS"`
 	AllowedHeaders string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
 }
 
@@ -43,6 +45,16 @@ type PlaceProviderConfig struct {
 	Provider           string `yaml:"provider" env:"PLACE_PROVIDER" env-default:"mock"`
 	GooglePlacesAPIKey string `yaml:"google_places_api_key" env:"GOOGLE_PLACES_API_KEY"`
 	MapboxAPIKey       string `yaml:"mapbox_api_key" env:"MAPBOX_API_KEY"`
+}
+
+// RouteProviderConfig selects the route-estimation provider adapter. v1 ships
+// only the deterministic mock provider; the remaining fields document the inputs
+// future real providers (OSRM, Mapbox, Google) will need but are unused today.
+type RouteProviderConfig struct {
+	Provider          string `yaml:"provider" env:"ROUTE_PROVIDER" env-default:"mock"`
+	OSRMBaseURL       string `yaml:"osrm_base_url" env:"OSRM_BASE_URL"`
+	MapboxAccessToken string `yaml:"mapbox_access_token" env:"MAPBOX_ACCESS_TOKEN"`
+	GoogleMapsAPIKey  string `yaml:"google_maps_api_key" env:"GOOGLE_MAPS_API_KEY"`
 }
 
 // MustLoad loads and validates the configuration, panicking on any error.
@@ -82,6 +94,15 @@ func Load(path string) (*Config, error) {
 	cfg.PlaceProvider.GooglePlacesAPIKey = strings.TrimSpace(cfg.PlaceProvider.GooglePlacesAPIKey)
 	cfg.PlaceProvider.MapboxAPIKey = strings.TrimSpace(cfg.PlaceProvider.MapboxAPIKey)
 
+	cfg.RouteProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.RouteProvider.Provider))
+	if cfg.RouteProvider.Provider == "" {
+		cfg.RouteProvider.Provider = RouteProviderMock
+	}
+
+	cfg.RouteProvider.OSRMBaseURL = strings.TrimSpace(cfg.RouteProvider.OSRMBaseURL)
+	cfg.RouteProvider.MapboxAccessToken = strings.TrimSpace(cfg.RouteProvider.MapboxAccessToken)
+	cfg.RouteProvider.GoogleMapsAPIKey = strings.TrimSpace(cfg.RouteProvider.GoogleMapsAPIKey)
+
 	return &cfg, nil
 }
 
@@ -93,7 +114,7 @@ func (c *Config) applyDefaults() {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
-		c.CORS.AllowedMethods = "GET,OPTIONS"
+		c.CORS.AllowedMethods = "GET,POST,OPTIONS"
 	}
 	if strings.TrimSpace(c.CORS.AllowedHeaders) == "" {
 		c.CORS.AllowedHeaders = "Content-Type,Authorization"

@@ -115,10 +115,10 @@ of the itinerary.
 To attach a real-place-shaped mock place, open a completed trip, click
 `Edit itinerary`, click `Attach real place` on an item, search, select a result,
 then click `Save`. Existing itinerary items without `place` metadata continue to
-render normally. v1 intentionally has no opening hours, route optimization,
-real route distance, flights, hotels, weather, or real Google Places provider.
-See Distance / Walking Estimate below for the approximate straight-line distance
-the Web App does calculate.
+render normally. v1 intentionally has no opening hours, flights, hotels, weather,
+or real Google Places provider, and no turn-by-turn route geometry.
+See Distance / Walking Estimate below for the approximate route and straight-line
+distances the Web App shows.
 
 ## Map View
 
@@ -135,27 +135,40 @@ dragging, or editing places from the map.
 ## Distance / Walking Estimate
 
 Completed trips with itinerary items that have attached place coordinates show a
-read-only Distance estimate panel below the Map View on the trip detail page. It
-is fully frontend-only — no routing APIs, backend endpoints, or map provider
-keys are involved.
+read-only Distance estimate panel below the Map View on the trip detail page. The
+panel prefers a route estimate from the External Integrations Service and falls
+back to a frontend straight-line (Haversine) estimate when that service is
+unavailable.
 
-- Uses the latitude/longitude on attached place metadata.
-- Calculates approximate straight-line distance between consecutive mapped stops
-  per day using the Haversine formula (Earth radius 6371 km).
-- Estimates walking time using a flat 5 km/h pace.
+- For each day with at least two mapped stops, the Web App calls
+  `POST /routes/estimate` on the External Integrations Service
+  (`mode: "walking"`, ordered stops) and shows
+  `Route estimate: <km> · ~<time> walking` plus a `Route estimates by mock
+  provider` badge and the smaller straight-line fallback figure.
+- Route estimates are approximate (mock provider: Haversine × 1.25 at 5 km/h),
+  read-only, and never modify the itinerary or get persisted by Trip Service.
+- If the route service is slow, down, or returns an error, the panel shows
+  `Route service unavailable. Showing straight-line estimate.` and uses the
+  frontend Haversine estimate (Earth radius 6371 km, flat 5 km/h pace). The page
+  never blocks on or crashes from route loading.
 - Compares each day total with `maxWalkingKmPerDay` from the User/Profile
-  Service and shows a warning badge for days above the preference.
-- It is **not** real route distance. Real walking distance may be higher, and
-  the UI labels the figures as approximate.
+  Service, using the route distance when available and the straight-line
+  distance otherwise. The warning line states which estimate was used.
 
 Only itinerary items with a numeric, in-range `latitude` and `longitude` are
 counted, so existing trips without place coordinates keep working. A day needs at
 least two mapped stops before it contributes a distance. Preferences are fetched
 non-blocking: if the request fails the estimates still render, just without the
 preference comparison. Distance estimates are hidden during itinerary edit mode
-and reappear after saving or leaving edit mode. The estimate logic lives in
-`src/lib/itinerary/distance-utils.ts` as pure functions covered by
-`distance-utils.test.ts`.
+and reappear after saving or leaving edit mode.
+
+The straight-line logic lives in `src/lib/itinerary/distance-utils.ts`; route
+stop extraction in `src/lib/itinerary/route-estimate-utils.ts`; the route
+estimate fetching (TanStack Query, one query per day, keyed by stop coordinates,
+no retries) in `src/lib/hooks/useRouteEstimates.ts` and `src/lib/api/routes.ts`.
+All are covered by their respective `*.test.ts` files. This requires
+`NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL` and the service's CORS to allow
+`POST` from the browser origin.
 
 ## Route Optimization v1
 

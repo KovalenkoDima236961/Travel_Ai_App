@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
 	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
+	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
 )
 
 func TestHealthReturnsOK(t *testing.T) {
@@ -144,7 +145,9 @@ func newTestRouter() http.Handler {
 	cfg := testConfig()
 	svc := appservice.New(placeprovider.NewMockPlaceProvider(), zap.NewNop())
 	placesHandler := handler.NewPlacesHandler(svc, zap.NewNop(), cfg.PlaceProvider.Provider)
-	return NewRouter(zap.NewNop(), placesHandler, NewReadinessHandler(zap.NewNop()), cfg.CORS)
+	routesSvc := appservice.NewRoutesService(routeprovider.NewMockRouteProvider(), zap.NewNop())
+	routesHandler := handler.NewRoutesHandler(routesSvc, zap.NewNop())
+	return NewRouter(zap.NewNop(), placesHandler, routesHandler, NewReadinessHandler(zap.NewNop()), cfg.CORS)
 }
 
 func testConfig() *config.Config {
@@ -154,9 +157,10 @@ func testConfig() *config.Config {
 			Address: ":0",
 		},
 		PlaceProvider: config.PlaceProviderConfig{Provider: "mock"},
+		RouteProvider: config.RouteProviderConfig{Provider: "mock"},
 		CORS: config.CORSConfig{
 			AllowedOrigins: "http://localhost:3000",
-			AllowedMethods: "GET,OPTIONS",
+			AllowedMethods: "GET,POST,OPTIONS",
 			AllowedHeaders: "Content-Type,Authorization",
 		},
 	}

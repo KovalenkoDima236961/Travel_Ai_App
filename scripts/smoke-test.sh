@@ -161,6 +161,31 @@ if [[ -z "${PLACE_ID}" || "${PLACE_NAME}" != "Colosseum" ]]; then
   exit 1
 fi
 
+echo "Estimating a mock walking route..."
+ROUTE_PAYLOAD='{"mode":"walking","stops":[{"name":"Colosseum","latitude":41.8902,"longitude":12.4922},{"name":"Trevi Fountain","latitude":41.9009,"longitude":12.4833}]}'
+request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" "${ROUTE_PAYLOAD}"
+assert_2xx "Route estimate"
+
+ROUTE_PROVIDER_NAME="$(jq -r '.provider // empty' <<<"${LAST_BODY}")"
+ROUTE_DISTANCE="$(jq -r '.distanceKm // 0' <<<"${LAST_BODY}")"
+ROUTE_DURATION="$(jq -r '.durationMinutes // 0' <<<"${LAST_BODY}")"
+ROUTE_SEGMENTS="$(jq -r '.segments | length' <<<"${LAST_BODY}")"
+if [[ "${ROUTE_PROVIDER_NAME}" != "mock" ]]; then
+  echo "Route estimate did not report the mock provider (got '${ROUTE_PROVIDER_NAME}')." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.distanceKm > 0 and .durationMinutes > 0 and (.segments | length) == 1' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Route estimate must return distanceKm>0, durationMinutes>0, and exactly 1 segment." >&2
+  echo "distanceKm=${ROUTE_DISTANCE} durationMinutes=${ROUTE_DURATION} segments=${ROUTE_SEGMENTS}" >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking route estimate validation rejects a single stop..."
+request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" '{"mode":"walking","stops":[{"name":"Colosseum","latitude":41.8902,"longitude":12.4922}]}'
+assert_status "Route estimate rejects fewer than 2 stops" "400"
+
 echo "Web App URL: ${WEB_APP_URL}"
 if request GET "${WEB_APP_URL}"; then
   if [[ "${LAST_STATUS}" =~ ^2 ]]; then

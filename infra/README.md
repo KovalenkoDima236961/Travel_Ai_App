@@ -99,15 +99,25 @@ identity, Trip Service owns trips, and AI Planning Service owns itinerary
 generation.
 
 External Integrations Service is exposed directly at `http://localhost:8084`.
-v1 uses `PLACE_PROVIDER=mock` and returns deterministic place data for local
-development. Example:
+v1 uses `PLACE_PROVIDER=mock` and `ROUTE_PROVIDER=mock` and returns deterministic
+data for local development. Examples:
 
 ```bash
 curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
+
+curl -X POST "http://localhost:8084/routes/estimate" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"walking","stops":[
+    {"name":"Colosseum","latitude":41.8902,"longitude":12.4922},
+    {"name":"Trevi Fountain","latitude":41.9009,"longitude":12.4833}
+  ]}'
 ```
 
-Future provider candidates include Google Places, Mapbox, and Foursquare, but
-no real third-party provider is enabled in v1.
+`POST /routes/estimate` returns approximate mock walking route estimates
+(Haversine × 1.25 at 5 km/h). Because the Web App calls it from the browser, the
+service's CORS allows `POST` (`CORS_ALLOWED_METHODS=GET,POST,OPTIONS` by
+default). Future provider candidates include Google Places, Mapbox, Foursquare,
+OSRM, and Google Maps routing, but no real third-party provider is enabled in v1.
 
 Trip Service requires `Authorization: Bearer <accessToken>` on `/trips` routes
 by default. To temporarily disable that for local debugging, set
@@ -172,7 +182,10 @@ With the stack running:
 The smoke test checks Auth Service, Trip Service, User Service, External
 Integrations Service, and AI Planning Service health, registers and logs in a
 unique test user, calls `/auth/me`, creates/updates profile and preferences with
-a bearer token, searches mock places for Colosseum in Rome, creates a Rome trip,
+a bearer token, searches mock places for Colosseum in Rome, requests a mock
+walking route estimate and asserts a `mock` provider with positive distance,
+duration, and one segment (and that fewer than two stops is rejected), creates a
+Rome trip,
 generates its itinerary through Trip Service's personalized context path, saves
 a manual itinerary edit with attached place metadata, verifies the metadata
 persists after fetch and in the manual-edit version snapshot, lists itinerary

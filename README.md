@@ -19,11 +19,15 @@ preferences from User Service by forwarding the user's JWT, then sends optional
 `userProfile` and `userPreferences` to AI Planning Service for prompt
 personalization. Access tokens and full preference payloads should not be logged.
 External Integrations Service v1 lives in
-`services/external-integrations-service` and owns place search/details provider
-boundaries. v1 uses deterministic mock data for Rome, Paris, Vienna, and
-Bratislava; the Web App calls this service when attaching optional place
-metadata to itinerary items. No real Google Places provider, full map view,
-opening hours, or route optimization is enabled yet.
+`services/external-integrations-service` and owns place search/details and route
+estimation provider boundaries. v1 uses deterministic mock data for Rome, Paris,
+Vienna, and Bratislava; the Web App calls this service when attaching optional
+place metadata to itinerary items and to estimate per-day walking routes via
+`POST /routes/estimate` (mock provider: Haversine × 1.25 at 5 km/h). Route
+estimates are read-only and approximate; the Web App falls back to its own
+straight-line Haversine estimate when the service is unavailable. No real Google
+Places provider, full map view, opening hours, or real turn-by-turn routing is
+enabled yet.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token
