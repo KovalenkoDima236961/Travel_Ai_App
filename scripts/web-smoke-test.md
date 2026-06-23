@@ -73,17 +73,32 @@ http://localhost:3000
 30. Click a marker and confirm the popup shows item/place details.
 31. Use the day filter and confirm markers change.
 32. Refresh the page and confirm the map still shows markers.
-33. Open `Version History` again.
-34. Confirm a `Manual edit` version exists.
-35. Preview the manual edit version and confirm it keeps the place metadata.
-36. Preview the older generated version.
-37. Restore the generated version.
-38. Refresh the page.
-39. Confirm the restored itinerary persists.
-40. Open `Version History`.
-41. Confirm the restore created another version.
-42. Go to `/trips`.
-43. Confirm the trip appears in the list.
+33. Confirm the `Distance estimate` panel appears below the Map View.
+34. Confirm the panel is labelled as approximate straight-line distance.
+35. Confirm the day with at least two mapped places shows a mapped-stops count,
+    an approximate distance (e.g. `approx. 1.6 km`), and an estimated walking
+    time (e.g. `~19 min walking`). Exact figures depend on the attached places.
+36. Expand the day's segment details and confirm per-segment distances appear
+    (e.g. `Colosseum → Roman Forum: 0.6 km · ~8 min`).
+37. Open `/settings`, set `maxWalkingKmPerDay` to a low value such as `1`, and
+    save preferences.
+38. Return to the trip detail page.
+39. Confirm a day above the preference shows the `Above your walking preference`
+    warning badge and the `Your preference: max 1 km/day` line.
+40. Click `Edit itinerary` and confirm the distance estimates are hidden with a
+    note that they are available after saving or leaving edit mode.
+41. Leave edit mode and confirm the distance estimates reappear.
+42. Open `Version History` again.
+43. Confirm a `Manual edit` version exists.
+44. Preview the manual edit version and confirm it keeps the place metadata.
+45. Preview the older generated version.
+46. Restore the generated version.
+47. Refresh the page.
+48. Confirm the restored itinerary persists.
+49. Open `Version History`.
+50. Confirm the restore created another version.
+51. Go to `/trips`.
+52. Confirm the trip appears in the list.
 
 ## Troubleshooting
 

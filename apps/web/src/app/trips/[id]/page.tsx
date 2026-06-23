@@ -13,6 +13,7 @@ import {
   prepareItineraryForEdit,
   validateEditableItinerary
 } from "@/components/trips/ItineraryEditor";
+import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
@@ -26,6 +27,7 @@ import {
   tripKeys,
   updateTripItinerary
 } from "@/lib/api/trips";
+import { getMyPreferences, userKeys } from "@/lib/api/user";
 import {
   formatBudget,
   formatDate,
@@ -60,6 +62,16 @@ function TripDetailPageContent() {
     refetchInterval: (query) =>
       query.state.data?.status === "PROCESSING" ? 3000 : false
   });
+
+  // Preferences power the walking-distance warning. They are intentionally
+  // non-blocking: if the fetch fails we still render the distance estimates and
+  // simply omit the preference comparison.
+  const preferencesQuery = useQuery({
+    queryKey: userKeys.preferences(),
+    queryFn: getMyPreferences,
+    staleTime: 5 * 60 * 1000
+  });
+  const maxWalkingKmPerDay = preferencesQuery.data?.maxWalkingKmPerDay ?? null;
 
   const updateMutation = useMutation({
     mutationFn: (itinerary: Itinerary) => updateTripItinerary(tripId, itinerary)
@@ -294,7 +306,8 @@ function TripDetailPageContent() {
                   onChange={setDraftItinerary}
                 />
                 <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                  Map view is available after saving or leaving edit mode.
+                  Map view and distance estimates are available after saving or leaving edit
+                  mode.
                 </div>
               </div>
             ) : (
@@ -315,6 +328,10 @@ function TripDetailPageContent() {
                   regeneratingTarget={regeneratingTarget}
                 />
                 <ItineraryMap itinerary={trip.itinerary} />
+                <DistanceSummary
+                  itinerary={trip.itinerary}
+                  maxWalkingKmPerDay={maxWalkingKmPerDay}
+                />
                 <ItineraryVersionHistory
                   currency={trip.budgetCurrency}
                   onRestored={handleVersionRestored}

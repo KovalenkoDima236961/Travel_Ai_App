@@ -116,7 +116,9 @@ To attach a real-place-shaped mock place, open a completed trip, click
 `Edit itinerary`, click `Attach real place` on an item, search, select a result,
 then click `Save`. Existing itinerary items without `place` metadata continue to
 render normally. v1 intentionally has no opening hours, route optimization,
-distance calculation, flights, hotels, weather, or real Google Places provider.
+real route distance, flights, hotels, weather, or real Google Places provider.
+See Distance / Walking Estimate below for the approximate straight-line distance
+the Web App does calculate.
 
 ## Map View
 
@@ -127,8 +129,33 @@ with numeric latitude and longitude values. Use the day filter to view all
 mapped places or only the mapped places for a single day.
 
 Attach places in itinerary edit mode first, then save or leave edit mode to see
-them on the map. Map View v1 does not support route optimization, distance
-calculation, marker dragging, or editing places from the map.
+them on the map. Map View v1 does not support route optimization, marker
+dragging, or editing places from the map.
+
+## Distance / Walking Estimate
+
+Completed trips with itinerary items that have attached place coordinates show a
+read-only Distance estimate panel below the Map View on the trip detail page. It
+is fully frontend-only — no routing APIs, backend endpoints, or map provider
+keys are involved.
+
+- Uses the latitude/longitude on attached place metadata.
+- Calculates approximate straight-line distance between consecutive mapped stops
+  per day using the Haversine formula (Earth radius 6371 km).
+- Estimates walking time using a flat 5 km/h pace.
+- Compares each day total with `maxWalkingKmPerDay` from the User/Profile
+  Service and shows a warning badge for days above the preference.
+- It is **not** real route distance. Real walking distance may be higher, and
+  the UI labels the figures as approximate.
+
+Only itinerary items with a numeric, in-range `latitude` and `longitude` are
+counted, so existing trips without place coordinates keep working. A day needs at
+least two mapped stops before it contributes a distance. Preferences are fetched
+non-blocking: if the request fails the estimates still render, just without the
+preference comparison. Distance estimates are hidden during itinerary edit mode
+and reappear after saving or leaving edit mode. The estimate logic lives in
+`src/lib/itinerary/distance-utils.ts` as pure functions covered by
+`distance-utils.test.ts`.
 
 The Version History panel appears on completed trips that have an itinerary. It
 fetches version summaries, displays source labels such as `Generated`,
@@ -181,4 +208,8 @@ npm run dev
 npm run build
 npm run start
 npm run typecheck
+npm test
 ```
+
+`npm test` runs the Vitest unit tests for the pure itinerary utilities (for
+example the distance/walking estimate helpers).
