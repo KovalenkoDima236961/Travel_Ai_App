@@ -1,4 +1,6 @@
+import logging
 import re
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
@@ -11,6 +13,9 @@ _ITEMS_PER_DAY_BY_PACE = {
 _VALID_ITEM_TYPES = {"place", "food", "activity", "transport", "rest"}
 _TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _BUDGET_OVERRUN_MULTIPLIER = Decimal("1.30")
+_LONG_WALK_PATTERN = re.compile(r"\b(long|extended|lengthy|walking-heavy|full-day)\s+walk", re.I)
+
+logger = logging.getLogger(__name__)
 
 
 class ItineraryValidationError(Exception):
@@ -18,6 +23,17 @@ class ItineraryValidationError(Exception):
         super().__init__(message)
         self.message = message
         self.code = code
+
+
+@dataclass(frozen=True)
+class ItineraryValidationWarning:
+    code: str
+    message: str
+
+
+@dataclass
+class ItineraryValidationResult:
+    warnings: list[ItineraryValidationWarning] = field(default_factory=list)
 
 
 class ItineraryValidator:
@@ -28,7 +44,9 @@ class ItineraryValidator:
         self,
         request: GenerateItineraryRequest,
         itinerary: ItineraryResponse,
-    ) -> None:
+    ) -> ItineraryValidationResult:
+        result = ItineraryValidationResult()
+
         if len(itinerary.days) != request.days:
             raise ItineraryValidationError(
                 f"Expected {request.days} itinerary day(s), received {len(itinerary.days)}",
@@ -38,6 +56,8 @@ class ItineraryValidator:
         expected_items_per_day = _ITEMS_PER_DAY_BY_PACE.get(request.pace, 4)
         total_estimated_cost = Decimal("0")
         estimated_cost_count = 0
+        food_texts: list[str] = []
+        long_walk_mentions = 0
 
         for expected_day_number, day in enumerate(itinerary.days, start=1):
             if day.day != expected_day_number:
@@ -118,6 +138,19 @@ class ItineraryValidator:
                     total_estimated_cost += item.estimated_cost
                     estimated_cost_count += 1
 
+                combined_text = " ".join(
+                    value
+                    for value in [item.type, item.name, item.note or ""]
+                    if value
+                )
+                result.warnings.extend(
+                    _avoidance_warnings(request, day.day, item_index, combined_text)
+                )
+                if item.type == "food":
+                    food_texts.append(combined_text.casefold())
+                if _LONG_WALK_PATTERN.search(combined_text):
+                    long_walk_mentions += 1
+
         if (
             request.budget_amount is not None
             and request.budget_amount > 0
@@ -128,3 +161,100 @@ class ItineraryValidator:
                 "Total estimated itinerary cost exceeds the requested budget by more than 30%",
                 code="budget_exceeded",
             )
+
+        result.warnings.extend(_dietary_warnings(request, food_texts))
+        result.warnings.extend(_walking_warnings(request, long_walk_mentions))
+        if result.warnings:
+            logger.warning(
+                "Itinerary validation completed with personalization warnings",
+                extra={
+                    "trip_id": str(request.trip_id),
+                    "warning_codes": [warning.code for warning in result.warnings],
+                },
+            )
+        return result
+
+
+def _avoidance_warnings(
+    request: GenerateItineraryRequest,
+    day_number: int,
+    item_index: int,
+    combined_text: str,
+) -> list[ItineraryValidationWarning]:
+    preferences = request.user_preferences
+    if preferences is None or not preferences.avoid:
+        return []
+
+    normalized_text = combined_text.casefold()
+    warnings: list[ItineraryValidationWarning] = []
+    for avoid_term in preferences.avoid:
+        normalized_avoid_term = avoid_term.strip().casefold()
+        if not normalized_avoid_term:
+            continue
+        if _term_matches(normalized_text, normalized_avoid_term):
+            warnings.append(
+                ItineraryValidationWarning(
+                    code="avoid_term_mentioned",
+                    message=(
+                        f"Day {day_number} item {item_index} mentions avoided term "
+                        f"{avoid_term!r}"
+                    ),
+                )
+            )
+    return warnings
+
+
+def _term_matches(normalized_text: str, normalized_term: str) -> bool:
+    terms = {normalized_term}
+    if normalized_term.endswith("s") and len(normalized_term) > 1:
+        terms.add(normalized_term[:-1])
+    return any(term in normalized_text for term in terms)
+
+
+def _dietary_warnings(
+    request: GenerateItineraryRequest,
+    food_texts: list[str],
+) -> list[ItineraryValidationWarning]:
+    preferences = request.user_preferences
+    if preferences is None or not preferences.dietary_restrictions:
+        return []
+
+    restrictions = [
+        restriction.strip().casefold()
+        for restriction in preferences.dietary_restrictions
+        if restriction.strip()
+    ]
+    if not restrictions:
+        return []
+
+    if not food_texts or not any(
+        restriction in food_text for restriction in restrictions for food_text in food_texts
+    ):
+        return [
+            ItineraryValidationWarning(
+                code="dietary_restrictions_not_reflected",
+                message="Dietary restrictions are present but food items do not mention them.",
+            )
+        ]
+    return []
+
+
+def _walking_warnings(
+    request: GenerateItineraryRequest,
+    long_walk_mentions: int,
+) -> list[ItineraryValidationWarning]:
+    preferences = request.user_preferences
+    if preferences is None or preferences.max_walking_km_per_day is None:
+        return []
+
+    if preferences.max_walking_km_per_day <= 3 and long_walk_mentions >= 2:
+        return [
+            ItineraryValidationWarning(
+                code="walking_limit_may_be_exceeded",
+                message=(
+                    "Low maxWalkingKmPerDay is set but itinerary repeatedly suggests "
+                    "long walks."
+                ),
+            )
+        ]
+    return []

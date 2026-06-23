@@ -26,7 +26,7 @@ class MockItineraryGenerator:
         return ItineraryResponse(days=days)
 
     def _title_for_day(self, request: GenerateItineraryRequest, day_number: int) -> str:
-        interests = set(request.interests)
+        interests = self._personalized_interests(request)
         destination = request.destination
 
         if "history" in interests and "food" in interests:
@@ -45,7 +45,7 @@ class MockItineraryGenerator:
     def _items_for_day(
         self, request: GenerateItineraryRequest, day_number: int
     ) -> list[ItineraryItem]:
-        interests = set(request.interests)
+        interests = self._personalized_interests(request)
         destination = request.destination
 
         if request.pace == "relaxed":
@@ -122,7 +122,13 @@ class MockItineraryGenerator:
         )
 
     def _lunch_item(self, time: str, destination: str, interests: set[str]) -> ItineraryItem:
-        if "food" in interests:
+        if "local_food" in interests:
+            note = (
+                f"In {destination}, choose a simple local place with seasonal dishes "
+                "and prices that suit a budget-conscious food day."
+            )
+            name = "Local neighborhood lunch"
+        elif "food" in interests:
             note = (
                 f"In {destination}, pick a small local place and order a seasonal dish "
                 "instead of the most visible tourist menu."
@@ -152,6 +158,18 @@ class MockItineraryGenerator:
         interests: set[str],
         day_number: int,
     ) -> ItineraryItem:
+        if "hidden_gems" in interests:
+            return ItineraryItem(
+                time=time,
+                type="activity",
+                name="Hidden-gem local neighborhood stop",
+                note=(
+                    f"Explore a quieter {destination} neighborhood with independent "
+                    "shops and small cafes."
+                ),
+                estimated_cost=Decimal("5"),
+            )
+
         if "history" in interests:
             return ItineraryItem(
                 time=time,
@@ -162,18 +180,6 @@ class MockItineraryGenerator:
                     f"on day {day_number}."
                 ),
                 estimated_cost=Decimal("16"),
-            )
-
-        if "hidden_gems" in interests:
-            return ItineraryItem(
-                time=time,
-                type="activity",
-                name="Local neighborhood walk",
-                note=(
-                    f"Explore a quieter {destination} neighborhood with independent "
-                    "shops and small cafes."
-                ),
-                estimated_cost=Decimal("5"),
             )
 
         return ItineraryItem(
@@ -220,3 +226,20 @@ class MockItineraryGenerator:
         if "hidden_gems" in interests:
             return f"Choose a quieter local corner of {destination} before lunch."
         return f"Add one more recognizable {destination} stop before lunch."
+
+    def _personalized_interests(self, request: GenerateItineraryRequest) -> set[str]:
+        interests = {_normalize_interest(value) for value in request.interests}
+        preferences = request.user_preferences
+        if preferences is None:
+            return interests
+
+        interests.update(_normalize_interest(value) for value in preferences.travel_styles)
+        food_preferences = {_normalize_interest(value) for value in preferences.food_preferences}
+        if "local" in food_preferences:
+            interests.add("food")
+            interests.add("local_food")
+        return interests
+
+
+def _normalize_interest(value: str) -> str:
+    return value.strip().lower().replace(" ", "_")

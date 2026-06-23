@@ -157,9 +157,12 @@ func (h *Handler) writeValidationError(w http.ResponseWriter, err error) {
 
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var invalid *apperrs.InvalidInputError
+	var dependency *apperrs.DependencyError
 	switch {
 	case errors.As(err, &invalid):
 		writeError(w, http.StatusBadRequest, invalid.Error())
+	case errors.As(err, &dependency):
+		writeError(w, http.StatusBadGateway, dependency.Error())
 	case errors.Is(err, domainerrs.ErrNotFound):
 		writeError(w, http.StatusNotFound, "trip not found")
 	default:

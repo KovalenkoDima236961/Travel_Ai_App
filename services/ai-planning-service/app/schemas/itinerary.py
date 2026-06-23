@@ -29,6 +29,103 @@ class APIModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+def _normalize_string_list(value: object) -> object:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        return value
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        trimmed = item.strip()
+        if not trimmed:
+            continue
+        key = trimmed.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(trimmed)
+    return normalized
+
+
+class UserProfile(APIModel):
+    user_id: UUID | None = Field(default=None, alias="userId")
+    display_name: str | None = Field(default=None, alias="displayName")
+    home_city: str | None = Field(default=None, alias="homeCity")
+    home_country: str | None = Field(default=None, alias="homeCountry")
+    preferred_currency: str | None = Field(default="EUR", alias="preferredCurrency")
+    preferred_language: str | None = Field(default="en", alias="preferredLanguage")
+
+    @field_validator(
+        "display_name",
+        "home_city",
+        "home_country",
+        "preferred_currency",
+        "preferred_language",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_string(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+    @field_validator("preferred_currency")
+    @classmethod
+    def normalize_preferred_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.upper()
+
+    @field_validator("preferred_language")
+    @classmethod
+    def normalize_preferred_language(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.lower()
+
+
+class UserPreferences(APIModel):
+    user_id: UUID | None = Field(default=None, alias="userId")
+    travel_styles: list[str] = Field(default_factory=list, alias="travelStyles")
+    pace: str | None = None
+    max_walking_km_per_day: float | None = Field(default=None, alias="maxWalkingKmPerDay")
+    food_preferences: list[str] = Field(default_factory=list, alias="foodPreferences")
+    avoid: list[str] = Field(default_factory=list)
+    preferred_transport: list[str] = Field(default_factory=list, alias="preferredTransport")
+    accommodation_style: list[str] = Field(default_factory=list, alias="accommodationStyle")
+    dietary_restrictions: list[str] = Field(default_factory=list, alias="dietaryRestrictions")
+
+    @field_validator(
+        "travel_styles",
+        "food_preferences",
+        "avoid",
+        "preferred_transport",
+        "accommodation_style",
+        "dietary_restrictions",
+        mode="before",
+    )
+    @classmethod
+    def normalize_lists(cls, value: object) -> object:
+        return _normalize_string_list(value)
+
+    @field_validator("pace", mode="before")
+    @classmethod
+    def normalize_pace(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip().lower()
+            return trimmed or None
+        return value
+
+
 class GenerateItineraryRequest(APIModel):
     trip_id: UUID = Field(alias="tripId")
     destination: NonEmptyString
@@ -39,6 +136,8 @@ class GenerateItineraryRequest(APIModel):
     travelers: int = Field(ge=1)
     interests: list[str] = Field(default_factory=list)
     pace: Pace = "balanced"
+    user_profile: UserProfile | None = Field(default=None, alias="userProfile")
+    user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
 
     @field_validator("budget_currency", mode="before")
     @classmethod

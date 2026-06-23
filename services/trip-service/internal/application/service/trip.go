@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
 
 const (
@@ -38,17 +40,42 @@ type tripRepository interface {
 	UpdateItineraryByUserID(ctx context.Context, id, userID uuid.UUID, itinerary json.RawMessage, status entity.Status) (*entity.Trip, error)
 }
 
+type userContextProvider interface {
+	GetUserContext(ctx context.Context, accessToken string) (*usercontext.UserContext, error)
+}
+
+// Option customizes Service dependencies that are not required for the core
+// trip CRUD flow.
+type Option func(*Service)
+
+// WithUserContext enables optional user profile/preferences loading during
+// itinerary generation.
+func WithUserContext(provider userContextProvider, enabled, failOpen bool) Option {
+	return func(s *Service) {
+		s.userContextProvider = provider
+		s.userContextEnabled = enabled
+		s.userContextFailOpen = failOpen
+	}
+}
+
 // Service holds the trip business logic. It depends on the repository and
 // generator ports and a logger.
 type Service struct {
-	repo      tripRepository
-	generator application.ItineraryGenerator
-	log       *zap.Logger
+	repo                tripRepository
+	generator           application.ItineraryGenerator
+	userContextProvider userContextProvider
+	userContextEnabled  bool
+	userContextFailOpen bool
+	log                 *zap.Logger
 }
 
 // New constructs the trip service.
-func New(repo tripRepository, generator application.ItineraryGenerator, log *zap.Logger) *Service {
-	return &Service{repo: repo, generator: generator, log: log}
+func New(repo tripRepository, generator application.ItineraryGenerator, log *zap.Logger, opts ...Option) *Service {
+	s := &Service{repo: repo, generator: generator, log: log}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Create validates input, applies defaults, and stores a new DRAFT trip.
@@ -165,6 +192,11 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		return nil, err
 	}
 
+	userContext, err := s.loadUserContext(ctx, user, id)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, err := s.repo.UpdateStatusByUserID(ctx, id, user.ID, entity.StatusProcessing); err != nil {
 		return nil, err
 	}
@@ -173,7 +205,11 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		zap.String("user_id", user.ID.String()),
 	)
 
-	itinerary, err := s.generator.Generate(ctx, *current)
+	itinerary, err := s.generator.Generate(ctx, application.GenerateItineraryInput{
+		Trip:            *current,
+		UserProfile:     userContext.Profile,
+		UserPreferences: userContext.Preferences,
+	})
 	if err != nil {
 		s.markFailed(ctx, id, user.ID)
 		return nil, err
@@ -196,6 +232,83 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		zap.String("user_id", user.ID.String()),
 	)
 	return updated, nil
+}
+
+func (s *Service) loadUserContext(ctx context.Context, user auth.AuthenticatedUser, tripID uuid.UUID) (usercontext.UserContext, error) {
+	fields := []zap.Field{
+		zap.Bool("userContextEnabled", s.userContextEnabled),
+		zap.Bool("userContextFailOpen", s.userContextFailOpen),
+		zap.String("userId", user.ID.String()),
+		zap.String("tripId", tripID.String()),
+	}
+
+	if !s.userContextEnabled {
+		s.log.Info("user context disabled",
+			append(fields,
+				zap.Bool("userContextLoaded", false),
+				zap.String("userContextErrorType", ""),
+			)...,
+		)
+		return usercontext.UserContext{}, nil
+	}
+
+	if s.userContextProvider == nil {
+		err := userContextError(usercontext.ErrorTypeService, "user context provider is not configured")
+		return s.handleUserContextError(err, fields)
+	}
+
+	accessToken, ok := auth.AccessTokenFromContext(ctx)
+	if !ok {
+		err := userContextError(usercontext.ErrorTypeAuth, "access token missing from request context")
+		return s.handleUserContextError(err, fields)
+	}
+
+	loaded, err := s.userContextProvider.GetUserContext(ctx, accessToken)
+	if err != nil {
+		return s.handleUserContextError(err, fields)
+	}
+	if loaded == nil {
+		loaded = &usercontext.UserContext{}
+	}
+
+	contextLoaded := loaded.Profile != nil || loaded.Preferences != nil
+	s.log.Info("user context loaded",
+		append(fields,
+			zap.Bool("userContextLoaded", contextLoaded),
+			zap.String("userContextErrorType", ""),
+		)...,
+	)
+
+	return *loaded, nil
+}
+
+func (s *Service) handleUserContextError(err error, fields []zap.Field) (usercontext.UserContext, error) {
+	errorType := classifyUserContextError(err)
+	logFields := append(fields,
+		zap.Bool("userContextLoaded", false),
+		zap.String("userContextErrorType", errorType),
+		zap.Error(err),
+	)
+
+	if s.userContextFailOpen {
+		s.log.Warn("failed to load user context; continuing without personalization", logFields...)
+		return usercontext.UserContext{}, nil
+	}
+
+	s.log.Warn("failed to load user context; generation blocked", logFields...)
+	return usercontext.UserContext{}, apperrs.NewDependencyError("failed to load user preferences")
+}
+
+func classifyUserContextError(err error) string {
+	var userContextErr *usercontext.Error
+	if err != nil && errors.As(err, &userContextErr) {
+		return string(userContextErr.Type)
+	}
+	return string(usercontext.ErrorTypeService)
+}
+
+func userContextError(errorType usercontext.ErrorType, message string) error {
+	return &usercontext.Error{Type: errorType, Message: message}
 }
 
 func (s *Service) markFailed(ctx context.Context, id, userID uuid.UUID) {

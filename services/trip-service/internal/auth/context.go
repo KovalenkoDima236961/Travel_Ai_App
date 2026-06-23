@@ -9,8 +9,9 @@ import (
 
 // AuthenticatedUser is the identity extracted from a validated access token.
 type AuthenticatedUser struct {
-	ID    uuid.UUID
-	Email string
+	ID          uuid.UUID
+	Email       string
+	AccessToken string
 }
 
 type contextKey struct{}
@@ -33,4 +34,14 @@ func MustUserFromContext(ctx context.Context) (AuthenticatedUser, error) {
 		return AuthenticatedUser{}, errors.New("authenticated user missing from context")
 	}
 	return user, nil
+}
+
+// AccessTokenFromContext returns the raw access token captured by auth
+// middleware for internal service-to-service forwarding.
+func AccessTokenFromContext(ctx context.Context) (string, bool) {
+	user, ok := UserFromContext(ctx)
+	if !ok || user.AccessToken == "" {
+		return "", false
+	}
+	return user.AccessToken, true
 }

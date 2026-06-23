@@ -10,8 +10,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
 // MockItineraryGenerator produces a deterministic, interest-aware sample plan
@@ -27,11 +27,13 @@ func NewMockItineraryGenerator(logger *zap.Logger) *MockItineraryGenerator {
 
 // Generate builds a sample itinerary derived from the trip's destination,
 // interests, pace and duration.
-func (g *MockItineraryGenerator) Generate(_ context.Context, trip entity.Trip) (*aggregate.Itinerary, error) {
+func (g *MockItineraryGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
+	trip := input.Trip
 	g.logger.Info("generating mock itinerary",
 		zap.String("trip_id", trip.ID.String()),
 		zap.String("destination", trip.Destination),
 		zap.Int32("days", trip.Days),
+		zap.Bool("user_context_loaded", input.UserProfile != nil || input.UserPreferences != nil),
 	)
 
 	interests := trip.Interests
@@ -71,10 +73,15 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, trip entity.Trip) (
 		})
 	}
 
+	summary := fmt.Sprintf("A %d-day %s trip to %s for %d traveler(s).",
+		trip.Days, trip.Pace, trip.Destination, trip.Travelers)
+	if input.UserProfile != nil || input.UserPreferences != nil {
+		summary += " Personalized with saved traveler context."
+	}
+
 	return &aggregate.Itinerary{
 		Destination: trip.Destination,
-		Summary: fmt.Sprintf("A %d-day %s trip to %s for %d traveler(s).",
-			trip.Days, trip.Pace, trip.Destination, trip.Travelers),
+		Summary:     summary,
 		Travelers:   trip.Travelers,
 		Pace:        trip.Pace,
 		Currency:    trip.BudgetCurrency,

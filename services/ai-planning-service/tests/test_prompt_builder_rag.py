@@ -58,6 +58,42 @@ def test_itinerary_prompt_works_without_rag_chunks() -> None:
     assert "Return ONLY valid JSON" in prompt
 
 
+def test_itinerary_prompt_includes_user_context_when_provided() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["userProfile"] = {
+        "homeCity": "Bratislava",
+        "homeCountry": "Slovakia",
+        "preferredCurrency": "EUR",
+        "preferredLanguage": "en",
+    }
+    payload["userPreferences"] = {
+        "travelStyles": ["budget", "food", "hidden_gems"],
+        "pace": "balanced",
+        "maxWalkingKmPerDay": 8,
+        "foodPreferences": ["local", "cheap"],
+        "avoid": ["nightclubs"],
+        "preferredTransport": ["walking", "public_transport"],
+        "accommodationStyle": ["budget_hotel"],
+        "dietaryRestrictions": [],
+    }
+
+    prompt = build_itinerary_prompt(GenerateItineraryRequest.model_validate(payload))
+
+    assert "USER PROFILE:" in prompt
+    assert "- Home city: Bratislava" in prompt
+    assert "USER TRAVEL PREFERENCES:" in prompt
+    assert "- Travel styles: budget, food, hidden gems" in prompt
+    assert "- Avoid: nightclubs" in prompt
+    assert "Avoid preference items listed under Avoid" in prompt
+
+
+def test_itinerary_prompt_omits_user_context_when_not_provided() -> None:
+    prompt = build_itinerary_prompt(_request())
+
+    assert "USER PROFILE:" not in prompt
+    assert "USER TRAVEL PREFERENCES:" not in prompt
+
+
 def test_repair_prompt_includes_rag_context() -> None:
     prompt = build_repair_prompt(
         request=_request(),
@@ -69,3 +105,23 @@ def test_repair_prompt_includes_rag_context() -> None:
     assert "RAG CONTEXT:" in prompt
     assert "- Source: food.md" in prompt
     assert "The corrected JSON should still use the RAG context where relevant." in prompt
+
+
+def test_repair_prompt_includes_user_context() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["userPreferences"] = {
+        "travelStyles": ["hidden_gems"],
+        "avoid": ["nightclubs"],
+        "foodPreferences": ["local"],
+    }
+    request = GenerateItineraryRequest.model_validate(payload)
+
+    prompt = build_repair_prompt(
+        request=request,
+        invalid_response_text='{"days": []}',
+        validation_error="missing days",
+    )
+
+    assert "USER TRAVEL PREFERENCES:" in prompt
+    assert "- Avoid: nightclubs" in prompt
+    assert "Preserve personalization from the user profile and travel preferences" in prompt

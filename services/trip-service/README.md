@@ -101,10 +101,12 @@ flowchart TD
     end
 
     PG[("PostgreSQL\ntrips table")]
-    AI{{"AI Planning Service v1\nFastAPI / HTTP"}}
+AI{{"AI Planning Service v1\nFastAPI / HTTP"}}
+    US{{"User Service v1\nProfile / Preferences"}}
 
     Client -->|"REST / JSON"| RT --> TH --> SV --> RP --> PGPKG -->|"pgxpool"| PG
     SV --> GEN
+    SV -.->|"GET /users/me/profile + /preferences\nforward user JWT"| US
     GEN -.->|"POST /generate-itinerary\nwhen mode=http"| AI
 
     subgraph BOOT["internal/app (composition root)"]
@@ -157,6 +159,10 @@ Key environment variables:
 | `ITINERARY_GENERATOR_MODE` | `mock` | `mock` for local generation, `http` for AI Planning Service. |
 | `AI_PLANNING_SERVICE_URL` | `http://ai-planning-service:8000` | Base URL used when generator mode is `http`. |
 | `AI_PLANNING_TIMEOUT_SECONDS` | `120` | HTTP client timeout for AI Planning Service calls. |
+| `USER_SERVICE_URL` | `http://user-service:8083` | Base URL for trusted profile/preferences lookup during generation. |
+| `USER_CONTEXT_ENABLED` | `true` | Fetch user profile/preferences before generating itineraries. |
+| `USER_CONTEXT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for User Service context calls. |
+| `USER_CONTEXT_FAIL_OPEN` | `true` | Continue generation without personalization when User Service fails. Set `false` to return `502` with `{"error":"failed to load user preferences"}`. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -271,6 +277,13 @@ timeout, decodes the AI Planning Service response into typed `Itinerary` /
 `ItineraryDay` / `ItineraryItem` structs, and returns an error for non-2xx,
 invalid JSON, request failures, or empty `days`. Generated plans are stored as
 JSONB by the service layer.
+
+When `USER_CONTEXT_ENABLED=true`, Trip Service fetches `/users/me/profile` and
+`/users/me/preferences` from User Service before generation by forwarding the
+authenticated user's bearer token. The frontend does not send profile or
+preference data to `/trips/{id}/generate`; Trip Service loads trusted context
+itself and forwards optional `userProfile` / `userPreferences` to AI Planning
+Service. Access tokens and full preference payloads must not be logged.
 
 When the AI Planning Service runs in Ollama mode with fallback enabled, set
 `AI_PLANNING_TIMEOUT_SECONDS` higher than the AI service's

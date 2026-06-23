@@ -21,6 +21,7 @@ type Config struct {
 	CORS               CORSConfig               `yaml:"cors"`
 	Postgres           postgres.Config          `yaml:"postgres"`
 	ItineraryGenerator ItineraryGeneratorConfig `yaml:"itinerary_generator"`
+	UserContext        UserContextConfig        `yaml:"user_context"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -52,6 +53,15 @@ type ItineraryGeneratorConfig struct {
 	Mode                     string `yaml:"mode" env:"ITINERARY_GENERATOR_MODE" env-default:"mock"`
 	AIPlanningServiceURL     string `yaml:"ai_planning_service_url" env:"AI_PLANNING_SERVICE_URL" env-default:"http://ai-planning-service:8000"`
 	AIPlanningTimeoutSeconds int    `yaml:"ai_planning_timeout_seconds" env:"AI_PLANNING_TIMEOUT_SECONDS" env-default:"120" validate:"min=1"`
+}
+
+// UserContextConfig controls optional profile/preferences loading from User
+// Service before itinerary generation.
+type UserContextConfig struct {
+	Enabled        bool   `yaml:"enabled" env:"USER_CONTEXT_ENABLED" env-default:"true"`
+	UserServiceURL string `yaml:"user_service_url" env:"USER_SERVICE_URL" env-default:"http://user-service:8083"`
+	TimeoutSeconds int    `yaml:"timeout_seconds" env:"USER_CONTEXT_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
+	FailOpen       bool   `yaml:"fail_open" env:"USER_CONTEXT_FAIL_OPEN" env-default:"true"`
 }
 
 // IsProduction reports whether the service runs in a production profile.

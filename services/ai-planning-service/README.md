@@ -12,6 +12,13 @@ AI Planning Service is a FastAPI microservice for itinerary generation. It expos
 The public request and response contract is shared with Trip Service and should remain stable.
 The destination context and knowledge endpoints are internal/admin/debug endpoints for development.
 
+`POST /generate-itinerary` also accepts optional `userProfile` and
+`userPreferences` fields. Trip Service fetches those trusted values from User
+Service and forwards them during generation; older requests that omit them still
+work. Prompt generation includes a dedicated profile/preferences section when
+present and keeps the final model output constrained to the existing itinerary
+JSON schema.
+
 ## Validation And Repair
 
 Ollama mode now validates generated itineraries in two layers:
@@ -20,6 +27,11 @@ Ollama mode now validates generated itineraries in two layers:
 - Business validation for usable itineraries: exact day count, ordered day numbers, pace-based
   item counts, supported item types, HH:MM times, chronological ordering, non-empty text,
   non-negative costs, duplicate item detection, and budget sanity checks.
+
+Personalization checks are soft warnings, not hard failures. The validator warns
+when generated text mentions avoided terms, when dietary restrictions are
+present but food items do not reflect them, or when a low walking limit conflicts
+with repeated long-walk wording.
 
 When the first local model response is invalid, the service can make one repair request to
 Ollama with the original trip details, the validation error, and the invalid response. The
@@ -252,7 +264,24 @@ curl -X POST http://localhost:8000/generate-itinerary \
     "budgetCurrency": "EUR",
     "travelers": 2,
     "interests": ["food", "history", "hidden_gems"],
-    "pace": "balanced"
+    "pace": "balanced",
+    "userProfile": {
+      "displayName": "Test Traveler",
+      "homeCity": "Bratislava",
+      "homeCountry": "Slovakia",
+      "preferredCurrency": "EUR",
+      "preferredLanguage": "en"
+    },
+    "userPreferences": {
+      "travelStyles": ["budget", "food", "hidden_gems"],
+      "pace": "balanced",
+      "maxWalkingKmPerDay": 8,
+      "foodPreferences": ["local", "cheap"],
+      "avoid": ["nightclubs"],
+      "preferredTransport": ["walking", "public_transport"],
+      "accommodationStyle": ["budget_hotel"],
+      "dietaryRestrictions": []
+    }
   }'
 ```
 
@@ -394,7 +423,8 @@ curl -X POST http://localhost:8000/knowledge/search \
 
 If RAG is disabled, the endpoint returns `{"items": []}`. If the Chroma collection is missing,
 embedding fails, or there are no matching chunks, itinerary generation continues without RAG
-context. The public `/generate-itinerary` request and response schema is unchanged.
+context. The public `/generate-itinerary` response schema is unchanged; request
+payloads may include optional `userProfile` and `userPreferences`.
 
 ## Development Commands
 

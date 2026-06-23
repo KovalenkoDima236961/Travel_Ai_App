@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
 	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
@@ -53,7 +54,23 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("init itinerary generator: %w", err)
 	}
-	svc := service.New(repo, gen, log)
+	var userContextClient interface {
+		GetUserContext(context.Context, string) (*usercontext.UserContext, error)
+	}
+	if cfg.UserContext.Enabled {
+		userContextClient, err = usercontext.New(usercontext.Config{
+			BaseURL:        cfg.UserContext.UserServiceURL,
+			TimeoutSeconds: cfg.UserContext.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init user context client: %w", err)
+		}
+	}
+	svc := service.New(repo, gen, log, service.WithUserContext(
+		userContextClient,
+		cfg.UserContext.Enabled,
+		cfg.UserContext.FailOpen,
+	))
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,

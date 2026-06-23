@@ -158,7 +158,15 @@ class OllamaItineraryGenerator:
         response_text: str,
     ) -> ItineraryResponse:
         itinerary = parse_itinerary_response(response_text, expected_days=request.days)
-        self._validator.validate(request, itinerary)
+        result = self._validator.validate(request, itinerary)
+        if result.warnings:
+            logger.warning(
+                "Itinerary personalization validation warnings",
+                extra={
+                    "trip_id": str(request.trip_id),
+                    "validation_warning_codes": [warning.code for warning in result.warnings],
+                },
+            )
         return itinerary
 
     def _post_to_ollama(self, payload: dict) -> httpx.Response:

@@ -13,8 +13,10 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
 
 const maxAIPlanningErrorBodyBytes = 4 * 1024
@@ -27,15 +29,17 @@ type AIPlanningHTTPGenerator struct {
 }
 
 type aiPlanningGenerateRequest struct {
-	TripID         string   `json:"tripId"`
-	Destination    string   `json:"destination"`
-	StartDate      *string  `json:"startDate,omitempty"`
-	Days           int32    `json:"days"`
-	BudgetAmount   *float64 `json:"budgetAmount,omitempty"`
-	BudgetCurrency string   `json:"budgetCurrency"`
-	Travelers      int32    `json:"travelers"`
-	Interests      []string `json:"interests"`
-	Pace           string   `json:"pace"`
+	TripID          string                       `json:"tripId"`
+	Destination     string                       `json:"destination"`
+	StartDate       *string                      `json:"startDate,omitempty"`
+	Days            int32                        `json:"days"`
+	BudgetAmount    *float64                     `json:"budgetAmount,omitempty"`
+	BudgetCurrency  string                       `json:"budgetCurrency"`
+	Travelers       int32                        `json:"travelers"`
+	Interests       []string                     `json:"interests"`
+	Pace            string                       `json:"pace"`
+	UserProfile     *usercontext.UserProfile     `json:"userProfile,omitempty"`
+	UserPreferences *usercontext.UserPreferences `json:"userPreferences,omitempty"`
 }
 
 // NewAIPlanningHTTPGenerator constructs an HTTP generator with a validated base
@@ -61,8 +65,9 @@ func NewAIPlanningHTTPGenerator(baseURL string, client *http.Client, logger *zap
 
 // Generate sends the trip to AI Planning Service v1 and returns the generated
 // itinerary.
-func (g *AIPlanningHTTPGenerator) Generate(ctx context.Context, trip entity.Trip) (*aggregate.Itinerary, error) {
-	payload := newAIPlanningGenerateRequest(trip)
+func (g *AIPlanningHTTPGenerator) Generate(ctx context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
+	trip := input.Trip
+	payload := newAIPlanningGenerateRequest(input)
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(payload); err != nil {
@@ -138,7 +143,8 @@ func (g *AIPlanningHTTPGenerator) Generate(ctx context.Context, trip entity.Trip
 	return &itinerary, nil
 }
 
-func newAIPlanningGenerateRequest(trip entity.Trip) aiPlanningGenerateRequest {
+func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPlanningGenerateRequest {
+	trip := input.Trip
 	var startDate *string
 	if trip.StartDate != nil {
 		formatted := trip.StartDate.Format("2006-01-02")
@@ -159,15 +165,17 @@ func newAIPlanningGenerateRequest(trip entity.Trip) aiPlanningGenerateRequest {
 	}
 
 	return aiPlanningGenerateRequest{
-		TripID:         trip.ID.String(),
-		Destination:    trip.Destination,
-		StartDate:      startDate,
-		Days:           trip.Days,
-		BudgetAmount:   trip.BudgetAmount,
-		BudgetCurrency: currency,
-		Travelers:      trip.Travelers,
-		Interests:      interests,
-		Pace:           pace,
+		TripID:          trip.ID.String(),
+		Destination:     trip.Destination,
+		StartDate:       startDate,
+		Days:            trip.Days,
+		BudgetAmount:    trip.BudgetAmount,
+		BudgetCurrency:  currency,
+		Travelers:       trip.Travelers,
+		Interests:       interests,
+		Pace:            pace,
+		UserProfile:     input.UserProfile,
+		UserPreferences: input.UserPreferences,
 	}
 }
 

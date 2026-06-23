@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
@@ -278,7 +279,8 @@ func (r *routeTestRepo) UpdateItineraryByUserID(_ context.Context, id, userID uu
 
 type routeTestGenerator struct{}
 
-func (routeTestGenerator) Generate(_ context.Context, trip entity.Trip) (*aggregate.Itinerary, error) {
+func (routeTestGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
+	trip := input.Trip
 	return &aggregate.Itinerary{
 		Destination: trip.Destination,
 		Days: []aggregate.ItineraryDay{

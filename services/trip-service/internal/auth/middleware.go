@@ -30,6 +30,7 @@ func Middleware(cfg MiddlewareConfig) func(http.Handler) http.Handler {
 			if ok {
 				user, err := validator.ValidateAccessToken(token)
 				if err == nil {
+					user.AccessToken = token
 					next.ServeHTTP(w, r.WithContext(WithUser(r.Context(), user)))
 					return
 				}

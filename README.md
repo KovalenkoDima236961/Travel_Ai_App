@@ -10,6 +10,10 @@ Trip Service validates those JWT access tokens locally with the shared
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.
+When a user generates an itinerary, Trip Service fetches that user's profile and
+preferences from User Service by forwarding the user's JWT, then sends optional
+`userProfile` and `userPreferences` to AI Planning Service for prompt
+personalization. Access tokens and full preference payloads should not be logged.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token
@@ -39,8 +43,8 @@ Run the full app smoke test with:
 
 The smoke test registers/logs in a unique user, checks profile/preferences
 defaults and updates, creates and generates a trip with
-`Authorization: Bearer <accessToken>`, verifies only that user can access it,
-and logs out.
+`Authorization: Bearer <accessToken>`, exercises personalized generation,
+verifies only that user can access it, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,
 knowledge indexing, useful URLs, and troubleshooting. The full app can be

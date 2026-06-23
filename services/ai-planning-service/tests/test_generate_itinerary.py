@@ -48,6 +48,54 @@ def test_generate_itinerary_success() -> None:
     assert len(body["days"][0]["items"]) >= 3
 
 
+def test_generate_itinerary_accepts_optional_user_context() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["userProfile"] = {
+        "userId": "550e8400-e29b-41d4-a716-446655440000",
+        "displayName": "Test Traveler",
+        "homeCity": "Bratislava",
+        "homeCountry": "Slovakia",
+        "preferredCurrency": "EUR",
+        "preferredLanguage": "en",
+    }
+    payload["userPreferences"] = {
+        "userId": "550e8400-e29b-41d4-a716-446655440000",
+        "travelStyles": ["budget", "food", "hidden_gems"],
+        "pace": "balanced",
+        "maxWalkingKmPerDay": 8,
+        "foodPreferences": ["local", "cheap"],
+        "avoid": ["nightclubs"],
+        "preferredTransport": ["walking", "public_transport"],
+        "accommodationStyle": ["budget_hotel"],
+        "dietaryRestrictions": [],
+    }
+
+    response = client.post("/generate-itinerary", json=payload)
+
+    assert response.status_code == 200
+    assert len(response.json()["days"]) == VALID_PAYLOAD["days"]
+
+
+def test_user_preferences_arrays_are_trimmed_deduplicated_and_optional() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["userPreferences"] = {
+        "travelStyles": [" budget ", "", "budget", "hidden_gems"],
+        "foodPreferences": [" local ", None, "local", "cheap"],
+        "avoid": [" nightclubs ", "nightclubs"],
+        "preferredTransport": None,
+        "accommodationStyle": [" budget_hotel "],
+        "dietaryRestrictions": [],
+    }
+
+    request = GenerateItineraryRequest.model_validate(payload)
+
+    assert request.user_preferences is not None
+    assert request.user_preferences.travel_styles == ["budget", "hidden_gems"]
+    assert request.user_preferences.food_preferences == ["local", "cheap"]
+    assert request.user_preferences.avoid == ["nightclubs"]
+    assert request.user_preferences.preferred_transport == []
+
+
 def test_generated_itinerary_has_requested_number_of_days() -> None:
     response = client.post("/generate-itinerary", json=VALID_PAYLOAD)
 
@@ -169,3 +217,30 @@ def test_relaxed_pace_produces_fewer_or_equal_items_than_intensive_pace() -> Non
     relaxed_items = relaxed_response.json()["days"][0]["items"]
     intensive_items = intensive_response.json()["days"][0]["items"]
     assert len(relaxed_items) <= len(intensive_items)
+
+
+def test_mock_generator_uses_hidden_gems_and_local_food_preferences() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["interests"] = ["history"]
+    payload["userPreferences"] = {
+        "travelStyles": ["hidden_gems"],
+        "foodPreferences": ["local"],
+        "avoid": ["nightclubs"],
+    }
+
+    response = client.post("/generate-itinerary", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    text = " ".join(
+        " ".join(
+            [
+                day["title"],
+                *[item["name"] + " " + (item.get("note") or "") for item in day["items"]],
+            ]
+        )
+        for day in body["days"]
+    ).casefold()
+    assert "hidden-gem" in text
+    assert "local neighborhood lunch" in text
+    assert "nightclub" not in text

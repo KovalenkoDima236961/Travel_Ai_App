@@ -24,6 +24,10 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"ITINERARY_GENERATOR_MODE",
 		"AI_PLANNING_SERVICE_URL",
 		"AI_PLANNING_TIMEOUT_SECONDS",
+		"USER_SERVICE_URL",
+		"USER_CONTEXT_ENABLED",
+		"USER_CONTEXT_TIMEOUT_SECONDS",
+		"USER_CONTEXT_FAIL_OPEN",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -69,6 +73,18 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if cfg.Auth.DevUserID != "00000000-0000-0000-0000-000000000001" {
 		t.Fatalf("expected default dev user id, got %q", cfg.Auth.DevUserID)
 	}
+	if !cfg.UserContext.Enabled {
+		t.Fatal("expected user context to be enabled by default")
+	}
+	if cfg.UserContext.UserServiceURL != "http://user-service:8083" {
+		t.Fatalf("expected default user service URL, got %q", cfg.UserContext.UserServiceURL)
+	}
+	if cfg.UserContext.TimeoutSeconds != 5 {
+		t.Fatalf("expected default user context timeout 5s, got %d", cfg.UserContext.TimeoutSeconds)
+	}
+	if !cfg.UserContext.FailOpen {
+		t.Fatal("expected user context to fail open by default")
+	}
 }
 
 func TestLoadReadsCORSOverrides(t *testing.T) {
@@ -86,6 +102,10 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"ITINERARY_GENERATOR_MODE",
 		"AI_PLANNING_SERVICE_URL",
 		"AI_PLANNING_TIMEOUT_SECONDS",
+		"USER_SERVICE_URL",
+		"USER_CONTEXT_ENABLED",
+		"USER_CONTEXT_TIMEOUT_SECONDS",
+		"USER_CONTEXT_FAIL_OPEN",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")

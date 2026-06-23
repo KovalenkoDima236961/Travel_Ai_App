@@ -4,17 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
 
 // mockRepo is a hand-written tripRepository that captures arguments and the
@@ -94,20 +99,42 @@ func (m *mockRepo) UpdateItineraryByUserID(_ context.Context, id, userID uuid.UU
 
 // mockGenerator is an application.ItineraryGenerator test double.
 type mockGenerator struct {
-	result *aggregate.Itinerary
-	err    error
-	called bool
+	result        *aggregate.Itinerary
+	err           error
+	called        bool
+	capturedInput application.GenerateItineraryInput
 }
 
-func (g *mockGenerator) Generate(_ context.Context, trip entity.Trip) (*aggregate.Itinerary, error) {
+func (g *mockGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
 	g.called = true
+	g.capturedInput = input
 	if g.err != nil {
 		return nil, g.err
 	}
 	if g.result != nil {
 		return g.result, nil
 	}
+	trip := input.Trip
 	return &aggregate.Itinerary{Destination: trip.Destination}, nil
+}
+
+type mockUserContextProvider struct {
+	result        *usercontext.UserContext
+	err           error
+	called        bool
+	capturedToken string
+}
+
+func (p *mockUserContextProvider) GetUserContext(_ context.Context, accessToken string) (*usercontext.UserContext, error) {
+	p.called = true
+	p.capturedToken = accessToken
+	if p.err != nil {
+		return nil, p.err
+	}
+	if p.result != nil {
+		return p.result, nil
+	}
+	return &usercontext.UserContext{}, nil
 }
 
 func newTestService(repo tripRepository, gen *mockGenerator) *Service {
@@ -123,9 +150,14 @@ func validCreateInput() appdto.CreateTripInput {
 }
 
 func authContext() context.Context {
+	return authContextWithToken("")
+}
+
+func authContextWithToken(accessToken string) context.Context {
 	return auth.WithUser(context.Background(), auth.AuthenticatedUser{
-		ID:    testUserID(),
-		Email: "traveler@example.com",
+		ID:          testUserID(),
+		Email:       "traveler@example.com",
+		AccessToken: accessToken,
 	})
 }
 
@@ -265,6 +297,151 @@ func TestGenerate_Success_SetsCompleted(t *testing.T) {
 	}
 	if repo.getByIDUserID != testUserID() || repo.updateItinUserID != testUserID() {
 		t.Fatalf("expected generate repository calls for user %s", testUserID())
+	}
+}
+
+func TestGenerate_UserContextSuccess_PassesProfileAndPreferencesToGenerator(t *testing.T) {
+	id := uuid.New()
+	userID := testUserID()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	displayName := "Test Traveler"
+	walking := 8.0
+	userContextProvider := &mockUserContextProvider{
+		result: &usercontext.UserContext{
+			Profile: &usercontext.UserProfile{
+				UserID:            userID,
+				DisplayName:       &displayName,
+				PreferredCurrency: "EUR",
+				PreferredLanguage: "en",
+			},
+			Preferences: &usercontext.UserPreferences{
+				UserID:             userID,
+				TravelStyles:       []string{"budget", "food", "hidden_gems"},
+				MaxWalkingKmPerDay: &walking,
+				Avoid:              []string{"nightclubs"},
+			},
+		},
+	}
+	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, true))
+
+	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !userContextProvider.called {
+		t.Fatal("expected user context provider to be called")
+	}
+	if userContextProvider.capturedToken != "access-token-for-forwarding" {
+		t.Fatalf("expected raw access token to be forwarded, got %q", userContextProvider.capturedToken)
+	}
+	if gen.capturedInput.UserProfile == nil || gen.capturedInput.UserProfile.DisplayName == nil || *gen.capturedInput.UserProfile.DisplayName != "Test Traveler" {
+		t.Fatalf("expected profile in generator input, got %+v", gen.capturedInput.UserProfile)
+	}
+	if gen.capturedInput.UserPreferences == nil || len(gen.capturedInput.UserPreferences.Avoid) != 1 || gen.capturedInput.UserPreferences.Avoid[0] != "nightclubs" {
+		t.Fatalf("expected preferences in generator input, got %+v", gen.capturedInput.UserPreferences)
+	}
+}
+
+func TestGenerate_UserContextFailOpen_ContinuesWithoutPersonalization(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
+	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, true))
+
+	got, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Status != entity.StatusCompleted {
+		t.Fatalf("expected completed trip, got %s", got.Status)
+	}
+	if !gen.called {
+		t.Fatal("expected generator to be called when user context fails open")
+	}
+	if gen.capturedInput.UserProfile != nil || gen.capturedInput.UserPreferences != nil {
+		t.Fatalf("expected generator input without context, got %+v", gen.capturedInput)
+	}
+}
+
+func TestGenerate_UserContextFailClosed_ReturnsDependencyError(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
+	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, false))
+
+	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var dependencyErr *apperrs.DependencyError
+	if !errors.As(err, &dependencyErr) {
+		t.Fatalf("expected DependencyError, got %v", err)
+	}
+	if dependencyErr.Error() != "failed to load user preferences" {
+		t.Fatalf("unexpected dependency error: %v", dependencyErr)
+	}
+	if gen.called {
+		t.Fatal("generator must not be called when user context fails closed")
+	}
+	if len(repo.statusSeq) != 0 {
+		t.Fatalf("trip should not enter PROCESSING before fail-closed context load, got %v", repo.statusSeq)
+	}
+}
+
+func TestGenerate_UserContextDisabled_DoesNotCallProvider(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	userContextProvider := &mockUserContextProvider{err: errors.New("should not be called")}
+	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, false, false))
+
+	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if userContextProvider.called {
+		t.Fatal("user context provider should not be called when disabled")
+	}
+}
+
+func TestGenerate_UserContextLogging_DoesNotLogAccessToken(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: id, Destination: "Rome", Days: 2, Pace: "balanced"},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	observedCore, logs := observer.New(zapcore.DebugLevel)
+	logger := zap.New(observedCore)
+	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
+	svc := New(repo, gen, logger, WithUserContext(userContextProvider, true, true))
+
+	_, err := svc.Generate(authContextWithToken("secret-access-token"), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, entry := range logs.All() {
+		if strings.Contains(entry.Message, "secret-access-token") {
+			t.Fatalf("access token leaked in log message: %q", entry.Message)
+		}
+		for _, field := range entry.Context {
+			if strings.Contains(field.String, "secret-access-token") {
+				t.Fatalf("access token leaked in log field %s", field.Key)
+			}
+		}
 	}
 }
 

@@ -24,6 +24,7 @@ def build_itinerary_prompt(
     start_date = request.start_date.isoformat() if request.start_date else "not provided"
     destination_context_section = _destination_context_section(request, destination_context)
     rag_context_section = _rag_context_section(rag_chunks)
+    user_context_section = _user_context_section(request)
 
     return f"""
 You are generating an itinerary for a web-based travel planning application.
@@ -56,6 +57,7 @@ Trip request:
 - Travelers: {request.travelers}
 - Interests: {interests}
 - Pace: {request.pace}
+{user_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -70,6 +72,15 @@ Rules:
 - Include practical notes tailored to {request.destination}; avoid generic filler.
 - Include estimatedCost as a number or null.
 - Avoid hallucinated exact prices when uncertain; use reasonable estimates.
+- Respect user profile and travel preferences where possible.
+- Prefer activities matching travelStyles and interests.
+- If preferences conflict with the explicit trip request, prioritize the trip request first.
+- Avoid preference items listed under Avoid unless necessary; if unavoidable, explain why
+  in the item note.
+- Keep walking-heavy days reasonable when maxWalkingKmPerDay is set.
+- Prefer food recommendations matching foodPreferences and dietaryRestrictions.
+- Use preferredCurrency for estimated costs when profile currency is available.
+- Keep the response in English for now, but consider preferredLanguage as context.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -92,6 +103,7 @@ def build_repair_prompt(
     start_date = request.start_date.isoformat() if request.start_date else "not provided"
     destination_context_section = _destination_context_section(request, destination_context)
     rag_context_section = _rag_context_section(rag_chunks)
+    user_context_section = _user_context_section(request)
 
     return f"""
 You previously generated an itinerary JSON response, but it was invalid.
@@ -107,6 +119,7 @@ Original trip request:
 - Travelers: {request.travelers}
 - Interests: {interests}
 - Pace: {request.pace}
+{user_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -145,6 +158,9 @@ Repair rules:
 - Make every day title, item name, and item note non-empty.
 - Include estimatedCost as a non-negative number or null.
 - Keep total estimated costs reasonable for the requested budget when a budget is provided.
+- Preserve personalization from the user profile and travel preferences where it fits the schema.
+- Do not remove preference-aware details unless they caused the validation error or violate
+  the schema.
 - The corrected JSON should still use the destination context where relevant.
 - The corrected JSON should still use the RAG context where relevant.
 - Do not include fields outside the schema.
@@ -223,6 +239,78 @@ def _rag_context_section(rag_chunks: list[KnowledgeSearchResult] | None) -> str:
     return "\n" + "\n".join(lines)
 
 
+def _user_context_section(request: GenerateItineraryRequest) -> str:
+    profile = request.user_profile
+    preferences = request.user_preferences
+    if profile is None and preferences is None:
+        return ""
+
+    sections: list[str] = []
+    if profile is not None:
+        profile_lines = ["USER PROFILE:"]
+        _append_optional_line(profile_lines, "Home city", profile.home_city)
+        _append_optional_line(profile_lines, "Home country", profile.home_country)
+        _append_optional_line(profile_lines, "Preferred currency", profile.preferred_currency)
+        _append_optional_line(profile_lines, "Preferred language", profile.preferred_language)
+        if len(profile_lines) > 1:
+            sections.append("\n".join(profile_lines))
+
+    if preferences is not None:
+        preference_lines = ["USER TRAVEL PREFERENCES:"]
+        _append_optional_line(
+            preference_lines,
+            "Travel styles",
+            _display_list(preferences.travel_styles),
+        )
+        _append_optional_line(preference_lines, "Preferred pace", preferences.pace)
+        if preferences.max_walking_km_per_day is not None:
+            _append_optional_line(
+                preference_lines,
+                "Max walking distance per day",
+                f"{preferences.max_walking_km_per_day:g} km",
+            )
+        _append_optional_line(
+            preference_lines,
+            "Food preferences",
+            _display_list(preferences.food_preferences),
+        )
+        _append_optional_line(preference_lines, "Avoid", _display_list(preferences.avoid))
+        _append_optional_line(
+            preference_lines,
+            "Preferred transport",
+            _display_list(preferences.preferred_transport),
+        )
+        _append_optional_line(
+            preference_lines,
+            "Accommodation style",
+            _display_list(preferences.accommodation_style),
+        )
+        _append_optional_line(
+            preference_lines,
+            "Dietary restrictions",
+            _display_list(preferences.dietary_restrictions) or "none",
+        )
+        if len(preference_lines) > 1:
+            sections.append("\n".join(preference_lines))
+
+    if not sections:
+        return ""
+
+    return "\n" + "\n".join(sections)
+
+
+def _append_optional_line(lines: list[str], label: str, value: str | None) -> None:
+    if value:
+        lines.append(f"- {label}: {value}")
+
+
+def _display_list(values: list[str]) -> str | None:
+    cleaned = [value.strip().replace("_", " ") for value in values if value.strip()]
+    if not cleaned:
+        return None
+    return ", ".join(cleaned)
+
+
 def _compact_content(content: str, max_chars: int = 700) -> str:
     compacted = " ".join(content.split())
     if len(compacted) <= max_chars:
@@ -231,16 +319,22 @@ def _compact_content(content: str, max_chars: int = 700) -> str:
 
 
 def _should_include_hidden_gems(request: GenerateItineraryRequest) -> bool:
-    if not request.interests:
+    preference_styles = request.user_preferences.travel_styles if request.user_preferences else []
+    all_interests = [*request.interests, *preference_styles]
+    if not all_interests:
         return True
-    normalized_interests = {_normalize_interest(interest) for interest in request.interests}
-    return "hidden_gems" in request.interests or "hidden gems" in normalized_interests
+    normalized_interests = {_normalize_interest(interest) for interest in all_interests}
+    return "hidden gems" in normalized_interests
 
 
 def _should_include_food_tips(request: GenerateItineraryRequest) -> bool:
-    if not request.interests:
+    preference_styles = request.user_preferences.travel_styles if request.user_preferences else []
+    food_preferences = request.user_preferences.food_preferences if request.user_preferences else []
+    all_interests = [*request.interests, *preference_styles, *food_preferences]
+    if not all_interests:
         return True
-    return any(_normalize_interest(interest) == "food" for interest in request.interests)
+    normalized_interests = {_normalize_interest(interest) for interest in all_interests}
+    return bool({"food", "local"} & normalized_interests)
 
 
 def _normalize_interest(value: str) -> str:

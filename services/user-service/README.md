@@ -21,6 +21,10 @@ Protected:
 
 Protected endpoints require `Authorization: Bearer <accessToken>`. The service
 uses the JWT `sub` claim as the owner user ID; clients must not send `userId`.
+During itinerary generation, Trip Service calls these same protected endpoints
+with the authenticated user's JWT to load trusted profile/preferences for AI
+Planning Service personalization. User Service should continue to avoid logging
+access tokens or sensitive preference payloads.
 
 ## Environment
 
@@ -86,7 +90,7 @@ curl -X PATCH http://localhost:8083/users/me/preferences \
     "maxWalkingKmPerDay": 8,
     "foodPreferences": ["local", "cheap"],
     "avoid": ["nightclubs"],
-    "preferredTransport": ["walking", "public_transport"]
+    "preferredTransport": ["walking", "public_transport"],
+    "accommodationStyle": ["budget_hotel"]
   }'
 ```
-

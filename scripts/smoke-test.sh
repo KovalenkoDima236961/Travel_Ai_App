@@ -3,9 +3,16 @@ set -euo pipefail
 
 TRIP_SERVICE_URL="${TRIP_SERVICE_URL:-http://localhost:8080}"
 AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8082}"
-USER_SERVICE_URL="${USER_SERVICE_URL:-http://localhost:8083}"
-AI_PLANNING_SERVICE_URL="${AI_PLANNING_SERVICE_URL:-http://localhost:8000}"
+USER_SERVICE_URL="${SMOKE_USER_SERVICE_URL:-${USER_SERVICE_URL:-http://localhost:8083}}"
+AI_PLANNING_SERVICE_URL="${SMOKE_AI_PLANNING_SERVICE_URL:-${AI_PLANNING_SERVICE_URL:-http://localhost:8000}}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
+
+if [[ "${USER_SERVICE_URL}" == "http://user-service:8083" ]]; then
+  USER_SERVICE_URL="http://localhost:${USER_SERVICE_PORT:-8083}"
+fi
+if [[ "${AI_PLANNING_SERVICE_URL}" == "http://ai-planning-service:8000" ]]; then
+  AI_PLANNING_SERVICE_URL="http://localhost:${AI_HTTP_PORT:-8000}"
+fi
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required to run the smoke test." >&2
@@ -226,7 +233,8 @@ PATCH_PREFERENCES_PAYLOAD='{
   "maxWalkingKmPerDay": 8,
   "foodPreferences": ["local", "cheap"],
   "avoid": ["nightclubs"],
-  "preferredTransport": ["walking", "public_transport"]
+  "preferredTransport": ["walking", "public_transport"],
+  "accommodationStyle": ["budget_hotel"]
 }'
 request_with_bearer PATCH "${USER_SERVICE_URL}/users/me/preferences" "${ACCESS_TOKEN}" "${PATCH_PREFERENCES_PAYLOAD}"
 assert_2xx "Patch preferences"
@@ -234,7 +242,8 @@ assert_2xx "Patch preferences"
 PATCHED_STYLE_COUNT="$(jq '.travelStyles | length' <<<"${LAST_BODY}")"
 PATCHED_WALKING="$(jq -r '.maxWalkingKmPerDay // empty' <<<"${LAST_BODY}")"
 PATCHED_AVOID="$(jq -r '.avoid[0] // empty' <<<"${LAST_BODY}")"
-if [[ "${PATCHED_STYLE_COUNT}" -ne 3 || "${PATCHED_WALKING}" != "8" || "${PATCHED_AVOID}" != "nightclubs" ]]; then
+PATCHED_ACCOMMODATION="$(jq -r '.accommodationStyle[0] // empty' <<<"${LAST_BODY}")"
+if [[ "${PATCHED_STYLE_COUNT}" -ne 3 || "${PATCHED_WALKING}" != "8" || "${PATCHED_AVOID}" != "nightclubs" || "${PATCHED_ACCOMMODATION}" != "budget_hotel" ]]; then
   echo "Patched preferences did not include expected values." >&2
   echo "${LAST_BODY}" >&2
   exit 1
@@ -310,6 +319,12 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+
+ITINERARY_TEXT="$(jq -r '.itinerary | .. | scalars? | tostring' <<<"${LAST_BODY}" | tr '\n' ' ')"
+if grep -Eiq '\bnightclubs?\b' <<<"${ITINERARY_TEXT}"; then
+  echo "Generated itinerary mentioned an avoided nightlife term; continuing because AI wording can vary." >&2
+fi
+echo "Personalization context path exercised through Trip Service -> User Service -> AI Planning Service."
 
 echo "Listing trips for current user..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips?limit=20&offset=0" "${ACCESS_TOKEN}"

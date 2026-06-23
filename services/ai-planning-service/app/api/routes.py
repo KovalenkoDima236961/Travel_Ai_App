@@ -9,8 +9,8 @@ from fastapi.responses import JSONResponse
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
-from app.services.itinerary_generator import ItineraryGenerator
 from app.services.chroma_client import create_persistent_chroma_client
+from app.services.itinerary_generator import ItineraryGenerator
 
 logger = logging.getLogger(__name__)
 

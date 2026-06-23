@@ -197,3 +197,23 @@ def test_budget_slightly_above_requested_amount_within_thirty_percent_passes() -
     ItineraryValidator().validate(
         _request(budgetAmount=100), ItineraryResponse.model_validate(body)
     )
+
+
+def test_avoid_term_warning_does_not_fail_validation() -> None:
+    body = _itinerary_body()
+    body["days"][0]["items"][3]["name"] = "Nightclub district dinner"
+    request = _request(userPreferences={"avoid": ["nightclubs"]})
+
+    result = ItineraryValidator().validate(request, ItineraryResponse.model_validate(body))
+
+    assert [warning.code for warning in result.warnings] == ["avoid_term_mentioned"]
+
+
+def test_dietary_restriction_warning_does_not_fail_validation() -> None:
+    request = _request(userPreferences={"dietaryRestrictions": ["vegetarian"]})
+
+    result = ItineraryValidator().validate(request, _itinerary())
+
+    assert "dietary_restrictions_not_reflected" in [
+        warning.code for warning in result.warnings
+    ]

@@ -13,7 +13,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
 
 func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
@@ -57,7 +59,7 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 	startDate := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
 	budget := 600.0
 	tripID := uuid.New()
-	got, err := gen.Generate(context.Background(), entity.Trip{
+	got, err := gen.Generate(context.Background(), application.GenerateItineraryInput{Trip: entity.Trip{
 		ID:             tripID,
 		Destination:    "Rome",
 		StartDate:      &startDate,
@@ -67,7 +69,7 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 		Travelers:      2,
 		Interests:      []string{"food", "history", "hidden_gems"},
 		Pace:           "balanced",
-	})
+	}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,12 +102,12 @@ func TestAIPlanningHTTPGeneratorGenerate_DefaultsRequestPayload(t *testing.T) {
 	gen := newTestHTTPGenerator(t, server.URL, client)
 
 	tripID := uuid.New()
-	_, err := gen.Generate(context.Background(), entity.Trip{
+	_, err := gen.Generate(context.Background(), application.GenerateItineraryInput{Trip: entity.Trip{
 		ID:          tripID,
 		Destination: "Paris",
 		Days:        2,
 		Travelers:   1,
-	})
+	}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -139,7 +141,7 @@ func TestAIPlanningHTTPGeneratorGenerate_Non2xxReturnsError(t *testing.T) {
 	client.Timeout = time.Second
 	gen := newTestHTTPGenerator(t, server.URL, client)
 
-	_, err := gen.Generate(context.Background(), validTrip())
+	_, err := gen.Generate(context.Background(), application.GenerateItineraryInput{Trip: validTrip()})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -158,7 +160,7 @@ func TestAIPlanningHTTPGeneratorGenerate_InvalidJSONReturnsError(t *testing.T) {
 	client.Timeout = time.Second
 	gen := newTestHTTPGenerator(t, server.URL, client)
 
-	_, err := gen.Generate(context.Background(), validTrip())
+	_, err := gen.Generate(context.Background(), application.GenerateItineraryInput{Trip: validTrip()})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -177,7 +179,7 @@ func TestAIPlanningHTTPGeneratorGenerate_EmptyDaysReturnsError(t *testing.T) {
 	client.Timeout = time.Second
 	gen := newTestHTTPGenerator(t, server.URL, client)
 
-	_, err := gen.Generate(context.Background(), validTrip())
+	_, err := gen.Generate(context.Background(), application.GenerateItineraryInput{Trip: validTrip()})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -196,12 +198,71 @@ func TestAIPlanningHTTPGeneratorGenerate_RequestFailureReturnsError(t *testing.T
 	client.Timeout = time.Millisecond
 	gen := newTestHTTPGenerator(t, server.URL, client)
 
-	_, err := gen.Generate(context.Background(), validTrip())
+	_, err := gen.Generate(context.Background(), application.GenerateItineraryInput{Trip: validTrip()})
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}
 	if !strings.Contains(err.Error(), "call ai planning service") {
 		t.Fatalf("expected request failure error, got %v", err)
+	}
+}
+
+func TestAIPlanningHTTPGeneratorGenerate_SerializesUserContext(t *testing.T) {
+	var captured aiPlanningGenerateRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		fmt.Fprint(w, `{"days":[{"day":1,"title":"Day","items":[]} ]}`)
+	}))
+	defer server.Close()
+
+	client := server.Client()
+	client.Timeout = time.Second
+	gen := newTestHTTPGenerator(t, server.URL, client)
+
+	displayName := "Dmytro"
+	homeCity := "Bratislava"
+	homeCountry := "Slovakia"
+	walking := 8.0
+	userID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+
+	_, err := gen.Generate(context.Background(), application.GenerateItineraryInput{
+		Trip: validTrip(),
+		UserProfile: &usercontext.UserProfile{
+			UserID:            userID,
+			DisplayName:       &displayName,
+			HomeCity:          &homeCity,
+			HomeCountry:       &homeCountry,
+			PreferredCurrency: "EUR",
+			PreferredLanguage: "en",
+		},
+		UserPreferences: &usercontext.UserPreferences{
+			UserID:             userID,
+			TravelStyles:       []string{"budget", "food", "hidden_gems"},
+			Pace:               "balanced",
+			MaxWalkingKmPerDay: &walking,
+			FoodPreferences:    []string{"local", "cheap"},
+			Avoid:              []string{"nightclubs"},
+			PreferredTransport: []string{"walking", "public_transport"},
+			AccommodationStyle: []string{"budget_hotel"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if captured.UserProfile == nil || captured.UserProfile.DisplayName == nil || *captured.UserProfile.DisplayName != "Dmytro" {
+		t.Fatalf("expected userProfile to be serialized, got %+v", captured.UserProfile)
+	}
+	if captured.UserPreferences == nil {
+		t.Fatal("expected userPreferences to be serialized")
+	}
+	if strings.Join(captured.UserPreferences.TravelStyles, ",") != "budget,food,hidden_gems" {
+		t.Fatalf("unexpected travelStyles: %#v", captured.UserPreferences.TravelStyles)
+	}
+	if captured.UserPreferences.MaxWalkingKmPerDay == nil || *captured.UserPreferences.MaxWalkingKmPerDay != 8 {
+		t.Fatalf("expected maxWalkingKmPerDay 8, got %+v", captured.UserPreferences.MaxWalkingKmPerDay)
 	}
 }
 
