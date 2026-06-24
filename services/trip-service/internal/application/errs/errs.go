@@ -1,7 +1,14 @@
 // Package errs holds application-level errors raised by use cases.
 package errs
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrForbidden signals that the authenticated caller exists but lacks the
+// permission required for this operation. The HTTP layer maps it to 403.
+var ErrForbidden = errors.New("forbidden")
 
 // InvalidInputError signals that the caller supplied invalid input. The HTTP
 // layer maps it to 400. It lets the use case enforce business rules

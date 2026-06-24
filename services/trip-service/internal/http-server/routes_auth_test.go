@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
@@ -940,6 +941,186 @@ func TestUpdateItineraryOwnerCanEditAndChangesPersist(t *testing.T) {
 	}
 }
 
+func TestCollaborativePlanningInviteAcceptRolesAndRemoval(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	viewerID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	viewerToken := signAccessToken(t, viewerID, "viewer@example.com", testJWTSecret, time.Hour)
+	tripID := createCompletedTripForRouteTest(t, router, ownerToken)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips/"+tripID+"/collaborators", bytes.NewReader([]byte(`{"email":"viewer@example.com","role":"viewer"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected invite HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var invite struct {
+		ID     string `json:"id"`
+		UserID string `json:"userId"`
+		Role   string `json:"role"`
+		Status string `json:"status"`
+		Email  string `json:"email"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &invite); err != nil {
+		t.Fatalf("decode invite: %v", err)
+	}
+	if invite.UserID != viewerID.String() || invite.Role != "viewer" || invite.Status != "pending" || invite.Email != "viewer@example.com" {
+		t.Fatalf("unexpected invite response: %+v", invite)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/collaboration/invitations", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected invitations HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var invitations []struct {
+		CollaboratorID string `json:"collaboratorId"`
+		TripID         string `json:"tripId"`
+		Role           string `json:"role"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &invitations); err != nil {
+		t.Fatalf("decode invitations: %v", err)
+	}
+	if len(invitations) != 1 || invitations[0].CollaboratorID != invite.ID || invitations[0].TripID != tripID || invitations[0].Role != "viewer" {
+		t.Fatalf("unexpected invitations: %+v", invitations)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+tripID, nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected pending collaborator get HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+tripID+"/collaborators/"+invite.ID+"/accept", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected accept HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/shared-with-me", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected shared-with-me HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var shared []struct {
+		ID   string `json:"id"`
+		Role string `json:"role"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &shared); err != nil {
+		t.Fatalf("decode shared trips: %v", err)
+	}
+	if len(shared) != 1 || shared[0].ID != tripID || shared[0].Role != "viewer" {
+		t.Fatalf("unexpected shared trips: %+v", shared)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+tripID, nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected accepted viewer get HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var viewerTrip struct {
+		Access struct {
+			Role                   string `json:"role"`
+			CanEdit                bool   `json:"canEdit"`
+			CanManageCollaborators bool   `json:"canManageCollaborators"`
+		} `json:"access"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &viewerTrip); err != nil {
+		t.Fatalf("decode viewer trip: %v", err)
+	}
+	if viewerTrip.Access.Role != "viewer" || viewerTrip.Access.CanEdit || viewerTrip.Access.CanManageCollaborators {
+		t.Fatalf("unexpected viewer access: %+v", viewerTrip.Access)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected viewer edit HTTP 403, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/trips/"+tripID+"/collaborators/"+invite.ID, bytes.NewReader([]byte(`{"role":"editor"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected owner role update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected editor edit HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+tripID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected editor share create HTTP 403, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+tripID+"/itinerary/versions", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected owner version list HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var versions struct {
+		Items []struct {
+			CreatedByUserID string `json:"createdByUserId"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &versions); err != nil {
+		t.Fatalf("decode versions: %v", err)
+	}
+	if len(versions.Items) == 0 || versions.Items[0].CreatedByUserID != viewerID.String() {
+		t.Fatalf("expected latest version actor %s, got %+v", viewerID, versions.Items)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/trips/"+tripID+"/collaborators/"+invite.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected remove collaborator HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+tripID, nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected removed collaborator get HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestUpdateItineraryValidationErrors(t *testing.T) {
 	router, _ := newAuthTestRouter(t, config.AuthConfig{
 		Required:        true,
@@ -1188,9 +1369,10 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 	t.Helper()
 
 	repo := &routeTestRepo{
-		trips:         map[uuid.UUID]entity.Trip{},
-		sharesByTrip:  map[uuid.UUID]entity.TripShare{},
-		sharesByToken: map[string]entity.TripShare{},
+		trips:             map[uuid.UUID]entity.Trip{},
+		collaboratorsByID: map[uuid.UUID]entity.TripCollaborator{},
+		sharesByTrip:      map[uuid.UUID]entity.TripShare{},
+		sharesByToken:     map[string]entity.TripShare{},
 	}
 	gen := routeTestGenerator{}
 	svc := service.New(
@@ -1198,6 +1380,18 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 		gen,
 		zap.NewNop(),
 		service.WithPublicSharing(true, "http://localhost:3000", 32, testPublicShareSecret, 60),
+		service.WithUserLookup(routeTestUserLookup{
+			usersByEmail: map[string]appdto.UserLookupResult{
+				"viewer@example.com": {
+					UserID: uuid.MustParse("33333333-3333-3333-3333-333333333333"),
+					Email:  "viewer@example.com",
+				},
+				"editor@example.com": {
+					UserID: uuid.MustParse("44444444-4444-4444-4444-444444444444"),
+					Email:  "editor@example.com",
+				},
+			},
+		}),
 	)
 	validator, err := validation.NewValidator()
 	if err != nil {
@@ -1212,11 +1406,12 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 }
 
 type routeTestRepo struct {
-	trips         map[uuid.UUID]entity.Trip
-	versions      []entity.ItineraryVersion
-	sharesByTrip  map[uuid.UUID]entity.TripShare
-	sharesByToken map[string]entity.TripShare
-	created       *entity.Trip
+	trips             map[uuid.UUID]entity.Trip
+	versions          []entity.ItineraryVersion
+	collaboratorsByID map[uuid.UUID]entity.TripCollaborator
+	sharesByTrip      map[uuid.UUID]entity.TripShare
+	sharesByToken     map[string]entity.TripShare
+	created           *entity.Trip
 }
 
 func (r *routeTestRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -1268,14 +1463,25 @@ func (r *routeTestRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.
 }
 
 func (r *routeTestRepo) UpdateItineraryByUserIDAndCreateVersion(
-	_ context.Context,
+	ctx context.Context,
 	id, userID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
-	trip, err := r.GetByIDAndUserID(context.Background(), id, userID)
+	return r.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, source, metadata)
+}
+
+func (r *routeTestRepo) UpdateItineraryAndCreateVersion(
+	_ context.Context,
+	id, ownerUserID, actorUserID uuid.UUID,
+	itinerary json.RawMessage,
+	status entity.Status,
+	source entity.ItineraryVersionSource,
+	metadata map[string]any,
+) (*entity.Trip, *entity.ItineraryVersion, error) {
+	trip, err := r.GetByIDAndUserID(context.Background(), id, ownerUserID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1284,24 +1490,29 @@ func (r *routeTestRepo) UpdateItineraryByUserIDAndCreateVersion(
 	trip.UpdatedAt = time.Now().UTC()
 	r.trips[id] = *trip
 	version := entity.ItineraryVersion{
-		ID:            uuid.New(),
-		TripID:        id,
-		UserID:        userID,
-		VersionNumber: routeTestNextVersionNumber(r.versions, id),
-		Source:        source,
-		Itinerary:     itinerary,
-		Metadata:      metadata,
-		CreatedAt:     time.Now().UTC(),
+		ID:              uuid.New(),
+		TripID:          id,
+		UserID:          ownerUserID,
+		CreatedByUserID: &actorUserID,
+		VersionNumber:   routeTestNextVersionNumber(r.versions, id),
+		Source:          source,
+		Itinerary:       itinerary,
+		Metadata:        metadata,
+		CreatedAt:       time.Now().UTC(),
 	}
 	r.versions = append(r.versions, version)
 	return trip, &version, nil
 }
 
 func (r *routeTestRepo) ListItineraryVersionsByTripAndUser(_ context.Context, tripID, userID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error) {
+	return r.ListItineraryVersionsByTrip(context.Background(), tripID, limit, offset)
+}
+
+func (r *routeTestRepo) ListItineraryVersionsByTrip(_ context.Context, tripID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error) {
 	versions := make([]entity.ItineraryVersion, 0)
 	for i := len(r.versions) - 1; i >= 0; i-- {
 		version := r.versions[i]
-		if version.TripID == tripID && version.UserID == userID {
+		if version.TripID == tripID {
 			versions = append(versions, version)
 		}
 	}
@@ -1316,13 +1527,145 @@ func (r *routeTestRepo) ListItineraryVersionsByTripAndUser(_ context.Context, tr
 }
 
 func (r *routeTestRepo) GetItineraryVersionByIDTripAndUser(_ context.Context, id, tripID, userID uuid.UUID) (*entity.ItineraryVersion, error) {
+	return r.GetItineraryVersionByIDTrip(context.Background(), id, tripID)
+}
+
+func (r *routeTestRepo) GetItineraryVersionByIDTrip(_ context.Context, id, tripID uuid.UUID) (*entity.ItineraryVersion, error) {
 	for i := range r.versions {
 		version := r.versions[i]
-		if version.ID == id && version.TripID == tripID && version.UserID == userID {
+		if version.ID == id && version.TripID == tripID {
 			return &version, nil
 		}
 	}
 	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) UpsertTripCollaborator(_ context.Context, collaborator *entity.TripCollaborator) (*entity.TripCollaborator, error) {
+	now := time.Now().UTC()
+	for id, existing := range r.collaboratorsByID {
+		if existing.TripID == collaborator.TripID && existing.UserID == collaborator.UserID {
+			existing.Role = collaborator.Role
+			if existing.Status == entity.CollaboratorStatusRemoved {
+				existing.Status = entity.CollaboratorStatusPending
+				existing.AcceptedAt = nil
+				existing.InvitedAt = now
+			}
+			existing.RemovedAt = nil
+			existing.InvitedByUserID = collaborator.InvitedByUserID
+			existing.UpdatedAt = now
+			r.collaboratorsByID[id] = existing
+			return &existing, nil
+		}
+	}
+	out := *collaborator
+	out.ID = uuid.New()
+	out.Status = entity.CollaboratorStatusPending
+	out.InvitedAt = now
+	out.UpdatedAt = now
+	r.collaboratorsByID[out.ID] = out
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetTripCollaboratorByTripAndUser(_ context.Context, tripID, userID uuid.UUID) (*entity.TripCollaborator, error) {
+	for _, collaborator := range r.collaboratorsByID {
+		if collaborator.TripID == tripID && collaborator.UserID == userID {
+			out := collaborator
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) GetTripCollaboratorByID(_ context.Context, tripID, collaboratorID uuid.UUID) (*entity.TripCollaborator, error) {
+	collaborator, ok := r.collaboratorsByID[collaboratorID]
+	if !ok || collaborator.TripID != tripID {
+		return nil, domainerrs.ErrNotFound
+	}
+	return &collaborator, nil
+}
+
+func (r *routeTestRepo) ListTripCollaborators(_ context.Context, tripID uuid.UUID) ([]entity.TripCollaborator, error) {
+	out := make([]entity.TripCollaborator, 0)
+	for _, collaborator := range r.collaboratorsByID {
+		if collaborator.TripID == tripID && collaborator.Status != entity.CollaboratorStatusRemoved {
+			out = append(out, collaborator)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) UpdateTripCollaboratorRole(_ context.Context, tripID, collaboratorID uuid.UUID, role entity.CollaboratorRole) (*entity.TripCollaborator, error) {
+	collaborator, ok := r.collaboratorsByID[collaboratorID]
+	if !ok || collaborator.TripID != tripID || collaborator.Status == entity.CollaboratorStatusRemoved {
+		return nil, domainerrs.ErrNotFound
+	}
+	collaborator.Role = role
+	collaborator.UpdatedAt = time.Now().UTC()
+	r.collaboratorsByID[collaboratorID] = collaborator
+	return &collaborator, nil
+}
+
+func (r *routeTestRepo) RemoveTripCollaborator(_ context.Context, tripID, collaboratorID uuid.UUID) (*entity.TripCollaborator, error) {
+	collaborator, ok := r.collaboratorsByID[collaboratorID]
+	if !ok || collaborator.TripID != tripID {
+		return nil, domainerrs.ErrNotFound
+	}
+	now := time.Now().UTC()
+	collaborator.Status = entity.CollaboratorStatusRemoved
+	collaborator.RemovedAt = &now
+	collaborator.UpdatedAt = now
+	r.collaboratorsByID[collaboratorID] = collaborator
+	return &collaborator, nil
+}
+
+func (r *routeTestRepo) AcceptTripCollaborator(_ context.Context, tripID, collaboratorID, userID uuid.UUID) (*entity.TripCollaborator, error) {
+	collaborator, ok := r.collaboratorsByID[collaboratorID]
+	if !ok || collaborator.TripID != tripID || collaborator.UserID != userID || collaborator.Status != entity.CollaboratorStatusPending {
+		return nil, domainerrs.ErrNotFound
+	}
+	now := time.Now().UTC()
+	collaborator.Status = entity.CollaboratorStatusAccepted
+	collaborator.AcceptedAt = &now
+	collaborator.RemovedAt = nil
+	collaborator.UpdatedAt = now
+	r.collaboratorsByID[collaboratorID] = collaborator
+	return &collaborator, nil
+}
+
+func (r *routeTestRepo) DeclineTripCollaborator(_ context.Context, tripID, collaboratorID, userID uuid.UUID) (*entity.TripCollaborator, error) {
+	collaborator, ok := r.collaboratorsByID[collaboratorID]
+	if !ok || collaborator.TripID != tripID || collaborator.UserID != userID || collaborator.Status != entity.CollaboratorStatusPending {
+		return nil, domainerrs.ErrNotFound
+	}
+	now := time.Now().UTC()
+	collaborator.Status = entity.CollaboratorStatusRemoved
+	collaborator.RemovedAt = &now
+	collaborator.UpdatedAt = now
+	r.collaboratorsByID[collaboratorID] = collaborator
+	return &collaborator, nil
+}
+
+func (r *routeTestRepo) ListPendingCollaborationInvitations(_ context.Context, userID uuid.UUID) ([]entity.SharedTrip, error) {
+	return r.listSharedTripsByCollaborator(userID, entity.CollaboratorStatusPending)
+}
+
+func (r *routeTestRepo) ListSharedTripsByUser(_ context.Context, userID uuid.UUID) ([]entity.SharedTrip, error) {
+	return r.listSharedTripsByCollaborator(userID, entity.CollaboratorStatusAccepted)
+}
+
+func (r *routeTestRepo) listSharedTripsByCollaborator(userID uuid.UUID, status entity.CollaboratorStatus) ([]entity.SharedTrip, error) {
+	out := make([]entity.SharedTrip, 0)
+	for _, collaborator := range r.collaboratorsByID {
+		if collaborator.UserID != userID || collaborator.Status != status {
+			continue
+		}
+		trip, ok := r.trips[collaborator.TripID]
+		if !ok {
+			continue
+		}
+		out = append(out, entity.SharedTrip{Trip: trip, Collaborator: collaborator})
+	}
+	return out, nil
 }
 
 func (r *routeTestRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
@@ -1411,6 +1754,18 @@ func routeTestNextVersionNumber(versions []entity.ItineraryVersion, tripID uuid.
 }
 
 type routeTestGenerator struct{}
+
+type routeTestUserLookup struct {
+	usersByEmail map[string]appdto.UserLookupResult
+}
+
+func (l routeTestUserLookup) LookupByEmail(_ context.Context, email string) (*appdto.UserLookupResult, error) {
+	user, ok := l.usersByEmail[strings.ToLower(strings.TrimSpace(email))]
+	if !ok {
+		return nil, domainerrs.ErrNotFound
+	}
+	return &user, nil
+}
 
 func (routeTestGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
 	trip := input.Trip

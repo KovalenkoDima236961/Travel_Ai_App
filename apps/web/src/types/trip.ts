@@ -48,6 +48,7 @@ export type Itinerary = {
 
 export type Trip = {
   id: string;
+  userId?: string | null;
   destination: string;
   startDate?: string | null;
   days: number;
@@ -58,8 +59,18 @@ export type Trip = {
   pace: Pace;
   status: TripStatus;
   itinerary?: Itinerary | null;
+  access?: TripAccess | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TripAccess = {
+  role: "owner" | "editor" | "viewer";
+  canEdit: boolean;
+  canManageCollaborators: boolean;
+  canManageShare: boolean;
+  canRestoreVersion: boolean;
+  canDelete: boolean;
 };
 
 export type TripsListResponse = {

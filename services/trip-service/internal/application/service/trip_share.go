@@ -37,11 +37,16 @@ func (s *Service) GetTripShare(ctx context.Context, tripID uuid.UUID) (appdto.Tr
 	if !s.publicSharingEnabled {
 		return appdto.TripShareInfo{}, apperrs.NewInvalidInput("public sharing is disabled")
 	}
-	if _, err := s.repo.GetByIDAndUserID(ctx, tripID, user.ID); err != nil {
+	trip, _, err := s.requireOwner(ctx, tripID, user.ID)
+	if err != nil {
+		return appdto.TripShareInfo{}, err
+	}
+	ownerID, err := tripOwnerID(trip)
+	if err != nil {
 		return appdto.TripShareInfo{}, err
 	}
 
-	share, err := s.repo.GetTripShareByTripAndUser(ctx, tripID, user.ID)
+	share, err := s.repo.GetTripShareByTripAndUser(ctx, tripID, ownerID)
 	if err != nil {
 		if errors.Is(err, domainerrs.ErrNotFound) {
 			return appdto.TripShareInfo{Enabled: false, PasswordRequired: false}, nil
@@ -61,7 +66,12 @@ func (s *Service) CreateOrEnableTripShare(ctx context.Context, tripID uuid.UUID,
 	if !s.publicSharingEnabled {
 		return appdto.TripShareInfo{}, apperrs.NewInvalidInput("public sharing is disabled")
 	}
-	if _, err := s.repo.GetByIDAndUserID(ctx, tripID, user.ID); err != nil {
+	trip, _, err := s.requireOwner(ctx, tripID, user.ID)
+	if err != nil {
+		return appdto.TripShareInfo{}, err
+	}
+	ownerID, err := tripOwnerID(trip)
+	if err != nil {
 		return appdto.TripShareInfo{}, err
 	}
 
@@ -70,11 +80,11 @@ func (s *Service) CreateOrEnableTripShare(ctx context.Context, tripID uuid.UUID,
 		return appdto.TripShareInfo{}, err
 	}
 
-	share, err := s.repo.GetTripShareByTripAndUser(ctx, tripID, user.ID)
+	share, err := s.repo.GetTripShareByTripAndUser(ctx, tripID, ownerID)
 	switch {
 	case err == nil && share.Enabled:
 		if hasSettings {
-			updated, err := s.repo.UpdateTripShareSettings(ctx, tripID, user.ID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
+			updated, err := s.repo.UpdateTripShareSettings(ctx, tripID, ownerID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
 			if err != nil {
 				return appdto.TripShareInfo{}, err
 			}
@@ -82,12 +92,12 @@ func (s *Service) CreateOrEnableTripShare(ctx context.Context, tripID uuid.UUID,
 		}
 		return s.tripShareInfo(share), nil
 	case err == nil:
-		enabled, err := s.repo.EnableTripShare(ctx, tripID, user.ID)
+		enabled, err := s.repo.EnableTripShare(ctx, tripID, ownerID)
 		if err != nil {
 			return appdto.TripShareInfo{}, err
 		}
 		if hasSettings {
-			enabled, err = s.repo.UpdateTripShareSettings(ctx, tripID, user.ID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
+			enabled, err = s.repo.UpdateTripShareSettings(ctx, tripID, ownerID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
 			if err != nil {
 				return appdto.TripShareInfo{}, err
 			}
@@ -105,7 +115,7 @@ func (s *Service) CreateOrEnableTripShare(ctx context.Context, tripID uuid.UUID,
 
 		created, err := s.repo.CreateTripShare(ctx, &entity.TripShare{
 			TripID:           tripID,
-			UserID:           user.ID,
+			UserID:           ownerID,
 			ShareToken:       token,
 			Enabled:          true,
 			ExpiresAt:        settings.expiresAt,
@@ -119,11 +129,11 @@ func (s *Service) CreateOrEnableTripShare(ctx context.Context, tripID uuid.UUID,
 			return appdto.TripShareInfo{}, err
 		}
 
-		existing, lookupErr := s.repo.GetTripShareByTripAndUser(ctx, tripID, user.ID)
+		existing, lookupErr := s.repo.GetTripShareByTripAndUser(ctx, tripID, ownerID)
 		if lookupErr == nil {
 			if existing.Enabled {
 				if hasSettings {
-					updated, updateErr := s.repo.UpdateTripShareSettings(ctx, tripID, user.ID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
+					updated, updateErr := s.repo.UpdateTripShareSettings(ctx, tripID, ownerID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
 					if updateErr != nil {
 						return appdto.TripShareInfo{}, updateErr
 					}
@@ -131,12 +141,12 @@ func (s *Service) CreateOrEnableTripShare(ctx context.Context, tripID uuid.UUID,
 				}
 				return s.tripShareInfo(existing), nil
 			}
-			enabled, enableErr := s.repo.EnableTripShare(ctx, tripID, user.ID)
+			enabled, enableErr := s.repo.EnableTripShare(ctx, tripID, ownerID)
 			if enableErr != nil {
 				return appdto.TripShareInfo{}, enableErr
 			}
 			if hasSettings {
-				enabled, enableErr = s.repo.UpdateTripShareSettings(ctx, tripID, user.ID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
+				enabled, enableErr = s.repo.UpdateTripShareSettings(ctx, tripID, ownerID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
 				if enableErr != nil {
 					return appdto.TripShareInfo{}, enableErr
 				}
@@ -158,11 +168,16 @@ func (s *Service) UpdateTripShareSettings(ctx context.Context, tripID uuid.UUID,
 	if !s.publicSharingEnabled {
 		return appdto.TripShareInfo{}, apperrs.NewInvalidInput("public sharing is disabled")
 	}
-	if _, err := s.repo.GetByIDAndUserID(ctx, tripID, user.ID); err != nil {
+	trip, _, err := s.requireOwner(ctx, tripID, user.ID)
+	if err != nil {
+		return appdto.TripShareInfo{}, err
+	}
+	ownerID, err := tripOwnerID(trip)
+	if err != nil {
 		return appdto.TripShareInfo{}, err
 	}
 
-	share, err := s.repo.GetTripShareByTripAndUser(ctx, tripID, user.ID)
+	share, err := s.repo.GetTripShareByTripAndUser(ctx, tripID, ownerID)
 	if err != nil {
 		return appdto.TripShareInfo{}, err
 	}
@@ -174,7 +189,7 @@ func (s *Service) UpdateTripShareSettings(ctx context.Context, tripID uuid.UUID,
 		return s.tripShareInfo(share), nil
 	}
 
-	updated, err := s.repo.UpdateTripShareSettings(ctx, tripID, user.ID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
+	updated, err := s.repo.UpdateTripShareSettings(ctx, tripID, ownerID, settings.expiresAt, settings.passwordRequired, settings.passwordHash)
 	if err != nil {
 		return appdto.TripShareInfo{}, err
 	}
@@ -191,10 +206,15 @@ func (s *Service) DisableTripShare(ctx context.Context, tripID uuid.UUID) error 
 	if !s.publicSharingEnabled {
 		return apperrs.NewInvalidInput("public sharing is disabled")
 	}
-	if _, err := s.repo.GetByIDAndUserID(ctx, tripID, user.ID); err != nil {
+	trip, _, err := s.requireOwner(ctx, tripID, user.ID)
+	if err != nil {
 		return err
 	}
-	if _, err := s.repo.DisableTripShare(ctx, tripID, user.ID); err != nil && !errors.Is(err, domainerrs.ErrNotFound) {
+	ownerID, err := tripOwnerID(trip)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.DisableTripShare(ctx, tripID, ownerID); err != nil && !errors.Is(err, domainerrs.ErrNotFound) {
 		return err
 	}
 	return nil

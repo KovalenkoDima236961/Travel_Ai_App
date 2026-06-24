@@ -114,6 +114,36 @@ http://localhost:3000
 56. Go to `/trips`.
 57. Confirm the trip appears in the list.
 
+## Collaborative Planning
+
+1. Create two registered accounts: an owner and a collaborator.
+2. Log in as the owner.
+3. Create and generate a trip, or open an existing completed owner trip.
+4. In the `Collaborators` panel, invite the collaborator account by exact email
+   as `viewer`.
+5. Log out and log in as the collaborator.
+6. Open `/trips`.
+7. Confirm the invitation appears under `Pending invitations`.
+8. Accept the invitation.
+9. Confirm the trip appears under `Shared with me` with a `Viewer` role.
+10. Open the shared trip.
+11. Confirm itinerary, map, weather, distance, export, and version preview are
+    visible.
+12. Confirm edit, regenerate, place-review action buttons, route optimization
+    apply controls, restore buttons, share controls, and collaborator controls
+    are hidden.
+13. Log back in as the owner.
+14. Change the collaborator role to `editor`.
+15. Log in as the collaborator again.
+16. Open the shared trip and confirm edit/regenerate controls are visible.
+17. Make a small itinerary edit and save.
+18. Open version history and confirm a new version exists.
+19. Confirm share controls and collaborator controls are still hidden for the
+    editor.
+20. Log back in as owner and remove the collaborator.
+21. Log in as collaborator again and confirm the trip no longer opens and no
+    longer appears under `Shared with me`.
+
 ## Public Trip Sharing
 
 1. Log in and open a completed trip.

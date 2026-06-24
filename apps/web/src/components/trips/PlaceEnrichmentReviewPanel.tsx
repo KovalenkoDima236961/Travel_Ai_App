@@ -18,11 +18,13 @@ import type { Itinerary, Trip } from "@/types/trip";
 
 type PlaceEnrichmentReviewPanelProps = {
   trip: Trip;
+  readOnly?: boolean;
   onTripUpdated?: (trip: Trip) => void | Promise<void>;
 };
 
 export function PlaceEnrichmentReviewPanel({
   trip,
+  readOnly = false,
   onTripUpdated
 }: PlaceEnrichmentReviewPanelProps) {
   const queryClient = useQueryClient();
@@ -151,6 +153,7 @@ export function PlaceEnrichmentReviewPanel({
             onAccept={() => acceptMatch(item)}
             onChange={() => setAttachTarget(item)}
             onRemove={() => removeMatch(item)}
+            readOnly={readOnly}
           />
         ))}
       </div>
@@ -179,6 +182,7 @@ type ReviewRowProps = {
   onAccept: () => void;
   onChange: () => void;
   onRemove: () => void;
+  readOnly: boolean;
 };
 
 function ReviewRow({
@@ -187,7 +191,8 @@ function ReviewRow({
   isSaving,
   onAccept,
   onChange,
-  onRemove
+  onRemove,
+  readOnly
 }: ReviewRowProps) {
   const hasPlace = Boolean(item.placeName);
   const canAccept = hasPlace && item.status === "matched" && item.reviewStatus !== "accepted";
@@ -235,17 +240,38 @@ function ReviewRow({
         )}
       </div>
 
-      <div className="flex flex-wrap items-start gap-2 lg:justify-end">
-        {hasPlace ? (
-          <>
-            <Button
-              disabled={disabled || isSaving || !canAccept}
-              onClick={onAccept}
-              size="sm"
-              type="button"
-            >
-              {isSaving ? "Saving..." : "Accept"}
-            </Button>
+      {readOnly ? null : (
+        <div className="flex flex-wrap items-start gap-2 lg:justify-end">
+          {hasPlace ? (
+            <>
+              <Button
+                disabled={disabled || isSaving || !canAccept}
+                onClick={onAccept}
+                size="sm"
+                type="button"
+              >
+                {isSaving ? "Saving..." : "Accept"}
+              </Button>
+              <Button
+                disabled={disabled || isSaving}
+                onClick={onChange}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Change
+              </Button>
+              <Button
+                disabled={disabled || isSaving || !canRemove}
+                onClick={onRemove}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Remove
+              </Button>
+            </>
+          ) : (
             <Button
               disabled={disabled || isSaving}
               onClick={onChange}
@@ -253,30 +279,11 @@ function ReviewRow({
               type="button"
               variant="secondary"
             >
-              Change
+              {isSaving ? "Saving..." : "Search manually"}
             </Button>
-            <Button
-              disabled={disabled || isSaving || !canRemove}
-              onClick={onRemove}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              Remove
-            </Button>
-          </>
-        ) : (
-          <Button
-            disabled={disabled || isSaving}
-            onClick={onChange}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {isSaving ? "Saving..." : "Search manually"}
-          </Button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -283,6 +283,23 @@ if [[ -z "${ACCESS_TOKEN}" || -z "${REFRESH_TOKEN}" ]]; then
   exit 1
 fi
 
+COLLAB_EMAIL="smoke-collab+$(date +%s)-$$@example.com"
+COLLAB_PAYLOAD="$(jq -nc --arg email "${COLLAB_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
+echo "Registering collaborator smoke test user..."
+request POST "${AUTH_SERVICE_URL}/auth/register" "${COLLAB_PAYLOAD}"
+assert_2xx "Collaborator auth register"
+
+request POST "${AUTH_SERVICE_URL}/auth/login" "${COLLAB_PAYLOAD}"
+assert_2xx "Collaborator auth login"
+
+COLLAB_ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
+COLLAB_USER_ID="$(jq -r '.user.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${COLLAB_ACCESS_TOKEN}" || -z "${COLLAB_USER_ID}" ]]; then
+  echo "Collaborator login response did not include token and user id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking /auth/me..."
 request_with_bearer GET "${AUTH_SERVICE_URL}/auth/me" "${ACCESS_TOKEN}"
 assert_2xx "Auth me"
@@ -438,6 +455,96 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
   exit 1
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
+
+echo "Inviting collaborator as viewer..."
+INVITE_PAYLOAD="$(jq -nc --arg email "${COLLAB_EMAIL}" '{email:$email,role:"viewer"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators" "${ACCESS_TOKEN}" "${INVITE_PAYLOAD}"
+assert_2xx "Invite collaborator"
+
+COLLABORATOR_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+INVITED_USER_ID="$(jq -r '.userId // empty' <<<"${LAST_BODY}")"
+INVITED_ROLE="$(jq -r '.role // empty' <<<"${LAST_BODY}")"
+INVITED_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
+if [[ -z "${COLLABORATOR_ID}" || "${INVITED_USER_ID}" != "${COLLAB_USER_ID}" || "${INVITED_ROLE}" != "viewer" || "${INVITED_STATUS}" != "pending" ]]; then
+  echo "Collaborator invite response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking collaborator pending invitations..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/collaboration/invitations" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "List collaboration invitations"
+
+PENDING_INVITE_COUNT="$(jq --arg id "${COLLABORATOR_ID}" '[.[] | select(.collaboratorId == $id)] | length' <<<"${LAST_BODY}")"
+if [[ "${PENDING_INVITE_COUNT}" -ne 1 ]]; then
+  echo "Pending invitations did not include collaborator invite." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Confirming pending collaborator cannot view private trip..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Pending collaborator private trip access" "404"
+
+echo "Accepting collaborator invitation..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}/accept" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Accept collaboration invitation"
+
+echo "Checking Shared with me list..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/shared-with-me" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "List shared trips"
+
+SHARED_TRIP_COUNT="$(jq --arg id "${TRIP_ID}" '[.[] | select(.id == $id and .role == "viewer")] | length' <<<"${LAST_BODY}")"
+if [[ "${SHARED_TRIP_COUNT}" -ne 1 ]]; then
+  echo "Shared-with-me did not include accepted viewer trip." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking viewer can view but cannot edit..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer collaborator fetch trip"
+VIEWER_ACCESS_ROLE="$(jq -r '.access.role // empty' <<<"${LAST_BODY}")"
+VIEWER_CAN_EDIT="$(jq -r '.access.canEdit // true' <<<"${LAST_BODY}")"
+if [[ "${VIEWER_ACCESS_ROLE}" != "viewer" || "${VIEWER_CAN_EDIT}" != "false" ]]; then
+  echo "Viewer trip access metadata was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+VIEWER_EDIT_PAYLOAD='{"itinerary":{"days":[{"day":1,"title":"Viewer blocked day","items":[{"time":"10:00","type":"activity","name":"Should fail"}]}]}}'
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_EDIT_PAYLOAD}"
+assert_status "Viewer itinerary edit" "403"
+
+echo "Changing collaborator role to editor..."
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}" "${ACCESS_TOKEN}" '{"role":"editor"}'
+assert_2xx "Update collaborator role to editor"
+
+EDITOR_EDIT_PAYLOAD='{"itinerary":{"days":[{"day":1,"title":"Editor Smoke Test Day","items":[{"time":"10:00","type":"activity","name":"Editor Smoke Test Activity"}]}]}}'
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${EDITOR_EDIT_PAYLOAD}"
+assert_2xx "Editor itinerary edit"
+
+echo "Checking editor cannot manage public share settings..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Editor public share create" "403"
+
+echo "Checking editor version attribution..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions" "${ACCESS_TOKEN}"
+assert_2xx "List versions after editor edit"
+
+LATEST_VERSION_ACTOR="$(jq -r '.items[0].createdByUserId // empty' <<<"${LAST_BODY}")"
+if [[ "${LATEST_VERSION_ACTOR}" != "${COLLAB_USER_ID}" ]]; then
+  echo "Latest itinerary version did not record collaborator actor." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Removing collaborator and confirming access is revoked..."
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Remove collaborator"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Removed collaborator private trip access" "404"
 
 echo "Creating password-protected public share link..."
 FUTURE_EXPIRES_AT="$(python3 -c 'from datetime import datetime, timezone, timedelta; print((datetime.now(timezone.utc) + timedelta(days=7)).isoformat().replace("+00:00", "Z"))')"

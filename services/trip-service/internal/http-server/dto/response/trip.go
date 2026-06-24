@@ -25,8 +25,18 @@ type Trip struct {
 	Pace           string        `json:"pace"`
 	Status         entity.Status `json:"status"`
 	Itinerary      any           `json:"itinerary,omitempty"`
+	Access         *TripAccess   `json:"access,omitempty"`
 	CreatedAt      time.Time     `json:"createdAt"`
 	UpdatedAt      time.Time     `json:"updatedAt"`
+}
+
+type TripAccess struct {
+	Role                   string `json:"role"`
+	CanEdit                bool   `json:"canEdit"`
+	CanManageCollaborators bool   `json:"canManageCollaborators"`
+	CanManageShare         bool   `json:"canManageShare"`
+	CanRestoreVersion      bool   `json:"canRestoreVersion"`
+	CanDelete              bool   `json:"canDelete"`
 }
 
 // ListTrips is the paginated envelope returned by GET /trips. Limit and Offset
@@ -37,25 +47,61 @@ type ListTrips struct {
 	Offset int    `json:"offset"`
 }
 
+type SharedTripSummary struct {
+	ID          uuid.UUID               `json:"id"`
+	Destination string                  `json:"destination"`
+	StartDate   *string                 `json:"startDate,omitempty"`
+	Days        int32                   `json:"days"`
+	Role        entity.CollaboratorRole `json:"role"`
+	OwnerUserID *uuid.UUID              `json:"ownerUserId,omitempty"`
+	Status      entity.Status           `json:"status"`
+	UpdatedAt   time.Time               `json:"updatedAt"`
+}
+
+type TripCollaborator struct {
+	ID              uuid.UUID                 `json:"id"`
+	TripID          uuid.UUID                 `json:"tripId"`
+	UserID          uuid.UUID                 `json:"userId"`
+	Email           *string                   `json:"email,omitempty"`
+	DisplayName     *string                   `json:"displayName,omitempty"`
+	Role            entity.CollaboratorRole   `json:"role"`
+	Status          entity.CollaboratorStatus `json:"status"`
+	InvitedByUserID uuid.UUID                 `json:"invitedByUserId"`
+	InvitedAt       time.Time                 `json:"invitedAt"`
+	AcceptedAt      *time.Time                `json:"acceptedAt,omitempty"`
+	RemovedAt       *time.Time                `json:"removedAt,omitempty"`
+}
+
+type CollaborationInvitation struct {
+	CollaboratorID  uuid.UUID               `json:"collaboratorId"`
+	TripID          uuid.UUID               `json:"tripId"`
+	Destination     string                  `json:"destination"`
+	Role            entity.CollaboratorRole `json:"role"`
+	InvitedByUserID uuid.UUID               `json:"invitedByUserId"`
+	InvitedAt       time.Time               `json:"invitedAt"`
+}
+
 // ItineraryVersionSummary is returned by the version-history list endpoint.
 type ItineraryVersionSummary struct {
-	ID            uuid.UUID                     `json:"id"`
-	TripID        uuid.UUID                     `json:"tripId"`
-	VersionNumber int                           `json:"versionNumber"`
-	Source        entity.ItineraryVersionSource `json:"source"`
-	Metadata      map[string]any                `json:"metadata"`
-	CreatedAt     time.Time                     `json:"createdAt"`
+	ID              uuid.UUID                     `json:"id"`
+	TripID          uuid.UUID                     `json:"tripId"`
+	VersionNumber   int                           `json:"versionNumber"`
+	Source          entity.ItineraryVersionSource `json:"source"`
+	Metadata        map[string]any                `json:"metadata"`
+	CreatedByUserID *uuid.UUID                    `json:"createdByUserId,omitempty"`
+	CreatedAt       time.Time                     `json:"createdAt"`
 }
 
 // ItineraryVersionDetail includes the snapshot JSON for preview/restore flows.
 type ItineraryVersionDetail struct {
-	ID            uuid.UUID                     `json:"id"`
-	TripID        uuid.UUID                     `json:"tripId"`
-	VersionNumber int                           `json:"versionNumber"`
-	Source        entity.ItineraryVersionSource `json:"source"`
-	Itinerary     any                           `json:"itinerary"`
-	Metadata      map[string]any                `json:"metadata"`
-	CreatedAt     time.Time                     `json:"createdAt"`
+	ID              uuid.UUID                     `json:"id"`
+	TripID          uuid.UUID                     `json:"tripId"`
+	VersionNumber   int                           `json:"versionNumber"`
+	Source          entity.ItineraryVersionSource `json:"source"`
+	Itinerary       any                           `json:"itinerary"`
+	Metadata        map[string]any                `json:"metadata"`
+	CreatedByUserID *uuid.UUID                    `json:"createdByUserId,omitempty"`
+	CreatedAt       time.Time                     `json:"createdAt"`
 }
 
 // ListItineraryVersions is the paginated envelope returned by
@@ -117,6 +163,71 @@ func NewListTrips(trips []entity.Trip, limit, offset int) ListTrips {
 	return ListTrips{Items: items, Limit: limit, Offset: offset}
 }
 
+func NewSharedTrips(shared []entity.SharedTrip) []SharedTripSummary {
+	items := make([]SharedTripSummary, 0, len(shared))
+	for i := range shared {
+		items = append(items, NewSharedTripSummary(&shared[i]))
+	}
+	return items
+}
+
+func NewSharedTripSummary(shared *entity.SharedTrip) SharedTripSummary {
+	resp := SharedTripSummary{
+		ID:          shared.Trip.ID,
+		Destination: shared.Trip.Destination,
+		Days:        shared.Trip.Days,
+		Role:        shared.Collaborator.Role,
+		OwnerUserID: shared.Trip.UserID,
+		Status:      shared.Trip.Status,
+		UpdatedAt:   shared.Trip.UpdatedAt,
+	}
+	if shared.Trip.StartDate != nil {
+		s := shared.Trip.StartDate.Format("2006-01-02")
+		resp.StartDate = &s
+	}
+	return resp
+}
+
+func NewTripCollaborator(info appdto.TripCollaboratorInfo) TripCollaborator {
+	c := info.Collaborator
+	return TripCollaborator{
+		ID:              c.ID,
+		TripID:          c.TripID,
+		UserID:          c.UserID,
+		Email:           info.Email,
+		DisplayName:     info.DisplayName,
+		Role:            c.Role,
+		Status:          c.Status,
+		InvitedByUserID: c.InvitedByUserID,
+		InvitedAt:       c.InvitedAt,
+		AcceptedAt:      c.AcceptedAt,
+		RemovedAt:       c.RemovedAt,
+	}
+}
+
+func NewTripCollaborators(infos []appdto.TripCollaboratorInfo) []TripCollaborator {
+	items := make([]TripCollaborator, 0, len(infos))
+	for _, info := range infos {
+		items = append(items, NewTripCollaborator(info))
+	}
+	return items
+}
+
+func NewCollaborationInvitations(invitations []appdto.CollaborationInvitation) []CollaborationInvitation {
+	items := make([]CollaborationInvitation, 0, len(invitations))
+	for _, invitation := range invitations {
+		items = append(items, CollaborationInvitation{
+			CollaboratorID:  invitation.CollaboratorID,
+			TripID:          invitation.TripID,
+			Destination:     invitation.Destination,
+			Role:            invitation.Role,
+			InvitedByUserID: invitation.InvitedByUserID,
+			InvitedAt:       invitation.InvitedAt,
+		})
+	}
+	return items
+}
+
 // NewListItineraryVersions maps version entities to the list response without
 // including the full itinerary payload.
 func NewListItineraryVersions(versions []entity.ItineraryVersion, limit, offset int) ListItineraryVersions {
@@ -130,25 +241,27 @@ func NewListItineraryVersions(versions []entity.ItineraryVersion, limit, offset 
 // NewItineraryVersionSummary maps one version to its list representation.
 func NewItineraryVersionSummary(v *entity.ItineraryVersion) ItineraryVersionSummary {
 	return ItineraryVersionSummary{
-		ID:            v.ID,
-		TripID:        v.TripID,
-		VersionNumber: v.VersionNumber,
-		Source:        v.Source,
-		Metadata:      metadataOrEmpty(v.Metadata),
-		CreatedAt:     v.CreatedAt,
+		ID:              v.ID,
+		TripID:          v.TripID,
+		VersionNumber:   v.VersionNumber,
+		Source:          v.Source,
+		Metadata:        metadataOrEmpty(v.Metadata),
+		CreatedByUserID: v.CreatedByUserID,
+		CreatedAt:       v.CreatedAt,
 	}
 }
 
 // NewItineraryVersionDetail maps one version to its preview representation.
 func NewItineraryVersionDetail(v *entity.ItineraryVersion) ItineraryVersionDetail {
 	return ItineraryVersionDetail{
-		ID:            v.ID,
-		TripID:        v.TripID,
-		VersionNumber: v.VersionNumber,
-		Source:        v.Source,
-		Itinerary:     v.Itinerary,
-		Metadata:      metadataOrEmpty(v.Metadata),
-		CreatedAt:     v.CreatedAt,
+		ID:              v.ID,
+		TripID:          v.TripID,
+		VersionNumber:   v.VersionNumber,
+		Source:          v.Source,
+		Itinerary:       v.Itinerary,
+		Metadata:        metadataOrEmpty(v.Metadata),
+		CreatedByUserID: v.CreatedByUserID,
+		CreatedAt:       v.CreatedAt,
 	}
 }
 
@@ -238,6 +351,31 @@ func NewTrip(t *entity.Trip) Trip {
 		resp.Itinerary = t.Itinerary
 	}
 
+	return resp
+}
+
+func NewTripWithAccess(t *entity.Trip, access interface {
+	CanEdit() bool
+	CanManageCollaborators() bool
+	CanManageShare() bool
+	CanRestoreVersion() bool
+	CanDelete() bool
+}) Trip {
+	resp := NewTrip(t)
+	role := "viewer"
+	if access.CanManageCollaborators() {
+		role = "owner"
+	} else if access.CanEdit() {
+		role = "editor"
+	}
+	resp.Access = &TripAccess{
+		Role:                   role,
+		CanEdit:                access.CanEdit(),
+		CanManageCollaborators: access.CanManageCollaborators(),
+		CanManageShare:         access.CanManageShare(),
+		CanRestoreVersion:      access.CanRestoreVersion(),
+		CanDelete:              access.CanDelete(),
+	}
 	return resp
 }
 

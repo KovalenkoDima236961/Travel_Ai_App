@@ -15,15 +15,15 @@ import (
 )
 
 // ItineraryVersionColumns is the canonical full snapshot column order.
-const ItineraryVersionColumns = "id, trip_id, user_id, version_number, source, itinerary, metadata, created_at"
+const ItineraryVersionColumns = "id, trip_id, user_id, created_by_user_id, version_number, source, itinerary, metadata, created_at"
 
 // ItineraryVersionSummaryColumns omits the large itinerary JSON for list views.
-const ItineraryVersionSummaryColumns = "id, trip_id, user_id, version_number, source, metadata, created_at"
+const ItineraryVersionSummaryColumns = "id, trip_id, user_id, created_by_user_id, version_number, source, metadata, created_at"
 
 // ItineraryVersionInsertColumns returns the columns set on INSERT.
 func ItineraryVersionInsertColumns() []string {
 	return []string{
-		"id", "trip_id", "user_id", "version_number", "source", "itinerary", "metadata",
+		"id", "trip_id", "user_id", "created_by_user_id", "version_number", "source", "itinerary", "metadata",
 	}
 }
 
@@ -37,6 +37,7 @@ func ItineraryVersionInsertValues(v *entity.ItineraryVersion) ([]any, error) {
 		toPgUUID(v.ID),
 		toPgUUID(v.TripID),
 		toPgUUID(v.UserID),
+		toPgUUIDPtr(v.CreatedByUserID),
 		v.VersionNumber,
 		string(v.Source),
 		[]byte(v.Itinerary),
@@ -47,18 +48,19 @@ func ItineraryVersionInsertValues(v *entity.ItineraryVersion) ([]any, error) {
 // ScanItineraryVersion reads a full snapshot row.
 func ScanItineraryVersion(row pgx.Row) (*entity.ItineraryVersion, error) {
 	var (
-		id, tripID, userID pgtype.UUID
-		versionNumber      int
-		source             string
-		itineraryRaw       []byte
-		metadataRaw        []byte
-		createdAt          pgtype.Timestamp
+		id, tripID, userID, createdByUserID pgtype.UUID
+		versionNumber                       int
+		source                              string
+		itineraryRaw                        []byte
+		metadataRaw                         []byte
+		createdAt                           pgtype.Timestamp
 	)
 
 	err := row.Scan(
 		&id,
 		&tripID,
 		&userID,
+		&createdByUserID,
 		&versionNumber,
 		&source,
 		&itineraryRaw,
@@ -76,6 +78,7 @@ func ScanItineraryVersion(row pgx.Row) (*entity.ItineraryVersion, error) {
 		id,
 		tripID,
 		userID,
+		createdByUserID,
 		versionNumber,
 		source,
 		itineraryRaw,
@@ -87,17 +90,18 @@ func ScanItineraryVersion(row pgx.Row) (*entity.ItineraryVersion, error) {
 // ScanItineraryVersionSummary reads a row without the itinerary payload.
 func ScanItineraryVersionSummary(row pgx.Row) (*entity.ItineraryVersion, error) {
 	var (
-		id, tripID, userID pgtype.UUID
-		versionNumber      int
-		source             string
-		metadataRaw        []byte
-		createdAt          pgtype.Timestamp
+		id, tripID, userID, createdByUserID pgtype.UUID
+		versionNumber                       int
+		source                              string
+		metadataRaw                         []byte
+		createdAt                           pgtype.Timestamp
 	)
 
 	err := row.Scan(
 		&id,
 		&tripID,
 		&userID,
+		&createdByUserID,
 		&versionNumber,
 		&source,
 		&metadataRaw,
@@ -114,6 +118,7 @@ func ScanItineraryVersionSummary(row pgx.Row) (*entity.ItineraryVersion, error) 
 		id,
 		tripID,
 		userID,
+		createdByUserID,
 		versionNumber,
 		source,
 		nil,
@@ -123,7 +128,7 @@ func ScanItineraryVersionSummary(row pgx.Row) (*entity.ItineraryVersion, error) 
 }
 
 func itineraryVersionFromScannedValues(
-	id, tripID, userID pgtype.UUID,
+	id, tripID, userID, createdByUserID pgtype.UUID,
 	versionNumber int,
 	source string,
 	itineraryRaw []byte,
@@ -136,14 +141,15 @@ func itineraryVersionFromScannedValues(
 	}
 
 	return &entity.ItineraryVersion{
-		ID:            uuid.UUID(id.Bytes),
-		TripID:        uuid.UUID(tripID.Bytes),
-		UserID:        uuid.UUID(userID.Bytes),
-		VersionNumber: versionNumber,
-		Source:        entity.ItineraryVersionSource(source),
-		Itinerary:     json.RawMessage(itineraryRaw),
-		Metadata:      metadata,
-		CreatedAt:     createdAt,
+		ID:              uuid.UUID(id.Bytes),
+		TripID:          uuid.UUID(tripID.Bytes),
+		UserID:          uuid.UUID(userID.Bytes),
+		CreatedByUserID: fromPgUUID(createdByUserID),
+		VersionNumber:   versionNumber,
+		Source:          entity.ItineraryVersionSource(source),
+		Itinerary:       json.RawMessage(itineraryRaw),
+		Metadata:        metadata,
+		CreatedAt:       createdAt,
 	}, nil
 }
 

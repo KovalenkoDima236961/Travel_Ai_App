@@ -17,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
@@ -99,6 +100,13 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			FailOpen:          cfg.PlaceEnrichment.FailOpen,
 		})
 	}
+	userLookupClient, err := users.New(users.Config{
+		BaseURL:        cfg.UserLookup.AuthServiceURL,
+		TimeoutSeconds: cfg.UserLookup.TimeoutSeconds,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init user lookup client: %w", err)
+	}
 	svc := service.New(repo, gen, log, service.WithUserContext(
 		userContextClient,
 		cfg.UserContext.Enabled,
@@ -117,7 +125,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		cfg.PublicSharing.ShareTokenBytes,
 		cfg.PublicSharing.PublicShareAccessSecret,
 		cfg.PublicSharing.PublicShareAccessTTLMinutes,
-	))
+	), service.WithUserLookup(userLookupClient))
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,

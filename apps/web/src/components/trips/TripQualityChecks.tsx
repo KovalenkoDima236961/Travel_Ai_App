@@ -21,8 +21,8 @@ type TripQualityChecksProps = {
   routeEstimatesByDay?: Record<number, RouteEstimate | null>;
   fallbackDistanceSummaries?: DayDistanceSummary[];
   maxWalkingKmPerDay?: number | null;
-  onImproveDay: (dayNumber: number, instruction: string) => Promise<void>;
-  onImproveItem: (
+  onImproveDay?: (dayNumber: number, instruction: string) => Promise<void>;
+  onImproveItem?: (
     dayNumber: number,
     itemIndex: number,
     instruction: string
@@ -82,13 +82,20 @@ export function TripQualityChecks({
 
   const visibleIssues = allIssues.slice(0, DEFAULT_VISIBLE_ISSUE_COUNT);
   const hasHiddenIssues = allIssues.length > DEFAULT_VISIBLE_ISSUE_COUNT;
+  const canImprove = Boolean(onImproveDay && onImproveItem);
 
   async function improveDay(dayNumber: number, issues: QualityIssue[]) {
+    if (!onImproveDay) {
+      return;
+    }
     const instruction = buildImproveDayInstruction(dayNumber, issues);
     await onImproveDay(dayNumber, instruction);
   }
 
   async function improveItem(dayNumber: number, itemIndex: number, issues: QualityIssue[]) {
+    if (!onImproveItem) {
+      return;
+    }
     const instruction = buildImproveItemInstruction(dayNumber, itemIndex, issues);
     await onImproveItem(dayNumber, itemIndex, instruction);
   }
@@ -125,6 +132,7 @@ export function TripQualityChecks({
       ) : (
         <div className="mt-5 space-y-4">
           <IssueGroups
+            canImprove={canImprove}
             disabled={isEditing || isImproving}
             isImproving={isImproving}
             issues={visibleIssues}
@@ -139,6 +147,7 @@ export function TripQualityChecks({
               </summary>
               <div className="mt-4">
                 <IssueGroups
+                  canImprove={canImprove}
                   disabled={isEditing || isImproving}
                   isImproving={isImproving}
                   issues={allIssues}
@@ -156,6 +165,7 @@ export function TripQualityChecks({
 
 type IssueGroupsProps = {
   issues: QualityIssue[];
+  canImprove: boolean;
   disabled: boolean;
   isImproving: boolean;
   onImproveDay: (dayNumber: number, issues: QualityIssue[]) => Promise<void>;
@@ -168,6 +178,7 @@ type IssueGroupsProps = {
 
 function IssueGroups({
   issues,
+  canImprove,
   disabled,
   isImproving,
   onImproveDay,
@@ -189,7 +200,7 @@ function IssueGroups({
           <section className="py-4 first:pt-0 last:pb-0" key={dayNumber}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-sm font-semibold text-slate-950">Day {dayNumber}</h3>
-              {dayActionIssues.length > 0 ? (
+              {canImprove && dayActionIssues.length > 0 ? (
                 <Button
                   disabled={disabled}
                   onClick={() => onImproveDay(dayNumber, dayIssues)}
@@ -208,7 +219,7 @@ function IssueGroups({
               ))}
             </ul>
 
-            {itemActionGroups.length > 0 ? (
+            {canImprove && itemActionGroups.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {itemActionGroups.map(({ itemIndex, itemIssues }) => (
                   <Button

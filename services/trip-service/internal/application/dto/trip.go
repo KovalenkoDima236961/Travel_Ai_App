@@ -3,6 +3,10 @@ package dto
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
 // CreateTripInput is the validated, application-level representation of a create
@@ -68,4 +72,34 @@ type PublicShareStatus struct {
 type PublicShareUnlockResponse struct {
 	AccessToken string
 	ExpiresAt   time.Time
+}
+
+type InviteTripCollaboratorInput struct {
+	Email string
+	Role  entity.CollaboratorRole
+}
+
+type UpdateTripCollaboratorInput struct {
+	Role entity.CollaboratorRole
+}
+
+type UserLookupResult struct {
+	UserID      uuid.UUID
+	Email       string
+	DisplayName string
+}
+
+type TripCollaboratorInfo struct {
+	Collaborator entity.TripCollaborator
+	Email        *string
+	DisplayName  *string
+}
+
+type CollaborationInvitation struct {
+	CollaboratorID  uuid.UUID
+	TripID          uuid.UUID
+	Destination     string
+	Role            entity.CollaboratorRole
+	InvitedByUserID uuid.UUID
+	InvitedAt       time.Time
 }

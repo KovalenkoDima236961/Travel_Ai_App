@@ -58,6 +58,10 @@ place_enrichment:
   max_items: 20
   overwrite_existing: false
 
+user_lookup:
+  auth_service_url: http://localhost:8081
+  timeout_seconds: 5
+
 public_sharing:
   enabled: true
   public_web_base_url: http://localhost:3000

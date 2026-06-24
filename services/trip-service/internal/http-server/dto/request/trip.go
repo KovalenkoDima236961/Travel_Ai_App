@@ -5,6 +5,7 @@ import (
 	"time"
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
 // CreateTrip is the JSON body accepted by POST /trips. Validation tags are
@@ -83,6 +84,26 @@ func (r UpdateTripShareSettings) ToInput() appdto.UpdateTripShareInput {
 		Password:        r.Password,
 		ClearPassword:   r.ClearPassword,
 	}
+}
+
+type InviteTripCollaborator struct {
+	Email string                  `json:"email"`
+	Role  entity.CollaboratorRole `json:"role"`
+}
+
+func (r InviteTripCollaborator) ToInput() appdto.InviteTripCollaboratorInput {
+	return appdto.InviteTripCollaboratorInput{
+		Email: r.Email,
+		Role:  r.Role,
+	}
+}
+
+type UpdateTripCollaborator struct {
+	Role entity.CollaboratorRole `json:"role"`
+}
+
+func (r UpdateTripCollaborator) ToInput() appdto.UpdateTripCollaboratorInput {
+	return appdto.UpdateTripCollaboratorInput{Role: r.Role}
 }
 
 // PublicShareUnlock is the JSON body accepted by

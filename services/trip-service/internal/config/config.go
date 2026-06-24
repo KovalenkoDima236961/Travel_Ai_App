@@ -24,6 +24,7 @@ type Config struct {
 	UserContext        UserContextConfig        `yaml:"user_context"`
 	WeatherContext     WeatherContextConfig     `yaml:"weather_context"`
 	PlaceEnrichment    PlaceEnrichmentConfig    `yaml:"place_enrichment"`
+	UserLookup         UserLookupConfig         `yaml:"user_lookup"`
 	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
 }
 
@@ -86,6 +87,13 @@ type PlaceEnrichmentConfig struct {
 	MinConfidence                  float64 `yaml:"min_confidence" env:"PLACE_ENRICHMENT_MIN_CONFIDENCE" env-default:"0.75" validate:"min=0,max=1"`
 	MaxItems                       int     `yaml:"max_items" env:"PLACE_ENRICHMENT_MAX_ITEMS" env-default:"20" validate:"min=1"`
 	OverwriteExisting              bool    `yaml:"overwrite_existing" env:"PLACE_ENRICHMENT_OVERWRITE_EXISTING" env-default:"false"`
+}
+
+// UserLookupConfig controls exact-email registered-user lookup for trip invites.
+// The endpoint is internal to the compose network in v1.
+type UserLookupConfig struct {
+	AuthServiceURL string `yaml:"auth_service_url" env:"AUTH_SERVICE_URL" env-default:"http://auth-service:8081"`
+	TimeoutSeconds int    `yaml:"timeout_seconds" env:"USER_LOOKUP_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
 }
 
 // PublicSharingConfig controls read-only public trip share links.

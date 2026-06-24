@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { CollaboratorsPanel } from "@/components/trips/CollaboratorsPanel";
 import { GenerateItineraryButton } from "@/components/trips/GenerateItineraryButton";
 import {
   ItineraryEditor,
@@ -185,8 +186,13 @@ function TripDetailPageContent() {
   }
 
   const trip = tripQuery.data;
-  const canGenerate = trip.status === "DRAFT" || trip.status === "FAILED";
-  const canEditItinerary = trip.status === "COMPLETED" && Boolean(trip.itinerary);
+  const access = trip.access;
+  const canMutateTrip = access?.canEdit ?? true;
+  const canManageShare = access?.canManageShare ?? true;
+  const canManageCollaborators = access?.canManageCollaborators ?? true;
+  const canRestoreVersion = access?.canRestoreVersion ?? canMutateTrip;
+  const canGenerate = canMutateTrip && (trip.status === "DRAFT" || trip.status === "FAILED");
+  const canEditItinerary = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const optimizingDay =
     optimizingDayNumber != null
       ? (trip.itinerary?.days ?? []).find(
@@ -362,7 +368,11 @@ function TripDetailPageContent() {
             </div>
           </Card>
 
-          <ShareTripPanel tripId={trip.id} />
+          {canManageShare ? <ShareTripPanel tripId={trip.id} /> : null}
+          <CollaboratorsPanel
+            canManageCollaborators={canManageCollaborators}
+            tripId={trip.id}
+          />
         </aside>
 
         <section className="min-w-0">
@@ -398,8 +408,8 @@ function TripDetailPageContent() {
                 isEditing={isEditing}
                 isImproving={regenerationMutation.isPending}
                 maxWalkingKmPerDay={maxWalkingKmPerDay}
-                onImproveDay={regenerateDay}
-                onImproveItem={regenerateItem}
+                onImproveDay={canMutateTrip ? regenerateDay : undefined}
+                onImproveItem={canMutateTrip ? regenerateItem : undefined}
                 routeEstimatesByDay={routeEstimatesByDay}
                 trip={trip}
                 weatherForecast={weatherForecastQuery.data ?? null}
@@ -448,6 +458,7 @@ function TripDetailPageContent() {
                     </div>
                   ) : null}
                   <PlaceEnrichmentReviewPanel
+                    readOnly={!canMutateTrip}
                     onTripUpdated={handlePlaceReviewUpdated}
                     trip={trip}
                   />
@@ -456,8 +467,8 @@ function TripDetailPageContent() {
                     currency={trip.budgetCurrency}
                     disabled={regenerationMutation.isPending}
                     itinerary={trip.itinerary}
-                    onRegenerateDay={regenerateDay}
-                    onRegenerateItem={regenerateItem}
+                    onRegenerateDay={canMutateTrip ? regenerateDay : undefined}
+                    onRegenerateItem={canMutateTrip ? regenerateItem : undefined}
                     regeneratingTarget={regeneratingTarget}
                     startDate={trip.startDate}
                   />
@@ -465,12 +476,13 @@ function TripDetailPageContent() {
                   <DistanceSummary
                     itinerary={trip.itinerary}
                     maxWalkingKmPerDay={maxWalkingKmPerDay}
-                    onOptimizeDay={setOptimizingDayNumber}
+                    onOptimizeDay={canMutateTrip ? setOptimizingDayNumber : undefined}
                   />
                   <ItineraryVersionHistory
+                    canRestore={canRestoreVersion}
                     currency={trip.budgetCurrency}
                     onRestored={handleVersionRestored}
-                    restoreDisabled={isEditing}
+                    restoreDisabled={isEditing || !canRestoreVersion}
                     tripId={trip.id}
                   />
                   {trip.itinerary && optimizingDay ? (

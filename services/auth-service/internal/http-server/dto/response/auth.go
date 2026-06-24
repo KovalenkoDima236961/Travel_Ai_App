@@ -14,6 +14,12 @@ type User struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type InternalUserLookup struct {
+	UserID      string `json:"userId"`
+	Email       string `json:"email"`
+	DisplayName string `json:"displayName"`
+}
+
 // Auth contains a user and token pair.
 type Auth struct {
 	User         User   `json:"user"`
@@ -37,6 +43,14 @@ func NewUser(user *entity.User) User {
 		ID:        user.ID.String(),
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
+	}
+}
+
+func NewInternalUserLookup(user *entity.User) InternalUserLookup {
+	return InternalUserLookup{
+		UserID:      user.ID.String(),
+		Email:       user.Email,
+		DisplayName: "",
 	}
 }
 

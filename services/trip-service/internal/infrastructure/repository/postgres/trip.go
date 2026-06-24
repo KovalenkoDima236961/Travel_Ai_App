@@ -157,6 +157,21 @@ func (r *Repository) UpdateItineraryByUserIDAndCreateVersion(
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
+	return r.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, source, metadata)
+}
+
+// UpdateItineraryAndCreateVersion stores a current itinerary snapshot and
+// records both the owning user (user_id) and the actor who caused the change
+// (created_by_user_id). Collaborator permissions must be checked before
+// calling this method.
+func (r *Repository) UpdateItineraryAndCreateVersion(
+	ctx context.Context,
+	id, ownerUserID, actorUserID uuid.UUID,
+	itinerary json.RawMessage,
+	status entity.Status,
+	source entity.ItineraryVersionSource,
+	metadata map[string]any,
+) (*entity.Trip, *entity.ItineraryVersion, error) {
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("begin itinerary version tx: %w", err)
@@ -169,7 +184,7 @@ func (r *Repository) UpdateItineraryByUserIDAndCreateVersion(
 		}
 	}()
 
-	updated, err := r.updateItineraryByUserID(ctx, tx, id, userID, itinerary, status)
+	updated, err := r.updateItineraryByUserID(ctx, tx, id, ownerUserID, itinerary, status)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -180,13 +195,14 @@ func (r *Repository) UpdateItineraryByUserIDAndCreateVersion(
 	}
 
 	version, err := r.createItineraryVersion(ctx, tx, &entity.ItineraryVersion{
-		ID:            uuid.New(),
-		TripID:        id,
-		UserID:        userID,
-		VersionNumber: versionNumber,
-		Source:        source,
-		Itinerary:     itinerary,
-		Metadata:      metadata,
+		ID:              uuid.New(),
+		TripID:          id,
+		UserID:          ownerUserID,
+		CreatedByUserID: &actorUserID,
+		VersionNumber:   versionNumber,
+		Source:          source,
+		Itinerary:       itinerary,
+		Metadata:        metadata,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -219,13 +235,18 @@ func (r *Repository) ListItineraryVersionsByTripAndUser(
 	tripID, userID uuid.UUID,
 	limit, offset int,
 ) ([]entity.ItineraryVersion, error) {
+	return r.ListItineraryVersionsByTrip(ctx, tripID, limit, offset)
+}
+
+func (r *Repository) ListItineraryVersionsByTrip(
+	ctx context.Context,
+	tripID uuid.UUID,
+	limit, offset int,
+) ([]entity.ItineraryVersion, error) {
 	query, args, err := r.db.Builder.
 		Select(dto.ItineraryVersionSummaryColumns).
 		From("itinerary_versions").
-		Where(sq.Eq{
-			"trip_id": dto.IDArg(tripID),
-			"user_id": dto.IDArg(userID),
-		}).
+		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
 		OrderBy("version_number DESC").
 		Limit(uint64(limit)).
 		Offset(uint64(offset)).
@@ -261,13 +282,19 @@ func (r *Repository) GetItineraryVersionByIDTripAndUser(
 	ctx context.Context,
 	id, tripID, userID uuid.UUID,
 ) (*entity.ItineraryVersion, error) {
+	return r.GetItineraryVersionByIDTrip(ctx, id, tripID)
+}
+
+func (r *Repository) GetItineraryVersionByIDTrip(
+	ctx context.Context,
+	id, tripID uuid.UUID,
+) (*entity.ItineraryVersion, error) {
 	query, args, err := r.db.Builder.
 		Select(dto.ItineraryVersionColumns).
 		From("itinerary_versions").
 		Where(sq.Eq{
 			"id":      dto.IDArg(id),
 			"trip_id": dto.IDArg(tripID),
-			"user_id": dto.IDArg(userID),
 		}).
 		ToSql()
 	if err != nil {
@@ -275,6 +302,223 @@ func (r *Repository) GetItineraryVersionByIDTripAndUser(
 	}
 
 	return dto.ScanItineraryVersion(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) UpsertTripCollaborator(
+	ctx context.Context,
+	collaborator *entity.TripCollaborator,
+) (*entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Insert("trip_collaborators").
+		Columns("id", "trip_id", "user_id", "role", "status", "invited_by_user_id", "accepted_at", "removed_at").
+		Values(
+			dto.IDArg(collaborator.ID),
+			dto.IDArg(collaborator.TripID),
+			dto.IDArg(collaborator.UserID),
+			string(collaborator.Role),
+			string(entity.CollaboratorStatusPending),
+			dto.IDArg(collaborator.InvitedByUserID),
+			nil,
+			nil,
+		).
+		Suffix(
+			"ON CONFLICT (trip_id, user_id) DO UPDATE SET " +
+				"role = EXCLUDED.role, " +
+				"status = CASE WHEN trip_collaborators.status = 'accepted' THEN 'accepted' ELSE 'pending' END, " +
+				"invited_by_user_id = EXCLUDED.invited_by_user_id, " +
+				"invited_at = CASE WHEN trip_collaborators.status = 'removed' THEN NOW() ELSE trip_collaborators.invited_at END, " +
+				"accepted_at = CASE WHEN trip_collaborators.status = 'accepted' THEN trip_collaborators.accepted_at ELSE NULL END, " +
+				"removed_at = NULL, " +
+				"updated_at = NOW() " +
+				"RETURNING " + dto.TripCollaboratorColumns,
+		).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build upsert trip collaborator: %w", err)
+	}
+
+	return dto.ScanTripCollaborator(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) GetTripCollaboratorByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripCollaboratorColumns).
+		From("trip_collaborators").
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"user_id": dto.IDArg(userID),
+		}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get trip collaborator by user: %w", err)
+	}
+
+	return dto.ScanTripCollaborator(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) GetTripCollaboratorByID(ctx context.Context, tripID, collaboratorID uuid.UUID) (*entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripCollaboratorColumns).
+		From("trip_collaborators").
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"id":      dto.IDArg(collaboratorID),
+		}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get trip collaborator by id: %w", err)
+	}
+
+	return dto.ScanTripCollaborator(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ListTripCollaborators(ctx context.Context, tripID uuid.UUID) ([]entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripCollaboratorColumns).
+		From("trip_collaborators").
+		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
+		Where(sq.NotEq{"status": string(entity.CollaboratorStatusRemoved)}).
+		OrderBy("invited_at DESC").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list trip collaborators: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query trip collaborators: %w", err)
+	}
+	defer rows.Close()
+
+	return dto.ScanTripCollaboratorRows(rows)
+}
+
+func (r *Repository) UpdateTripCollaboratorRole(ctx context.Context, tripID, collaboratorID uuid.UUID, role entity.CollaboratorRole) (*entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_collaborators").
+		Set("role", string(role)).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"id":      dto.IDArg(collaboratorID),
+		}).
+		Where(sq.NotEq{"status": string(entity.CollaboratorStatusRemoved)}).
+		Suffix("RETURNING " + dto.TripCollaboratorColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build update trip collaborator role: %w", err)
+	}
+
+	return dto.ScanTripCollaborator(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) RemoveTripCollaborator(ctx context.Context, tripID, collaboratorID uuid.UUID) (*entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_collaborators").
+		Set("status", string(entity.CollaboratorStatusRemoved)).
+		Set("removed_at", sq.Expr("NOW()")).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"id":      dto.IDArg(collaboratorID),
+		}).
+		Suffix("RETURNING " + dto.TripCollaboratorColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build remove trip collaborator: %w", err)
+	}
+
+	return dto.ScanTripCollaborator(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) AcceptTripCollaborator(ctx context.Context, tripID, collaboratorID, userID uuid.UUID) (*entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_collaborators").
+		Set("status", string(entity.CollaboratorStatusAccepted)).
+		Set("accepted_at", sq.Expr("NOW()")).
+		Set("removed_at", nil).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"id":      dto.IDArg(collaboratorID),
+			"user_id": dto.IDArg(userID),
+			"status":  string(entity.CollaboratorStatusPending),
+		}).
+		Suffix("RETURNING " + dto.TripCollaboratorColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build accept trip collaborator: %w", err)
+	}
+
+	return dto.ScanTripCollaborator(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) DeclineTripCollaborator(ctx context.Context, tripID, collaboratorID, userID uuid.UUID) (*entity.TripCollaborator, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_collaborators").
+		Set("status", string(entity.CollaboratorStatusRemoved)).
+		Set("removed_at", sq.Expr("NOW()")).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"id":      dto.IDArg(collaboratorID),
+			"user_id": dto.IDArg(userID),
+			"status":  string(entity.CollaboratorStatusPending),
+		}).
+		Suffix("RETURNING " + dto.TripCollaboratorColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build decline trip collaborator: %w", err)
+	}
+
+	return dto.ScanTripCollaborator(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ListPendingCollaborationInvitations(ctx context.Context, userID uuid.UUID) ([]entity.SharedTrip, error) {
+	return r.listCollaborativeTripsByStatus(ctx, userID, entity.CollaboratorStatusPending)
+}
+
+func (r *Repository) ListSharedTripsByUser(ctx context.Context, userID uuid.UUID) ([]entity.SharedTrip, error) {
+	return r.listCollaborativeTripsByStatus(ctx, userID, entity.CollaboratorStatusAccepted)
+}
+
+func (r *Repository) listCollaborativeTripsByStatus(ctx context.Context, userID uuid.UUID, status entity.CollaboratorStatus) ([]entity.SharedTrip, error) {
+	query, args, err := r.db.Builder.
+		Select(
+			dto.TripColumnsWithAlias,
+			dto.TripCollaboratorColumnsWithAlias,
+		).
+		From("trip_collaborators c").
+		Join("trips t ON t.id = c.trip_id").
+		Where(sq.Eq{
+			"c.user_id": dto.IDArg(userID),
+			"c.status":  string(status),
+		}).
+		OrderBy("c.updated_at DESC").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list collaborative trips: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query collaborative trips: %w", err)
+	}
+	defer rows.Close()
+
+	shared := make([]entity.SharedTrip, 0)
+	for rows.Next() {
+		row, err := dto.ScanSharedTrip(rows)
+		if err != nil {
+			return nil, err
+		}
+		shared = append(shared, *row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate collaborative trips: %w", err)
+	}
+
+	return shared, nil
 }
 
 // CreateTripShare inserts a new public share row for a trip.

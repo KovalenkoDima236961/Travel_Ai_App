@@ -13,6 +13,7 @@ export type ItineraryVersionSummary = {
   versionNumber: number;
   source: ItineraryVersionSource;
   metadata?: Record<string, unknown> | null;
+  createdByUserId?: string | null;
   createdAt: string;
 };
 

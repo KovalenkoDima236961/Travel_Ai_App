@@ -35,14 +35,22 @@ func New(svc *service.Service, validator validation.Validator, log *zap.Logger) 
 
 // RegisterRoutes mounts the trip routes onto the given chi router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
+	r.Get("/collaboration/invitations", h.ListCollaborationInvitations)
 	r.Route("/trips", func(r chi.Router) {
 		r.Post("/", h.Create)
 		r.Get("/", h.List)
+		r.Get("/shared-with-me", h.ListSharedTrips)
 		r.Get("/{id}", h.Get)
 		r.Get("/{id}/share", h.GetShare)
 		r.Post("/{id}/share", h.CreateShare)
 		r.Patch("/{id}/share", h.UpdateShare)
 		r.Delete("/{id}/share", h.DisableShare)
+		r.Post("/{id}/collaborators", h.InviteTripCollaborator)
+		r.Get("/{id}/collaborators", h.ListTripCollaborators)
+		r.Patch("/{id}/collaborators/{collaboratorId}", h.UpdateTripCollaborator)
+		r.Delete("/{id}/collaborators/{collaboratorId}", h.RemoveTripCollaborator)
+		r.Post("/{id}/collaborators/{collaboratorId}/accept", h.AcceptTripCollaborator)
+		r.Post("/{id}/collaborators/{collaboratorId}/decline", h.DeclineTripCollaborator)
 		r.Post("/{id}/generate", h.Generate)
 		r.Put("/{id}/itinerary", h.UpdateItinerary)
 		r.Get("/{id}/itinerary/versions", h.ListItineraryVersions)
@@ -110,13 +118,22 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, err := h.svc.Get(r.Context(), id)
+	t, access, err := h.svc.GetWithAccess(r.Context(), id)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, response.NewTrip(t))
+	writeJSON(w, http.StatusOK, response.NewTripWithAccess(t, access))
+}
+
+func (h *Handler) ListSharedTrips(w http.ResponseWriter, r *http.Request) {
+	shared, err := h.svc.ListSharedTrips(r.Context())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewSharedTrips(shared))
 }
 
 // GetShare handles GET /trips/{id}/share.
@@ -192,6 +209,117 @@ func (h *Handler) DisableShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) InviteTripCollaborator(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var req request.InviteTripCollaborator
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	collaborator, err := h.svc.InviteTripCollaborator(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripCollaborator(collaborator))
+}
+
+func (h *Handler) ListTripCollaborators(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	collaborators, err := h.svc.ListTripCollaborators(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripCollaborators(collaborators))
+}
+
+func (h *Handler) UpdateTripCollaborator(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	collaboratorID, ok := parseUUIDParam(w, r, "collaboratorId", "invalid collaborator id")
+	if !ok {
+		return
+	}
+	var req request.UpdateTripCollaborator
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	collaborator, err := h.svc.UpdateTripCollaborator(r.Context(), id, collaboratorID, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripCollaborator(collaborator))
+}
+
+func (h *Handler) RemoveTripCollaborator(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	collaboratorID, ok := parseUUIDParam(w, r, "collaboratorId", "invalid collaborator id")
+	if !ok {
+		return
+	}
+	if err := h.svc.RemoveTripCollaborator(r.Context(), id, collaboratorID); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) AcceptTripCollaborator(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	collaboratorID, ok := parseUUIDParam(w, r, "collaboratorId", "invalid collaborator id")
+	if !ok {
+		return
+	}
+	collaborator, err := h.svc.AcceptTripCollaborator(r.Context(), id, collaboratorID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripCollaborator(collaborator))
+}
+
+func (h *Handler) DeclineTripCollaborator(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	collaboratorID, ok := parseUUIDParam(w, r, "collaboratorId", "invalid collaborator id")
+	if !ok {
+		return
+	}
+	if err := h.svc.DeclineTripCollaborator(r.Context(), id, collaboratorID); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) ListCollaborationInvitations(w http.ResponseWriter, r *http.Request) {
+	invitations, err := h.svc.ListCollaborationInvitations(r.Context())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewCollaborationInvitations(invitations))
 }
 
 // GetPublicTrip handles GET /public/trips/{shareToken}.
@@ -495,6 +623,10 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, invalid.Error())
 	case errors.As(err, &dependency):
 		writeError(w, http.StatusBadGateway, dependency.Error())
+	case errors.Is(err, apperrs.ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden")
+	case errors.Is(err, service.ErrRegisteredUserNotFound):
+		writeError(w, http.StatusNotFound, "registered user not found")
 	case errors.Is(err, domainerrs.ErrNotFound):
 		writeError(w, http.StatusNotFound, "trip not found")
 	default:

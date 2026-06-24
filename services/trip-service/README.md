@@ -8,8 +8,9 @@ or AI Planning Service v1 over HTTP.
 Trip endpoints require Auth Service JWT access tokens by default. The service
 validates tokens locally with the shared `JWT_ACCESS_SECRET`, reads the user ID
 from the `sub` claim, and scopes trip create/list/get/generate/edit operations to
-that user. It also stores itinerary version snapshots for successful itinerary
-changes so users can preview and restore earlier plans.
+that user or an accepted collaborator. It also stores itinerary version
+snapshots for successful itinerary changes so users can preview and restore
+earlier plans.
 
 ## Tech stack
 
@@ -163,6 +164,7 @@ Key environment variables:
 | `AI_PLANNING_SERVICE_URL` | `http://ai-planning-service:8000` | Base URL used when generator mode is `http`. |
 | `AI_PLANNING_TIMEOUT_SECONDS` | `120` | HTTP client timeout for AI Planning Service calls. |
 | `USER_SERVICE_URL` | `http://user-service:8083` | Base URL for trusted profile/preferences lookup during generation. |
+| `AUTH_SERVICE_URL` | `http://auth-service:8082` | Internal Auth Service base URL used for exact-email collaborator invite lookup. |
 | `USER_CONTEXT_ENABLED` | `true` | Fetch user profile/preferences before generating itineraries. |
 | `USER_CONTEXT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for User Service context calls. |
 | `USER_CONTEXT_FAIL_OPEN` | `true` | Continue generation without personalization when User Service fails. Set `false` to return `502` with `{"error":"failed to load user preferences"}`. |
@@ -204,6 +206,49 @@ normalized item and place names, then adds small bonuses for destination/address
 fit, category fit, valid coordinates, and rating. Generated version history
 stores the final enriched itinerary snapshot; no separate enrichment version is
 created.
+
+## Collaborative Planning v1
+
+Trip owners can invite existing registered users to a private trip as
+collaborators. Invites resolve exact email addresses through Auth Service:
+`GET /internal/users/by-email?email={email}`. This route is intended for the
+internal Compose network only in v1; service-to-service authentication is a
+TODO before exposing services outside a private network.
+
+Roles:
+
+- `viewer`: can view the private trip, itinerary, map/weather/distance, export,
+  and version history after accepting.
+- `editor`: can do everything a viewer can, plus edit the itinerary, regenerate
+  days/items, restore itinerary versions, review/change attached places, and
+  apply route optimizations.
+- Owner: can do all editor actions plus manage collaborators, public share
+  settings, and destructive owner-only actions.
+
+Statuses:
+
+- `pending`: invite exists, but full trip access is not granted yet.
+- `accepted`: collaborator has role-based trip access.
+- `removed`: collaborator access is revoked. Re-inviting the same user restores
+  the existing row to `pending` with the new role.
+
+Protected collaboration endpoints:
+
+- `POST /trips/{id}/collaborators` owner-only, body
+  `{"email":"friend@example.com","role":"viewer"}`.
+- `GET /trips/{id}/collaborators` owner-only management list.
+- `PATCH /trips/{id}/collaborators/{collaboratorId}` owner-only role update.
+- `DELETE /trips/{id}/collaborators/{collaboratorId}` owner-only soft remove.
+- `POST /trips/{id}/collaborators/{collaboratorId}/accept` invitee accepts.
+- `POST /trips/{id}/collaborators/{collaboratorId}/decline` invitee declines.
+- `GET /collaboration/invitations` lists pending invitations for the current
+  user.
+- `GET /trips/shared-with-me` lists accepted shared trips.
+
+`GET /trips/{id}` returns an `access` object with the viewer's role and
+capabilities. Public share links remain independent and read-only. Current
+limitations: registered users only, no email notifications, no real-time sync,
+no comments, no activity feed, and last-write-wins editing.
 
 ## Run with Docker Compose
 

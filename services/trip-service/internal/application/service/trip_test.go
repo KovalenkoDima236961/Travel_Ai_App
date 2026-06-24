@@ -83,17 +83,30 @@ func (m *mockRepo) GetByIDAndUserID(_ context.Context, _, userID uuid.UUID) (*en
 	if m.getByIDErr != nil {
 		return nil, m.getByIDErr
 	}
-	return m.getByIDResult, nil
+	if m.getByIDResult == nil {
+		return &entity.Trip{ID: uuid.New(), UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}, nil
+	}
+	out := *m.getByIDResult
+	if out.UserID == nil {
+		out.UserID = &userID
+	}
+	return &out, nil
 }
 
 func (m *mockRepo) GetByID(_ context.Context, _ uuid.UUID) (*entity.Trip, error) {
 	if m.getByIDErr != nil {
 		return nil, m.getByIDErr
 	}
+	userID := testUserID()
+	m.getByIDUserID = userID
 	if m.getByIDResult == nil {
-		return nil, domainerrs.ErrNotFound
+		return &entity.Trip{ID: uuid.New(), UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}, nil
 	}
-	return m.getByIDResult, nil
+	out := *m.getByIDResult
+	if out.UserID == nil {
+		out.UserID = &userID
+	}
+	return &out, nil
 }
 
 func (m *mockRepo) ListByUser(_ context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error) {
@@ -116,8 +129,19 @@ func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID,
 }
 
 func (m *mockRepo) UpdateItineraryByUserIDAndCreateVersion(
-	_ context.Context,
+	ctx context.Context,
 	id, userID uuid.UUID,
+	itinerary json.RawMessage,
+	status entity.Status,
+	source entity.ItineraryVersionSource,
+	metadata map[string]any,
+) (*entity.Trip, *entity.ItineraryVersion, error) {
+	return m.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, source, metadata)
+}
+
+func (m *mockRepo) UpdateItineraryAndCreateVersion(
+	_ context.Context,
+	id, ownerUserID, actorUserID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
 	source entity.ItineraryVersionSource,
@@ -125,21 +149,22 @@ func (m *mockRepo) UpdateItineraryByUserIDAndCreateVersion(
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
 	m.updateItinRaw = itinerary
 	m.updateItinStatus = status
-	m.updateItinUserID = userID
+	m.updateItinUserID = actorUserID
 	m.updateItinSource = source
 	m.updateItinMeta = metadata
 	if m.updateItinErr != nil {
 		return nil, nil, m.updateItinErr
 	}
 	version := entity.ItineraryVersion{
-		ID:            uuid.New(),
-		TripID:        id,
-		UserID:        userID,
-		VersionNumber: countTripVersions(m.versions, id) + 1,
-		Source:        source,
-		Itinerary:     itinerary,
-		Metadata:      metadata,
-		CreatedAt:     time.Now(),
+		ID:              uuid.New(),
+		TripID:          id,
+		UserID:          ownerUserID,
+		CreatedByUserID: &actorUserID,
+		VersionNumber:   countTripVersions(m.versions, id) + 1,
+		Source:          source,
+		Itinerary:       itinerary,
+		Metadata:        metadata,
+		CreatedAt:       time.Now(),
 	}
 	m.versions = append(m.versions, version)
 	return &entity.Trip{ID: id, Status: status, Itinerary: itinerary}, &version, nil
@@ -159,6 +184,20 @@ func (m *mockRepo) ListItineraryVersionsByTripAndUser(_ context.Context, tripID,
 	return out, nil
 }
 
+func (m *mockRepo) ListItineraryVersionsByTrip(_ context.Context, tripID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error) {
+	m.listVersionsTrip = tripID
+	m.listVersionsUser = testUserID()
+	m.listVersionsLimit = limit
+	m.listVersionsOff = offset
+	out := make([]entity.ItineraryVersion, 0)
+	for _, version := range m.versions {
+		if version.TripID == tripID {
+			out = append(out, version)
+		}
+	}
+	return out, nil
+}
+
 func (m *mockRepo) GetItineraryVersionByIDTripAndUser(_ context.Context, id, tripID, userID uuid.UUID) (*entity.ItineraryVersion, error) {
 	m.getVersionID = id
 	m.getVersionTripID = tripID
@@ -170,6 +209,66 @@ func (m *mockRepo) GetItineraryVersionByIDTripAndUser(_ context.Context, id, tri
 		}
 	}
 	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) GetItineraryVersionByIDTrip(_ context.Context, id, tripID uuid.UUID) (*entity.ItineraryVersion, error) {
+	m.getVersionID = id
+	m.getVersionTripID = tripID
+	m.getVersionUserID = testUserID()
+	for i := range m.versions {
+		version := m.versions[i]
+		if version.ID == id && version.TripID == tripID {
+			return &version, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) UpsertTripCollaborator(_ context.Context, collaborator *entity.TripCollaborator) (*entity.TripCollaborator, error) {
+	out := *collaborator
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	out.Status = entity.CollaboratorStatusPending
+	out.InvitedAt = time.Now()
+	out.UpdatedAt = out.InvitedAt
+	return &out, nil
+}
+
+func (m *mockRepo) GetTripCollaboratorByTripAndUser(_ context.Context, _, _ uuid.UUID) (*entity.TripCollaborator, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) GetTripCollaboratorByID(_ context.Context, _, _ uuid.UUID) (*entity.TripCollaborator, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripCollaborators(_ context.Context, _ uuid.UUID) ([]entity.TripCollaborator, error) {
+	return []entity.TripCollaborator{}, nil
+}
+
+func (m *mockRepo) UpdateTripCollaboratorRole(_ context.Context, _, _ uuid.UUID, _ entity.CollaboratorRole) (*entity.TripCollaborator, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) RemoveTripCollaborator(_ context.Context, _, _ uuid.UUID) (*entity.TripCollaborator, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) AcceptTripCollaborator(_ context.Context, _, _, _ uuid.UUID) (*entity.TripCollaborator, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) DeclineTripCollaborator(_ context.Context, _, _, _ uuid.UUID) (*entity.TripCollaborator, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListPendingCollaborationInvitations(_ context.Context, _ uuid.UUID) ([]entity.SharedTrip, error) {
+	return []entity.SharedTrip{}, nil
+}
+
+func (m *mockRepo) ListSharedTripsByUser(_ context.Context, _ uuid.UUID) ([]entity.SharedTrip, error) {
+	return []entity.SharedTrip{}, nil
 }
 
 func (m *mockRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {

@@ -17,6 +17,11 @@ can be disabled by the owner. Share Controls v1 adds optional expiration and
 password protection; protected public viewers unlock with a short-lived public
 share token that is separate from normal user auth JWTs and scoped to one share
 token.
+Collaborative Planning v1 lets trip owners invite existing registered users by
+email as `viewer` or `editor` collaborators. Pending invitees can accept from
+the web app, accepted viewers get read-only private trip access, and accepted
+editors can edit/regenerate/restore itinerary versions without managing public
+sharing or collaborators. Public share links remain independent and read-only.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.
@@ -74,6 +79,8 @@ Run the full app smoke test with:
 The smoke test registers/logs in a unique user, checks profile/preferences
 defaults and updates, creates and generates a trip with
 `Authorization: Bearer <accessToken>`, exercises personalized generation,
+registers a second user and verifies collaborator invite/accept/viewer/editor
+permissions/removal,
 searches mock places, checks mock route and weather endpoints, saves attached
 place metadata with opening hours through Trip Service, verifies public trip
 sharing create/status/password unlock/clear/disable behavior, verifies itinerary

@@ -19,6 +19,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -62,6 +63,14 @@ type tripRepository interface {
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
 	UpdateStatusByUserID(ctx context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error)
+	UpdateItineraryAndCreateVersion(
+		ctx context.Context,
+		id, ownerUserID, actorUserID uuid.UUID,
+		itinerary json.RawMessage,
+		status entity.Status,
+		source entity.ItineraryVersionSource,
+		metadata map[string]any,
+	) (*entity.Trip, *entity.ItineraryVersion, error)
 	UpdateItineraryByUserIDAndCreateVersion(
 		ctx context.Context,
 		id, userID uuid.UUID,
@@ -70,8 +79,20 @@ type tripRepository interface {
 		source entity.ItineraryVersionSource,
 		metadata map[string]any,
 	) (*entity.Trip, *entity.ItineraryVersion, error)
+	ListItineraryVersionsByTrip(ctx context.Context, tripID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error)
 	ListItineraryVersionsByTripAndUser(ctx context.Context, tripID, userID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error)
+	GetItineraryVersionByIDTrip(ctx context.Context, id, tripID uuid.UUID) (*entity.ItineraryVersion, error)
 	GetItineraryVersionByIDTripAndUser(ctx context.Context, id, tripID, userID uuid.UUID) (*entity.ItineraryVersion, error)
+	UpsertTripCollaborator(ctx context.Context, collaborator *entity.TripCollaborator) (*entity.TripCollaborator, error)
+	GetTripCollaboratorByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripCollaborator, error)
+	GetTripCollaboratorByID(ctx context.Context, tripID, collaboratorID uuid.UUID) (*entity.TripCollaborator, error)
+	ListTripCollaborators(ctx context.Context, tripID uuid.UUID) ([]entity.TripCollaborator, error)
+	UpdateTripCollaboratorRole(ctx context.Context, tripID, collaboratorID uuid.UUID, role entity.CollaboratorRole) (*entity.TripCollaborator, error)
+	RemoveTripCollaborator(ctx context.Context, tripID, collaboratorID uuid.UUID) (*entity.TripCollaborator, error)
+	AcceptTripCollaborator(ctx context.Context, tripID, collaboratorID, userID uuid.UUID) (*entity.TripCollaborator, error)
+	DeclineTripCollaborator(ctx context.Context, tripID, collaboratorID, userID uuid.UUID) (*entity.TripCollaborator, error)
+	ListPendingCollaborationInvitations(ctx context.Context, userID uuid.UUID) ([]entity.SharedTrip, error)
+	ListSharedTripsByUser(ctx context.Context, userID uuid.UUID) ([]entity.SharedTrip, error)
 	CreateTripShare(ctx context.Context, share *entity.TripShare) (*entity.TripShare, error)
 	GetTripShareByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
 	GetTripShareByToken(ctx context.Context, shareToken string) (*entity.TripShare, error)
@@ -90,6 +111,10 @@ type weatherContextProvider interface {
 
 type placeEnrichmentProvider interface {
 	EnrichItinerary(ctx context.Context, input placeenrichment.EnrichItineraryInput) (*placeenrichment.EnrichItineraryResult, error)
+}
+
+type userLookupProvider interface {
+	LookupByEmail(ctx context.Context, email string) (*appdto.UserLookupResult, error)
 }
 
 // Option customizes Service dependencies that are not required for the core
@@ -123,6 +148,12 @@ func WithPlaceEnrichment(provider placeEnrichmentProvider, enabled, failOpen boo
 		s.placeEnrichmentProvider = provider
 		s.placeEnrichmentEnabled = enabled
 		s.placeEnrichmentFailOpen = failOpen
+	}
+}
+
+func WithUserLookup(provider userLookupProvider) Option {
+	return func(s *Service) {
+		s.userLookupProvider = provider
 	}
 }
 
@@ -161,6 +192,7 @@ type Service struct {
 	placeEnrichmentProvider placeEnrichmentProvider
 	placeEnrichmentEnabled  bool
 	placeEnrichmentFailOpen bool
+	userLookupProvider      userLookupProvider
 	publicSharingEnabled    bool
 	publicWebBaseURL        string
 	shareTokenBytes         int
@@ -252,11 +284,16 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 
 // Get returns a trip by id.
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {
+	t, _, err := s.GetWithAccess(ctx, id)
+	return t, err
+}
+
+func (s *Service) GetWithAccess(ctx context.Context, id uuid.UUID) (*entity.Trip, TripAccess, error) {
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, TripAccess{Level: AccessLevelNone}, err
 	}
-	return s.repo.GetByIDAndUserID(ctx, id, user.ID)
+	return s.requireViewerEditorOrOwner(ctx, id, user.ID)
 }
 
 // List returns trips ordered by created_at DESC. It normalises and validates the
@@ -294,7 +331,11 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		return nil, err
 	}
 
-	current, err := s.repo.GetByIDAndUserID(ctx, id, user.ID)
+	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	ownerID, err := tripOwnerID(current)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +350,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		return nil, err
 	}
 
-	if _, err := s.repo.UpdateStatusByUserID(ctx, id, user.ID, entity.StatusProcessing); err != nil {
+	if _, err := s.repo.UpdateStatusByUserID(ctx, id, ownerID, entity.StatusProcessing); err != nil {
 		return nil, err
 	}
 	s.log.Info("trip processing started",
@@ -324,27 +365,27 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		WeatherForecast: weatherForecast,
 	})
 	if err != nil {
-		s.markFailed(ctx, id, user.ID)
+		s.markFailed(ctx, id, ownerID)
 		return nil, err
 	}
 
 	itinerary, err = s.enrichGeneratedItinerary(ctx, id, *current, itinerary)
 	if err != nil {
-		s.markFailed(ctx, id, user.ID)
+		s.markFailed(ctx, id, ownerID)
 		return nil, err
 	}
 
 	raw, err := json.Marshal(itinerary)
 	if err != nil {
-		s.markFailed(ctx, id, user.ID)
+		s.markFailed(ctx, id, ownerID)
 		return nil, err
 	}
 
-	updated, err := s.saveItineraryWithVersion(ctx, id, user.ID, raw, entity.ItineraryVersionSourceGenerated, map[string]any{
+	updated, err := s.saveItineraryWithVersion(ctx, id, ownerID, user.ID, raw, entity.ItineraryVersionSourceGenerated, map[string]any{
 		"generator": "full",
 	})
 	if err != nil {
-		s.markFailed(ctx, id, user.ID)
+		s.markFailed(ctx, id, ownerID)
 		return nil, err
 	}
 
@@ -359,6 +400,14 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 // owned by the authenticated user. It does not call the itinerary generator.
 func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.UpdateItineraryInput) (*entity.Trip, error) {
 	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	ownerID, err := tripOwnerID(current)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +429,7 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 		return nil, err
 	}
 
-	updated, err := s.saveItineraryWithVersion(ctx, id, user.ID, normalized, entity.ItineraryVersionSourceManualEdit, map[string]any{})
+	updated, err := s.saveItineraryWithVersion(ctx, id, ownerID, user.ID, normalized, entity.ItineraryVersionSourceManualEdit, map[string]any{})
 	if err != nil {
 		s.log.Warn("itinerary update failed",
 			append(fields,
@@ -415,7 +464,12 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 		return nil, err
 	}
 
-	current, err := s.repo.GetByIDAndUserID(ctx, id, user.ID)
+	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	ownerID, err := tripOwnerID(current)
 	if err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
 		return nil, err
@@ -467,7 +521,7 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	}
 
 	currentItinerary.Days[dayIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateDay, map[string]any{
+	updated, err := s.saveRegeneratedItinerary(ctx, id, ownerID, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateDay, map[string]any{
 		"dayNumber":          dayNumber,
 		"instructionPresent": instruction != "",
 	})
@@ -496,7 +550,12 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		return nil, err
 	}
 
-	current, err := s.repo.GetByIDAndUserID(ctx, id, user.ID)
+	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	ownerID, err := tripOwnerID(current)
 	if err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
 		return nil, err
@@ -554,7 +613,7 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 	}
 
 	currentItinerary.Days[dayIndex].Items[itemIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(ctx, id, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateItem, map[string]any{
+	updated, err := s.saveRegeneratedItinerary(ctx, id, ownerID, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateItem, map[string]any{
 		"dayNumber":          dayNumber,
 		"itemIndex":          itemIndex,
 		"instructionPresent": instruction != "",
@@ -932,7 +991,7 @@ func asciiDigit(value byte) bool {
 
 func (s *Service) saveRegeneratedItinerary(
 	ctx context.Context,
-	tripID, userID uuid.UUID,
+	tripID, ownerUserID, actorUserID uuid.UUID,
 	itinerary aggregate.Itinerary,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
@@ -941,26 +1000,34 @@ func (s *Service) saveRegeneratedItinerary(
 	if err != nil {
 		return nil, err
 	}
-	return s.saveItineraryWithVersion(ctx, tripID, userID, raw, source, metadata)
+	return s.saveItineraryWithVersion(ctx, tripID, ownerUserID, actorUserID, raw, source, metadata)
 }
 
 func (s *Service) saveItineraryWithVersion(
 	ctx context.Context,
-	tripID, userID uuid.UUID,
+	tripID, ownerUserID, actorUserID uuid.UUID,
 	itinerary json.RawMessage,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, error) {
-	updated, _, err := s.repo.UpdateItineraryByUserIDAndCreateVersion(
+	updated, _, err := s.repo.UpdateItineraryAndCreateVersion(
 		ctx,
 		tripID,
-		userID,
+		ownerUserID,
+		actorUserID,
 		itinerary,
 		entity.StatusCompleted,
 		source,
 		metadata,
 	)
 	return updated, err
+}
+
+func tripOwnerID(t *entity.Trip) (uuid.UUID, error) {
+	if t == nil || t.UserID == nil || *t.UserID == uuid.Nil {
+		return uuid.Nil, domainerrs.ErrNotFound
+	}
+	return *t.UserID, nil
 }
 
 func currentItineraryInvalidError() error {

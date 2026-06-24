@@ -6,7 +6,8 @@ generating itineraries, viewing generated plans, showing mock weather context,
 and editing completed itineraries. Completed trips with itineraries also show
 version history with read-only preview and restore actions. Owners can create a
 public read-only share link for a trip, set expiration/password controls, and
-disable that link later.
+disable that link later. Owners can also invite registered users to collaborate
+on private trips as viewers or editors.
 
 ## Source Layout
 
@@ -54,6 +55,7 @@ The frontend calls the protected Trip Service endpoints:
 
 - `POST /trips`
 - `GET /trips?limit=20&offset=0`
+- `GET /trips/shared-with-me`
 - `GET /trips/{id}`
 - `POST /trips/{id}/generate`
 - `PUT /trips/{id}/itinerary`
@@ -66,6 +68,13 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}/itinerary/versions`
 - `GET /trips/{id}/itinerary/versions/{versionId}`
 - `POST /trips/{id}/itinerary/versions/{versionId}/restore`
+- `POST /trips/{id}/collaborators`
+- `GET /trips/{id}/collaborators`
+- `PATCH /trips/{id}/collaborators/{collaboratorId}`
+- `DELETE /trips/{id}/collaborators/{collaboratorId}`
+- `POST /trips/{id}/collaborators/{collaboratorId}/accept`
+- `POST /trips/{id}/collaborators/{collaboratorId}/decline`
+- `GET /collaboration/invitations`
 - `GET /public/trips/{shareToken}/status` without Authorization for public share pages
 - `POST /public/trips/{shareToken}/unlock` without Authorization to unlock protected shares
 - `GET /public/trips/{shareToken}` without Authorization for unprotected shares or with `Authorization: Bearer <publicShareAccessToken>` for protected shares
@@ -107,6 +116,34 @@ Each review action saves the full itinerary through the existing
 `PUT /trips/{id}/itinerary` endpoint, so Trip Service records a `MANUAL_EDIT`
 version. The review state lives inside the itinerary JSON for v1; there is no
 separate review table or background worker.
+
+## Collaborative Planning
+
+The trips page shows `Pending invitations`, `My Trips`, and `Shared with me`.
+Accepted shared trips open through the normal `/trips/{id}` route; Trip Service
+decides access and returns `trip.access`.
+
+Owner UI:
+
+- Shows `Share itinerary` and `Collaborators` panels.
+- Can invite registered users by exact email, choose `viewer` or `editor`,
+  change roles, and remove collaborators.
+
+Editor UI:
+
+- Shows itinerary edit/regenerate, place review, route optimization, export,
+  and version restore controls.
+- Hides public share and collaborator management.
+
+Viewer UI:
+
+- Shows read-only itinerary, map/weather/distance, export, and version preview.
+- Hides edit, regenerate, place review actions, route optimization apply,
+  restore, public share, and collaborator management.
+
+Current v1 limitations: registered users only, no email notifications, no
+real-time editing, no comments, no activity feed, and no conflict resolution
+beyond last write wins.
 
 ## Public Trip Sharing
 

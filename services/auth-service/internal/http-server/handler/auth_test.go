@@ -25,6 +25,7 @@ type stubAuthService struct {
 	refresh  func(context.Context, appdto.RefreshInput) (*appdto.TokenPair, error)
 	logout   func(context.Context, appdto.LogoutInput) error
 	me       func(context.Context, string) (*entity.User, error)
+	byEmail  func(context.Context, string) (*entity.User, error)
 }
 
 func (s stubAuthService) Register(ctx context.Context, req appdto.RegisterInput) (*appdto.AuthResult, error) {
@@ -45,6 +46,10 @@ func (s stubAuthService) Logout(ctx context.Context, req appdto.LogoutInput) err
 
 func (s stubAuthService) CurrentUser(ctx context.Context, accessToken string) (*entity.User, error) {
 	return s.me(ctx, accessToken)
+}
+
+func (s stubAuthService) UserByEmail(ctx context.Context, email string) (*entity.User, error) {
+	return s.byEmail(ctx, email)
 }
 
 func newTestRouter(svc stubAuthService) http.Handler {

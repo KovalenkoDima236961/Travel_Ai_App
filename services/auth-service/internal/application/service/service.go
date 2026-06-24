@@ -196,6 +196,14 @@ func (s *Service) CurrentUser(ctx context.Context, accessToken string) (*entity.
 	return user, nil
 }
 
+func (s *Service) UserByEmail(ctx context.Context, email string) (*entity.User, error) {
+	normalized, err := normalizeAndValidateEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetUserByEmail(ctx, normalized)
+}
+
 func (s *Service) issueAuthResponse(ctx context.Context, user entity.User) (*appdto.AuthResult, error) {
 	accessToken, err := s.tokens.GenerateAccessToken(user)
 	if err != nil {

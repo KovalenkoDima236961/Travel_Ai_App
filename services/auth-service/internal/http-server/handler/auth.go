@@ -13,6 +13,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/domain/entity"
+	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/dto/response"
 )
@@ -23,6 +24,7 @@ type authService interface {
 	Refresh(ctx context.Context, in appdto.RefreshInput) (*appdto.TokenPair, error)
 	Logout(ctx context.Context, in appdto.LogoutInput) error
 	CurrentUser(ctx context.Context, accessToken string) (*entity.User, error)
+	UserByEmail(ctx context.Context, email string) (*entity.User, error)
 }
 
 // Handler wires the auth use case to HTTP.
@@ -48,6 +50,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/logout", h.Logout)
 		r.Get("/me", h.Me)
 	})
+	r.Get("/internal/users/by-email", h.InternalUserByEmail)
 }
 
 // Register handles POST /auth/register.
@@ -130,6 +133,19 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response.NewUser(resp))
 }
 
+// InternalUserByEmail handles exact registered-user lookup for service-to-service
+// calls. TODO: protect this route with internal service auth before exposing
+// auth-service outside the private service network.
+func (h *Handler) InternalUserByEmail(w http.ResponseWriter, r *http.Request) {
+	email := strings.TrimSpace(r.URL.Query().Get("email"))
+	user, err := h.svc.UserByEmail(r.Context(), email)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewInternalUserLookup(user))
+}
+
 func bearerToken(header string) (string, bool) {
 	const prefix = "bearer "
 	value := strings.TrimSpace(header)
@@ -151,6 +167,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 	case errors.Is(err, apperrs.ErrInvalidAccessToken), errors.Is(err, apperrs.ErrInvalidRefreshToken):
 		writeError(w, http.StatusUnauthorized, "invalid token")
+	case errors.Is(err, domainerrs.ErrNotFound):
+		writeError(w, http.StatusNotFound, "registered user not found")
 	default:
 		h.log.Error("unhandled auth service error", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "internal server error")

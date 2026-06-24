@@ -21,6 +21,7 @@ import type { Trip } from "@/types/trip";
 type ItineraryVersionHistoryProps = {
   tripId: string;
   currency?: string;
+  canRestore?: boolean;
   restoreDisabled?: boolean;
   onRestored?: (trip: Trip) => void;
 };
@@ -36,6 +37,7 @@ const sourceLabels: Record<ItineraryVersionSource, string> = {
 export function ItineraryVersionHistory({
   tripId,
   currency = "EUR",
+  canRestore = true,
   restoreDisabled = false,
   onRestored
 }: ItineraryVersionHistoryProps) {
@@ -99,7 +101,7 @@ export function ItineraryVersionHistory({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Version History</h2>
-          {restoreDisabled ? (
+          {canRestore && restoreDisabled ? (
             <p className="mt-1 text-sm text-slate-500">Finish editing before restoring a version.</p>
           ) : null}
         </div>
@@ -188,17 +190,19 @@ export function ItineraryVersionHistory({
                         ? "Loading..."
                         : "View"}
                     </Button>
-                    <Button
-                      disabled={restoreDisabled || restoreMutation.isPending}
-                      onClick={() => restoreVersion(version)}
-                      size="sm"
-                      type="button"
-                      variant="secondary"
-                    >
-                      {restoreMutation.isPending && restoreMutation.variables === version.id
-                        ? "Restoring..."
-                        : "Restore"}
-                    </Button>
+                    {canRestore ? (
+                      <Button
+                        disabled={restoreDisabled || restoreMutation.isPending}
+                        onClick={() => restoreVersion(version)}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        {restoreMutation.isPending && restoreMutation.variables === version.id
+                          ? "Restoring..."
+                          : "Restore"}
+                      </Button>
+                    ) : null}
                   </div>
                 </li>
               ))}
@@ -218,16 +222,18 @@ export function ItineraryVersionHistory({
                 <p className="text-sm text-slate-500">{sourceLabel(preview.source)}</p>
               </div>
               <div className="flex gap-2">
-                <Button
-                  disabled={restoreDisabled || restoreMutation.isPending}
-                  onClick={() => restoreVersion(preview)}
-                  type="button"
-                  variant="secondary"
-                >
-                  {restoreMutation.isPending && restoreMutation.variables === preview.id
-                    ? "Restoring..."
-                    : "Restore"}
-                </Button>
+                {canRestore ? (
+                  <Button
+                    disabled={restoreDisabled || restoreMutation.isPending}
+                    onClick={() => restoreVersion(preview)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {restoreMutation.isPending && restoreMutation.variables === preview.id
+                      ? "Restoring..."
+                      : "Restore"}
+                  </Button>
+                ) : null}
                 <Button onClick={() => setPreview(null)} type="button" variant="secondary">
                   Close
                 </Button>

@@ -59,6 +59,11 @@ short-lived public share token signed with
 `PUBLIC_SHARE_ACCESS_SECRET=dev-public-share-secret-change-me` for local
 development and expiring after `PUBLIC_SHARE_ACCESS_TTL_MINUTES=60`. This token
 is separate from Auth Service JWTs and is scoped to one share token.
+Collaborative Planning v1 is enabled by Trip Service's
+`AUTH_SERVICE_URL=http://auth-service:8082` internal lookup. Owners invite
+existing registered users by exact email; Auth Service resolves the email to a
+user ID. The internal lookup endpoint is network-internal only in this Compose
+stack and is not service-authenticated yet.
 
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right
@@ -111,6 +116,8 @@ The `web-app` service receives browser-facing and internal service URLs:
 
 Trip Service also receives:
 
+- `AUTH_SERVICE_URL=http://auth-service:8082` inside the container, sourced from
+  `AUTH_SERVICE_INTERNAL_URL`, for exact-email collaborator invite lookup.
 - `PUBLIC_WEB_BASE_URL=http://localhost:3000` for share URLs returned to owners.
 - `PUBLIC_SHARING_ENABLED=true` to enable owner-managed public links.
 - `SHARE_TOKEN_BYTES=32` to keep share tokens cryptographically random and

@@ -22,12 +22,13 @@ const (
 // that trip's edit history. The itinerary is intentionally stored as raw JSON so
 // snapshots can preserve the exact API shape accepted by itinerary editing v1.
 type ItineraryVersion struct {
-	ID            uuid.UUID
-	TripID        uuid.UUID
-	UserID        uuid.UUID
-	VersionNumber int
-	Source        ItineraryVersionSource
-	Itinerary     json.RawMessage
-	Metadata      map[string]any
-	CreatedAt     time.Time
+	ID              uuid.UUID
+	TripID          uuid.UUID
+	UserID          uuid.UUID
+	CreatedByUserID *uuid.UUID
+	VersionNumber   int
+	Source          ItineraryVersionSource
+	Itinerary       json.RawMessage
+	Metadata        map[string]any
+	CreatedAt       time.Time
 }

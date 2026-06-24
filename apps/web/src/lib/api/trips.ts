@@ -10,6 +10,12 @@ import type {
   TripShareInfo,
   UpdateTripShareRequest
 } from "@/types/share";
+import type {
+  CollaborationInvitation,
+  CollaboratorRole,
+  SharedTripSummary,
+  TripCollaborator
+} from "@/types/collaboration";
 import type { CreateTripInput, Itinerary, Trip, TripsListResponse } from "@/types/trip";
 
 type ListTripsParams = {
@@ -21,8 +27,11 @@ export const tripKeys = {
   all: ["trips"] as const,
   lists: () => [...tripKeys.all, "list"] as const,
   list: (params: ListTripsParams) => [...tripKeys.lists(), params] as const,
+  shared: () => [...tripKeys.all, "shared-with-me"] as const,
+  invitations: () => ["collaboration", "invitations"] as const,
   details: () => [...tripKeys.all, "detail"] as const,
   detail: (id: string) => [...tripKeys.details(), id] as const,
+  collaborators: (id: string) => [...tripKeys.detail(id), "collaborators"] as const,
   share: (id: string) => [...tripKeys.detail(id), "share"] as const,
   publicShare: (shareToken: string) => ["public-trip-share", shareToken] as const,
   publicShareStatus: (shareToken: string) =>
@@ -49,6 +58,10 @@ export function listTrips(params: ListTripsParams = {}) {
 
 export function getTrip(id: string) {
   return apiFetch<Trip>(`/trips/${id}`);
+}
+
+export function listSharedTrips() {
+  return apiFetch<SharedTripSummary[]>("/trips/shared-with-me");
 }
 
 export function createTrip(input: CreateTripInput) {
@@ -140,6 +153,59 @@ export function disableTripShare(tripId: string) {
   return apiFetch<{ success: boolean }>(`/trips/${tripId}/share`, {
     method: "DELETE"
   });
+}
+
+export function listTripCollaborators(tripId: string) {
+  return apiFetch<TripCollaborator[]>(`/trips/${tripId}/collaborators`);
+}
+
+export function inviteTripCollaborator(
+  tripId: string,
+  input: { email: string; role: CollaboratorRole }
+) {
+  return apiFetch<TripCollaborator>(`/trips/${tripId}/collaborators`, {
+    method: "POST",
+    body: JSON.stringify({
+      email: input.email.trim(),
+      role: input.role
+    })
+  });
+}
+
+export function updateTripCollaboratorRole(
+  tripId: string,
+  collaboratorId: string,
+  input: { role: CollaboratorRole }
+) {
+  return apiFetch<TripCollaborator>(`/trips/${tripId}/collaborators/${collaboratorId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role: input.role })
+  });
+}
+
+export function removeTripCollaborator(tripId: string, collaboratorId: string) {
+  return apiFetch<{ success: boolean }>(`/trips/${tripId}/collaborators/${collaboratorId}`, {
+    method: "DELETE"
+  });
+}
+
+export function listCollaborationInvitations() {
+  return apiFetch<CollaborationInvitation[]>("/collaboration/invitations");
+}
+
+export function acceptCollaborationInvitation(tripId: string, collaboratorId: string) {
+  return apiFetch<TripCollaborator>(`/trips/${tripId}/collaborators/${collaboratorId}/accept`, {
+    method: "POST"
+  });
+}
+
+export function declineCollaborationInvitation(tripId: string, collaboratorId: string) {
+  return apiFetch<{ success: boolean }>(
+    `/trips/${tripId}/collaborators/${collaboratorId}/decline`,
+    {
+      method: "POST"
+    }
+  );
 }
 
 export function getPublicShareStatus(shareToken: string) {

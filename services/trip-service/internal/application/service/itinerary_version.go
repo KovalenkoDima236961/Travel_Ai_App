@@ -29,11 +29,11 @@ func (s *Service) ListItineraryVersions(ctx context.Context, tripID uuid.UUID, l
 		return nil, 0, 0, apperrs.NewInvalidInput("offset must be >= 0")
 	}
 
-	if _, err := s.repo.GetByIDAndUserID(ctx, tripID, user.ID); err != nil {
+	if _, _, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
 		return nil, 0, 0, err
 	}
 
-	versions, err := s.repo.ListItineraryVersionsByTripAndUser(ctx, tripID, user.ID, limit, offset)
+	versions, err := s.repo.ListItineraryVersionsByTrip(ctx, tripID, limit, offset)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -47,11 +47,11 @@ func (s *Service) GetItineraryVersion(ctx context.Context, tripID, versionID uui
 		return nil, err
 	}
 
-	if _, err := s.repo.GetByIDAndUserID(ctx, tripID, user.ID); err != nil {
+	if _, _, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
 		return nil, err
 	}
 
-	return s.repo.GetItineraryVersionByIDTripAndUser(ctx, versionID, tripID, user.ID)
+	return s.repo.GetItineraryVersionByIDTrip(ctx, versionID, tripID)
 }
 
 // RestoreItineraryVersion replaces the current trip itinerary with an existing
@@ -63,11 +63,16 @@ func (s *Service) RestoreItineraryVersion(ctx context.Context, tripID, versionID
 		return nil, err
 	}
 
-	if _, err := s.repo.GetByIDAndUserID(ctx, tripID, user.ID); err != nil {
+	trip, _, err := s.requireEditorOrOwner(ctx, tripID, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	ownerID, err := tripOwnerID(trip)
+	if err != nil {
 		return nil, err
 	}
 
-	version, err := s.repo.GetItineraryVersionByIDTripAndUser(ctx, versionID, tripID, user.ID)
+	version, err := s.repo.GetItineraryVersionByIDTrip(ctx, versionID, tripID)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +82,7 @@ func (s *Service) RestoreItineraryVersion(ctx context.Context, tripID, versionID
 		return nil, err
 	}
 
-	return s.saveItineraryWithVersion(ctx, tripID, user.ID, normalized, entity.ItineraryVersionSourceRestored, map[string]any{
+	return s.saveItineraryWithVersion(ctx, tripID, ownerID, user.ID, normalized, entity.ItineraryVersionSourceRestored, map[string]any{
 		"restoredFromVersionId":     version.ID.String(),
 		"restoredFromVersionNumber": version.VersionNumber,
 	})
