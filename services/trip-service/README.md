@@ -179,6 +179,8 @@ Key environment variables:
 | `PUBLIC_WEB_BASE_URL` | `http://localhost:3000` | Base URL used to build owner-facing `/share/{token}` links. |
 | `PUBLIC_SHARING_ENABLED` | `true` | Enables owner-managed public read-only trip share links. |
 | `SHARE_TOKEN_BYTES` | `32` | Number of cryptographically random bytes used before base64url encoding share tokens. Minimum 32. |
+| `PUBLIC_SHARE_ACCESS_SECRET` | `dev-public-share-secret-change-me` | Dev-only HS256 secret for short-lived public share unlock tokens. Use a different value than `JWT_ACCESS_SECRET`. |
+| `PUBLIC_SHARE_ACCESS_TTL_MINUTES` | `60` | Lifetime for public share unlock tokens. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -282,11 +284,14 @@ make migrate-down    # roll back the last migration
 | POST   | `/trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate` | Regenerate one itinerary item with AI and preserve all other items. |
 | GET    | `/trips/{id}/share` | Fetch current share-link status for an authenticated owner's trip. |
 | POST   | `/trips/{id}/share` | Create or re-enable a public read-only share link for an authenticated owner's trip. |
+| PATCH  | `/trips/{id}/share` | Update share expiration and password protection for an authenticated owner's trip. |
 | DELETE | `/trips/{id}/share` | Disable the public share link for an authenticated owner's trip. |
 | GET    | `/trips/{id}/itinerary/versions` | List itinerary version summaries for an authenticated user's trip. |
 | GET    | `/trips/{id}/itinerary/versions/{versionId}` | Fetch one itinerary version detail with snapshot JSON. |
 | POST   | `/trips/{id}/itinerary/versions/{versionId}/restore` | Restore an older itinerary snapshot and create a new `RESTORED` version. |
-| GET    | `/public/trips/{shareToken}` | Public read-only shared trip payload; no JWT required. |
+| GET    | `/public/trips/{shareToken}/status` | Public-safe share availability and password-required status. |
+| POST   | `/public/trips/{shareToken}/unlock` | Verify a share password and issue a short-lived public share token. |
+| GET    | `/public/trips/{shareToken}` | Public read-only shared trip payload; protected links require a public share bearer token. |
 
 Partial itinerary regeneration uses `dayNumber` as a one-based value matching
 the itinerary `day` field. `itemIndex` is zero-based and matches the selected
@@ -328,37 +333,87 @@ the rest of `/trips`: non-owners receive `404`.
 ```http
 GET /trips/{id}/share
 POST /trips/{id}/share
+PATCH /trips/{id}/share
 DELETE /trips/{id}/share
 ```
 
 `POST /trips/{id}/share` returns an existing enabled link, re-enables a disabled
-link with the same token, or creates a new token:
+link with the same token, or creates a new token. It accepts optional initial
+settings:
+
+```json
+{
+  "expiresAt": "2026-09-01T12:00:00Z",
+  "password": "optional-password"
+}
+```
+
+Owner responses include status fields but never include `passwordHash`:
 
 ```json
 {
   "shareToken": "base64url-token",
   "shareUrl": "http://localhost:3000/share/base64url-token",
   "enabled": true,
-  "createdAt": "2026-06-24T12:00:00Z"
+  "createdAt": "2026-06-24T12:00:00Z",
+  "updatedAt": "2026-06-24T12:00:00Z",
+  "expiresAt": null,
+  "expired": false,
+  "passwordRequired": false
 }
 ```
+
+`PATCH /trips/{id}/share` updates settings without rotating the token:
+
+```json
+{
+  "expiresAt": "2026-09-01T12:00:00Z",
+  "password": "new-password",
+  "clearPassword": false,
+  "clearExpiration": false
+}
+```
+
+`clearPassword=true` removes password protection, and `clearExpiration=true`
+makes the link non-expiring. Past expirations return `400`.
 
 `DELETE /trips/{id}/share` is idempotent after ownership is verified and returns
 `{ "success": true }`. A disabled share immediately makes the public endpoint
 return `404`.
 
 ```http
+GET /public/trips/{shareToken}/status
+POST /public/trips/{shareToken}/unlock
 GET /public/trips/{shareToken}
 ```
 
-The public endpoint does not require JWT and only returns enabled shares. Its
-response is sanitized: it omits `userId`, owner email, preferences, version
-history, tokens, generation logs, and private service metadata. It includes only
-basic trip summary fields plus the current itinerary JSON needed for read-only
-rendering.
+The public status endpoint returns only `{ "available": true,
+"passwordRequired": boolean, "expired": false }` for active shares. Invalid,
+disabled, or expired links return generic `404 {"error":"shared trip not found"}`.
 
-Limitations: no expiration, password protection, analytics, collaboration,
-public editing, or multiple links per trip yet.
+For password-protected links, `POST /unlock` verifies the password hash and
+returns:
+
+```json
+{
+  "accessToken": "short-lived-public-share-jwt",
+  "expiresAt": "2026-06-24T13:00:00Z"
+}
+```
+
+This token is separate from Auth Service JWTs, includes no user ID or email, is
+scoped to one `shareToken`, and cannot authorize private `/trips` routes. Trip
+Service still checks the database share on every public trip request, so disable
+or expiration immediately blocks access even when an old public share token has
+not expired.
+
+The public trip response is sanitized: it omits `userId`, owner email,
+preferences, version history, tokens, generation logs, and private service
+metadata. It includes only basic trip summary fields plus the current itinerary
+JSON needed for read-only rendering.
+
+Limitations: no analytics, collaboration, public editing, or multiple links per
+trip yet.
 
 ### Itinerary generation
 
@@ -642,12 +697,22 @@ curl -s "http://localhost:8080/trips/${TRIP_ID}/itinerary/versions/${VERSION_ID}
 curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/itinerary/versions/${VERSION_ID}/restore" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}"
 
-# Create a public read-only share link
+# Create a password-protected public read-only share link
 SHARE_TOKEN=$(curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/share" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" | jq -r '.shareToken')
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"expiresAt":"2026-09-01T12:00:00Z","password":"ShareSecret123"}' | jq -r '.shareToken')
 
-# Fetch the public shared trip without Authorization
-curl -s "http://localhost:8080/public/trips/${SHARE_TOKEN}"
+# Check public status and unlock
+curl -s "http://localhost:8080/public/trips/${SHARE_TOKEN}/status"
+
+PUBLIC_SHARE_ACCESS_TOKEN=$(curl -s -X POST "http://localhost:8080/public/trips/${SHARE_TOKEN}/unlock" \
+  -H "Content-Type: application/json" \
+  -d '{"password":"ShareSecret123"}' | jq -r '.accessToken')
+
+# Fetch the protected public shared trip
+curl -s "http://localhost:8080/public/trips/${SHARE_TOKEN}" \
+  -H "Authorization: Bearer ${PUBLIC_SHARE_ACCESS_TOKEN}"
 
 # Disable the share link
 curl -s -X DELETE "http://localhost:8080/trips/${TRIP_ID}/share" \

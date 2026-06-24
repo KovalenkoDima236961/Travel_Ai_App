@@ -5,7 +5,8 @@ preferences, creating trip requests, listing trips, opening trip details,
 generating itineraries, viewing generated plans, showing mock weather context,
 and editing completed itineraries. Completed trips with itineraries also show
 version history with read-only preview and restore actions. Owners can create a
-public read-only share link for a trip and disable that link later.
+public read-only share link for a trip, set expiration/password controls, and
+disable that link later.
 
 ## Source Layout
 
@@ -60,11 +61,14 @@ The frontend calls the protected Trip Service endpoints:
 - `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`
 - `GET /trips/{id}/share`
 - `POST /trips/{id}/share`
+- `PATCH /trips/{id}/share`
 - `DELETE /trips/{id}/share`
 - `GET /trips/{id}/itinerary/versions`
 - `GET /trips/{id}/itinerary/versions/{versionId}`
 - `POST /trips/{id}/itinerary/versions/{versionId}/restore`
-- `GET /public/trips/{shareToken}` without Authorization for public share pages
+- `GET /public/trips/{shareToken}/status` without Authorization for public share pages
+- `POST /public/trips/{shareToken}/unlock` without Authorization to unlock protected shares
+- `GET /public/trips/{shareToken}` without Authorization for unprotected shares or with `Authorization: Bearer <publicShareAccessToken>` for protected shares
 
 The frontend calls External Integrations Service v1 directly for place search,
 route estimates, and weather forecasts:
@@ -108,24 +112,37 @@ separate review table or background worker.
 
 Authenticated trip detail pages include a `Share itinerary` panel. It calls
 `GET /trips/{id}/share` on load, `POST /trips/{id}/share` to create or
-re-enable a link, and `DELETE /trips/{id}/share` to disable it. The share URL
-points to `/share/{shareToken}`.
+re-enable a link, `PATCH /trips/{id}/share` to save expiration/password
+settings, and `DELETE /trips/{id}/share` to disable it. The share URL points to
+`/share/{shareToken}`.
 
-The public share page calls `GET /public/trips/{shareToken}` without attaching
-an access token. It renders the sanitized read-only trip summary, itinerary,
-place metadata, map view, distance estimate, and weather context when data is
+The panel supports `Never`, `7 days`, `30 days`, and custom expiration, plus
+password enable/change/remove. Passwords are sent only when creating, enabling,
+or changing protection and are never shown after save.
+
+The public share page calls `GET /public/trips/{shareToken}/status` first. If
+the link is password protected, it shows an unlock form and calls
+`POST /public/trips/{shareToken}/unlock`. The returned public share access token
+is stored only in `sessionStorage` under
+`public-share-access-token:{shareToken}` with its expiry, so refresh works until
+the short-lived token expires. The app clears that stored token if the backend
+returns `401`.
+
+After unlock, the public page calls `GET /public/trips/{shareToken}` with the
+public share bearer token. Unprotected links are fetched without Authorization.
+It renders the sanitized read-only trip summary, itinerary, place metadata, map
+view, distance estimate, weather context, and PDF/.ics export when data is
 available. It does not render edit, regenerate, version history, route
 optimization, place-match review, settings, logout, or any private preference
 controls.
 
-Disabled or unknown share links show:
+Disabled, expired, or unknown share links show:
 
 ```text
-This shared trip is unavailable or the link has been disabled.
+This shared trip is unavailable, expired, or disabled.
 ```
 
-Public sharing v1 has one link per trip and no expiration, password protection,
-analytics, or collaboration.
+Public sharing v1 has one link per trip and no analytics or collaboration.
 
 ## Export v1
 

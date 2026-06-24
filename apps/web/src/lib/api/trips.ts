@@ -3,7 +3,13 @@ import type {
   ItineraryVersionDetail,
   ListItineraryVersionsResponse
 } from "@/types/itinerary-version";
-import type { PublicTrip, TripShareInfo } from "@/types/share";
+import type {
+  PublicShareStatus,
+  PublicShareUnlockResponse,
+  PublicTrip,
+  TripShareInfo,
+  UpdateTripShareRequest
+} from "@/types/share";
 import type { CreateTripInput, Itinerary, Trip, TripsListResponse } from "@/types/trip";
 
 type ListTripsParams = {
@@ -19,6 +25,8 @@ export const tripKeys = {
   detail: (id: string) => [...tripKeys.details(), id] as const,
   share: (id: string) => [...tripKeys.detail(id), "share"] as const,
   publicShare: (shareToken: string) => ["public-trip-share", shareToken] as const,
+  publicShareStatus: (shareToken: string) =>
+    ["public-trip-share", shareToken, "status"] as const,
   itineraryVersions: (tripId: string) => [...tripKeys.detail(tripId), "itinerary-versions"] as const,
   itineraryVersion: (tripId: string, versionId: string) =>
     [...tripKeys.itineraryVersions(tripId), versionId] as const
@@ -114,9 +122,17 @@ export function getTripShare(tripId: string) {
   return apiFetch<TripShareInfo>(`/trips/${tripId}/share`);
 }
 
-export function createTripShare(tripId: string) {
+export function createTripShare(tripId: string, body?: UpdateTripShareRequest) {
   return apiFetch<TripShareInfo>(`/trips/${tripId}/share`, {
-    method: "POST"
+    method: "POST",
+    ...(body ? { body: JSON.stringify(cleanShareSettingsPayload(body)) } : {})
+  });
+}
+
+export function updateTripShare(tripId: string, body: UpdateTripShareRequest) {
+  return apiFetch<TripShareInfo>(`/trips/${tripId}/share`, {
+    method: "PATCH",
+    body: JSON.stringify(cleanShareSettingsPayload(body))
   });
 }
 
@@ -126,8 +142,33 @@ export function disableTripShare(tripId: string) {
   });
 }
 
-export function getPublicTrip(shareToken: string) {
-  return apiFetchPublic<PublicTrip>(`/public/trips/${encodeURIComponent(shareToken)}`);
+export function getPublicShareStatus(shareToken: string) {
+  return apiFetchPublic<PublicShareStatus>(
+    `/public/trips/${encodeURIComponent(shareToken)}/status`
+  );
+}
+
+export function unlockPublicShare(shareToken: string, password: string) {
+  return apiFetchPublic<PublicShareUnlockResponse>(
+    `/public/trips/${encodeURIComponent(shareToken)}/unlock`,
+    {
+      method: "POST",
+      body: JSON.stringify({ password })
+    }
+  );
+}
+
+export function getPublicTrip(shareToken: string, accessToken?: string | null) {
+  return apiFetchPublic<PublicTrip>(
+    `/public/trips/${encodeURIComponent(shareToken)}`,
+    accessToken
+      ? {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
+      : {}
+  );
 }
 
 function cleanCreateTripPayload(input: CreateTripInput) {
@@ -146,4 +187,13 @@ function cleanCreateTripPayload(input: CreateTripInput) {
 function cleanRegenerationPayload(instruction?: string) {
   const trimmed = instruction?.trim() ?? "";
   return trimmed ? { instruction: trimmed } : {};
+}
+
+function cleanShareSettingsPayload(input: UpdateTripShareRequest) {
+  return {
+    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+    ...(input.clearExpiration ? { clearExpiration: true } : {}),
+    ...(input.password ? { password: input.password } : {}),
+    ...(input.clearPassword ? { clearPassword: true } : {})
+  };
 }

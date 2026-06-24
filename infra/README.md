@@ -53,7 +53,12 @@ search is unavailable, and `PLACE_ENRICHMENT_MIN_CONFIDENCE=0.75`,
 Public Trip Sharing v1 is enabled by default with
 `PUBLIC_SHARING_ENABLED=true`, builds owner-facing links from
 `PUBLIC_WEB_BASE_URL=http://localhost:3000`, and creates opaque share tokens
-from `SHARE_TOKEN_BYTES=32` random bytes.
+from `SHARE_TOKEN_BYTES=32` random bytes. Share Controls v1 adds optional link
+expiration and password protection. Protected public links unlock through a
+short-lived public share token signed with
+`PUBLIC_SHARE_ACCESS_SECRET=dev-public-share-secret-change-me` for local
+development and expiring after `PUBLIC_SHARE_ACCESS_TTL_MINUTES=60`. This token
+is separate from Auth Service JWTs and is scoped to one share token.
 
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right
@@ -110,6 +115,10 @@ Trip Service also receives:
 - `PUBLIC_SHARING_ENABLED=true` to enable owner-managed public links.
 - `SHARE_TOKEN_BYTES=32` to keep share tokens cryptographically random and
   base64url encoded.
+- `PUBLIC_SHARE_ACCESS_SECRET=dev-public-share-secret-change-me` for local
+  password-protected share unlock tokens. Change it outside development and keep
+  it different from `JWT_ACCESS_SECRET`.
+- `PUBLIC_SHARE_ACCESS_TTL_MINUTES=60` for public share unlock token lifetime.
 
 Auth Service is exposed directly at `http://localhost:8082` for API testing and
 the web app login/register flow.

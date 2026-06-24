@@ -180,6 +180,7 @@ func (m *mockRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (
 	out := *share
 	out.ID = uuid.New()
 	out.CreatedAt = now
+	out.UpdatedAt = now
 	m.shareByTrip = &out
 	m.shareByToken = &out
 	return &out, nil
@@ -206,9 +207,24 @@ func (m *mockRepo) EnableTripShare(_ context.Context, _, _ uuid.UUID) (*entity.T
 	enabled := *m.shareByTrip
 	enabled.Enabled = true
 	enabled.DisabledAt = nil
+	enabled.UpdatedAt = time.Now()
 	m.shareByTrip = &enabled
 	m.shareByToken = &enabled
 	return &enabled, nil
+}
+
+func (m *mockRepo) UpdateTripShareSettings(_ context.Context, _, _ uuid.UUID, expiresAt *time.Time, passwordRequired bool, passwordHash *string) (*entity.TripShare, error) {
+	if m.shareByTrip == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	updated := *m.shareByTrip
+	updated.ExpiresAt = expiresAt
+	updated.PasswordRequired = passwordRequired
+	updated.PasswordHash = passwordHash
+	updated.UpdatedAt = time.Now()
+	m.shareByTrip = &updated
+	m.shareByToken = &updated
+	return &updated, nil
 }
 
 func (m *mockRepo) DisableTripShare(_ context.Context, _, _ uuid.UUID) (*entity.TripShare, error) {
@@ -219,6 +235,7 @@ func (m *mockRepo) DisableTripShare(_ context.Context, _, _ uuid.UUID) (*entity.
 	disabled := *m.shareByTrip
 	disabled.Enabled = false
 	disabled.DisabledAt = &disabledAt
+	disabled.UpdatedAt = disabledAt
 	m.shareByTrip = &disabled
 	m.shareByToken = &disabled
 	return &disabled, nil

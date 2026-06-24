@@ -115,6 +115,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		cfg.PublicSharing.Enabled,
 		cfg.PublicSharing.PublicWebBaseURL,
 		cfg.PublicSharing.ShareTokenBytes,
+		cfg.PublicSharing.PublicShareAccessSecret,
+		cfg.PublicSharing.PublicShareAccessTTLMinutes,
 	))
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(

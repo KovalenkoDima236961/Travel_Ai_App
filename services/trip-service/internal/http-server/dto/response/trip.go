@@ -68,11 +68,26 @@ type ListItineraryVersions struct {
 
 // TripShareInfo is returned only to the authenticated trip owner.
 type TripShareInfo struct {
-	ShareToken string     `json:"shareToken,omitempty"`
-	ShareURL   string     `json:"shareUrl,omitempty"`
-	Enabled    bool       `json:"enabled"`
-	CreatedAt  *time.Time `json:"createdAt,omitempty"`
-	DisabledAt *time.Time `json:"disabledAt,omitempty"`
+	ShareToken       string     `json:"shareToken,omitempty"`
+	ShareURL         string     `json:"shareUrl,omitempty"`
+	Enabled          bool       `json:"enabled"`
+	CreatedAt        *time.Time `json:"createdAt,omitempty"`
+	UpdatedAt        *time.Time `json:"updatedAt,omitempty"`
+	DisabledAt       *time.Time `json:"disabledAt,omitempty"`
+	ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
+	Expired          bool       `json:"expired"`
+	PasswordRequired bool       `json:"passwordRequired"`
+}
+
+type PublicShareStatus struct {
+	Available        bool `json:"available"`
+	PasswordRequired bool `json:"passwordRequired"`
+	Expired          bool `json:"expired,omitempty"`
+}
+
+type PublicShareUnlockResponse struct {
+	AccessToken string    `json:"accessToken"`
+	ExpiresAt   time.Time `json:"expiresAt"`
 }
 
 // PublicTrip is the sanitized read-only payload for public share links.
@@ -140,11 +155,30 @@ func NewItineraryVersionDetail(v *entity.ItineraryVersion) ItineraryVersionDetai
 // NewTripShareInfo maps owner-only share status to JSON.
 func NewTripShareInfo(info appdto.TripShareInfo) TripShareInfo {
 	return TripShareInfo{
-		ShareToken: info.ShareToken,
-		ShareURL:   info.ShareURL,
-		Enabled:    info.Enabled,
-		CreatedAt:  info.CreatedAt,
-		DisabledAt: info.DisabledAt,
+		ShareToken:       info.ShareToken,
+		ShareURL:         info.ShareURL,
+		Enabled:          info.Enabled,
+		CreatedAt:        info.CreatedAt,
+		UpdatedAt:        info.UpdatedAt,
+		DisabledAt:       info.DisabledAt,
+		ExpiresAt:        info.ExpiresAt,
+		Expired:          info.Expired,
+		PasswordRequired: info.PasswordRequired,
+	}
+}
+
+func NewPublicShareStatus(status appdto.PublicShareStatus) PublicShareStatus {
+	return PublicShareStatus{
+		Available:        status.Available,
+		PasswordRequired: status.PasswordRequired,
+		Expired:          status.Expired,
+	}
+}
+
+func NewPublicShareUnlockResponse(unlock appdto.PublicShareUnlockResponse) PublicShareUnlockResponse {
+	return PublicShareUnlockResponse{
+		AccessToken: unlock.AccessToken,
+		ExpiresAt:   unlock.ExpiresAt,
 	}
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
+import { PublicShareUnlockForm } from "@/components/share/PublicShareUnlockForm";
 import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { ItineraryView } from "@/components/trips/ItineraryView";
@@ -12,7 +13,13 @@ import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Card } from "@/components/ui/Card";
 import { buttonStyles } from "@/components/ui/Button";
-import { getPublicTrip, tripKeys } from "@/lib/api/trips";
+import { ApiError } from "@/lib/api/client";
+import {
+  getPublicShareStatus,
+  getPublicTrip,
+  tripKeys,
+  unlockPublicShare
+} from "@/lib/api/trips";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import {
   toExportDistanceSummary,
@@ -23,6 +30,7 @@ import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import {
   formatBudget,
   formatDate,
+  getErrorMessage,
   formatInterestLabel,
   formatPaceLabel
 } from "@/lib/utils";
@@ -30,13 +38,63 @@ import {
 export default function PublicSharePage() {
   const params = useParams<{ shareToken: string }>();
   const shareToken = params.shareToken;
+  const [publicShareAccessToken, setPublicShareAccessToken] = useState<string | null>(null);
+  const [storedTokenChecked, setStoredTokenChecked] = useState(false);
+  const [unlockLoading, setUnlockLoading] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
-  const publicTripQuery = useQuery({
-    queryKey: tripKeys.publicShare(shareToken),
-    queryFn: () => getPublicTrip(shareToken),
+  const publicShareStatusQuery = useQuery({
+    queryKey: tripKeys.publicShareStatus(shareToken),
+    queryFn: () => getPublicShareStatus(shareToken),
     enabled: Boolean(shareToken),
     retry: false
   });
+  const status = publicShareStatusQuery.data ?? null;
+  const shouldFetchTrip =
+    Boolean(shareToken) &&
+    Boolean(status?.available) &&
+    (!status?.passwordRequired || Boolean(publicShareAccessToken));
+  const publicTripQuery = useQuery({
+    queryKey: [...tripKeys.publicShare(shareToken), publicShareAccessToken ?? "anonymous"],
+    queryFn: () => getPublicTrip(shareToken, publicShareAccessToken),
+    enabled: shouldFetchTrip,
+    retry: false
+  });
+
+  useEffect(() => {
+    setStoredTokenChecked(false);
+    setPublicShareAccessToken(null);
+    setUnlockError(null);
+
+    if (!shareToken || typeof window === "undefined") {
+      setStoredTokenChecked(true);
+      return;
+    }
+
+    const token = sessionStorage.getItem(publicShareTokenKey(shareToken));
+    const expiresAt = sessionStorage.getItem(publicShareTokenExpiryKey(shareToken));
+    if (token && expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+      clearStoredPublicShareToken(shareToken);
+      setStoredTokenChecked(true);
+      return;
+    }
+    setPublicShareAccessToken(token);
+    setStoredTokenChecked(true);
+  }, [shareToken]);
+
+  useEffect(() => {
+    if (
+      publicTripQuery.isError &&
+      publicTripQuery.error instanceof ApiError &&
+      publicTripQuery.error.status === 401 &&
+      status?.passwordRequired
+    ) {
+      clearStoredPublicShareToken(shareToken);
+      setPublicShareAccessToken(null);
+      setUnlockError(null);
+    }
+  }, [publicTripQuery.error, publicTripQuery.isError, shareToken, status?.passwordRequired]);
+
   const sharedTrip = publicTripQuery.data ?? null;
   const weatherParams = {
     destination: sharedTrip?.destination ?? "",
@@ -69,7 +127,28 @@ export default function PublicSharePage() {
     [publicDistanceSummaries, publicWeatherForecastQuery.data, sharedTrip]
   );
 
-  if (publicTripQuery.isPending) {
+  async function handleUnlock(password: string) {
+    setUnlockLoading(true);
+    setUnlockError(null);
+    try {
+      const unlocked = await unlockPublicShare(shareToken, password);
+      sessionStorage.setItem(publicShareTokenKey(shareToken), unlocked.accessToken);
+      sessionStorage.setItem(publicShareTokenExpiryKey(shareToken), unlocked.expiresAt);
+      setPublicShareAccessToken(unlocked.accessToken);
+    } catch (error) {
+      clearStoredPublicShareToken(shareToken);
+      setPublicShareAccessToken(null);
+      setUnlockError(getErrorMessage(error, "Invalid password."));
+    } finally {
+      setUnlockLoading(false);
+    }
+  }
+
+  if (
+    publicShareStatusQuery.isPending ||
+    (status?.passwordRequired && !storedTokenChecked) ||
+    (shouldFetchTrip && publicTripQuery.isPending)
+  ) {
     return (
       <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
@@ -79,13 +158,52 @@ export default function PublicSharePage() {
     );
   }
 
-  if (publicTripQuery.isError) {
+  if (publicShareStatusQuery.isError) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
           <h1 className="text-xl font-semibold text-amber-950">Shared trip unavailable</h1>
           <p className="mt-2 text-sm leading-6 text-amber-900">
-            This shared trip is unavailable or the link has been disabled.
+            This shared trip is unavailable, expired, or disabled.
+          </p>
+          <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/">
+            Go to home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (status?.passwordRequired && !publicShareAccessToken) {
+    return (
+      <PublicShareUnlockForm
+        error={unlockError}
+        loading={unlockLoading}
+        onUnlock={handleUnlock}
+      />
+    );
+  }
+
+  if (publicTripQuery.isError || !publicTripQuery.data) {
+    if (
+      status?.passwordRequired &&
+      publicTripQuery.error instanceof ApiError &&
+      publicTripQuery.error.status === 401
+    ) {
+      return (
+        <PublicShareUnlockForm
+          error={unlockError}
+          loading={unlockLoading}
+          onUnlock={handleUnlock}
+        />
+      );
+    }
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
+          <h1 className="text-xl font-semibold text-amber-950">Shared trip unavailable</h1>
+          <p className="mt-2 text-sm leading-6 text-amber-900">
+            This shared trip is unavailable, expired, or disabled.
           </p>
           <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/">
             Go to home
@@ -184,6 +302,22 @@ export default function PublicSharePage() {
       </div>
     </div>
   );
+}
+
+function publicShareTokenKey(shareToken: string) {
+  return `public-share-access-token:${shareToken}`;
+}
+
+function publicShareTokenExpiryKey(shareToken: string) {
+  return `public-share-access-token-exp:${shareToken}`;
+}
+
+function clearStoredPublicShareToken(shareToken: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.removeItem(publicShareTokenKey(shareToken));
+  sessionStorage.removeItem(publicShareTokenExpiryKey(shareToken));
 }
 
 type DetailRowProps = {

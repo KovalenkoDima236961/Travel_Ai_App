@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
@@ -75,6 +76,7 @@ type tripRepository interface {
 	GetTripShareByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
 	GetTripShareByToken(ctx context.Context, shareToken string) (*entity.TripShare, error)
 	EnableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
+	UpdateTripShareSettings(ctx context.Context, tripID, userID uuid.UUID, expiresAt *time.Time, passwordRequired bool, passwordHash *string) (*entity.TripShare, error)
 	DisableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
 }
 
@@ -125,13 +127,23 @@ func WithPlaceEnrichment(provider placeEnrichmentProvider, enabled, failOpen boo
 }
 
 // WithPublicSharing configures owner-managed public read-only trip links.
-func WithPublicSharing(enabled bool, publicWebBaseURL string, shareTokenBytes int) Option {
+func WithPublicSharing(
+	enabled bool,
+	publicWebBaseURL string,
+	shareTokenBytes int,
+	publicShareAccessSecret string,
+	publicShareAccessTTLMinutes int,
+) Option {
 	return func(s *Service) {
 		s.publicSharingEnabled = enabled
 		s.publicWebBaseURL = strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/")
 		if shareTokenBytes >= 32 {
 			s.shareTokenBytes = shareTokenBytes
 		}
+		s.publicShareTokens = sharing.NewPublicShareTokenManager(
+			publicShareAccessSecret,
+			time.Duration(publicShareAccessTTLMinutes)*time.Minute,
+		)
 	}
 }
 
@@ -152,6 +164,7 @@ type Service struct {
 	publicSharingEnabled    bool
 	publicWebBaseURL        string
 	shareTokenBytes         int
+	publicShareTokens       *sharing.PublicShareTokenManager
 	log                     *zap.Logger
 }
 
@@ -163,6 +176,7 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		publicSharingEnabled: true,
 		publicWebBaseURL:     "http://localhost:3000",
 		shareTokenBytes:      32,
+		publicShareTokens:    sharing.NewPublicShareTokenManager("dev-public-share-secret-change-me", time.Hour),
 		log:                  log,
 	}
 	for _, opt := range opts {

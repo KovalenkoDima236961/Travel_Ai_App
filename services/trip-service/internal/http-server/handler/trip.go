@@ -41,6 +41,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}", h.Get)
 		r.Get("/{id}/share", h.GetShare)
 		r.Post("/{id}/share", h.CreateShare)
+		r.Patch("/{id}/share", h.UpdateShare)
 		r.Delete("/{id}/share", h.DisableShare)
 		r.Post("/{id}/generate", h.Generate)
 		r.Put("/{id}/itinerary", h.UpdateItinerary)
@@ -54,6 +55,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 
 // RegisterPublicRoutes mounts unauthenticated read-only public routes.
 func (h *Handler) RegisterPublicRoutes(r chi.Router) {
+	r.Get("/public/trips/{shareToken}/status", h.GetPublicShareStatus)
+	r.Post("/public/trips/{shareToken}/unlock", h.UnlockPublicShare)
 	r.Get("/public/trips/{shareToken}", h.GetPublicTrip)
 }
 
@@ -139,7 +142,35 @@ func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	share, err := h.svc.CreateOrEnableTripShare(r.Context(), id)
+	var req request.CreateTripShare
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	share, err := h.svc.CreateOrEnableTripShare(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewTripShareInfo(share))
+}
+
+// UpdateShare handles PATCH /trips/{id}/share.
+func (h *Handler) UpdateShare(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	var req request.UpdateTripShareSettings
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	share, err := h.svc.UpdateTripShareSettings(r.Context(), id, req.ToInput())
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -166,8 +197,30 @@ func (h *Handler) DisableShare(w http.ResponseWriter, r *http.Request) {
 // GetPublicTrip handles GET /public/trips/{shareToken}.
 func (h *Handler) GetPublicTrip(w http.ResponseWriter, r *http.Request) {
 	shareToken := strings.TrimSpace(chi.URLParam(r, "shareToken"))
+	shareAccessToken, _ := bearerToken(r.Header.Get("Authorization"))
 
-	t, share, err := h.svc.GetPublicTripByShareToken(r.Context(), shareToken)
+	t, share, err := h.svc.GetPublicTripByShareToken(r.Context(), shareToken, shareAccessToken)
+	if err != nil {
+		if errors.Is(err, domainerrs.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "shared trip not found")
+			return
+		}
+		if errors.Is(err, service.ErrSharePasswordRequired) {
+			writeError(w, http.StatusUnauthorized, "share password required")
+			return
+		}
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewPublicTrip(t, share.CreatedAt))
+}
+
+// GetPublicShareStatus handles GET /public/trips/{shareToken}/status.
+func (h *Handler) GetPublicShareStatus(w http.ResponseWriter, r *http.Request) {
+	shareToken := strings.TrimSpace(chi.URLParam(r, "shareToken"))
+
+	status, err := h.svc.GetPublicTripShareStatus(r.Context(), shareToken)
 	if err != nil {
 		if errors.Is(err, domainerrs.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "shared trip not found")
@@ -177,7 +230,34 @@ func (h *Handler) GetPublicTrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, response.NewPublicTrip(t, share.CreatedAt))
+	writeJSON(w, http.StatusOK, response.NewPublicShareStatus(status))
+}
+
+// UnlockPublicShare handles POST /public/trips/{shareToken}/unlock.
+func (h *Handler) UnlockPublicShare(w http.ResponseWriter, r *http.Request) {
+	shareToken := strings.TrimSpace(chi.URLParam(r, "shareToken"))
+
+	var req request.PublicShareUnlock
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// TODO: add per-share rate limiting before enabling password protection in production.
+	unlock, err := h.svc.UnlockPublicTripShare(r.Context(), shareToken, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, domainerrs.ErrNotFound):
+			writeError(w, http.StatusNotFound, "shared trip not found")
+		case errors.Is(err, service.ErrInvalidSharePassword):
+			writeError(w, http.StatusUnauthorized, "invalid password")
+		default:
+			h.writeServiceError(w, err)
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewPublicShareUnlockResponse(unlock))
 }
 
 // Generate handles POST /trips/{id}/generate.
@@ -383,6 +463,16 @@ func parseQueryInt(w http.ResponseWriter, r *http.Request, key string) (int, boo
 		return 0, false
 	}
 	return v, true
+}
+
+func bearerToken(header string) (string, bool) {
+	const prefix = "bearer "
+	value := strings.TrimSpace(header)
+	if len(value) <= len(prefix) || strings.ToLower(value[:len(prefix)]) != prefix {
+		return "", false
+	}
+	token := strings.TrimSpace(value[len(prefix):])
+	return token, token != ""
 }
 
 func (h *Handler) writeValidationError(w http.ResponseWriter, err error) {

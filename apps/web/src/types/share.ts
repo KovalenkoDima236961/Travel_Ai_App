@@ -5,7 +5,29 @@ export type TripShareInfo = {
   shareUrl?: string | null;
   enabled: boolean;
   createdAt?: string | null;
+  updatedAt?: string | null;
   disabledAt?: string | null;
+  expiresAt?: string | null;
+  expired?: boolean;
+  passwordRequired: boolean;
+};
+
+export type UpdateTripShareRequest = {
+  expiresAt?: string | null;
+  clearExpiration?: boolean;
+  password?: string;
+  clearPassword?: boolean;
+};
+
+export type PublicShareStatus = {
+  available: boolean;
+  passwordRequired: boolean;
+  expired?: boolean;
+};
+
+export type PublicShareUnlockResponse = {
+  accessToken: string;
+  expiresAt: string;
 };
 
 export type PublicTrip = {

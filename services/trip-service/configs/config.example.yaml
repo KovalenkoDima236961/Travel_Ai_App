@@ -62,3 +62,5 @@ public_sharing:
   enabled: true
   public_web_base_url: http://localhost:3000
   share_token_bytes: 32
+  public_share_access_secret: dev-public-share-secret-change-me
+  public_share_access_ttl_minutes: 60

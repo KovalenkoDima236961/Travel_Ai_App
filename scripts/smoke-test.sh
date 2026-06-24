@@ -439,15 +439,20 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
 
-echo "Creating public read-only share link..."
-request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}"
+echo "Creating password-protected public share link..."
+FUTURE_EXPIRES_AT="$(python3 -c 'from datetime import datetime, timezone, timedelta; print((datetime.now(timezone.utc) + timedelta(days=7)).isoformat().replace("+00:00", "Z"))')"
+SHARE_PASSWORD="ShareSecret123"
+CREATE_SHARE_PAYLOAD="$(jq -nc --arg expiresAt "${FUTURE_EXPIRES_AT}" --arg password "${SHARE_PASSWORD}" '{expiresAt:$expiresAt,password:$password}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}" "${CREATE_SHARE_PAYLOAD}"
 assert_2xx "Create trip share"
 
 SHARE_TOKEN="$(jq -r '.shareToken // empty' <<<"${LAST_BODY}")"
 SHARE_URL="$(jq -r '.shareUrl // empty' <<<"${LAST_BODY}")"
 SHARE_ENABLED="$(jq -r '.enabled // false' <<<"${LAST_BODY}")"
-if [[ -z "${SHARE_TOKEN}" || "${#SHARE_TOKEN}" -lt 43 || "${SHARE_ENABLED}" != "true" ]]; then
-  echo "Share response did not include an enabled secure token." >&2
+SHARE_PASSWORD_REQUIRED="$(jq -r '.passwordRequired // false' <<<"${LAST_BODY}")"
+SHARE_EXPIRES_AT="$(jq -r '.expiresAt // empty' <<<"${LAST_BODY}")"
+if [[ -z "${SHARE_TOKEN}" || "${#SHARE_TOKEN}" -lt 43 || "${SHARE_ENABLED}" != "true" || "${SHARE_PASSWORD_REQUIRED}" != "true" || -z "${SHARE_EXPIRES_AT}" ]]; then
+  echo "Share response did not include an enabled protected token with expiration." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
@@ -456,9 +461,46 @@ if [[ -z "${SHARE_URL}" ]]; then
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+if jq -e 'has("passwordHash")' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Share response exposed passwordHash." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
-echo "Fetching public shared trip without Authorization..."
+echo "Checking public share status requires a password..."
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/status"
+assert_2xx "Public share status"
+
+STATUS_PASSWORD_REQUIRED="$(jq -r '.passwordRequired // false' <<<"${LAST_BODY}")"
+if [[ "${STATUS_PASSWORD_REQUIRED}" != "true" ]]; then
+  echo "Public share status did not report passwordRequired=true." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Confirming protected public share requires unlock..."
 request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}"
+assert_status "Protected public shared trip without token" "401"
+
+echo "Checking wrong public share password is rejected..."
+request POST "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/unlock" '{"password":"wrong-password"}'
+assert_status "Wrong public share password" "401"
+
+echo "Unlocking public share with correct password..."
+UNLOCK_PAYLOAD="$(jq -nc --arg password "${SHARE_PASSWORD}" '{password:$password}')"
+request POST "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/unlock" "${UNLOCK_PAYLOAD}"
+assert_2xx "Unlock public share"
+
+PUBLIC_SHARE_ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
+PUBLIC_SHARE_ACCESS_EXPIRES_AT="$(jq -r '.expiresAt // empty' <<<"${LAST_BODY}")"
+if [[ -z "${PUBLIC_SHARE_ACCESS_TOKEN}" || -z "${PUBLIC_SHARE_ACCESS_EXPIRES_AT}" ]]; then
+  echo "Unlock response did not include public share access token and expiry." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching unlocked public shared trip..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_2xx "Fetch public shared trip"
 
 PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${LAST_BODY}")"
@@ -474,11 +516,36 @@ if jq -e 'has("userId") or has("email") or has("versionHistory")' >/dev/null <<<
   exit 1
 fi
 
+echo "Clearing public share password and expiration..."
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}" '{"clearPassword":true,"clearExpiration":true}'
+assert_2xx "Clear public share password"
+
+CLEARED_PASSWORD_REQUIRED="$(jq -r '.passwordRequired // true' <<<"${LAST_BODY}")"
+CLEARED_EXPIRES_AT="$(jq -r '.expiresAt // empty' <<<"${LAST_BODY}")"
+if [[ "${CLEARED_PASSWORD_REQUIRED}" != "false" || -n "${CLEARED_EXPIRES_AT}" ]]; then
+  echo "Share settings were not cleared." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching public shared trip after password removal..."
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}"
+assert_2xx "Fetch public shared trip after password removal"
+
+echo "Confirming past share expiration is rejected..."
+PAST_EXPIRES_AT="$(python3 -c 'from datetime import datetime, timezone, timedelta; print((datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat().replace("+00:00", "Z"))')"
+PAST_EXPIRATION_PAYLOAD="$(jq -nc --arg expiresAt "${PAST_EXPIRES_AT}" '{expiresAt:$expiresAt}')"
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}" "${PAST_EXPIRATION_PAYLOAD}"
+assert_status "Past public share expiration" "400"
+
 echo "Disabling public share link..."
 request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}"
 assert_2xx "Disable trip share"
 
-echo "Confirming disabled public share returns 404..."
+echo "Confirming disabled public share status and trip return 404..."
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/status"
+assert_status "Disabled public shared trip status" "404"
+
 request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}"
 assert_status "Disabled public shared trip" "404"
 

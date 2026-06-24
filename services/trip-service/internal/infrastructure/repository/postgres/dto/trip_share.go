@@ -14,11 +14,19 @@ import (
 )
 
 // TripShareColumns is the canonical column order for trip_shares.
-const TripShareColumns = "id, trip_id, user_id, share_token, enabled, created_at, disabled_at"
+const TripShareColumns = "id, trip_id, user_id, share_token, enabled, expires_at, password_hash, password_required, created_at, updated_at, disabled_at"
 
 // TripShareInsertColumns returns the non-default columns set on INSERT.
 func TripShareInsertColumns() []string {
-	return []string{"trip_id", "user_id", "share_token", "enabled"}
+	return []string{
+		"trip_id",
+		"user_id",
+		"share_token",
+		"enabled",
+		"expires_at",
+		"password_hash",
+		"password_required",
+	}
 }
 
 // TripShareInsertValues returns values matching TripShareInsertColumns.
@@ -28,6 +36,9 @@ func TripShareInsertValues(s *entity.TripShare) []any {
 		toPgUUID(s.UserID),
 		s.ShareToken,
 		s.Enabled,
+		s.ExpiresAt,
+		s.PasswordHash,
+		s.PasswordRequired,
 	}
 }
 
@@ -37,7 +48,11 @@ func ScanTripShare(row pgx.Row) (*entity.TripShare, error) {
 		id, tripID, userID pgtype.UUID
 		shareToken         string
 		enabled            bool
+		expiresAt          pgtype.Timestamp
+		passwordHash       *string
+		passwordRequired   bool
 		createdAt          pgtype.Timestamp
+		updatedAt          pgtype.Timestamp
 		disabledAt         pgtype.Timestamp
 	)
 
@@ -47,7 +62,11 @@ func ScanTripShare(row pgx.Row) (*entity.TripShare, error) {
 		&userID,
 		&shareToken,
 		&enabled,
+		&expiresAt,
+		&passwordHash,
+		&passwordRequired,
 		&createdAt,
+		&updatedAt,
 		&disabledAt,
 	)
 	if err != nil {
@@ -58,13 +77,17 @@ func ScanTripShare(row pgx.Row) (*entity.TripShare, error) {
 	}
 
 	return &entity.TripShare{
-		ID:         uuid.UUID(id.Bytes),
-		TripID:     uuid.UUID(tripID.Bytes),
-		UserID:     uuid.UUID(userID.Bytes),
-		ShareToken: shareToken,
-		Enabled:    enabled,
-		CreatedAt:  createdAt.Time,
-		DisabledAt: fromPgTimestamp(disabledAt),
+		ID:               uuid.UUID(id.Bytes),
+		TripID:           uuid.UUID(tripID.Bytes),
+		UserID:           uuid.UUID(userID.Bytes),
+		ShareToken:       shareToken,
+		Enabled:          enabled,
+		ExpiresAt:        fromPgTimestamp(expiresAt),
+		PasswordHash:     passwordHash,
+		PasswordRequired: passwordRequired,
+		CreatedAt:        createdAt.Time,
+		UpdatedAt:        updatedAt.Time,
+		DisabledAt:       fromPgTimestamp(disabledAt),
 	}, nil
 }
 

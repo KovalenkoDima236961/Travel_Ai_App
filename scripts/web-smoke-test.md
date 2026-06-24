@@ -119,14 +119,21 @@ http://localhost:3000
 1. Log in and open a completed trip.
 2. Click `Create share link` in the `Share itinerary` panel.
 3. Confirm a public link appears.
-4. Click `Copy link`.
-5. Open the copied `/share/{shareToken}` link in an incognito/private browser.
-6. Confirm the itinerary is visible without logging in.
-7. Confirm map, place details, distance estimates, and weather context render when the trip has the needed data.
-8. Confirm edit, regenerate, place-review, and version-history controls are not visible.
-9. Return to the owner tab and click `Disable link`.
-10. Refresh the public link.
-11. Confirm `This shared trip is unavailable or the link has been disabled.` appears.
+4. Set expiration to `7 days`.
+5. Enable `Require password`, enter and confirm a password with at least 6 characters, then save settings.
+6. Click `Copy link`.
+7. Open the copied `/share/{shareToken}` link in an incognito/private browser.
+8. Confirm the password form appears.
+9. Enter a wrong password and confirm a generic error appears.
+10. Enter the correct password and confirm the itinerary is visible without logging in.
+11. Confirm map, place details, distance estimates, and weather context render when the trip has the needed data.
+12. Download PDF and `.ics` from the unlocked public page.
+13. Confirm edit, regenerate, place-review, and version-history controls are not visible.
+14. Return to the owner tab, remove the password, and save settings.
+15. Refresh the public link and confirm the trip loads without a password.
+16. Return to the owner tab and click `Disable link`.
+17. Refresh the public link.
+18. Confirm `This shared trip is unavailable, expired, or disabled.` appears.
 
 ## Export v1
 
@@ -142,9 +149,10 @@ http://localhost:3000
 8. Confirm untimed itinerary items are skipped in the `.ics` file.
 9. Create a public share link.
 10. Open the `/share/{shareToken}` link in an incognito/private browser.
-11. Download the PDF and `.ics` from the public page without logging in.
-12. Confirm the public export works without auth.
-13. Confirm the public page and exports do not show edit, regenerate,
+11. If the link is password protected, unlock it first.
+12. Download the PDF and `.ics` from the public page without logging in.
+13. Confirm the public export works after unlock.
+14. Confirm the public page and exports do not show edit, regenerate,
     place-review, version-history controls, user email, user ID, preferences,
     tokens, or private/internal metadata.
 

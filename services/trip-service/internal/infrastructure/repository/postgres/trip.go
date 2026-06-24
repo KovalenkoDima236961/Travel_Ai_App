@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -332,6 +333,7 @@ func (r *Repository) EnableTripShare(ctx context.Context, tripID, userID uuid.UU
 		Update("trip_shares").
 		Set("enabled", true).
 		Set("disabled_at", nil).
+		Set("updated_at", sq.Expr("NOW()")).
 		Where(sq.Eq{
 			"trip_id": dto.IDArg(tripID),
 			"user_id": dto.IDArg(userID),
@@ -345,12 +347,41 @@ func (r *Repository) EnableTripShare(ctx context.Context, tripID, userID uuid.UU
 	return dto.ScanTripShare(r.db.QueryRow(ctx, query, args...))
 }
 
+// UpdateTripShareSettings updates owner-controlled share settings without
+// rotating the existing token.
+func (r *Repository) UpdateTripShareSettings(
+	ctx context.Context,
+	tripID, userID uuid.UUID,
+	expiresAt *time.Time,
+	passwordRequired bool,
+	passwordHash *string,
+) (*entity.TripShare, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_shares").
+		Set("expires_at", expiresAt).
+		Set("password_required", passwordRequired).
+		Set("password_hash", passwordHash).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"user_id": dto.IDArg(userID),
+		}).
+		Suffix("RETURNING " + dto.TripShareColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build update trip share settings: %w", err)
+	}
+
+	return dto.ScanTripShare(r.db.QueryRow(ctx, query, args...))
+}
+
 // DisableTripShare disables an existing share row for an owned trip.
 func (r *Repository) DisableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error) {
 	query, args, err := r.db.Builder.
 		Update("trip_shares").
 		Set("enabled", false).
 		Set("disabled_at", sq.Expr("NOW()")).
+		Set("updated_at", sq.Expr("NOW()")).
 		Where(sq.Eq{
 			"trip_id": dto.IDArg(tripID),
 			"user_id": dto.IDArg(userID),

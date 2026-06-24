@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,10 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
-const testJWTSecret = "test-secret"
+const (
+	testJWTSecret         = "test-secret"
+	testPublicShareSecret = "test-public-share-secret"
+)
 
 func TestProtectedTripRoutesRequireValidBearerToken(t *testing.T) {
 	router, _ := newAuthTestRouter(t, config.AuthConfig{
@@ -185,6 +189,8 @@ func TestShareRoutesRequireValidBearerToken(t *testing.T) {
 		{name: "get invalid token", method: http.MethodGet, path: "/trips/" + tripID + "/share", token: "Bearer invalid-token"},
 		{name: "create missing token", method: http.MethodPost, path: "/trips/" + tripID + "/share"},
 		{name: "create invalid token", method: http.MethodPost, path: "/trips/" + tripID + "/share", token: "Bearer invalid-token"},
+		{name: "patch missing token", method: http.MethodPatch, path: "/trips/" + tripID + "/share"},
+		{name: "patch invalid token", method: http.MethodPatch, path: "/trips/" + tripID + "/share", token: "Bearer invalid-token"},
 		{name: "delete missing token", method: http.MethodDelete, path: "/trips/" + tripID + "/share"},
 		{name: "delete invalid token", method: http.MethodDelete, path: "/trips/" + tripID + "/share", token: "Bearer invalid-token"},
 	} {
@@ -396,6 +402,268 @@ func TestPublicTripSharingOwnerFlowAndSanitizedPublicResponse(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected unknown public share HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPasswordProtectedShareUnlockFlowAndOldTokensAreBlocked(t *testing.T) {
+	router, repo := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	otherID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	otherToken := signAccessToken(t, otherID, "other@example.com", testJWTSecret, time.Hour)
+	tripID := createCompletedTripForRouteTest(t, router, ownerToken)
+	expiresAt := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
+
+	rec := httptest.NewRecorder()
+	body := `{"expiresAt":"` + expiresAt + `","password":"secret123"}`
+	req := httptest.NewRequest(http.MethodPost, "/trips/"+tripID+"/share", bytes.NewReader([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected protected share create HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var share struct {
+		ShareToken       string  `json:"shareToken"`
+		ShareURL         string  `json:"shareUrl"`
+		Enabled          bool    `json:"enabled"`
+		ExpiresAt        *string `json:"expiresAt"`
+		Expired          bool    `json:"expired"`
+		PasswordRequired bool    `json:"passwordRequired"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &share); err != nil {
+		t.Fatalf("decode protected share: %v", err)
+	}
+	if !share.Enabled || share.ShareToken == "" || share.ShareURL == "" || share.ExpiresAt == nil || share.Expired || !share.PasswordRequired {
+		t.Fatalf("expected enabled password-protected expiring share, got %+v", share)
+	}
+	var rawShare map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &rawShare); err != nil {
+		t.Fatalf("decode raw protected share: %v", err)
+	}
+	if _, ok := rawShare["passwordHash"]; ok {
+		t.Fatalf("share API must not expose passwordHash: %+v", rawShare)
+	}
+	stored := repo.sharesByToken[share.ShareToken]
+	if stored.PasswordHash == nil || *stored.PasswordHash == "secret123" || !stored.PasswordRequired {
+		t.Fatalf("expected stored bcrypt password hash, got %+v", stored)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken+"/status", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected protected status HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		Available        bool `json:"available"`
+		PasswordRequired bool `json:"passwordRequired"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode status: %v", err)
+	}
+	if !status.Available || !status.PasswordRequired {
+		t.Fatalf("expected password-required status, got %+v", status)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected protected public trip without token HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	wrongShareTokenAccess := signPublicShareAccessToken(t, "different-token", time.Hour)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	req.Header.Set("Authorization", "Bearer "+wrongShareTokenAccess)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected different-share token HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	expiredAccess := signPublicShareAccessToken(t, share.ShareToken, -time.Minute)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	req.Header.Set("Authorization", "Bearer "+expiredAccess)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected expired public token HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/public/trips/"+share.ShareToken+"/unlock", bytes.NewReader([]byte(`{"password":"wrong-password"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected wrong password HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/public/trips/"+share.ShareToken+"/unlock", bytes.NewReader([]byte(`{"password":"secret123"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected unlock HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var unlock struct {
+		AccessToken string `json:"accessToken"`
+		ExpiresAt   string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &unlock); err != nil {
+		t.Fatalf("decode unlock: %v", err)
+	}
+	if unlock.AccessToken == "" || unlock.ExpiresAt == "" {
+		t.Fatalf("expected unlock token and expiry, got %+v", unlock)
+	}
+	claims := decodeJWTPayload(t, unlock.AccessToken)
+	if claims["typ"] != "public_share" || claims["shareToken"] != share.ShareToken {
+		t.Fatalf("unexpected public share token claims: %+v", claims)
+	}
+	if _, ok := claims["sub"]; ok {
+		t.Fatalf("public share token must not include sub: %+v", claims)
+	}
+	if _, ok := claims["email"]; ok {
+		t.Fatalf("public share token must not include email: %+v", claims)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	req.Header.Set("Authorization", "Bearer "+unlock.AccessToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected unlocked public trip HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+tripID, nil)
+	req.Header.Set("Authorization", "Bearer "+unlock.AccessToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected public share token to fail private route with HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/trips/"+tripID+"/share", bytes.NewReader([]byte(`{"clearPassword":true}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+otherToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected non-owner patch HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/trips/"+tripID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected disable HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	req.Header.Set("Authorization", "Bearer "+unlock.AccessToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected disabled share to block old token with HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestShareSettingsPatchClearAndExpirationRules(t *testing.T) {
+	router, repo := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	tripID := createCompletedTripForRouteTest(t, router, ownerToken)
+	expiresAt := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips/"+tripID+"/share", bytes.NewReader([]byte(`{"expiresAt":"`+expiresAt+`","password":"secret123"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected share create HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var share struct {
+		ShareToken string `json:"shareToken"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &share); err != nil {
+		t.Fatalf("decode share: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/trips/"+tripID+"/share", bytes.NewReader([]byte(`{"clearPassword":true,"clearExpiration":true}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected clear settings HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var cleared struct {
+		ExpiresAt        *string `json:"expiresAt"`
+		PasswordRequired bool    `json:"passwordRequired"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &cleared); err != nil {
+		t.Fatalf("decode cleared settings: %v", err)
+	}
+	if cleared.ExpiresAt != nil || cleared.PasswordRequired {
+		t.Fatalf("expected cleared expiration and password, got %+v", cleared)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected cleared password public trip HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/trips/"+tripID+"/share", bytes.NewReader([]byte(`{"expiresAt":"`+past+`"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected past expiration HTTP 400, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/trips/"+tripID+"/share", bytes.NewReader([]byte(`{"password":"secret456","clearPassword":true}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected password conflict HTTP 400, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	shareRow := repo.sharesByToken[share.ShareToken]
+	shareRow.ExpiresAt = timePtr(time.Now().UTC().Add(-time.Minute))
+	shareRow.UpdatedAt = time.Now().UTC()
+	repo.sharesByToken[shareRow.ShareToken] = shareRow
+	repo.sharesByTrip[shareRow.TripID] = shareRow
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken+"/status", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected expired share status HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected expired public trip HTTP 404, got %d with %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -925,7 +1193,12 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 		sharesByToken: map[string]entity.TripShare{},
 	}
 	gen := routeTestGenerator{}
-	svc := service.New(repo, gen, zap.NewNop())
+	svc := service.New(
+		repo,
+		gen,
+		zap.NewNop(),
+		service.WithPublicSharing(true, "http://localhost:3000", 32, testPublicShareSecret, 60),
+	)
 	validator, err := validation.NewValidator()
 	if err != nil {
 		t.Fatalf("init validator: %v", err)
@@ -1064,6 +1337,7 @@ func (r *routeTestRepo) CreateTripShare(_ context.Context, share *entity.TripSha
 	out := *share
 	out.ID = uuid.New()
 	out.CreatedAt = now
+	out.UpdatedAt = now
 	r.sharesByTrip[out.TripID] = out
 	r.sharesByToken[out.ShareToken] = out
 	return &out, nil
@@ -1092,6 +1366,21 @@ func (r *routeTestRepo) EnableTripShare(_ context.Context, tripID, userID uuid.U
 	}
 	share.Enabled = true
 	share.DisabledAt = nil
+	share.UpdatedAt = time.Now().UTC()
+	r.sharesByTrip[tripID] = share
+	r.sharesByToken[share.ShareToken] = share
+	return &share, nil
+}
+
+func (r *routeTestRepo) UpdateTripShareSettings(_ context.Context, tripID, userID uuid.UUID, expiresAt *time.Time, passwordRequired bool, passwordHash *string) (*entity.TripShare, error) {
+	share, ok := r.sharesByTrip[tripID]
+	if !ok || share.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	share.ExpiresAt = expiresAt
+	share.PasswordRequired = passwordRequired
+	share.PasswordHash = passwordHash
+	share.UpdatedAt = time.Now().UTC()
 	r.sharesByTrip[tripID] = share
 	r.sharesByToken[share.ShareToken] = share
 	return &share, nil
@@ -1105,6 +1394,7 @@ func (r *routeTestRepo) DisableTripShare(_ context.Context, tripID, userID uuid.
 	now := time.Now().UTC()
 	share.Enabled = false
 	share.DisabledAt = &now
+	share.UpdatedAt = now
 	r.sharesByTrip[tripID] = share
 	r.sharesByToken[share.ShareToken] = share
 	return &share, nil
@@ -1207,4 +1497,79 @@ func signAccessToken(t *testing.T, userID uuid.UUID, email, secret string, ttl t
 	_, _ = mac.Write([]byte(header + "." + payload))
 	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	return header + "." + payload + "." + signature
+}
+
+func createCompletedTripForRouteTest(t *testing.T, router http.Handler, ownerToken string) string {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips", bytes.NewReader([]byte(validCreateTripJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create trip HTTP 201, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create trip: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected update itinerary HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	return created.ID
+}
+
+func signPublicShareAccessToken(t *testing.T, shareToken string, ttl time.Duration) string {
+	t.Helper()
+
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+	now := time.Now().UTC()
+	payloadBytes, err := json.Marshal(map[string]any{
+		"typ":        "public_share",
+		"shareToken": shareToken,
+		"aud":        "public-trip-share",
+		"iss":        "trip-service",
+		"iat":        now.Unix(),
+		"exp":        now.Add(ttl).Unix(),
+	})
+	if err != nil {
+		t.Fatalf("marshal public share token payload: %v", err)
+	}
+	payload := base64.RawURLEncoding.EncodeToString(payloadBytes)
+
+	mac := hmac.New(sha256.New, []byte(testPublicShareSecret))
+	_, _ = mac.Write([]byte(header + "." + payload))
+	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return header + "." + payload + "." + signature
+}
+
+func decodeJWTPayload(t *testing.T, token string) map[string]any {
+	t.Helper()
+
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		t.Fatalf("expected JWT with 3 segments, got %q", token)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("decode JWT payload: %v", err)
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		t.Fatalf("unmarshal JWT payload: %v", err)
+	}
+	return claims
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
 }

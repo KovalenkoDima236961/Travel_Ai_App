@@ -2,6 +2,7 @@ package request
 
 import (
 	"encoding/json"
+	"time"
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 )
@@ -52,4 +53,40 @@ type RegenerateItineraryPart struct {
 // ToInput maps the transport request to the application-level input.
 func (r RegenerateItineraryPart) ToInput() appdto.RegenerateItineraryPartInput {
 	return appdto.RegenerateItineraryPartInput{Instruction: r.Instruction}
+}
+
+// CreateTripShare is the optional JSON body accepted by POST /trips/{id}/share.
+type CreateTripShare struct {
+	ExpiresAt *time.Time `json:"expiresAt"`
+	Password  string     `json:"password"`
+}
+
+func (r CreateTripShare) ToInput() appdto.CreateTripShareInput {
+	return appdto.CreateTripShareInput{
+		ExpiresAt: r.ExpiresAt,
+		Password:  r.Password,
+	}
+}
+
+// UpdateTripShareSettings is the JSON body accepted by PATCH /trips/{id}/share.
+type UpdateTripShareSettings struct {
+	ExpiresAt       *time.Time `json:"expiresAt"`
+	ClearExpiration bool       `json:"clearExpiration"`
+	Password        string     `json:"password"`
+	ClearPassword   bool       `json:"clearPassword"`
+}
+
+func (r UpdateTripShareSettings) ToInput() appdto.UpdateTripShareInput {
+	return appdto.UpdateTripShareInput{
+		ExpiresAt:       r.ExpiresAt,
+		ClearExpiration: r.ClearExpiration,
+		Password:        r.Password,
+		ClearPassword:   r.ClearPassword,
+	}
+}
+
+// PublicShareUnlock is the JSON body accepted by
+// POST /public/trips/{shareToken}/unlock.
+type PublicShareUnlock struct {
+	Password string `json:"password"`
 }

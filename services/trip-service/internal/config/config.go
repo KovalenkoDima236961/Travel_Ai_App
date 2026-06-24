@@ -90,9 +90,11 @@ type PlaceEnrichmentConfig struct {
 
 // PublicSharingConfig controls read-only public trip share links.
 type PublicSharingConfig struct {
-	Enabled          bool   `yaml:"enabled" env:"PUBLIC_SHARING_ENABLED" env-default:"true"`
-	PublicWebBaseURL string `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
-	ShareTokenBytes  int    `yaml:"share_token_bytes" env:"SHARE_TOKEN_BYTES" env-default:"32" validate:"min=32,max=128"`
+	Enabled                     bool   `yaml:"enabled" env:"PUBLIC_SHARING_ENABLED" env-default:"true"`
+	PublicWebBaseURL            string `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
+	ShareTokenBytes             int    `yaml:"share_token_bytes" env:"SHARE_TOKEN_BYTES" env-default:"32" validate:"min=32,max=128"`
+	PublicShareAccessSecret     string `yaml:"public_share_access_secret" env:"PUBLIC_SHARE_ACCESS_SECRET" env-default:"dev-public-share-secret-change-me" validate:"required"`
+	PublicShareAccessTTLMinutes int    `yaml:"public_share_access_ttl_minutes" env:"PUBLIC_SHARE_ACCESS_TTL_MINUTES" env-default:"60" validate:"min=1"`
 }
 
 // IsProduction reports whether the service runs in a production profile.
