@@ -125,7 +125,27 @@ This shared trip is unavailable or the link has been disabled.
 ```
 
 Public sharing v1 has one link per trip and no expiration, password protection,
-analytics, collaboration, PDF export, or calendar export.
+analytics, or collaboration.
+
+## Export v1
+
+Private trip detail pages and public share pages support read-only export from
+the browser:
+
+- `Download PDF` creates a clean itinerary summary with trip facts, day-by-day
+  items, visible place details, weather summary when loaded, and distance
+  summary when available.
+- `Download calendar (.ics)` creates one calendar event per itinerary item with
+  a parseable time and a trip start date.
+
+Calendar export skips untimed or unparseable itinerary items. Exported calendar
+times are local floating times, so the importing calendar app interprets them in
+the user's calendar timezone. Export v1 does not call Google Calendar, Apple
+Calendar, Outlook, OAuth, or any external calendar API.
+
+Exports are generated from a sanitized frontend model. They do not include user
+email, user ID, preferences, tokens, itinerary version history, or internal
+place-enrichment debug metadata.
 
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and

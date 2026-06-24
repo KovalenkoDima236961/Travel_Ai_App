@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ExportTripMenu } from "@/components/export/ExportTripMenu";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { GenerateItineraryButton } from "@/components/trips/GenerateItineraryButton";
 import {
@@ -27,6 +28,11 @@ import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
+import {
+  toExportDistanceSummary,
+  toExportTripFromPrivateTrip,
+  toExportWeatherSummary
+} from "@/lib/export/trip-export-adapter";
 import {
   getTrip,
   regenerateItineraryDay,
@@ -136,6 +142,24 @@ function TripDetailPageContent() {
     staleTime: 10 * 60 * 1000,
     retry: 1
   });
+  const exportTrip = useMemo(
+    () =>
+      tripQuery.data
+        ? toExportTripFromPrivateTrip(tripQuery.data, {
+            weatherSummary: toExportWeatherSummary(weatherForecastQuery.data ?? null),
+            distanceSummary: toExportDistanceSummary(
+              fallbackDistanceSummaries,
+              routeEstimatesByDay
+            )
+          })
+        : null,
+    [
+      fallbackDistanceSummaries,
+      routeEstimatesByDay,
+      tripQuery.data,
+      weatherForecastQuery.data
+    ]
+  );
 
   if (tripQuery.isPending) {
     return (
@@ -416,7 +440,8 @@ function TripDetailPageContent() {
               ) : (
                 <>
                   {canEditItinerary ? (
-                    <div className="flex justify-end">
+                    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
+                      {exportTrip ? <ExportTripMenu exportTrip={exportTrip} /> : <span />}
                       <Button onClick={startEditing} type="button" variant="secondary">
                         Edit itinerary
                       </Button>

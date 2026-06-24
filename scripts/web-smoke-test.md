@@ -128,6 +128,26 @@ http://localhost:3000
 10. Refresh the public link.
 11. Confirm `This shared trip is unavailable or the link has been disabled.` appears.
 
+## Export v1
+
+1. Log in.
+2. Create or open a completed trip.
+3. Click `Download PDF`.
+4. Open the downloaded PDF and verify it shows destination, dates, itinerary
+   days, item times, places, weather if loaded, and distance summary when
+   available.
+5. Click `Download calendar (.ics)`.
+6. Import the `.ics` file into a calendar app or inspect the file contents.
+7. Confirm events match itinerary item times.
+8. Confirm untimed itinerary items are skipped in the `.ics` file.
+9. Create a public share link.
+10. Open the `/share/{shareToken}` link in an incognito/private browser.
+11. Download the PDF and `.ics` from the public page without logging in.
+12. Confirm the public export works without auth.
+13. Confirm the public page and exports do not show edit, regenerate,
+    place-review, version-history controls, user email, user ID, preferences,
+    tokens, or private/internal metadata.
+
 ## Opening Hours
 
 1. Log in and open a completed trip with a start date.

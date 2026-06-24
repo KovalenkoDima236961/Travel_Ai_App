@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { ExportTripMenu } from "@/components/export/ExportTripMenu";
 import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { ItineraryView } from "@/components/trips/ItineraryView";
@@ -11,6 +13,13 @@ import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Card } from "@/components/ui/Card";
 import { buttonStyles } from "@/components/ui/Button";
 import { getPublicTrip, tripKeys } from "@/lib/api/trips";
+import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
+import {
+  toExportDistanceSummary,
+  toExportTripFromPublicTrip,
+  toExportWeatherSummary
+} from "@/lib/export/trip-export-adapter";
+import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import {
   formatBudget,
   formatDate,
@@ -28,6 +37,37 @@ export default function PublicSharePage() {
     enabled: Boolean(shareToken),
     retry: false
   });
+  const sharedTrip = publicTripQuery.data ?? null;
+  const weatherParams = {
+    destination: sharedTrip?.destination ?? "",
+    startDate: sharedTrip?.startDate ?? "",
+    days: sharedTrip?.days ?? 0
+  };
+  const publicWeatherForecastQuery = useQuery({
+    queryKey: weatherKeys.forecast(weatherParams),
+    queryFn: () => getWeatherForecast(weatherParams),
+    enabled:
+      Boolean(weatherParams.destination.trim()) &&
+      Boolean(weatherParams.startDate) &&
+      weatherParams.days > 0,
+    staleTime: 10 * 60 * 1000,
+    retry: 1
+  });
+  const publicItinerary = sharedTrip?.itinerary ?? null;
+  const publicDistanceSummaries = useMemo(
+    () => (publicItinerary ? getDayDistanceSummaries(publicItinerary) : []),
+    [publicItinerary]
+  );
+  const exportTrip = useMemo(
+    () =>
+      sharedTrip
+        ? toExportTripFromPublicTrip(sharedTrip, {
+            weatherSummary: toExportWeatherSummary(publicWeatherForecastQuery.data ?? null),
+            distanceSummary: toExportDistanceSummary(publicDistanceSummaries)
+          })
+        : null,
+    [publicDistanceSummaries, publicWeatherForecastQuery.data, sharedTrip]
+  );
 
   if (publicTripQuery.isPending) {
     return (
@@ -71,9 +111,12 @@ export default function PublicSharePage() {
             <TripStatusBadge status={trip.status} />
           </div>
         </div>
-        <Link className={buttonStyles({ variant: "secondary", size: "sm" })} href="/">
-          Travel AI Planner
-        </Link>
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+          <Link className={buttonStyles({ variant: "secondary", size: "sm" })} href="/">
+            Travel AI Planner
+          </Link>
+          {exportTrip && itinerary ? <ExportTripMenu exportTrip={exportTrip} /> : null}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
