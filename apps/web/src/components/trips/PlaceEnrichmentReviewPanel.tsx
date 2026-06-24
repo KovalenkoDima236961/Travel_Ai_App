@@ -112,7 +112,7 @@ export function PlaceEnrichmentReviewPanel({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-6">
+    <section className="rounded-lg border border-slate-200 bg-white p-6" id="place-matches">
       <AttachPlaceDialog
         destination={trip.destination}
         initialQuery={attachTarget?.query || attachTarget?.itemName || ""}

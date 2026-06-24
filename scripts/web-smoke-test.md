@@ -197,6 +197,30 @@ This verifies the service-backed route estimate and its straight-line fallback.
     `docker compose -f infra/docker-compose.yml start external-integrations-service`,
     refresh, and confirm the route estimate returns.
 
+## AI Quality Feedback Loop
+
+1. Log in.
+2. Create or open a completed trip with a generated itinerary.
+3. Attach places with coordinates to create a high walking-distance day, or open
+   `/settings`, set `maxWalkingKmPerDay` to a low value such as `1`, save, and
+   return to the trip.
+4. Confirm the `Trip Quality Checks` card appears after `Weather context`.
+5. Confirm the card shows a walking-distance warning for the affected day.
+6. Click `Improve day`.
+7. Confirm regeneration runs, the trip updates, and the success message appears.
+8. Attach a place with opening hours to an itinerary item, set the item time
+   outside those hours, and save.
+9. Confirm the `Trip Quality Checks` card shows `Place may be closed`.
+10. Click `Improve item` for that item.
+11. Confirm item regeneration runs and the trip updates.
+12. If the itinerary has pending or low-confidence auto-matches, confirm the
+    card shows place-match checks and review-only items point to `Place Matches`.
+13. Click `Edit itinerary`.
+14. Confirm the quality card remains advisory and says to save or cancel edits
+    before improving with AI.
+15. Open `Version History`.
+16. Confirm regenerated day/item changes created versions.
+
 ## Troubleshooting
 
 - CORS error in browser console: confirm Trip Service has

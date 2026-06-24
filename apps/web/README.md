@@ -235,6 +235,33 @@ All are covered by their respective `*.test.ts` files. This requires
 `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL` and the service's CORS to allow
 `POST` from the browser origin.
 
+## AI Quality Feedback Loop
+
+Completed trip detail pages show a `Trip Quality Checks` card after weather
+context. The card analyzes the current itinerary with existing frontend and
+service signals:
+
+- route estimates, falling back to Haversine distance summaries
+- `maxWalkingKmPerDay` from user preferences
+- weather forecast rain and heat thresholds
+- place opening hours at the scheduled item time
+- place enrichment confidence and review state
+- missing map-ready place coordinates for enriched itinerary items
+
+The checks are advisory and never regenerate automatically. Users stay in
+control: `Improve day` and `Improve item` buttons build concise AI instructions
+from the detected issues and call the existing partial regeneration endpoints:
+
+- `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`
+- `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`
+
+After regeneration, the Web App refetches the trip and refreshes itinerary
+version history, so Trip Service records the change through its existing version
+logic. If route estimates, weather, preferences, opening hours, or enrichment
+metadata are unavailable, the card simply omits those checks and continues with
+the signals it has. In manual edit mode, AI improvement buttons are hidden and
+the card asks the user to save or cancel edits first.
+
 ## Route Optimization v1
 
 Completed trips can suggest a better visiting order for a single day. The

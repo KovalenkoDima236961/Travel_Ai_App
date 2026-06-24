@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -18,12 +18,14 @@ import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/components/trips/OptimizeDayOrderDialog";
 import { PlaceEnrichmentReviewPanel } from "@/components/trips/PlaceEnrichmentReviewPanel";
+import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import {
   getTrip,
   regenerateItineraryDay,
@@ -32,12 +34,15 @@ import {
   updateTripItinerary
 } from "@/lib/api/trips";
 import { getMyPreferences, userKeys } from "@/lib/api/user";
+import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
+import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import {
   formatBudget,
   formatDate,
   formatInterestLabel,
   formatPaceLabel
 } from "@/lib/utils";
+import type { RouteEstimate } from "@/types/route";
 import type { Itinerary, Trip } from "@/types/trip";
 
 export default function TripDetailPage() {
@@ -94,6 +99,41 @@ function TripDetailPageContent() {
         target.instruction
       );
     }
+  });
+
+  const currentItinerary = tripQuery.data?.itinerary ?? null;
+  const routeEstimateStates = useRouteEstimates(
+    currentItinerary,
+    tripQuery.data?.status === "COMPLETED" && Boolean(currentItinerary)
+  );
+  const routeEstimatesByDay = useMemo<Record<number, RouteEstimate | null>>(() => {
+    const estimates: Record<number, RouteEstimate | null> = {};
+    routeEstimateStates.byDay.forEach((state, dayNumber) => {
+      estimates[dayNumber] = state.estimate;
+    });
+    return estimates;
+  }, [routeEstimateStates.byDay]);
+  const fallbackDistanceSummaries = useMemo(
+    () =>
+      currentItinerary ? getDayDistanceSummaries(currentItinerary, maxWalkingKmPerDay) : [],
+    [currentItinerary, maxWalkingKmPerDay]
+  );
+
+  const weatherParams = {
+    destination: tripQuery.data?.destination ?? "",
+    startDate: tripQuery.data?.startDate ?? "",
+    days: tripQuery.data?.days ?? 0
+  };
+  const canFetchWeather =
+    Boolean(weatherParams.destination.trim()) &&
+    Boolean(weatherParams.startDate) &&
+    weatherParams.days > 0;
+  const weatherForecastQuery = useQuery({
+    queryKey: weatherKeys.forecast(weatherParams),
+    queryFn: () => getWeatherForecast(weatherParams),
+    enabled: canFetchWeather,
+    staleTime: 10 * 60 * 1000,
+    retry: 1
   });
 
   if (tripQuery.isPending) {
@@ -164,6 +204,7 @@ function TripDetailPageContent() {
       const updated = await updateMutation.mutateAsync(normalized);
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+      await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
       await tripQuery.refetch();
       setDraftItinerary(null);
       setIsEditing(false);
@@ -201,6 +242,7 @@ function TripDetailPageContent() {
       const updated = await regenerationMutation.mutateAsync({ ...target, instruction });
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+      await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
       await tripQuery.refetch();
       setSuccessMessage(message);
     } catch (error) {
@@ -214,6 +256,7 @@ function TripDetailPageContent() {
 
   async function handleVersionRestored(updatedTrip: Trip) {
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
+    await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
     setSuccessMessage("Itinerary restored.");
@@ -223,6 +266,7 @@ function TripDetailPageContent() {
     const optimizedDayNumber = optimizingDayNumber;
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
     await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+    await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
     setSuccessMessage(
@@ -235,6 +279,7 @@ function TripDetailPageContent() {
   async function handlePlaceReviewUpdated(updatedTrip: Trip) {
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
     await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+    await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
     setSuccessMessage("Place match review saved.");
@@ -318,85 +363,99 @@ function TripDetailPageContent() {
           ) : null}
 
           {trip.status === "COMPLETED" && trip.itinerary ? (
-            isEditing && draftItinerary ? (
-              <div className="space-y-4">
-                <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-end">
-                  <Button
-                    disabled={updateMutation.isPending}
-                    onClick={cancelEditing}
-                    type="button"
-                    variant="secondary"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    disabled={updateMutation.isPending}
-                    onClick={saveItinerary}
-                    type="button"
-                  >
-                    {updateMutation.isPending ? "Saving..." : "Save"}
-                  </Button>
-                </div>
-                <ItineraryEditor
-                  destination={trip.destination}
-                  disabled={updateMutation.isPending}
-                  errors={editorErrors}
-                  itinerary={draftItinerary}
-                  onChange={setDraftItinerary}
-                  startDate={trip.startDate}
-                />
-                <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                  Map view and distance estimates are available after saving or leaving edit
-                  mode.
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {canEditItinerary ? (
-                  <div className="flex justify-end">
-                    <Button onClick={startEditing} type="button" variant="secondary">
-                      Edit itinerary
+            <div className="space-y-4">
+              <TripQualityChecks
+                fallbackDistanceSummaries={fallbackDistanceSummaries}
+                isEditing={isEditing}
+                isImproving={regenerationMutation.isPending}
+                maxWalkingKmPerDay={maxWalkingKmPerDay}
+                onImproveDay={regenerateDay}
+                onImproveItem={regenerateItem}
+                routeEstimatesByDay={routeEstimatesByDay}
+                trip={trip}
+                weatherForecast={weatherForecastQuery.data ?? null}
+              />
+
+              {isEditing && draftItinerary ? (
+                <>
+                  <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-end">
+                    <Button
+                      disabled={updateMutation.isPending}
+                      onClick={cancelEditing}
+                      type="button"
+                      variant="secondary"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={updateMutation.isPending}
+                      onClick={saveItinerary}
+                      type="button"
+                    >
+                      {updateMutation.isPending ? "Saving..." : "Save"}
                     </Button>
                   </div>
-                ) : null}
-                <PlaceEnrichmentReviewPanel
-                  onTripUpdated={handlePlaceReviewUpdated}
-                  trip={trip}
-                />
-                <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
-                <ItineraryView
-                  currency={trip.budgetCurrency}
-                  disabled={regenerationMutation.isPending}
-                  itinerary={trip.itinerary}
-                  onRegenerateDay={regenerateDay}
-                  onRegenerateItem={regenerateItem}
-                  regeneratingTarget={regeneratingTarget}
-                  startDate={trip.startDate}
-                />
-                <ItineraryMap itinerary={trip.itinerary} startDate={trip.startDate} />
-                <DistanceSummary
-                  itinerary={trip.itinerary}
-                  maxWalkingKmPerDay={maxWalkingKmPerDay}
-                  onOptimizeDay={setOptimizingDayNumber}
-                />
-                <ItineraryVersionHistory
-                  currency={trip.budgetCurrency}
-                  onRestored={handleVersionRestored}
-                  restoreDisabled={isEditing}
-                  tripId={trip.id}
-                />
-                {trip.itinerary && optimizingDay ? (
-                  <OptimizeDayOrderDialog
-                    day={optimizingDay}
+                  <ItineraryEditor
+                    destination={trip.destination}
+                    disabled={updateMutation.isPending}
+                    errors={editorErrors}
+                    itinerary={draftItinerary}
+                    onChange={setDraftItinerary}
+                    startDate={trip.startDate}
+                  />
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                    Map view and distance estimates are available after saving or leaving edit
+                    mode.
+                  </div>
+                </>
+              ) : (
+                <>
+                  {canEditItinerary ? (
+                    <div className="flex justify-end">
+                      <Button onClick={startEditing} type="button" variant="secondary">
+                        Edit itinerary
+                      </Button>
+                    </div>
+                  ) : null}
+                  <PlaceEnrichmentReviewPanel
+                    onTripUpdated={handlePlaceReviewUpdated}
+                    trip={trip}
+                  />
+                  <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
+                  <ItineraryView
+                    currency={trip.budgetCurrency}
+                    disabled={regenerationMutation.isPending}
                     itinerary={trip.itinerary}
-                    onApplied={handleOptimizationApplied}
-                    onClose={() => setOptimizingDayNumber(null)}
-                    open
+                    onRegenerateDay={regenerateDay}
+                    onRegenerateItem={regenerateItem}
+                    regeneratingTarget={regeneratingTarget}
+                    startDate={trip.startDate}
+                  />
+                  <ItineraryMap itinerary={trip.itinerary} startDate={trip.startDate} />
+                  <DistanceSummary
+                    itinerary={trip.itinerary}
+                    maxWalkingKmPerDay={maxWalkingKmPerDay}
+                    onOptimizeDay={setOptimizingDayNumber}
+                  />
+                  <ItineraryVersionHistory
+                    currency={trip.budgetCurrency}
+                    onRestored={handleVersionRestored}
+                    restoreDisabled={isEditing}
                     tripId={trip.id}
                   />
-                ) : null}
-              </div>
-            )
+                  {trip.itinerary && optimizingDay ? (
+                    <OptimizeDayOrderDialog
+                      day={optimizingDay}
+                      itinerary={trip.itinerary}
+                      onApplied={handleOptimizationApplied}
+                      onClose={() => setOptimizingDayNumber(null)}
+                      open
+                      tripId={trip.id}
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
           ) : null}
 
           {trip.status === "COMPLETED" && !trip.itinerary ? (
