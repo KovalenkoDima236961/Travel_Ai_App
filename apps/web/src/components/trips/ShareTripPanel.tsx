@@ -13,6 +13,7 @@ import {
   tripKeys,
   updateTripShare
 } from "@/lib/api/trips";
+import { activityKeys } from "@/lib/api/activity";
 import { formatDate, getErrorMessage } from "@/lib/utils";
 import type { TripShareInfo, UpdateTripShareRequest } from "@/types/share";
 
@@ -41,8 +42,9 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
 
   const createMutation = useMutation({
     mutationFn: (body?: UpdateTripShareRequest) => createTripShare(tripId, body),
-    onSuccess: (share) => {
+    onSuccess: async (share) => {
       queryClient.setQueryData(tripKeys.share(tripId), share);
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       resetPasswordInputs();
       setMessage("Share link is ready.");
       setError(null);
@@ -58,6 +60,7 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
     onSuccess: async (share) => {
       queryClient.setQueryData(tripKeys.share(tripId), share);
       await queryClient.invalidateQueries({ queryKey: tripKeys.share(tripId) });
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       resetPasswordInputs();
       setMessage("Share settings saved.");
       setError(null);
@@ -72,6 +75,7 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
     mutationFn: () => disableTripShare(tripId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tripKeys.share(tripId) });
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       setMessage("Share link disabled.");
       setError(null);
     },

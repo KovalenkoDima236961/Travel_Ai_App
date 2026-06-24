@@ -1,5 +1,3 @@
-// Package service contains the trip use cases. It depends on ports (interfaces)
-// it owns, not on concrete adapters.
 package service
 
 import (
@@ -13,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
@@ -200,6 +199,7 @@ type Service struct {
 	placeEnrichmentEnabled  bool
 	placeEnrichmentFailOpen bool
 	userLookupProvider      userLookupProvider
+	activity                activityService
 	publicSharingEnabled    bool
 	publicWebBaseURL        string
 	shareTokenBytes         int
@@ -286,6 +286,19 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 		zap.String("user_id", user.ID.String()),
 		zap.String("destination", created.Destination),
 	)
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      created.ID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventTripCreated,
+		EntityType:  activityEntityType(activity.EntityTrip),
+		EntityID:    activityEntityID(created.ID),
+		Metadata: map[string]any{
+			"destination": created.Destination,
+			"days":        int(created.Days),
+		},
+	})
+
 	return created, nil
 }
 
@@ -400,6 +413,16 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		zap.String("trip_id", id.String()),
 		zap.String("user_id", user.ID.String()),
 	)
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      id,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventItineraryGenerated,
+		EntityType:  activityEntityType(activity.EntityItinerary),
+		EntityID:    activityEntityID(id),
+		Metadata:    map[string]any{"source": "GENERATED"},
+	})
+
 	return updated, nil
 }
 
@@ -452,6 +475,16 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 			zap.Bool("success", true),
 		)...,
 	)
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      id,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventItineraryUpdated,
+		EntityType:  activityEntityType(activity.EntityItinerary),
+		EntityID:    activityEntityID(id),
+		Metadata:    map[string]any{"source": "MANUAL_EDIT"},
+	})
+
 	return updated, nil
 }
 
@@ -538,6 +571,15 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	}
 
 	s.logRegenerationSuccess("itinerary day regenerated", fields, started, userContextLoaded)
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      id,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventDayRegenerated,
+		EntityType:  activityEntityType(activity.EntityItineraryDay),
+		Metadata:    map[string]any{"dayNumber": dayNumber},
+	})
+
 	return updated, nil
 }
 
@@ -631,6 +673,22 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 	}
 
 	s.logRegenerationSuccess("itinerary item regenerated", fields, started, userContextLoaded)
+
+	itemMetadata := map[string]any{
+		"dayNumber": dayNumber,
+		"itemIndex": itemIndex,
+	}
+	if name := strings.TrimSpace(normalizedReplacement.Name); name != "" {
+		itemMetadata["itemName"] = name
+	}
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      id,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventItemRegenerated,
+		EntityType:  activityEntityType(activity.EntityItineraryItem),
+		Metadata:    itemMetadata,
+	})
+
 	return updated, nil
 }
 

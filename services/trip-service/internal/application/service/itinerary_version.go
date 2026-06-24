@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -82,8 +83,25 @@ func (s *Service) RestoreItineraryVersion(ctx context.Context, tripID, versionID
 		return nil, err
 	}
 
-	return s.saveItineraryWithVersion(ctx, tripID, ownerID, user.ID, normalized, entity.ItineraryVersionSourceRestored, map[string]any{
+	updated, err := s.saveItineraryWithVersion(ctx, tripID, ownerID, user.ID, normalized, entity.ItineraryVersionSourceRestored, map[string]any{
 		"restoredFromVersionId":     version.ID.String(),
 		"restoredFromVersionNumber": version.VersionNumber,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventVersionRestored,
+		EntityType:  activityEntityType(activity.EntityItineraryVersion),
+		EntityID:    activityEntityID(version.ID),
+		Metadata: map[string]any{
+			"versionId":           version.ID.String(),
+			"sourceVersionSource": string(version.Source),
+		},
+	})
+
+	return updated, nil
 }

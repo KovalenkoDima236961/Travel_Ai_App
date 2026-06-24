@@ -13,6 +13,7 @@ import {
   tripKeys,
   updateTripCollaboratorRole
 } from "@/lib/api/trips";
+import { activityKeys } from "@/lib/api/activity";
 import { formatDate, getErrorMessage } from "@/lib/utils";
 import type { CollaboratorRole, TripCollaborator } from "@/types/collaboration";
 
@@ -45,6 +46,7 @@ export function CollaboratorsPanel({
       setMessage("Invitation saved.");
       setError(null);
       await queryClient.invalidateQueries({ queryKey: tripKeys.collaborators(tripId) });
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
     },
     onError: (err) => {
       setError(getErrorMessage(err, "Could not invite collaborator."));
@@ -59,6 +61,7 @@ export function CollaboratorsPanel({
       setMessage("Collaborator role updated.");
       setError(null);
       await queryClient.invalidateQueries({ queryKey: tripKeys.collaborators(tripId) });
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
     },
     onError: (err) => {
       setError(getErrorMessage(err, "Could not update collaborator."));
@@ -72,6 +75,7 @@ export function CollaboratorsPanel({
       setMessage("Collaborator removed.");
       setError(null);
       await queryClient.invalidateQueries({ queryKey: tripKeys.collaborators(tripId) });
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
     },
     onError: (err) => {
       setError(getErrorMessage(err, "Could not remove collaborator."));

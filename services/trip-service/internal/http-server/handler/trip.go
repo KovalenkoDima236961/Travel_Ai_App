@@ -63,6 +63,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/comments/counts", h.ListCommentCounts)
 		r.Patch("/{id}/comments/{commentId}", h.UpdateComment)
 		r.Delete("/{id}/comments/{commentId}", h.DeleteComment)
+		r.Get("/{id}/activity", h.ListActivity)
 	})
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
@@ -57,8 +58,28 @@ func (s *Service) GetTripShare(ctx context.Context, tripID uuid.UUID) (appdto.Tr
 	return s.tripShareInfo(share), nil
 }
 
-// CreateOrEnableTripShare returns an active share link for an owned trip.
+// CreateOrEnableTripShare returns an active share link for an owned trip and
+// records a single share_created activity event on success. The create/enable/
+// update branching is intentionally not surfaced as distinct events in v1 — a
+// POST maps to one share_created event whose metadata describes the settings.
 func (s *Service) CreateOrEnableTripShare(ctx context.Context, tripID uuid.UUID, in appdto.CreateTripShareInput) (appdto.TripShareInfo, error) {
+	info, err := s.createOrEnableTripShare(ctx, tripID, in)
+	if err != nil {
+		return appdto.TripShareInfo{}, err
+	}
+	if user, uerr := auth.MustUserFromContext(ctx); uerr == nil {
+		s.recordActivity(ctx, activity.RecordActivityInput{
+			TripID:      tripID,
+			ActorUserID: &user.ID,
+			EventType:   activity.EventShareCreated,
+			EntityType:  activityEntityType(activity.EntityShare),
+			Metadata:    shareActivityMetadata(info),
+		})
+	}
+	return info, nil
+}
+
+func (s *Service) createOrEnableTripShare(ctx context.Context, tripID uuid.UUID, in appdto.CreateTripShareInput) (appdto.TripShareInfo, error) {
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return appdto.TripShareInfo{}, err
@@ -193,7 +214,18 @@ func (s *Service) UpdateTripShareSettings(ctx context.Context, tripID uuid.UUID,
 	if err != nil {
 		return appdto.TripShareInfo{}, err
 	}
-	return s.tripShareInfo(updated), nil
+
+	info := s.tripShareInfo(updated)
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventShareUpdated,
+		EntityType:  activityEntityType(activity.EntityShare),
+		EntityID:    activityEntityID(updated.ID),
+		Metadata:    shareActivityMetadata(info),
+	})
+
+	return info, nil
 }
 
 // DisableTripShare disables the owner's share link. It is idempotent once the
@@ -214,10 +246,37 @@ func (s *Service) DisableTripShare(ctx context.Context, tripID uuid.UUID) error 
 	if err != nil {
 		return err
 	}
-	if _, err := s.repo.DisableTripShare(ctx, tripID, ownerID); err != nil && !errors.Is(err, domainerrs.ErrNotFound) {
+	disabled, err := s.repo.DisableTripShare(ctx, tripID, ownerID)
+	if err != nil {
+		if errors.Is(err, domainerrs.ErrNotFound) {
+			// No share row to disable: nothing changed, so record nothing.
+			return nil
+		}
 		return err
 	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventShareDisabled,
+		EntityType:  activityEntityType(activity.EntityShare),
+		EntityID:    activityEntityID(disabled.ID),
+		Metadata:    map[string]any{},
+	})
+
 	return nil
+}
+
+// shareActivityMetadata builds body-free share-event metadata. It never includes
+// the share token or password material.
+func shareActivityMetadata(info appdto.TripShareInfo) map[string]any {
+	metadata := map[string]any{
+		"passwordRequired": info.PasswordRequired,
+	}
+	if info.ExpiresAt != nil {
+		metadata["expiresAt"] = info.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	return metadata
 }
 
 // GetPublicTripByShareToken returns a sanitized-source trip and share metadata

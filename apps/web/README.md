@@ -177,6 +177,35 @@ Limitations: no real-time updates, no notifications, no mentions, and no
 threaded replies. Comments are keyed by `dayNumber`/`itemIndex`, so heavy
 itinerary reordering can leave a comment pointing at a different item.
 
+## Recent Activity
+
+Private trip detail pages render a `Recent activity` panel at the bottom
+(`components/activity/ActivityFeed.tsx`). It shows a chronological, newest-first
+audit log of important successful actions on the trip — generation, edits,
+regenerations, version restores, comments, collaborator changes, and share
+setting changes.
+
+- Events load via `GET /trips/{id}/activity?limit=30&cursor=...`
+  (`lib/api/activity.ts`) using `useInfiniteQuery`; a `Load more` button pages
+  through older events with the returned `nextCursor`.
+- Events are grouped by calendar day (`Today` / `Yesterday` / date) by
+  `lib/activity/group-activity-by-date.ts` and rendered as readable lines by
+  `lib/activity/format-activity-event.ts` (e.g. `You generated the itinerary`,
+  `You commented on Day 2 · Louvre Museum`, `You invited anna@example.com as
+  editor`). The actor is shown as `You` for the current viewer, `System` for
+  actor-less events, and `Collaborator` otherwise (no display names in v1). The
+  formatter is defensive: missing metadata degrades gracefully and an unknown
+  event type renders `Activity recorded` rather than crashing.
+- The panel is shown only to the owner and accepted collaborators (same access
+  rule as comments) and renders nothing otherwise. It is never mounted on the
+  public `/share/{shareToken}` page and makes no activity requests there.
+- There are no real-time updates. After comment, collaborator, share, itinerary
+  edit/regenerate, and version-restore actions the page invalidates the activity
+  query (`activityKeys`) so the feed refreshes; otherwise it updates on reload.
+
+Limitations: no real-time updates, no notifications, no filtering/search, and
+generic actor labels.
+
 ## Public Trip Sharing
 
 Authenticated trip detail pages include a `Share itinerary` panel. It calls

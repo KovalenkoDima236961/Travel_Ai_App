@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
 import { ItemCommentsPanel } from "@/components/comments/ItemCommentsPanel";
 import { TripCommentsSummary } from "@/components/comments/TripCommentsSummary";
@@ -31,6 +32,7 @@ import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { activityKeys } from "@/lib/api/activity";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
 import { buildCommentCountMap } from "@/lib/comments/comment-counts";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
@@ -274,6 +276,7 @@ function TripDetailPageContent() {
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
       await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       await tripQuery.refetch();
       setDraftItinerary(null);
       setIsEditing(false);
@@ -312,6 +315,7 @@ function TripDetailPageContent() {
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
       await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
+      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       await tripQuery.refetch();
       setSuccessMessage(message);
     } catch (error) {
@@ -601,6 +605,12 @@ function TripDetailPageContent() {
               startDate={trip.startDate}
             />
           ) : null}
+
+          <ActivityFeed
+            canViewActivity={canComment}
+            currentUserId={currentUserId}
+            tripId={trip.id}
+          />
         </section>
       </div>
     </PageContainer>

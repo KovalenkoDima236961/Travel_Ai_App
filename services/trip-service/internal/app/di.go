@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server"
@@ -107,6 +108,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("init user lookup client: %w", err)
 	}
+	activitySvc := activity.New(repo, log)
 	svc := service.New(repo, gen, log, service.WithUserContext(
 		userContextClient,
 		cfg.UserContext.Enabled,
@@ -125,7 +127,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		cfg.PublicSharing.ShareTokenBytes,
 		cfg.PublicSharing.PublicShareAccessSecret,
 		cfg.PublicSharing.PublicShareAccessTTLMinutes,
-	), service.WithUserLookup(userLookupClient))
+	), service.WithUserLookup(userLookupClient), service.WithActivity(activitySvc))
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,

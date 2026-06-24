@@ -28,6 +28,17 @@ leave comments on individual itinerary items. Comments live in a dedicated
 `trip_id`/`day_number`/`item_index`, and are soft-deleted. Authors can edit and
 delete their own comments; trip owners can delete any comment. Comments are a
 private authenticated feature and are never exposed on public share links/pages.
+Activity Feed / Audit Log v1 records important successful actions on a trip
+(creation, generation, edits, regenerations, version restores, comments,
+collaborator changes, and share setting changes) as persistent rows in a
+dedicated `trip_activity_events` table. The owner and accepted collaborators read
+a chronological, newest-first feed via `GET /trips/{id}/activity` (cursor
+paginated); pending/removed/non-collaborators get `404` and there is no public
+route, so public share viewers never see activity. Events are recorded only
+after an action succeeds, recording failures never fail the action, and metadata
+is small and sanitized (no secrets, passwords, tokens, comment bodies, or full
+itinerary JSON). The web app shows a `Recent activity` panel on private trip
+detail pages. No real-time updates, notifications, or filtering in v1.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.
@@ -93,6 +104,9 @@ sharing create/status/password unlock/clear/disable behavior, verifies itinerary
 version history and restore behavior, exercises itinerary comments
 (create/list/counts/update/soft-delete, owner-deletes-any, collaborator-cannot-
 delete-others, comments require auth, and public shares expose no comments),
+verifies the activity feed records major actions and that
+owner/accepted-collaborator can read it while pending/removed/non-collaborators,
+unauthenticated requests, and the public share endpoint cannot,
 confirms only that user can access the trip and versions, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,

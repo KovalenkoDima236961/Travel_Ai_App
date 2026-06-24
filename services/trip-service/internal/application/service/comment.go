@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
@@ -106,6 +107,16 @@ func (s *Service) CreateComment(ctx context.Context, tripID uuid.UUID, in appdto
 	if err != nil {
 		return appdto.ItineraryCommentInfo{}, err
 	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCommentCreated,
+		EntityType:  activityEntityType(activity.EntityComment),
+		EntityID:    activityEntityID(created.ID),
+		Metadata:    commentActivityMetadata(trip, created.DayNumber, created.ItemIndex),
+	})
+
 	return s.toCommentInfo(*created, user.ID, access), nil
 }
 
@@ -115,7 +126,7 @@ func (s *Service) UpdateComment(ctx context.Context, tripID, commentID uuid.UUID
 	if err != nil {
 		return appdto.ItineraryCommentInfo{}, err
 	}
-	_, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
+	trip, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
 	if err != nil {
 		return appdto.ItineraryCommentInfo{}, err
 	}
@@ -140,6 +151,16 @@ func (s *Service) UpdateComment(ctx context.Context, tripID, commentID uuid.UUID
 	if err != nil {
 		return appdto.ItineraryCommentInfo{}, err
 	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCommentUpdated,
+		EntityType:  activityEntityType(activity.EntityComment),
+		EntityID:    activityEntityID(updated.ID),
+		Metadata:    commentActivityMetadata(trip, updated.DayNumber, updated.ItemIndex),
+	})
+
 	return s.toCommentInfo(*updated, user.ID, access), nil
 }
 
@@ -150,7 +171,7 @@ func (s *Service) DeleteComment(ctx context.Context, tripID, commentID uuid.UUID
 	if err != nil {
 		return err
 	}
-	_, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
+	trip, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
 	if err != nil {
 		return err
 	}
@@ -171,6 +192,16 @@ func (s *Service) DeleteComment(ctx context.Context, tripID, commentID uuid.UUID
 	if _, err := s.repo.SoftDeleteItineraryComment(ctx, tripID, commentID); err != nil {
 		return err
 	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCommentDeleted,
+		EntityType:  activityEntityType(activity.EntityComment),
+		EntityID:    activityEntityID(existing.ID),
+		Metadata:    commentActivityMetadata(trip, existing.DayNumber, existing.ItemIndex),
+	})
+
 	return nil
 }
 
@@ -202,6 +233,42 @@ func normalizeCommentBody(raw string) (string, error) {
 		return "", apperrs.NewInvalidInput("body must be at most %d characters", maxCommentBodyLength)
 	}
 	return body, nil
+}
+
+// itineraryItemName returns the name of the itinerary item at the given
+// day/item position, or "" when the trip has no itinerary or the position does
+// not resolve. It is best-effort: it never errors so activity metadata can omit
+// the name rather than fail the surrounding action.
+func itineraryItemName(t *entity.Trip, dayNumber, itemIndex int) string {
+	if t == nil || len(t.Itinerary) == 0 || strings.EqualFold(strings.TrimSpace(string(t.Itinerary)), "null") {
+		return ""
+	}
+	var itinerary aggregate.Itinerary
+	if err := json.Unmarshal(t.Itinerary, &itinerary); err != nil {
+		return ""
+	}
+	for _, day := range itinerary.Days {
+		if day.Day == dayNumber {
+			if itemIndex < 0 || itemIndex >= len(day.Items) {
+				return ""
+			}
+			return strings.TrimSpace(day.Items[itemIndex].Name)
+		}
+	}
+	return ""
+}
+
+// commentActivityMetadata builds the small, body-free metadata payload shared by
+// the comment_created/updated/deleted events.
+func commentActivityMetadata(trip *entity.Trip, dayNumber, itemIndex int) map[string]any {
+	metadata := map[string]any{
+		"dayNumber": dayNumber,
+		"itemIndex": itemIndex,
+	}
+	if name := itineraryItemName(trip, dayNumber, itemIndex); name != "" {
+		metadata["itemName"] = name
+	}
+	return metadata
 }
 
 // assertItineraryItemExists confirms the target day/item exists in the trip's

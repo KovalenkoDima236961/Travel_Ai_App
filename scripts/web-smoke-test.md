@@ -321,6 +321,39 @@ This verifies the service-backed route estimate and its straight-line fallback.
 15. Open `Version History`.
 16. Confirm regenerated day/item changes created versions.
 
+## Recent Activity (Activity Feed)
+
+The activity feed records important successful actions on a private trip and is
+visible only to the owner and accepted collaborators. It never appears on the
+public share page. There are no real-time updates: the feed refreshes when its
+React Query data is invalidated (after comment/collaborator/share/itinerary
+actions) or on page reload.
+
+1. Log in as the trip owner.
+2. Create a trip (e.g. destination `Rome`, `days=3`) and open its detail page.
+3. Generate an itinerary.
+4. Add a comment on an itinerary item.
+5. Open `Share & Collaborators`, invite a collaborator, and update share
+   settings (e.g. set a password or expiration).
+6. Scroll to the `Recent activity` panel at the bottom of the page.
+7. Confirm events appear grouped by day (`Today`/`Yesterday`/date), newest
+   first, with readable text such as:
+   - `You created the trip`
+   - `You generated the itinerary`
+   - `You commented on Day 2 · <item name>`
+   - `You invited anna@example.com as editor`
+   - `You updated share settings`
+8. Confirm timestamps render and, if there are more than 30 events, a
+   `Load more` button fetches older events.
+9. Accept the invitation as the collaborator, then log in as that collaborator
+   and open the shared trip.
+10. Confirm the `Recent activity` panel is visible and the owner's actions show
+    as `Collaborator` (not `You`); the collaborator's own actions show as `You`.
+11. Open the public share link (`/share/<shareToken>`) in a separate
+    session/browser.
+12. Confirm there is no activity panel on the public page and no activity is
+    exposed.
+
 ## Troubleshooting
 
 - CORS error in browser console: confirm Trip Service has

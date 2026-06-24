@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
@@ -1392,6 +1394,7 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 				},
 			},
 		}),
+		service.WithActivity(activity.New(repo, zap.NewNop())),
 	)
 	validator, err := validation.NewValidator()
 	if err != nil {
@@ -1413,6 +1416,54 @@ type routeTestRepo struct {
 	sharesByToken     map[string]entity.TripShare
 	created           *entity.Trip
 	comments          []entity.ItineraryComment
+	activityEvents    []entity.TripActivityEvent
+}
+
+func (r *routeTestRepo) CreateTripActivityEvent(_ context.Context, event *entity.TripActivityEvent) (*entity.TripActivityEvent, error) {
+	stored := *event
+	if stored.CreatedAt.IsZero() {
+		// Strictly increasing timestamps so newest-first ordering is stable.
+		stored.CreatedAt = time.Now().UTC().Add(time.Duration(len(r.activityEvents)) * time.Millisecond)
+	}
+	r.activityEvents = append(r.activityEvents, stored)
+	return &stored, nil
+}
+
+func (r *routeTestRepo) ListTripActivityEvents(
+	_ context.Context,
+	tripID uuid.UUID,
+	limit int,
+	cursorCreatedAt *time.Time,
+	cursorID *uuid.UUID,
+) ([]entity.TripActivityEvent, error) {
+	// Filter to the trip, newest first (created_at DESC, id DESC).
+	matching := make([]entity.TripActivityEvent, 0, len(r.activityEvents))
+	for _, e := range r.activityEvents {
+		if e.TripID == tripID {
+			matching = append(matching, e)
+		}
+	}
+	sort.Slice(matching, func(i, j int) bool {
+		if !matching[i].CreatedAt.Equal(matching[j].CreatedAt) {
+			return matching[i].CreatedAt.After(matching[j].CreatedAt)
+		}
+		return matching[i].ID.String() > matching[j].ID.String()
+	})
+	out := make([]entity.TripActivityEvent, 0, limit)
+	for _, e := range matching {
+		if cursorCreatedAt != nil && cursorID != nil {
+			older := e.CreatedAt.Before(*cursorCreatedAt) ||
+				(e.CreatedAt.Equal(*cursorCreatedAt) && e.ID.String() < cursorID.String())
+			if !older {
+				continue
+			}
+		}
+		out = append(out, e)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 func (r *routeTestRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {

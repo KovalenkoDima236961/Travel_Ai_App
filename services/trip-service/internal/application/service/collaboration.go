@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
@@ -76,6 +77,23 @@ func (s *Service) InviteTripCollaborator(ctx context.Context, tripID uuid.UUID, 
 	if found.DisplayName != "" {
 		info.DisplayName = &found.DisplayName
 	}
+
+	inviteMetadata := map[string]any{
+		"collaboratorUserId": collaborator.UserID.String(),
+		"role":               string(collaborator.Role),
+	}
+	if found.Email != "" {
+		inviteMetadata["collaboratorEmail"] = found.Email
+	}
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCollaboratorInvited,
+		EntityType:  activityEntityType(activity.EntityCollaborator),
+		EntityID:    activityEntityID(collaborator.ID),
+		Metadata:    inviteMetadata,
+	})
+
 	return info, nil
 }
 
@@ -112,10 +130,31 @@ func (s *Service) UpdateTripCollaborator(ctx context.Context, tripID, collaborat
 		return appdto.TripCollaboratorInfo{}, err
 	}
 
+	existing, err := s.repo.GetTripCollaboratorByID(ctx, tripID, collaboratorID)
+	if err != nil {
+		return appdto.TripCollaboratorInfo{}, err
+	}
+
 	updated, err := s.repo.UpdateTripCollaboratorRole(ctx, tripID, collaboratorID, role)
 	if err != nil {
 		return appdto.TripCollaboratorInfo{}, err
 	}
+
+	if existing.Role != updated.Role {
+		s.recordActivity(ctx, activity.RecordActivityInput{
+			TripID:      tripID,
+			ActorUserID: &user.ID,
+			EventType:   activity.EventCollaboratorRoleChanged,
+			EntityType:  activityEntityType(activity.EntityCollaborator),
+			EntityID:    activityEntityID(updated.ID),
+			Metadata: map[string]any{
+				"collaboratorUserId": updated.UserID.String(),
+				"oldRole":            string(existing.Role),
+				"newRole":            string(updated.Role),
+			},
+		})
+	}
+
 	return appdto.TripCollaboratorInfo{Collaborator: *updated}, nil
 }
 
@@ -127,8 +166,24 @@ func (s *Service) RemoveTripCollaborator(ctx context.Context, tripID, collaborat
 	if _, _, err := s.requireOwner(ctx, tripID, user.ID); err != nil {
 		return err
 	}
-	_, err = s.repo.RemoveTripCollaborator(ctx, tripID, collaboratorID)
-	return err
+	removed, err := s.repo.RemoveTripCollaborator(ctx, tripID, collaboratorID)
+	if err != nil {
+		return err
+	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCollaboratorRemoved,
+		EntityType:  activityEntityType(activity.EntityCollaborator),
+		EntityID:    activityEntityID(removed.ID),
+		Metadata: map[string]any{
+			"collaboratorUserId": removed.UserID.String(),
+			"role":               string(removed.Role),
+		},
+	})
+
+	return nil
 }
 
 func (s *Service) AcceptTripCollaborator(ctx context.Context, tripID, collaboratorID uuid.UUID) (appdto.TripCollaboratorInfo, error) {
@@ -140,6 +195,19 @@ func (s *Service) AcceptTripCollaborator(ctx context.Context, tripID, collaborat
 	if err != nil {
 		return appdto.TripCollaboratorInfo{}, err
 	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCollaboratorAccepted,
+		EntityType:  activityEntityType(activity.EntityCollaborator),
+		EntityID:    activityEntityID(collaborator.ID),
+		Metadata: map[string]any{
+			"collaboratorUserId": collaborator.UserID.String(),
+			"role":               string(collaborator.Role),
+		},
+	})
+
 	return appdto.TripCollaboratorInfo{Collaborator: *collaborator}, nil
 }
 
@@ -148,8 +216,24 @@ func (s *Service) DeclineTripCollaborator(ctx context.Context, tripID, collabora
 	if err != nil {
 		return err
 	}
-	_, err = s.repo.DeclineTripCollaborator(ctx, tripID, collaboratorID, user.ID)
-	return err
+	declined, err := s.repo.DeclineTripCollaborator(ctx, tripID, collaboratorID, user.ID)
+	if err != nil {
+		return err
+	}
+
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCollaboratorDeclined,
+		EntityType:  activityEntityType(activity.EntityCollaborator),
+		EntityID:    activityEntityID(declined.ID),
+		Metadata: map[string]any{
+			"collaboratorUserId": declined.UserID.String(),
+			"role":               string(declined.Role),
+		},
+	})
+
+	return nil
 }
 
 func (s *Service) ListCollaborationInvitations(ctx context.Context) ([]appdto.CollaborationInvitation, error) {

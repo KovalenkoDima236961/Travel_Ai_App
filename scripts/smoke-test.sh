@@ -123,6 +123,18 @@ assert_status() {
   fi
 }
 
+# assert_activity_has fails unless the last activity response (LAST_BODY)
+# contains at least one event of the given type.
+assert_activity_has() {
+  local label="$1"
+  local event_type="$2"
+  if ! jq -e --arg t "${event_type}" '.items | any(.eventType == $t)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
+    echo "${label}: activity feed missing expected event type '${event_type}'" >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+}
+
 echo "Checking Auth Service health..."
 request GET "${AUTH_SERVICE_URL}/health"
 assert_2xx "Auth Service health check"
@@ -490,6 +502,16 @@ echo "Confirming pending collaborator cannot list comments..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Pending collaborator comment access" "404"
 
+echo "Confirming pending collaborator cannot fetch activity..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Pending collaborator activity access" "404"
+
+echo "Confirming the trip_created activity event was recorded..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=100" "${ACCESS_TOKEN}"
+assert_2xx "Owner fetch early activity"
+assert_activity_has "Owner early activity" "trip_created"
+assert_activity_has "Owner early activity" "itinerary_generated"
+
 echo "Accepting collaborator invitation..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}/accept" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Accept collaboration invitation"
@@ -541,6 +563,10 @@ if [[ "${VIEWER_SEES_OWNER_COMMENT}" != "1" ]]; then
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+
+echo "Confirming an accepted viewer collaborator can fetch activity..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Accepted collaborator fetch activity"
 
 echo "Adding a viewer collaborator comment..."
 COLLAB_COMMENT_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Viewer: sounds good to me."}'
@@ -636,6 +662,10 @@ assert_status "Removed collaborator private trip access" "404"
 echo "Confirming removed collaborator cannot list comments..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Removed collaborator comment access" "404"
+
+echo "Confirming removed collaborator cannot fetch activity..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Removed collaborator activity access" "404"
 
 echo "Creating password-protected public share link..."
 FUTURE_EXPIRES_AT="$(python3 -c 'from datetime import datetime, timezone, timedelta; print((datetime.now(timezone.utc) + timedelta(days=7)).isoformat().replace("+00:00", "Z"))')"
@@ -971,6 +1001,66 @@ assert_status "Second user list first user's comments" "404"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${OTHER_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"body":"Intruder"}'
 assert_status "Second user create comment on first user's trip" "404"
 
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user fetch first user's activity" "404"
+
+echo "Verifying the owner activity feed recorded the major actions..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=100" "${ACCESS_TOKEN}"
+assert_2xx "Owner fetch full activity"
+assert_activity_has "Owner activity feed" "trip_created"
+assert_activity_has "Owner activity feed" "itinerary_generated"
+assert_activity_has "Owner activity feed" "comment_created"
+assert_activity_has "Owner activity feed" "collaborator_invited"
+assert_activity_has "Owner activity feed" "collaborator_accepted"
+assert_activity_has "Owner activity feed" "collaborator_removed"
+assert_activity_has "Owner activity feed" "share_created"
+
+echo "Paging the activity feed one event at a time via the opaque cursor..."
+ACTIVITY_CURSOR=""
+ACTIVITY_SEEN_IDS=""
+ACTIVITY_FOUND_TRIP_CREATED="false"
+for _page in $(seq 1 200); do
+  if [[ -n "${ACTIVITY_CURSOR}" ]]; then
+    request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=1&cursor=${ACTIVITY_CURSOR}" "${ACCESS_TOKEN}"
+  else
+    request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=1" "${ACCESS_TOKEN}"
+  fi
+  assert_2xx "Activity cursor page"
+  PAGE_COUNT="$(jq '.items | length' <<<"${LAST_BODY}")"
+  if [[ "${PAGE_COUNT}" == "0" ]]; then
+    break
+  fi
+  PAGE_ID="$(jq -r '.items[0].id' <<<"${LAST_BODY}")"
+  PAGE_TYPE="$(jq -r '.items[0].eventType' <<<"${LAST_BODY}")"
+  if [[ "${PAGE_TYPE}" == "trip_created" ]]; then
+    ACTIVITY_FOUND_TRIP_CREATED="true"
+  fi
+  case " ${ACTIVITY_SEEN_IDS} " in
+    *" ${PAGE_ID} "*)
+      echo "Activity cursor pagination returned duplicate id ${PAGE_ID}" >&2
+      exit 1
+      ;;
+  esac
+  ACTIVITY_SEEN_IDS="${ACTIVITY_SEEN_IDS} ${PAGE_ID}"
+  ACTIVITY_CURSOR="$(jq -r '.nextCursor // empty' <<<"${LAST_BODY}")"
+  if [[ -z "${ACTIVITY_CURSOR}" ]]; then
+    break
+  fi
+done
+if [[ "${ACTIVITY_FOUND_TRIP_CREATED}" != "true" ]]; then
+  echo "Activity cursor pagination never reached trip_created." >&2
+  exit 1
+fi
+echo "Activity cursor pagination returned each event once and reached trip_created."
+
+echo "Confirming unauthenticated activity access is rejected..."
+request GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity"
+assert_status "Unauthenticated activity access" "401"
+
+echo "Confirming the public share has no activity endpoint..."
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/activity"
+assert_status "Public share activity endpoint absent" "404"
+
 echo "Logging out smoke test users..."
 LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"
 request POST "${AUTH_SERVICE_URL}/auth/logout" "${LOGOUT_PAYLOAD}"
@@ -980,5 +1070,5 @@ OTHER_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${OTHER_REFRESH_TOKEN}" '{ref
 request POST "${AUTH_SERVICE_URL}/auth/logout" "${OTHER_LOGOUT_PAYLOAD}"
 assert_2xx "Logout second user"
 
-echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), version restore worked, and owner isolation was enforced."
+echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), version restore worked, the activity feed recorded major actions with access enforced, and owner isolation was enforced."
 echo "Open ${WEB_APP_URL}/login to run the manual browser flow."

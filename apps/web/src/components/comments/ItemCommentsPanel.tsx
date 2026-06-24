@@ -12,6 +12,7 @@ import {
   listItemComments,
   updateItineraryComment
 } from "@/lib/api/comments";
+import { activityKeys } from "@/lib/api/activity";
 import { formatDate, getErrorMessage } from "@/lib/utils";
 import type { ItineraryComment } from "@/types/comments";
 
@@ -55,7 +56,8 @@ export function ItemCommentsPanel({
       queryClient.invalidateQueries({
         queryKey: commentKeys.item(tripId, dayNumber, itemIndex)
       }),
-      queryClient.invalidateQueries({ queryKey: commentKeys.counts(tripId) })
+      queryClient.invalidateQueries({ queryKey: commentKeys.counts(tripId) }),
+      queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
     ]);
   }
 

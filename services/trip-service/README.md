@@ -306,6 +306,63 @@ Limitations: no real-time updates, no notifications, no mentions, and no
 threaded replies. Comments are linked by `dayNumber`/`itemIndex`, so heavy
 itinerary reordering can leave a comment pointing at a different item.
 
+## Activity Feed / Audit Log v1
+
+The trip owner and accepted collaborators can see a chronological activity feed
+for a trip. Events are persistent database rows recorded **only after a user
+action succeeds** — failed or unauthorized actions never produce events. The
+feed is a private, authenticated feature: there is no public route, so public
+share viewers can never see activity.
+
+Storage and model:
+
+- Events live in their own `trip_activity_events` table — they are **never**
+  embedded in the itinerary JSON.
+- Columns: `id`, `trip_id` (FK → `trips(id)` ON DELETE CASCADE),
+  `actor_user_id` (nullable, for possible system events), `event_type`
+  (CHECK non-empty), `entity_type` (nullable), `entity_id` (nullable),
+  `metadata` (`JSONB NOT NULL DEFAULT '{}'`), `created_at`. Indexed on
+  `trip_id`, `(trip_id, created_at DESC, id DESC)`, `actor_user_id`,
+  `event_type`, and `(entity_type, entity_id)`.
+- Recording is **best-effort and decoupled from the main action**: an activity
+  insert failure is logged and swallowed, so e.g. a comment is still created
+  even if its activity event cannot be written. Old trips work without events.
+
+Event types: `trip_created`; `itinerary_generated`, `itinerary_updated`,
+`day_regenerated`, `item_regenerated`, `version_restored`; `comment_created`,
+`comment_updated`, `comment_deleted`; `collaborator_invited`,
+`collaborator_accepted`, `collaborator_declined`, `collaborator_role_changed`,
+`collaborator_removed`; `share_created`, `share_updated`, `share_disabled`.
+Entity types: `trip`, `itinerary`, `itinerary_day`, `itinerary_item`,
+`itinerary_version`, `comment`, `collaborator`, `share`. Constants live in
+`internal/activity/types.go` — no scattered string literals.
+
+Metadata safety rules — metadata is kept small and sanitized (nil values
+dropped, string values truncated, key count capped). It **never** stores:
+secrets, raw passwords, password hashes, share access tokens, JWTs, raw comment
+bodies, full itinerary JSON, or private preferences. The collaborator's email is
+included only for `collaborator_invited` (already visible to the owner).
+
+Permissions (enforced in the service, not just the UI):
+
+- View activity: owner, accepted editor, or accepted viewer.
+- Pending, removed, and non-collaborators receive `404` (same shape as other
+  private trip reads). Unauthenticated requests receive `401`.
+
+Protected endpoint:
+
+- `GET /trips/{id}/activity?limit=30&cursor=...` — newest-first page of events.
+  `limit` defaults to `30`, max `100` (out of range → `400`). Pagination uses an
+  opaque base64url `cursor` (`{createdAt,id}`) for stable keyset paging over
+  `(created_at DESC, id DESC)`; the response includes `nextCursor` when more
+  (older) events exist. An invalid cursor is a `400`. Response shape:
+  `{"items":[{"id","tripId","actorUserId","eventType","entityType","entityId","metadata","createdAt"}],"nextCursor":"..."}`.
+
+Limitations: no real-time updates, no notifications, no filtering/search, and
+actor display names are generic ("You" for the requester, "Collaborator"
+otherwise — no batch user lookup in v1). Activity recording failure does not
+fail the originating action.
+
 ## Run with Docker Compose
 
 ```bash
