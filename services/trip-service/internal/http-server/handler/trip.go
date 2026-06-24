@@ -58,6 +58,11 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/itinerary/versions/{versionId}/restore", h.RestoreItineraryVersion)
 		r.Post("/{id}/itinerary/days/{dayNumber}/regenerate", h.RegenerateDay)
 		r.Post("/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate", h.RegenerateItem)
+		r.Get("/{id}/comments", h.ListComments)
+		r.Post("/{id}/comments", h.CreateComment)
+		r.Get("/{id}/comments/counts", h.ListCommentCounts)
+		r.Patch("/{id}/comments/{commentId}", h.UpdateComment)
+		r.Delete("/{id}/comments/{commentId}", h.DeleteComment)
 	})
 }
 

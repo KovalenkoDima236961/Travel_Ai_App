@@ -248,7 +248,63 @@ Protected collaboration endpoints:
 `GET /trips/{id}` returns an `access` object with the viewer's role and
 capabilities. Public share links remain independent and read-only. Current
 limitations: registered users only, no email notifications, no real-time sync,
-no comments, no activity feed, and last-write-wins editing.
+no activity feed, and last-write-wins editing.
+
+## Itinerary Comments v1
+
+Owners and accepted collaborators (viewer or editor) can leave comments on
+individual itinerary items. Comments are a private, authenticated collaboration
+feature: they are never returned by the public share endpoint or page.
+
+Storage and model:
+
+- Comments live in their own `itinerary_comments` table — they are **never**
+  embedded in the itinerary JSON.
+- Each comment is linked by `trip_id` + `day_number` (one-based, matches
+  `itinerary.days[].day`) + `item_index` (zero-based array index).
+- Deletes are **soft deletes**: the row is kept with `status='deleted'` and
+  `deleted_at=NOW()`. The body is intentionally retained for audit simplicity;
+  deleted comments are excluded from all normal list/count responses.
+- v1 returns `authorUserId` plus `isAuthor`/`canEdit`/`canDelete` flags computed
+  per requester. Author display names are not resolved (no batch user lookup
+  yet); clients render "You" for the author and "Collaborator" otherwise.
+
+`itinerary_comments` columns: `id`, `trip_id` (FK → `trips(id)` ON DELETE
+CASCADE), `day_number` (CHECK > 0), `item_index` (CHECK ≥ 0), `author_user_id`,
+`body` (CHECK length ≤ 2000), `status` (CHECK in `active`/`deleted`),
+`created_at`, `updated_at`, `deleted_at`. Indexed on `trip_id`,
+`(trip_id, day_number, item_index)`, `author_user_id`, `status`, `created_at`.
+
+Permissions (enforced in the service, not just the UI):
+
+- List / counts / create: owner, accepted editor, or accepted viewer.
+- Update: comment author only, on an active comment, while they still have trip
+  access.
+- Delete: comment author **or** the trip owner (owners may delete any comment),
+  on an active comment.
+- Pending, removed, and non-collaborators cannot list/create/update/delete and
+  receive `404` (same as private trip access).
+
+Protected comment endpoints:
+
+- `GET /trips/{id}/comments` — all active comments for the trip. With both
+  `?dayNumber=&itemIndex=` query params it returns comments for that single item;
+  supplying only one of the two is a `400`.
+- `GET /trips/{id}/comments/counts` — active comment counts grouped per item,
+  `{"items":[{"dayNumber":2,"itemIndex":3,"count":2}]}`, for item badges.
+- `POST /trips/{id}/comments` — body `{"dayNumber":2,"itemIndex":3,"body":"..."}`.
+  Body is trimmed, must be 1–2000 chars (whitespace-only is rejected), and the
+  target day/item must exist in the stored itinerary.
+- `PATCH /trips/{id}/comments/{commentId}` — author-only body edit.
+- `DELETE /trips/{id}/comments/{commentId}` — author or owner soft delete,
+  returns `{"success":true}`.
+
+Comments scope every read/write to the trip (`trip_id` + `id`), so a comment
+cannot be read, edited, or deleted through a different trip's path.
+
+Limitations: no real-time updates, no notifications, no mentions, and no
+threaded replies. Comments are linked by `dayNumber`/`itemIndex`, so heavy
+itinerary reordering can leave a comment pointing at a different item.
 
 ## Run with Docker Compose
 
@@ -334,6 +390,11 @@ make migrate-down    # roll back the last migration
 | GET    | `/trips/{id}/itinerary/versions` | List itinerary version summaries for an authenticated user's trip. |
 | GET    | `/trips/{id}/itinerary/versions/{versionId}` | Fetch one itinerary version detail with snapshot JSON. |
 | POST   | `/trips/{id}/itinerary/versions/{versionId}/restore` | Restore an older itinerary snapshot and create a new `RESTORED` version. |
+| GET    | `/trips/{id}/comments` | List active itinerary comments; with `?dayNumber=&itemIndex=` returns one item's comments. Owner/editor/viewer only. |
+| GET    | `/trips/{id}/comments/counts` | Active comment counts grouped per itinerary item (badges). Owner/editor/viewer only. |
+| POST   | `/trips/{id}/comments` | Create a comment on an existing itinerary item. Owner/editor/viewer only. |
+| PATCH  | `/trips/{id}/comments/{commentId}` | Edit a comment body (author only). |
+| DELETE | `/trips/{id}/comments/{commentId}` | Soft-delete a comment (author or trip owner). |
 | GET    | `/public/trips/{shareToken}/status` | Public-safe share availability and password-required status. |
 | POST   | `/public/trips/{shareToken}/unlock` | Verify a share password and issue a short-lived public share token. |
 | GET    | `/public/trips/{shareToken}` | Public read-only shared trip payload; protected links require a public share bearer token. |

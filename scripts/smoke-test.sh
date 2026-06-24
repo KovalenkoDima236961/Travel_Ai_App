@@ -486,6 +486,10 @@ echo "Confirming pending collaborator cannot view private trip..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Pending collaborator private trip access" "404"
 
+echo "Confirming pending collaborator cannot list comments..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Pending collaborator comment access" "404"
+
 echo "Accepting collaborator invitation..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}/accept" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Accept collaboration invitation"
@@ -516,6 +520,89 @@ VIEWER_EDIT_PAYLOAD='{"itinerary":{"days":[{"day":1,"title":"Viewer blocked day"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_EDIT_PAYLOAD}"
 assert_status "Viewer itinerary edit" "403"
 
+echo "Creating an owner comment on the first itinerary item..."
+OWNER_COMMENT_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Owner: can we start this earlier?"}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" "${OWNER_COMMENT_PAYLOAD}"
+assert_2xx "Owner create comment"
+OWNER_COMMENT_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+OWNER_COMMENT_IS_AUTHOR="$(jq -r '.isAuthor // false' <<<"${LAST_BODY}")"
+if [[ -z "${OWNER_COMMENT_ID}" || "${OWNER_COMMENT_IS_AUTHOR}" != "true" ]]; then
+  echo "Owner comment response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Confirming the viewer collaborator can read the owner comment..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments?dayNumber=1&itemIndex=0" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer list item comments"
+VIEWER_SEES_OWNER_COMMENT="$(jq --arg id "${OWNER_COMMENT_ID}" '[.items[] | select(.id == $id)] | length' <<<"${LAST_BODY}")"
+if [[ "${VIEWER_SEES_OWNER_COMMENT}" != "1" ]]; then
+  echo "Viewer did not see the owner comment." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Adding a viewer collaborator comment..."
+COLLAB_COMMENT_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Viewer: sounds good to me."}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}" "${COLLAB_COMMENT_PAYLOAD}"
+assert_2xx "Viewer create comment"
+COLLAB_COMMENT_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${COLLAB_COMMENT_ID}" ]]; then
+  echo "Viewer comment response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Updating the viewer's own comment..."
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments/${COLLAB_COMMENT_ID}" "${COLLAB_ACCESS_TOKEN}" '{"body":"Viewer: edited - lets confirm timing."}'
+assert_2xx "Viewer update own comment"
+UPDATED_COMMENT_BODY="$(jq -r '.body // empty' <<<"${LAST_BODY}")"
+if [[ "${UPDATED_COMMENT_BODY}" != "Viewer: edited - lets confirm timing." ]]; then
+  echo "Viewer comment was not updated." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Rejecting an empty comment body..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"body":"   "}'
+assert_status "Whitespace comment rejected" "400"
+
+echo "Rejecting a comment on a non-existent itinerary item..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" '{"dayNumber":99,"itemIndex":0,"body":"Nowhere"}'
+assert_status "Comment on missing item rejected" "400"
+
+echo "Confirming comment counts include both active comments..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments/counts" "${ACCESS_TOKEN}"
+assert_2xx "List comment counts"
+DAY1_ITEM0_COUNT="$(jq -r '[.items[] | select(.dayNumber == 1 and .itemIndex == 0) | .count] | first // 0' <<<"${LAST_BODY}")"
+if [[ "${DAY1_ITEM0_COUNT}" != "2" ]]; then
+  echo "Comment counts did not report 2 active comments on day 1 item 0." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Confirming a collaborator cannot delete the owner's comment..."
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments/${OWNER_COMMENT_ID}" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Collaborator delete owner comment" "403"
+
+echo "Confirming the owner can delete the collaborator's comment..."
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments/${COLLAB_COMMENT_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Owner delete collaborator comment"
+
+echo "Confirming the soft-deleted comment is no longer returned..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}"
+assert_2xx "List trip comments after delete"
+DELETED_STILL_PRESENT="$(jq --arg id "${COLLAB_COMMENT_ID}" '[.items[] | select(.id == $id)] | length' <<<"${LAST_BODY}")"
+if [[ "${DELETED_STILL_PRESENT}" != "0" ]]; then
+  echo "Soft-deleted comment was still returned." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Confirming comments require authentication..."
+request GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments"
+assert_status "Unauthenticated comment list" "401"
+
 echo "Changing collaborator role to editor..."
 request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}" "${ACCESS_TOKEN}" '{"role":"editor"}'
 assert_2xx "Update collaborator role to editor"
@@ -545,6 +632,10 @@ assert_2xx "Remove collaborator"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Removed collaborator private trip access" "404"
+
+echo "Confirming removed collaborator cannot list comments..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Removed collaborator comment access" "404"
 
 echo "Creating password-protected public share link..."
 FUTURE_EXPIRES_AT="$(python3 -c 'from datetime import datetime, timezone, timedelta; print((datetime.now(timezone.utc) + timedelta(days=7)).isoformat().replace("+00:00", "Z"))')"
@@ -617,11 +708,15 @@ if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; 
   echo "${LAST_BODY}" >&2
   exit 1
 fi
-if jq -e 'has("userId") or has("email") or has("versionHistory")' >/dev/null <<<"${LAST_BODY}"; then
+if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments")' >/dev/null <<<"${LAST_BODY}"; then
   echo "Public shared trip exposed private fields." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+
+echo "Confirming the public share has no comments endpoint..."
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/comments"
+assert_status "Public share comments endpoint absent" "404"
 
 echo "Clearing public share password and expiration..."
 request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}" '{"clearPassword":true,"clearExpiration":true}'
@@ -869,6 +964,12 @@ assert_status "Second user get first user's itinerary version" "404"
 
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${GENERATED_VERSION_ID}/restore" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user restore first user's itinerary version" "404"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user list first user's comments" "404"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${OTHER_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"body":"Intruder"}'
+assert_status "Second user create comment on first user's trip" "404"
 
 echo "Logging out smoke test users..."
 LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"

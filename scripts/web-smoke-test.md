@@ -144,6 +144,34 @@ http://localhost:3000
 21. Log in as collaborator again and confirm the trip no longer opens and no
     longer appears under `Shared with me`.
 
+## Itinerary Comments
+
+1. Log in as the owner and open a completed trip with an itinerary.
+2. In the read-only itinerary, confirm each item shows a `Comments` button.
+3. Click `Comments` on the first itinerary item.
+4. Confirm the panel opens and shows `No comments yet.`
+5. Type a comment and click `Post`.
+6. Confirm the comment appears, labelled `You`, with `Edit` and `Delete` actions.
+7. Close the panel and confirm the item's `Comments` button now shows a count of `1`.
+8. Confirm the `comments across itinerary items` summary appears above the itinerary.
+9. Invite a second account as `viewer` (or `editor`) and accept the invitation as
+   that user (see `Collaborative Planning`).
+10. As the collaborator, open the shared trip and open comments on the same item.
+11. Confirm the owner's comment is visible, labelled `Collaborator`, with no
+    `Edit`/`Delete` actions.
+12. Add a comment as the collaborator, then `Edit` it and confirm it shows
+    `edited`.
+13. Confirm the collaborator's own comment shows `Edit` and `Delete`, but the
+    owner's comment does not.
+14. Log back in as the owner, open the same item, and confirm the owner can
+    `Delete` the collaborator's comment (owner can delete any comment).
+15. Confirm the deleted comment disappears and the count decreases.
+16. Click `Edit itinerary` and confirm the `Comments` buttons are hidden while
+    editing; leave edit mode and confirm they reappear.
+17. Open the public `/share/{shareToken}` link (see `Public Trip Sharing`) in an
+    incognito window and confirm no `Comments` buttons, comment panels, or comment
+    summary appear, and that no comment requests are made.
+
 ## Public Trip Sharing
 
 1. Log in and open a completed trip.

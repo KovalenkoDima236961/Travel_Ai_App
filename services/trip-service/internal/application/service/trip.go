@@ -99,6 +99,13 @@ type tripRepository interface {
 	EnableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
 	UpdateTripShareSettings(ctx context.Context, tripID, userID uuid.UUID, expiresAt *time.Time, passwordRequired bool, passwordHash *string) (*entity.TripShare, error)
 	DisableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
+	CreateItineraryComment(ctx context.Context, comment *entity.ItineraryComment) (*entity.ItineraryComment, error)
+	ListItineraryCommentsByTrip(ctx context.Context, tripID uuid.UUID) ([]entity.ItineraryComment, error)
+	ListItineraryCommentsByItem(ctx context.Context, tripID uuid.UUID, dayNumber, itemIndex int) ([]entity.ItineraryComment, error)
+	GetItineraryCommentByID(ctx context.Context, tripID, commentID uuid.UUID) (*entity.ItineraryComment, error)
+	UpdateItineraryCommentBody(ctx context.Context, tripID, commentID uuid.UUID, body string) (*entity.ItineraryComment, error)
+	SoftDeleteItineraryComment(ctx context.Context, tripID, commentID uuid.UUID) (*entity.ItineraryComment, error)
+	CountItineraryCommentsByTripGrouped(ctx context.Context, tripID uuid.UUID) ([]entity.ItineraryCommentCount, error)
 }
 
 type userContextProvider interface {

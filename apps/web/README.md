@@ -75,6 +75,11 @@ The frontend calls the protected Trip Service endpoints:
 - `POST /trips/{id}/collaborators/{collaboratorId}/accept`
 - `POST /trips/{id}/collaborators/{collaboratorId}/decline`
 - `GET /collaboration/invitations`
+- `GET /trips/{id}/comments` (and `?dayNumber=&itemIndex=` for one item)
+- `GET /trips/{id}/comments/counts`
+- `POST /trips/{id}/comments`
+- `PATCH /trips/{id}/comments/{commentId}`
+- `DELETE /trips/{id}/comments/{commentId}`
 - `GET /public/trips/{shareToken}/status` without Authorization for public share pages
 - `POST /public/trips/{shareToken}/unlock` without Authorization to unlock protected shares
 - `GET /public/trips/{shareToken}` without Authorization for unprotected shares or with `Authorization: Bearer <publicShareAccessToken>` for protected shares
@@ -142,8 +147,35 @@ Viewer UI:
   restore, public share, and collaborator management.
 
 Current v1 limitations: registered users only, no email notifications, no
-real-time editing, no comments, no activity feed, and no conflict resolution
-beyond last write wins.
+real-time editing, no activity feed, and no conflict resolution beyond last
+write wins.
+
+## Itinerary Comments
+
+On private trip detail pages, each itinerary item in the read-only view shows a
+`Comments` button with an active-comment count badge (powered by
+`GET /trips/{id}/comments/counts`). A `comments across itinerary items` summary
+renders above the itinerary. Owners and accepted collaborators (viewer or
+editor) can open the per-item panel to read and post comments.
+
+In the comment panel:
+
+- Comments load via `GET /trips/{id}/comments?dayNumber=&itemIndex=`.
+- Posting a comment uses `POST /trips/{id}/comments`; the textarea shows a
+  `0/2000` counter and disables `Post` for empty/too-long bodies.
+- A comment shows `You` for your own comments and `Collaborator` otherwise, plus
+  `edited` when it was changed after creation.
+- Authors can `Edit` (inline) and `Delete` their own comments; trip owners can
+  `Delete` any comment. The backend enforces these rules — the UI only hides
+  buttons. After any change the panel refetches item comments and counts.
+
+Comments are shown in the read-only itinerary only and are hidden while editing
+the itinerary. They are a private feature: the public `/share/{shareToken}` page
+never renders comment UI and makes no comment requests.
+
+Limitations: no real-time updates, no notifications, no mentions, and no
+threaded replies. Comments are keyed by `dayNumber`/`itemIndex`, so heavy
+itinerary reordering can leave a comment pointing at a different item.
 
 ## Public Trip Sharing
 

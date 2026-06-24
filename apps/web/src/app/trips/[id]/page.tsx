@@ -5,7 +5,10 @@ import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
+import { ItemCommentsPanel } from "@/components/comments/ItemCommentsPanel";
+import { TripCommentsSummary } from "@/components/comments/TripCommentsSummary";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { CollaboratorsPanel } from "@/components/trips/CollaboratorsPanel";
 import { GenerateItineraryButton } from "@/components/trips/GenerateItineraryButton";
@@ -28,6 +31,8 @@ import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
+import { buildCommentCountMap } from "@/lib/comments/comment-counts";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import {
   toExportDistanceSummary,
@@ -65,7 +70,15 @@ function TripDetailPageContent() {
   const params = useParams<{ id: string }>();
   const tripId = params.id;
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const currentUserId = user?.id;
   const [isEditing, setIsEditing] = useState(false);
+  const [commentTarget, setCommentTarget] = useState<{
+    dayNumber: number;
+    itemIndex: number;
+    title: string;
+    time?: string | null;
+  } | null>(null);
   const [draftItinerary, setDraftItinerary] = useState<Itinerary | null>(null);
   const [editorErrors, setEditorErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -143,6 +156,31 @@ function TripDetailPageContent() {
     staleTime: 10 * 60 * 1000,
     retry: 1
   });
+
+  // Comments are a private collaboration feature: anyone who can view this
+  // private trip (owner/editor/viewer) may read and add comments. Counts power
+  // the per-item badges. The public share page never mounts this page.
+  const tripAccess = tripQuery.data?.access;
+  const canComment =
+    !tripAccess ||
+    tripAccess.role === "owner" ||
+    tripAccess.role === "editor" ||
+    tripAccess.role === "viewer";
+  const commentsEnabled =
+    Boolean(tripId) &&
+    canComment &&
+    tripQuery.data?.status === "COMPLETED" &&
+    Boolean(tripQuery.data?.itinerary);
+  const commentCountsQuery = useQuery({
+    queryKey: commentKeys.counts(tripId),
+    queryFn: () => listTripCommentCounts(tripId),
+    enabled: commentsEnabled
+  });
+  const commentCounts = commentCountsQuery.data ?? [];
+  const commentCountMap = useMemo(
+    () => buildCommentCountMap(commentCounts),
+    [commentCounts]
+  );
   const exportTrip = useMemo(
     () =>
       tripQuery.data
@@ -316,6 +354,19 @@ function TripDetailPageContent() {
     setSuccessMessage("Place match review saved.");
   }
 
+  function openCommentsForItem(dayNumber: number, itemIndex: number) {
+    const day = (trip.itinerary?.days ?? []).find(
+      (candidate, index) => (candidate.day || index + 1) === dayNumber
+    );
+    const item = day?.items?.[itemIndex];
+    setCommentTarget({
+      dayNumber,
+      itemIndex,
+      title: item?.name ?? `Item ${itemIndex + 1}`,
+      time: item?.time ?? null
+    });
+  }
+
   return (
     <PageContainer>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -463,7 +514,17 @@ function TripDetailPageContent() {
                     trip={trip}
                   />
                   <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
+                  {canComment ? <TripCommentsSummary counts={commentCounts} /> : null}
                   <ItineraryView
+                    comments={
+                      canComment
+                        ? {
+                            countByKey: commentCountMap,
+                            disabled: regenerationMutation.isPending,
+                            onOpenItem: openCommentsForItem
+                          }
+                        : undefined
+                    }
                     currency={trip.budgetCurrency}
                     disabled={regenerationMutation.isPending}
                     itinerary={trip.itinerary}
@@ -491,6 +552,23 @@ function TripDetailPageContent() {
                       itinerary={trip.itinerary}
                       onApplied={handleOptimizationApplied}
                       onClose={() => setOptimizingDayNumber(null)}
+                      open
+                      tripId={trip.id}
+                    />
+                  ) : null}
+                  {commentTarget ? (
+                    <ItemCommentsPanel
+                      canComment={canComment}
+                      currentUserId={currentUserId}
+                      dayNumber={commentTarget.dayNumber}
+                      itemIndex={commentTarget.itemIndex}
+                      itemTime={commentTarget.time}
+                      itemTitle={commentTarget.title}
+                      onOpenChange={(open) => {
+                        if (!open) {
+                          setCommentTarget(null);
+                        }
+                      }}
                       open
                       tripId={trip.id}
                     />

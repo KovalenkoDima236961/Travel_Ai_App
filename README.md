@@ -22,6 +22,12 @@ email as `viewer` or `editor` collaborators. Pending invitees can accept from
 the web app, accepted viewers get read-only private trip access, and accepted
 editors can edit/regenerate/restore itinerary versions without managing public
 sharing or collaborators. Public share links remain independent and read-only.
+Itinerary Comments v1 lets owners and accepted collaborators (viewer or editor)
+leave comments on individual itinerary items. Comments live in a dedicated
+`itinerary_comments` table (never in the itinerary JSON), are linked by
+`trip_id`/`day_number`/`item_index`, and are soft-deleted. Authors can edit and
+delete their own comments; trip owners can delete any comment. Comments are a
+private authenticated feature and are never exposed on public share links/pages.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.
@@ -84,8 +90,10 @@ permissions/removal,
 searches mock places, checks mock route and weather endpoints, saves attached
 place metadata with opening hours through Trip Service, verifies public trip
 sharing create/status/password unlock/clear/disable behavior, verifies itinerary
-version history and restore behavior, confirms only that user can access the
-trip and versions, and logs out.
+version history and restore behavior, exercises itinerary comments
+(create/list/counts/update/soft-delete, owner-deletes-any, collaborator-cannot-
+delete-others, comments require auth, and public shares expose no comments),
+confirms only that user can access the trip and versions, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,
 knowledge indexing, useful URLs, and troubleshooting. The full app can be

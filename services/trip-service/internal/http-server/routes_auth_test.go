@@ -1412,6 +1412,7 @@ type routeTestRepo struct {
 	sharesByTrip      map[uuid.UUID]entity.TripShare
 	sharesByToken     map[string]entity.TripShare
 	created           *entity.Trip
+	comments          []entity.ItineraryComment
 }
 
 func (r *routeTestRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -1741,6 +1742,100 @@ func (r *routeTestRepo) DisableTripShare(_ context.Context, tripID, userID uuid.
 	r.sharesByTrip[tripID] = share
 	r.sharesByToken[share.ShareToken] = share
 	return &share, nil
+}
+
+func (r *routeTestRepo) CreateItineraryComment(_ context.Context, comment *entity.ItineraryComment) (*entity.ItineraryComment, error) {
+	out := *comment
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	if out.Status == "" {
+		out.Status = entity.CommentStatusActive
+	}
+	now := time.Now().UTC()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	r.comments = append(r.comments, out)
+	return &out, nil
+}
+
+func (r *routeTestRepo) ListItineraryCommentsByTrip(_ context.Context, tripID uuid.UUID) ([]entity.ItineraryComment, error) {
+	out := make([]entity.ItineraryComment, 0)
+	for _, c := range r.comments {
+		if c.TripID == tripID && c.Status == entity.CommentStatusActive {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) ListItineraryCommentsByItem(_ context.Context, tripID uuid.UUID, dayNumber, itemIndex int) ([]entity.ItineraryComment, error) {
+	out := make([]entity.ItineraryComment, 0)
+	for _, c := range r.comments {
+		if c.TripID == tripID && c.Status == entity.CommentStatusActive &&
+			c.DayNumber == dayNumber && c.ItemIndex == itemIndex {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) GetItineraryCommentByID(_ context.Context, tripID, commentID uuid.UUID) (*entity.ItineraryComment, error) {
+	for i := range r.comments {
+		if r.comments[i].ID == commentID && r.comments[i].TripID == tripID {
+			out := r.comments[i]
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) UpdateItineraryCommentBody(_ context.Context, tripID, commentID uuid.UUID, body string) (*entity.ItineraryComment, error) {
+	for i := range r.comments {
+		if r.comments[i].ID == commentID && r.comments[i].TripID == tripID &&
+			r.comments[i].Status == entity.CommentStatusActive {
+			r.comments[i].Body = body
+			r.comments[i].UpdatedAt = time.Now().UTC()
+			out := r.comments[i]
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) SoftDeleteItineraryComment(_ context.Context, tripID, commentID uuid.UUID) (*entity.ItineraryComment, error) {
+	for i := range r.comments {
+		if r.comments[i].ID == commentID && r.comments[i].TripID == tripID &&
+			r.comments[i].Status == entity.CommentStatusActive {
+			now := time.Now().UTC()
+			r.comments[i].Status = entity.CommentStatusDeleted
+			r.comments[i].DeletedAt = &now
+			r.comments[i].UpdatedAt = now
+			out := r.comments[i]
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CountItineraryCommentsByTripGrouped(_ context.Context, tripID uuid.UUID) ([]entity.ItineraryCommentCount, error) {
+	type key struct{ day, item int }
+	counts := make(map[key]int)
+	order := make([]key, 0)
+	for _, c := range r.comments {
+		if c.TripID == tripID && c.Status == entity.CommentStatusActive {
+			k := key{c.DayNumber, c.ItemIndex}
+			if _, seen := counts[k]; !seen {
+				order = append(order, k)
+			}
+			counts[k]++
+		}
+	}
+	out := make([]entity.ItineraryCommentCount, 0, len(order))
+	for _, k := range order {
+		out = append(out, entity.ItineraryCommentCount{DayNumber: k.day, ItemIndex: k.item, Count: counts[k]})
+	}
+	return out, nil
 }
 
 func routeTestNextVersionNumber(versions []entity.ItineraryVersion, tripID uuid.UUID) int {

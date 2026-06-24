@@ -8,10 +8,21 @@ import {
 } from "@/lib/itinerary/opening-hours-utils";
 import { formatDate, formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { CommentButton } from "@/components/comments/CommentButton";
+import { makeCommentItemKey } from "@/lib/comments/comment-counts";
 
 export type RegeneratingTarget =
   | { type: "day"; dayNumber: number }
   | { type: "item"; dayNumber: number; itemIndex: number };
+
+// CommentControls wires per-item comment badges/buttons into the read-only
+// itinerary view. It is optional and never passed on the public share page, so
+// comments stay a private, authenticated feature.
+export type CommentControls = {
+  countByKey: Record<string, number>;
+  onOpenItem: (dayNumber: number, itemIndex: number) => void;
+  disabled?: boolean;
+};
 
 type ItineraryViewProps = {
   itinerary: Itinerary;
@@ -21,6 +32,7 @@ type ItineraryViewProps = {
   regeneratingTarget?: RegeneratingTarget | null;
   onRegenerateDay?: (dayNumber: number, instruction?: string) => void;
   onRegenerateItem?: (dayNumber: number, itemIndex: number, instruction?: string) => void;
+  comments?: CommentControls;
 };
 
 export function ItineraryView({
@@ -30,7 +42,8 @@ export function ItineraryView({
   disabled = false,
   regeneratingTarget = null,
   onRegenerateDay,
-  onRegenerateItem
+  onRegenerateItem,
+  comments
 }: ItineraryViewProps) {
   if (!itinerary.days || itinerary.days.length === 0) {
     return (
@@ -203,6 +216,13 @@ export function ItineraryView({
                           ? "Regenerating..."
                           : "Regenerate item"}
                       </Button>
+                    ) : null}
+                    {comments ? (
+                      <CommentButton
+                        count={comments.countByKey[makeCommentItemKey(dayNumber, index)] ?? 0}
+                        disabled={comments.disabled}
+                        onClick={() => comments.onOpenItem(dayNumber, index)}
+                      />
                     ) : null}
                   </div>
                 </li>
