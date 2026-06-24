@@ -4,14 +4,19 @@ export type TripStatus = "DRAFT" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export type Pace = "relaxed" | "balanced" | "packed" | "intensive" | string;
 
-export type PlaceEnrichment = {
+export type PlaceEnrichmentReviewStatus = "pending" | "accepted" | "changed" | "removed";
+
+export type PlaceEnrichmentMeta = {
   status: "matched" | "no_match" | "skipped" | "failed";
+  reviewStatus?: PlaceEnrichmentReviewStatus | null;
   confidence?: number | null;
   query?: string | null;
   provider?: string | null;
   matchedAt?: string | null;
   reason?: string | null;
 };
+
+export type PlaceEnrichment = PlaceEnrichmentMeta;
 
 export type ItineraryItem = {
   time: string;

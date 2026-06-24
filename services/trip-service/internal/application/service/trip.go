@@ -838,6 +838,13 @@ func validateAndNormalizePlaceEnrichment(meta *aggregate.PlaceEnrichmentMeta, pa
 		return apperrs.NewInvalidInput("%s.status must be one of matched, no_match, skipped, failed", label)
 	}
 
+	meta.ReviewStatus = strings.TrimSpace(meta.ReviewStatus)
+	switch meta.ReviewStatus {
+	case "", placeenrichment.ReviewStatusPending, placeenrichment.ReviewStatusAccepted, placeenrichment.ReviewStatusChanged, placeenrichment.ReviewStatusRemoved:
+	default:
+		return apperrs.NewInvalidInput("%s.reviewStatus must be one of pending, accepted, changed, removed", label)
+	}
+
 	if meta.Confidence < 0 || meta.Confidence > 1 {
 		return apperrs.NewInvalidInput("%s.confidence must be between 0 and 1", label)
 	}

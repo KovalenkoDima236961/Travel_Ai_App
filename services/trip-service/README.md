@@ -411,6 +411,8 @@ Validation rules:
 - `placeEnrichment` is optional and is preserved when present.
 - `placeEnrichment.status` must be one of `matched`, `no_match`, `skipped`, or
   `failed`.
+- `placeEnrichment.reviewStatus` is optional. When present it must be one of
+  `pending`, `accepted`, `changed`, or `removed`.
 - `placeEnrichment.confidence` must be between `0` and `1` when present.
 - `placeEnrichment.query`, `provider`, and `reason` are optional and capped at
   300, 50, and 200 characters respectively. `matchedAt` is stored as a string.
@@ -424,7 +426,9 @@ External place lookup is owned by External Integrations Service. Trip Service
 does not call Google Places or other third-party place APIs directly. For
 generated itineraries it calls `GET /places/search` on External Integrations
 Service, attaches only high-confidence matches, and stores `placeEnrichment`
-metadata such as confidence, provider, query, and reason. Manual
+metadata such as confidence, provider, query, reason, and review status. New
+auto-matched and no-match enrichment results start with `reviewStatus:
+"pending"`. Manual
 `PUT /trips/{id}/itinerary` saves do not trigger auto-enrichment; the submitted
 `place` and `placeEnrichment` values are only validated and preserved. Older
 saved itineraries without `place`, `openingHours`, or `placeEnrichment` remain

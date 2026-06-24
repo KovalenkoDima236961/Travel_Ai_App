@@ -1018,6 +1018,42 @@ func TestUpdateItinerary_WithPlaceEnrichmentSucceedsAndVersionsMetadata(t *testi
 	}
 }
 
+func TestUpdateItinerary_WithPlaceEnrichmentReviewStatusSucceedsAndVersionsMetadata(t *testing.T) {
+	statuses := []string{
+		placeenrichment.ReviewStatusPending,
+		placeenrichment.ReviewStatusAccepted,
+		placeenrichment.ReviewStatusChanged,
+		placeenrichment.ReviewStatusRemoved,
+	}
+
+	for _, status := range statuses {
+		t.Run(status, func(t *testing.T) {
+			id := uuid.New()
+			repo := &mockRepo{}
+			svc := newTestService(repo, &mockGenerator{})
+
+			got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+				Itinerary: validItineraryWithPlaceEnrichmentReviewRaw(t, status),
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			updated := decodeItinerary(t, got.Itinerary)
+			meta := updated.Days[0].Items[0].PlaceEnrichment
+			if meta == nil || meta.ReviewStatus != status {
+				t.Fatalf("expected persisted review status %q, got %+v", status, meta)
+			}
+
+			version := decodeItinerary(t, repo.versions[0].Itinerary)
+			versionMeta := version.Days[0].Items[0].PlaceEnrichment
+			if versionMeta == nil || versionMeta.ReviewStatus != status {
+				t.Fatalf("expected version review status %q, got %+v", status, versionMeta)
+			}
+		})
+	}
+}
+
 func TestUpdateItinerary_InvalidPlaceEnrichmentReturnsInvalidInput(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -1027,6 +1063,12 @@ func TestUpdateItinerary_InvalidPlaceEnrichmentReturnsInvalidInput(t *testing.T)
 			name: "invalid status",
 			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
 				meta.Status = "manual"
+			},
+		},
+		{
+			name: "invalid review status",
+			mutate: func(meta *aggregate.PlaceEnrichmentMeta) {
+				meta.ReviewStatus = "ignored"
 			},
 		},
 		{
@@ -1713,6 +1755,44 @@ func TestRestoreItineraryVersion_RestoresPlaceMetadata(t *testing.T) {
 	}
 }
 
+func TestRestoreItineraryVersion_RestoresPlaceEnrichmentReviewStatus(t *testing.T) {
+	tripID := uuid.New()
+	versionID := uuid.New()
+	userID := testUserID()
+	original := validItineraryWithPlaceEnrichmentReviewRaw(t, placeenrichment.ReviewStatusChanged)
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{ID: tripID, UserID: &userID},
+		versions: []entity.ItineraryVersion{
+			{
+				ID:            versionID,
+				TripID:        tripID,
+				UserID:        userID,
+				VersionNumber: 1,
+				Source:        entity.ItineraryVersionSourceManualEdit,
+				Itinerary:     original,
+			},
+		},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	itinerary := decodeItinerary(t, got.Itinerary)
+	meta := itinerary.Days[0].Items[0].PlaceEnrichment
+	if meta == nil || meta.ReviewStatus != placeenrichment.ReviewStatusChanged {
+		t.Fatalf("expected restored trip to include review status, got %+v", meta)
+	}
+
+	restoredVersion := decodeItinerary(t, repo.versions[1].Itinerary)
+	restoredMeta := restoredVersion.Days[0].Items[0].PlaceEnrichment
+	if restoredMeta == nil || restoredMeta.ReviewStatus != placeenrichment.ReviewStatusChanged {
+		t.Fatalf("expected restored version to include review status, got %+v", restoredMeta)
+	}
+}
+
 func TestItineraryVersionNumbersIncrementPerTrip(t *testing.T) {
 	userID := testUserID()
 	firstTripID := uuid.New()
@@ -1807,6 +1887,19 @@ func validItineraryWithPlaceEnrichmentRaw(t *testing.T) json.RawMessage {
 	out, err := json.Marshal(itinerary)
 	if err != nil {
 		t.Fatalf("marshal itinerary with place enrichment: %v", err)
+	}
+	return out
+}
+
+func validItineraryWithPlaceEnrichmentReviewRaw(t *testing.T, status string) json.RawMessage {
+	t.Helper()
+	raw := validItineraryWithPlaceEnrichmentRaw(t)
+	itinerary := decodeItinerary(t, raw)
+	itinerary.Days[0].Items[0].PlaceEnrichment.ReviewStatus = status
+
+	out, err := json.Marshal(itinerary)
+	if err != nil {
+		t.Fatalf("marshal itinerary with place enrichment review status: %v", err)
 	}
 	return out
 }

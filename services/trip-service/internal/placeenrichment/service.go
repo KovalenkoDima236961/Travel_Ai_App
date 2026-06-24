@@ -15,6 +15,11 @@ const (
 	StatusSkipped = "skipped"
 	StatusFailed  = "failed"
 
+	ReviewStatusPending  = "pending"
+	ReviewStatusAccepted = "accepted"
+	ReviewStatusChanged  = "changed"
+	ReviewStatusRemoved  = "removed"
+
 	maxSearchQueryLength = 200
 )
 
@@ -86,9 +91,10 @@ func (s *Service) EnrichItinerary(ctx context.Context, input EnrichItineraryInpu
 			if err != nil {
 				result.Stats.Failed++
 				item.PlaceEnrichment = &aggregate.PlaceEnrichmentMeta{
-					Status: StatusFailed,
-					Query:  query,
-					Reason: "search_failed",
+					Status:       StatusFailed,
+					ReviewStatus: ReviewStatusPending,
+					Query:        query,
+					Reason:       "search_failed",
 				}
 				if !s.cfg.FailOpen {
 					return nil, fmt.Errorf("place search failed: %w", err)
@@ -100,10 +106,11 @@ func (s *Service) EnrichItinerary(ctx context.Context, input EnrichItineraryInpu
 			if !ok || bestScore.Confidence < s.cfg.MinConfidence {
 				result.Stats.NoMatch++
 				item.PlaceEnrichment = &aggregate.PlaceEnrichmentMeta{
-					Status:     StatusNoMatch,
-					Confidence: bestScore.Confidence,
-					Query:      query,
-					Reason:     bestScore.Reason,
+					Status:       StatusNoMatch,
+					ReviewStatus: ReviewStatusPending,
+					Confidence:   bestScore.Confidence,
+					Query:        query,
+					Reason:       bestScore.Reason,
 				}
 				continue
 			}
@@ -111,12 +118,13 @@ func (s *Service) EnrichItinerary(ctx context.Context, input EnrichItineraryInpu
 			place := copyPlaceRef(bestPlace)
 			item.Place = &place
 			item.PlaceEnrichment = &aggregate.PlaceEnrichmentMeta{
-				Status:     StatusMatched,
-				Confidence: bestScore.Confidence,
-				Query:      query,
-				Provider:   bestPlace.Provider,
-				MatchedAt:  time.Now().UTC().Format(time.RFC3339),
-				Reason:     bestScore.Reason,
+				Status:       StatusMatched,
+				ReviewStatus: ReviewStatusPending,
+				Confidence:   bestScore.Confidence,
+				Query:        query,
+				Provider:     bestPlace.Provider,
+				MatchedAt:    time.Now().UTC().Format(time.RFC3339),
+				Reason:       bestScore.Reason,
 			}
 			result.Stats.Matched++
 		}

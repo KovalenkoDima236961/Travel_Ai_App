@@ -17,6 +17,7 @@ import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/components/trips/OptimizeDayOrderDialog";
+import { PlaceEnrichmentReviewPanel } from "@/components/trips/PlaceEnrichmentReviewPanel";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
@@ -231,6 +232,14 @@ function TripDetailPageContent() {
     );
   }
 
+  async function handlePlaceReviewUpdated(updatedTrip: Trip) {
+    queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
+    await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+    await tripQuery.refetch();
+    setRegenerationError(null);
+    setSuccessMessage("Place match review saved.");
+  }
+
   return (
     <PageContainer>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -350,6 +359,10 @@ function TripDetailPageContent() {
                     </Button>
                   </div>
                 ) : null}
+                <PlaceEnrichmentReviewPanel
+                  onTripUpdated={handlePlaceReviewUpdated}
+                  trip={trip}
+                />
                 <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
                 <ItineraryView
                   currency={trip.budgetCurrency}

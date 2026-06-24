@@ -62,10 +62,11 @@ type PlaceRef struct {
 // PlaceEnrichmentMeta describes automatic Trip Service place matching for an
 // itinerary item. It is optional and preserved with itinerary JSON snapshots.
 type PlaceEnrichmentMeta struct {
-	Status     string  `json:"status"`
-	Confidence float64 `json:"confidence,omitempty"`
-	Query      string  `json:"query,omitempty"`
-	Provider   string  `json:"provider,omitempty"`
-	MatchedAt  string  `json:"matchedAt,omitempty"`
-	Reason     string  `json:"reason,omitempty"`
+	Status       string  `json:"status"`
+	ReviewStatus string  `json:"reviewStatus,omitempty"`
+	Confidence   float64 `json:"confidence,omitempty"`
+	Query        string  `json:"query,omitempty"`
+	Provider     string  `json:"provider,omitempty"`
+	MatchedAt    string  `json:"matchedAt,omitempty"`
+	Reason       string  `json:"reason,omitempty"`
 }

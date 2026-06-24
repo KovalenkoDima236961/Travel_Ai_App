@@ -80,6 +80,25 @@ shows an `Auto-matched place` confidence badge when an item has
 `placeEnrichment.status === "matched"`. Manual place changes/removals in the
 editor clear `placeEnrichment` so stale auto-match labels are not saved.
 
+## Place Enrichment Review
+
+Completed trip detail pages show a `Place Matches` review section when the
+itinerary contains auto-enrichment metadata. The section lists auto-matched
+places and no-match results from Trip Service:
+
+- `Accept` keeps the attached place and marks `placeEnrichment.reviewStatus` as
+  `accepted`.
+- `Change` opens the existing place search dialog, replaces the attached place,
+  and marks the review status as `changed`.
+- `Remove` clears the attached place and marks the review status as `removed`.
+- `Search manually` appears for no-match rows and saves the selected place with
+  review status `changed`.
+
+Each review action saves the full itinerary through the existing
+`PUT /trips/{id}/itinerary` endpoint, so Trip Service records a `MANUAL_EDIT`
+version. The review state lives inside the itinerary JSON for v1; there is no
+separate review table or background worker.
+
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and
 adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:
