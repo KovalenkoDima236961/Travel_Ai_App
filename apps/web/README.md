@@ -4,7 +4,8 @@ Next.js Web App v1 for registering/logging in, managing profile and travel
 preferences, creating trip requests, listing trips, opening trip details,
 generating itineraries, viewing generated plans, showing mock weather context,
 and editing completed itineraries. Completed trips with itineraries also show
-version history with read-only preview and restore actions.
+version history with read-only preview and restore actions. Owners can create a
+public read-only share link for a trip and disable that link later.
 
 ## Source Layout
 
@@ -57,9 +58,13 @@ The frontend calls the protected Trip Service endpoints:
 - `PUT /trips/{id}/itinerary`
 - `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`
 - `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`
+- `GET /trips/{id}/share`
+- `POST /trips/{id}/share`
+- `DELETE /trips/{id}/share`
 - `GET /trips/{id}/itinerary/versions`
 - `GET /trips/{id}/itinerary/versions/{versionId}`
 - `POST /trips/{id}/itinerary/versions/{versionId}/restore`
+- `GET /public/trips/{shareToken}` without Authorization for public share pages
 
 The frontend calls External Integrations Service v1 directly for place search,
 route estimates, and weather forecasts:
@@ -98,6 +103,29 @@ Each review action saves the full itinerary through the existing
 `PUT /trips/{id}/itinerary` endpoint, so Trip Service records a `MANUAL_EDIT`
 version. The review state lives inside the itinerary JSON for v1; there is no
 separate review table or background worker.
+
+## Public Trip Sharing
+
+Authenticated trip detail pages include a `Share itinerary` panel. It calls
+`GET /trips/{id}/share` on load, `POST /trips/{id}/share` to create or
+re-enable a link, and `DELETE /trips/{id}/share` to disable it. The share URL
+points to `/share/{shareToken}`.
+
+The public share page calls `GET /public/trips/{shareToken}` without attaching
+an access token. It renders the sanitized read-only trip summary, itinerary,
+place metadata, map view, distance estimate, and weather context when data is
+available. It does not render edit, regenerate, version history, route
+optimization, place-match review, settings, logout, or any private preference
+controls.
+
+Disabled or unknown share links show:
+
+```text
+This shared trip is unavailable or the link has been disabled.
+```
+
+Public sharing v1 has one link per trip and no expiration, password protection,
+analytics, collaboration, PDF export, or calendar export.
 
 To edit an itinerary, open a completed trip and click `Edit itinerary`. The
 editor supports changing day titles and item fields, adding/removing days, and

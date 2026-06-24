@@ -111,6 +111,10 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		placeEnrichmentSvc,
 		cfg.PlaceEnrichment.Enabled,
 		cfg.PlaceEnrichment.FailOpen,
+	), service.WithPublicSharing(
+		cfg.PublicSharing.Enabled,
+		cfg.PublicSharing.PublicWebBaseURL,
+		cfg.PublicSharing.ShareTokenBytes,
 	))
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(

@@ -24,6 +24,7 @@ type Config struct {
 	UserContext        UserContextConfig        `yaml:"user_context"`
 	WeatherContext     WeatherContextConfig     `yaml:"weather_context"`
 	PlaceEnrichment    PlaceEnrichmentConfig    `yaml:"place_enrichment"`
+	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -85,6 +86,13 @@ type PlaceEnrichmentConfig struct {
 	MinConfidence                  float64 `yaml:"min_confidence" env:"PLACE_ENRICHMENT_MIN_CONFIDENCE" env-default:"0.75" validate:"min=0,max=1"`
 	MaxItems                       int     `yaml:"max_items" env:"PLACE_ENRICHMENT_MAX_ITEMS" env-default:"20" validate:"min=1"`
 	OverwriteExisting              bool    `yaml:"overwrite_existing" env:"PLACE_ENRICHMENT_OVERWRITE_EXISTING" env-default:"false"`
+}
+
+// PublicSharingConfig controls read-only public trip share links.
+type PublicSharingConfig struct {
+	Enabled          bool   `yaml:"enabled" env:"PUBLIC_SHARING_ENABLED" env-default:"true"`
+	PublicWebBaseURL string `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
+	ShareTokenBytes  int    `yaml:"share_token_bytes" env:"SHARE_TOKEN_BYTES" env-default:"32" validate:"min=32,max=128"`
 }
 
 // IsProduction reports whether the service runs in a production profile.

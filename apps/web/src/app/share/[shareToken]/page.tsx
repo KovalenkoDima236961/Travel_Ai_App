@@ -1,0 +1,158 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { DistanceSummary } from "@/components/trips/DistanceSummary";
+import { ItineraryMap } from "@/components/trips/ItineraryMap";
+import { ItineraryView } from "@/components/trips/ItineraryView";
+import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
+import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
+import { Card } from "@/components/ui/Card";
+import { buttonStyles } from "@/components/ui/Button";
+import { getPublicTrip, tripKeys } from "@/lib/api/trips";
+import {
+  formatBudget,
+  formatDate,
+  formatInterestLabel,
+  formatPaceLabel
+} from "@/lib/utils";
+
+export default function PublicSharePage() {
+  const params = useParams<{ shareToken: string }>();
+  const shareToken = params.shareToken;
+
+  const publicTripQuery = useQuery({
+    queryKey: tripKeys.publicShare(shareToken),
+    queryFn: () => getPublicTrip(shareToken),
+    enabled: Boolean(shareToken),
+    retry: false
+  });
+
+  if (publicTripQuery.isPending) {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          Loading shared itinerary...
+        </div>
+      </div>
+    );
+  }
+
+  if (publicTripQuery.isError) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
+          <h1 className="text-xl font-semibold text-amber-950">Shared trip unavailable</h1>
+          <p className="mt-2 text-sm leading-6 text-amber-900">
+            This shared trip is unavailable or the link has been disabled.
+          </p>
+          <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/">
+            Go to home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const trip = publicTripQuery.data;
+  const itinerary = trip.itinerary ?? null;
+  const interests = trip.interests ?? [];
+  const currency = trip.budgetCurrency ?? "EUR";
+  const travelers = trip.travelers ?? 0;
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-primary-700">Shared itinerary</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold text-slate-950">{trip.destination}</h1>
+            <TripStatusBadge status={trip.status} />
+          </div>
+        </div>
+        <Link className={buttonStyles({ variant: "secondary", size: "sm" })} href="/">
+          Travel AI Planner
+        </Link>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-950">Trip summary</h2>
+          <dl className="mt-5 space-y-4 text-sm">
+            <DetailRow label="Start date" value={trip.startDate ? formatDate(trip.startDate) : "Not set"} />
+            <DetailRow label="Duration" value={`${trip.days} ${trip.days === 1 ? "day" : "days"}`} />
+            <DetailRow label="Travelers" value={travelers > 0 ? String(travelers) : "Not set"} />
+            <DetailRow label="Budget" value={formatBudget(trip.budgetAmount, currency)} />
+            <DetailRow label="Pace" value={trip.pace ? formatPaceLabel(trip.pace) : "Not set"} />
+            {trip.sharedAt ? (
+              <DetailRow
+                label="Shared"
+                value={formatDate(trip.sharedAt, {
+                  dateStyle: "medium",
+                  timeStyle: "short"
+                })}
+              />
+            ) : null}
+          </dl>
+          <div className="mt-6">
+            <p className="text-sm font-medium text-slate-700">Interests</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {interests.length > 0 ? (
+                interests.map((interest) => (
+                  <span
+                    key={interest}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                  >
+                    {formatInterestLabel(interest)}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-slate-500">No interests listed</span>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <section className="min-w-0">
+          <WeatherForecastCard
+            className="mb-4"
+            days={trip.days}
+            destination={trip.destination}
+            startDate={trip.startDate}
+          />
+
+          {itinerary ? (
+            <div className="space-y-4">
+              <ItineraryView
+                currency={currency}
+                itinerary={itinerary}
+                startDate={trip.startDate}
+              />
+              <ItineraryMap itinerary={itinerary} startDate={trip.startDate} />
+              <DistanceSummary itinerary={itinerary} />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+              This shared trip does not have an itinerary yet.
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+type DetailRowProps = {
+  label: string;
+  value: string;
+};
+
+function DetailRow({ label, value }: DetailRowProps) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="text-right font-medium text-slate-800">{value}</dd>
+    </div>
+  );
+}

@@ -1,6 +1,9 @@
 package dto
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CreateTripInput is the validated, application-level representation of a create
 // request.
@@ -25,4 +28,14 @@ type UpdateItineraryInput struct {
 // regeneration. Instruction is optional and normalized by the service.
 type RegenerateItineraryPartInput struct {
 	Instruction string
+}
+
+// TripShareInfo is the application-level share-link status returned to the
+// owning user. Disabled shares intentionally omit the token/URL.
+type TripShareInfo struct {
+	ShareToken string
+	ShareURL   string
+	Enabled    bool
+	CreatedAt  *time.Time
+	DisabledAt *time.Time
 }

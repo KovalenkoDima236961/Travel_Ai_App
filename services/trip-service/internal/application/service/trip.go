@@ -57,6 +57,7 @@ type editableItinerary struct {
 // unexported — the use case owns the abstraction it consumes.
 type tripRepository interface {
 	Create(ctx context.Context, t *entity.Trip) (*entity.Trip, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error)
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
 	UpdateStatusByUserID(ctx context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error)
@@ -70,6 +71,11 @@ type tripRepository interface {
 	) (*entity.Trip, *entity.ItineraryVersion, error)
 	ListItineraryVersionsByTripAndUser(ctx context.Context, tripID, userID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error)
 	GetItineraryVersionByIDTripAndUser(ctx context.Context, id, tripID, userID uuid.UUID) (*entity.ItineraryVersion, error)
+	CreateTripShare(ctx context.Context, share *entity.TripShare) (*entity.TripShare, error)
+	GetTripShareByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
+	GetTripShareByToken(ctx context.Context, shareToken string) (*entity.TripShare, error)
+	EnableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
+	DisableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
 }
 
 type userContextProvider interface {
@@ -118,6 +124,17 @@ func WithPlaceEnrichment(provider placeEnrichmentProvider, enabled, failOpen boo
 	}
 }
 
+// WithPublicSharing configures owner-managed public read-only trip links.
+func WithPublicSharing(enabled bool, publicWebBaseURL string, shareTokenBytes int) Option {
+	return func(s *Service) {
+		s.publicSharingEnabled = enabled
+		s.publicWebBaseURL = strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/")
+		if shareTokenBytes >= 32 {
+			s.shareTokenBytes = shareTokenBytes
+		}
+	}
+}
+
 // Service holds the trip business logic. It depends on the repository and
 // generator ports and a logger.
 type Service struct {
@@ -132,12 +149,22 @@ type Service struct {
 	placeEnrichmentProvider placeEnrichmentProvider
 	placeEnrichmentEnabled  bool
 	placeEnrichmentFailOpen bool
+	publicSharingEnabled    bool
+	publicWebBaseURL        string
+	shareTokenBytes         int
 	log                     *zap.Logger
 }
 
 // New constructs the trip service.
 func New(repo tripRepository, generator application.ItineraryGenerator, log *zap.Logger, opts ...Option) *Service {
-	s := &Service{repo: repo, generator: generator, log: log}
+	s := &Service{
+		repo:                 repo,
+		generator:            generator,
+		publicSharingEnabled: true,
+		publicWebBaseURL:     "http://localhost:3000",
+		shareTokenBytes:      32,
+		log:                  log,
+	}
 	for _, opt := range opts {
 		opt(s)
 	}

@@ -439,6 +439,49 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
 
+echo "Creating public read-only share link..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}"
+assert_2xx "Create trip share"
+
+SHARE_TOKEN="$(jq -r '.shareToken // empty' <<<"${LAST_BODY}")"
+SHARE_URL="$(jq -r '.shareUrl // empty' <<<"${LAST_BODY}")"
+SHARE_ENABLED="$(jq -r '.enabled // false' <<<"${LAST_BODY}")"
+if [[ -z "${SHARE_TOKEN}" || "${#SHARE_TOKEN}" -lt 43 || "${SHARE_ENABLED}" != "true" ]]; then
+  echo "Share response did not include an enabled secure token." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ -z "${SHARE_URL}" ]]; then
+  echo "Share response did not include shareUrl." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Fetching public shared trip without Authorization..."
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}"
+assert_2xx "Fetch public shared trip"
+
+PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${LAST_BODY}")"
+PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${LAST_BODY}")"
+if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; then
+  echo "Public shared trip did not include expected destination and itinerary." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if jq -e 'has("userId") or has("email") or has("versionHistory")' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Public shared trip exposed private fields." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Disabling public share link..."
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}"
+assert_2xx "Disable trip share"
+
+echo "Confirming disabled public share returns 404..."
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}"
+assert_status "Disabled public shared trip" "404"
+
 AUTO_MATCHED_GENERATED_ITEMS="$(jq '[.itinerary.days[]?.items[]? | select(.place != null and .placeEnrichment.status == "matched")] | length' <<<"${COMPLETED_TRIP_BODY}")"
 if [[ "${AUTO_MATCHED_GENERATED_ITEMS}" -gt 0 ]]; then
   if ! jq -e '

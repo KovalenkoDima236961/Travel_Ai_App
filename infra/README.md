@@ -50,6 +50,10 @@ path, `PLACE_ENRICHMENT_FAIL_OPEN=true` keeps generation successful when place
 search is unavailable, and `PLACE_ENRICHMENT_MIN_CONFIDENCE=0.75`,
 `PLACE_ENRICHMENT_MAX_ITEMS=20`, and
 `PLACE_ENRICHMENT_OVERWRITE_EXISTING=false` control matching behavior.
+Public Trip Sharing v1 is enabled by default with
+`PUBLIC_SHARING_ENABLED=true`, builds owner-facing links from
+`PUBLIC_WEB_BASE_URL=http://localhost:3000`, and creates opaque share tokens
+from `SHARE_TOKEN_BYTES=32` random bytes.
 
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right
@@ -63,9 +67,9 @@ Trip Service applies PostgreSQL migrations automatically on startup, so there is
 no separate migration container in this stack. Auth Service does the same for
 its own `auth_service` database. The Postgres init script in
 `infra/postgres/init` creates `auth_service` when the database volume is first
-initialized. Trip Service migrations create both `trips` and
-`itinerary_versions`; version history starts from the point the migration is
-deployed and existing itineraries are not backfilled.
+initialized. Trip Service migrations create `trips`, `itinerary_versions`, and
+`trip_shares`; version history starts from the point the migration is deployed
+and existing itineraries are not backfilled.
 
 ## Running The Web App
 
@@ -99,6 +103,13 @@ The `web-app` service receives browser-facing and internal service URLs:
   proxy calls inside Docker Compose.
 - `USER_SERVICE_INTERNAL_URL=http://user-service:8083` for future server-side
   Next.js proxy calls inside Docker Compose.
+
+Trip Service also receives:
+
+- `PUBLIC_WEB_BASE_URL=http://localhost:3000` for share URLs returned to owners.
+- `PUBLIC_SHARING_ENABLED=true` to enable owner-managed public links.
+- `SHARE_TOKEN_BYTES=32` to keep share tokens cryptographically random and
+  base64url encoded.
 
 Auth Service is exposed directly at `http://localhost:8082` for API testing and
 the web app login/register flow.
@@ -236,8 +247,10 @@ a bearer token, searches mock places for Colosseum in Rome, requests a mock
 walking route estimate and asserts a `mock` provider with positive distance,
 duration, and one segment (and that fewer than two stops is rejected), requests a
 mock Rome weather forecast and checks provider/day data, creates a Rome trip,
-generates its itinerary through Trip Service's personalized context path, saves
-a manual itinerary edit with attached place metadata and opening hours, verifies
+generates its itinerary through Trip Service's personalized context path, creates
+and disables a public share link while confirming `/public/trips/{shareToken}`
+works without Authorization and does not expose private fields, saves a manual
+itinerary edit with attached place metadata and opening hours, verifies
 the metadata persists after fetch and in the manual-edit version snapshot, lists
 itinerary versions, checks `GENERATED`, `MANUAL_EDIT`, and `RESTORED` version
 sources, restores the generated version, warns if avoided nightlife wording

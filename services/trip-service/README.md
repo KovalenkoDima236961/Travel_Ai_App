@@ -176,6 +176,9 @@ Key environment variables:
 | `PLACE_ENRICHMENT_MIN_CONFIDENCE` | `0.75` | Minimum deterministic match score required before attaching a place. |
 | `PLACE_ENRICHMENT_MAX_ITEMS` | `20` | Maximum generated itinerary items to search per enrichment run. |
 | `PLACE_ENRICHMENT_OVERWRITE_EXISTING` | `false` | Preserve existing item `place` metadata by default. |
+| `PUBLIC_WEB_BASE_URL` | `http://localhost:3000` | Base URL used to build owner-facing `/share/{token}` links. |
+| `PUBLIC_SHARING_ENABLED` | `true` | Enables owner-managed public read-only trip share links. |
+| `SHARE_TOKEN_BYTES` | `32` | Number of cryptographically random bytes used before base64url encoding share tokens. Minimum 32. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -277,9 +280,13 @@ make migrate-down    # roll back the last migration
 | PUT    | `/trips/{id}/itinerary` | Replace the full itinerary JSON for an authenticated user's trip; status `COMPLETED`. |
 | POST   | `/trips/{id}/itinerary/days/{dayNumber}/regenerate` | Regenerate one itinerary day with AI and preserve all other days. |
 | POST   | `/trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate` | Regenerate one itinerary item with AI and preserve all other items. |
+| GET    | `/trips/{id}/share` | Fetch current share-link status for an authenticated owner's trip. |
+| POST   | `/trips/{id}/share` | Create or re-enable a public read-only share link for an authenticated owner's trip. |
+| DELETE | `/trips/{id}/share` | Disable the public share link for an authenticated owner's trip. |
 | GET    | `/trips/{id}/itinerary/versions` | List itinerary version summaries for an authenticated user's trip. |
 | GET    | `/trips/{id}/itinerary/versions/{versionId}` | Fetch one itinerary version detail with snapshot JSON. |
 | POST   | `/trips/{id}/itinerary/versions/{versionId}/restore` | Restore an older itinerary snapshot and create a new `RESTORED` version. |
+| GET    | `/public/trips/{shareToken}` | Public read-only shared trip payload; no JWT required. |
 
 Partial itinerary regeneration uses `dayNumber` as a one-based value matching
 the itinerary `day` field. `itemIndex` is zero-based and matches the selected
@@ -308,6 +315,50 @@ Missing or invalid tokens return:
 
 For local debugging only, set `AUTH_REQUIRED=false`. In that mode requests
 without a valid token are allowed and new trips are owned by `DEV_USER_ID`.
+
+### Public trip sharing
+
+Public sharing v1 stores one row per trip in `trip_shares`. Share tokens are
+generated from at least 32 cryptographically random bytes and encoded as
+base64url without padding; UUIDs are not used as public tokens.
+
+Owner management endpoints are protected and use the same ownership rules as
+the rest of `/trips`: non-owners receive `404`.
+
+```http
+GET /trips/{id}/share
+POST /trips/{id}/share
+DELETE /trips/{id}/share
+```
+
+`POST /trips/{id}/share` returns an existing enabled link, re-enables a disabled
+link with the same token, or creates a new token:
+
+```json
+{
+  "shareToken": "base64url-token",
+  "shareUrl": "http://localhost:3000/share/base64url-token",
+  "enabled": true,
+  "createdAt": "2026-06-24T12:00:00Z"
+}
+```
+
+`DELETE /trips/{id}/share` is idempotent after ownership is verified and returns
+`{ "success": true }`. A disabled share immediately makes the public endpoint
+return `404`.
+
+```http
+GET /public/trips/{shareToken}
+```
+
+The public endpoint does not require JWT and only returns enabled shares. Its
+response is sanitized: it omits `userId`, owner email, preferences, version
+history, tokens, generation logs, and private service metadata. It includes only
+basic trip summary fields plus the current itinerary JSON needed for read-only
+rendering.
+
+Limitations: no expiration, password protection, analytics, collaboration,
+public editing, or multiple links per trip yet.
 
 ### Itinerary generation
 
@@ -589,6 +640,17 @@ curl -s "http://localhost:8080/trips/${TRIP_ID}/itinerary/versions/${VERSION_ID}
   -H "Authorization: Bearer ${ACCESS_TOKEN}"
 
 curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/itinerary/versions/${VERSION_ID}/restore" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+
+# Create a public read-only share link
+SHARE_TOKEN=$(curl -s -X POST "http://localhost:8080/trips/${TRIP_ID}/share" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" | jq -r '.shareToken')
+
+# Fetch the public shared trip without Authorization
+curl -s "http://localhost:8080/public/trips/${SHARE_TOKEN}"
+
+# Disable the share link
+curl -s -X DELETE "http://localhost:8080/trips/${TRIP_ID}/share" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}"
 
 # List (paginated, newest first)

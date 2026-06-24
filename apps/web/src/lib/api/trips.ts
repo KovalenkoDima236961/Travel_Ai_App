@@ -1,8 +1,9 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, apiFetchPublic } from "@/lib/api/client";
 import type {
   ItineraryVersionDetail,
   ListItineraryVersionsResponse
 } from "@/types/itinerary-version";
+import type { PublicTrip, TripShareInfo } from "@/types/share";
 import type { CreateTripInput, Itinerary, Trip, TripsListResponse } from "@/types/trip";
 
 type ListTripsParams = {
@@ -16,6 +17,8 @@ export const tripKeys = {
   list: (params: ListTripsParams) => [...tripKeys.lists(), params] as const,
   details: () => [...tripKeys.all, "detail"] as const,
   detail: (id: string) => [...tripKeys.details(), id] as const,
+  share: (id: string) => [...tripKeys.detail(id), "share"] as const,
+  publicShare: (shareToken: string) => ["public-trip-share", shareToken] as const,
   itineraryVersions: (tripId: string) => [...tripKeys.detail(tripId), "itinerary-versions"] as const,
   itineraryVersion: (tripId: string, versionId: string) =>
     [...tripKeys.itineraryVersions(tripId), versionId] as const
@@ -105,6 +108,26 @@ export function restoreItineraryVersion(tripId: string, versionId: string) {
       method: "POST"
     }
   );
+}
+
+export function getTripShare(tripId: string) {
+  return apiFetch<TripShareInfo>(`/trips/${tripId}/share`);
+}
+
+export function createTripShare(tripId: string) {
+  return apiFetch<TripShareInfo>(`/trips/${tripId}/share`, {
+    method: "POST"
+  });
+}
+
+export function disableTripShare(tripId: string) {
+  return apiFetch<{ success: boolean }>(`/trips/${tripId}/share`, {
+    method: "DELETE"
+  });
+}
+
+export function getPublicTrip(shareToken: string) {
+  return apiFetchPublic<PublicTrip>(`/public/trips/${encodeURIComponent(shareToken)}`);
 }
 
 function cleanCreateTripPayload(input: CreateTripInput) {

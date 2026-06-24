@@ -166,6 +166,44 @@ func TestItineraryVersionRoutesRequireValidBearerToken(t *testing.T) {
 	}
 }
 
+func TestShareRoutesRequireValidBearerToken(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	tripID := uuid.New().String()
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		token  string
+	}{
+		{name: "get missing token", method: http.MethodGet, path: "/trips/" + tripID + "/share"},
+		{name: "get invalid token", method: http.MethodGet, path: "/trips/" + tripID + "/share", token: "Bearer invalid-token"},
+		{name: "create missing token", method: http.MethodPost, path: "/trips/" + tripID + "/share"},
+		{name: "create invalid token", method: http.MethodPost, path: "/trips/" + tripID + "/share", token: "Bearer invalid-token"},
+		{name: "delete missing token", method: http.MethodDelete, path: "/trips/" + tripID + "/share"},
+		{name: "delete invalid token", method: http.MethodDelete, path: "/trips/" + tripID + "/share", token: "Bearer invalid-token"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			if tc.token != "" {
+				req.Header.Set("Authorization", tc.token)
+			}
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("expected HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestHealthAndReadyRemainPublic(t *testing.T) {
 	router, _ := newAuthTestRouter(t, config.AuthConfig{
 		Required:        true,
@@ -183,6 +221,181 @@ func TestHealthAndReadyRemainPublic(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected %s to be public with HTTP 200, got %d", path, rec.Code)
 		}
+	}
+}
+
+func TestPublicTripSharingOwnerFlowAndSanitizedPublicResponse(t *testing.T) {
+	router, _ := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	otherID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	otherToken := signAccessToken(t, otherID, "other@example.com", testJWTSecret, time.Hour)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips", bytes.NewReader([]byte(validCreateTripJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create HTTP 201, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected itinerary update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/trips/"+created.ID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected initial share status HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var initialShare struct {
+		Enabled    bool   `json:"enabled"`
+		ShareToken string `json:"shareToken"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &initialShare); err != nil {
+		t.Fatalf("decode initial share: %v", err)
+	}
+	if initialShare.Enabled || initialShare.ShareToken != "" {
+		t.Fatalf("expected disabled initial share without token, got %+v", initialShare)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected create share HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var share struct {
+		ShareToken string `json:"shareToken"`
+		ShareURL   string `json:"shareUrl"`
+		Enabled    bool   `json:"enabled"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &share); err != nil {
+		t.Fatalf("decode share response: %v", err)
+	}
+	if !share.Enabled || len(share.ShareToken) < 43 || share.ShareURL == "" {
+		t.Fatalf("expected enabled secure share response, got %+v", share)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected repeated create share HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var repeatedShare struct {
+		ShareToken string `json:"shareToken"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &repeatedShare); err != nil {
+		t.Fatalf("decode repeated share: %v", err)
+	}
+	if repeatedShare.ShareToken != share.ShareToken {
+		t.Fatalf("expected repeated create to return existing token %q, got %q", share.ShareToken, repeatedShare.ShareToken)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+otherToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected non-owner create share HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected public trip HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var publicBody map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &publicBody); err != nil {
+		t.Fatalf("decode public trip: %v", err)
+	}
+	if publicBody["destination"] != "Rome" {
+		t.Fatalf("expected public destination Rome, got %+v", publicBody)
+	}
+	if _, ok := publicBody["userId"]; ok {
+		t.Fatalf("public response must not include userId: %+v", publicBody)
+	}
+	if _, ok := publicBody["email"]; ok {
+		t.Fatalf("public response must not include email: %+v", publicBody)
+	}
+	if _, ok := publicBody["versionHistory"]; ok {
+		t.Fatalf("public response must not include version history: %+v", publicBody)
+	}
+	itinerary, ok := publicBody["itinerary"].(map[string]any)
+	days, daysOK := itinerary["days"].([]any)
+	if !ok || !daysOK || len(days) == 0 {
+		t.Fatalf("expected public itinerary days, got %+v", publicBody["itinerary"])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/trips/"+created.ID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected disable share HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/"+share.ShareToken, nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected disabled public share HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/trips/"+created.ID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected idempotent disable share HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/share", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected re-enable share HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var reenabledShare struct {
+		ShareToken string `json:"shareToken"`
+		Enabled    bool   `json:"enabled"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &reenabledShare); err != nil {
+		t.Fatalf("decode re-enabled share: %v", err)
+	}
+	if !reenabledShare.Enabled || reenabledShare.ShareToken != share.ShareToken {
+		t.Fatalf("expected re-enable to keep original token, got %+v", reenabledShare)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/public/trips/unknown-token", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected unknown public share HTTP 404, got %d with %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -706,7 +919,11 @@ func TestAuthDisabledUsesDevUserID(t *testing.T) {
 func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *routeTestRepo) {
 	t.Helper()
 
-	repo := &routeTestRepo{trips: map[uuid.UUID]entity.Trip{}}
+	repo := &routeTestRepo{
+		trips:         map[uuid.UUID]entity.Trip{},
+		sharesByTrip:  map[uuid.UUID]entity.TripShare{},
+		sharesByToken: map[string]entity.TripShare{},
+	}
 	gen := routeTestGenerator{}
 	svc := service.New(repo, gen, zap.NewNop())
 	validator, err := validation.NewValidator()
@@ -722,9 +939,11 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 }
 
 type routeTestRepo struct {
-	trips    map[uuid.UUID]entity.Trip
-	versions []entity.ItineraryVersion
-	created  *entity.Trip
+	trips         map[uuid.UUID]entity.Trip
+	versions      []entity.ItineraryVersion
+	sharesByTrip  map[uuid.UUID]entity.TripShare
+	sharesByToken map[string]entity.TripShare
+	created       *entity.Trip
 }
 
 func (r *routeTestRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -741,6 +960,14 @@ func (r *routeTestRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip,
 func (r *routeTestRepo) GetByIDAndUserID(_ context.Context, id, userID uuid.UUID) (*entity.Trip, error) {
 	trip, ok := r.trips[id]
 	if !ok || trip.UserID == nil || *trip.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	return &trip, nil
+}
+
+func (r *routeTestRepo) GetByID(_ context.Context, id uuid.UUID) (*entity.Trip, error) {
+	trip, ok := r.trips[id]
+	if !ok {
 		return nil, domainerrs.ErrNotFound
 	}
 	return &trip, nil
@@ -823,6 +1050,64 @@ func (r *routeTestRepo) GetItineraryVersionByIDTripAndUser(_ context.Context, id
 		}
 	}
 	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
+	if _, ok := r.sharesByTrip[share.TripID]; ok {
+		return nil, domainerrs.ErrConflict
+	}
+	if _, ok := r.sharesByToken[share.ShareToken]; ok {
+		return nil, domainerrs.ErrConflict
+	}
+
+	now := time.Now().UTC()
+	out := *share
+	out.ID = uuid.New()
+	out.CreatedAt = now
+	r.sharesByTrip[out.TripID] = out
+	r.sharesByToken[out.ShareToken] = out
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetTripShareByTripAndUser(_ context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error) {
+	share, ok := r.sharesByTrip[tripID]
+	if !ok || share.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	return &share, nil
+}
+
+func (r *routeTestRepo) GetTripShareByToken(_ context.Context, shareToken string) (*entity.TripShare, error) {
+	share, ok := r.sharesByToken[shareToken]
+	if !ok {
+		return nil, domainerrs.ErrNotFound
+	}
+	return &share, nil
+}
+
+func (r *routeTestRepo) EnableTripShare(_ context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error) {
+	share, ok := r.sharesByTrip[tripID]
+	if !ok || share.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	share.Enabled = true
+	share.DisabledAt = nil
+	r.sharesByTrip[tripID] = share
+	r.sharesByToken[share.ShareToken] = share
+	return &share, nil
+}
+
+func (r *routeTestRepo) DisableTripShare(_ context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error) {
+	share, ok := r.sharesByTrip[tripID]
+	if !ok || share.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	now := time.Now().UTC()
+	share.Enabled = false
+	share.DisabledAt = &now
+	r.sharesByTrip[tripID] = share
+	r.sharesByToken[share.ShareToken] = share
+	return &share, nil
 }
 
 func routeTestNextVersionNumber(versions []entity.ItineraryVersion, tripID uuid.UUID) int {

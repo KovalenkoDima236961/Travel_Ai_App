@@ -18,6 +18,7 @@ import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/components/trips/OptimizeDayOrderDialog";
 import { PlaceEnrichmentReviewPanel } from "@/components/trips/PlaceEnrichmentReviewPanel";
+import { ShareTripPanel } from "@/components/trips/ShareTripPanel";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
@@ -301,40 +302,44 @@ function TripDetailPageContent() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
-        <Card>
-          <h2 className="text-lg font-semibold text-slate-950">Trip details</h2>
-          <dl className="mt-5 space-y-4 text-sm">
-            <DetailRow label="Start date" value={trip.startDate ? formatDate(trip.startDate) : "Not set"} />
-            <DetailRow label="Duration" value={`${trip.days} ${trip.days === 1 ? "day" : "days"}`} />
-            <DetailRow label="Travelers" value={`${trip.travelers}`} />
-            <DetailRow label="Budget" value={formatBudget(trip.budgetAmount, trip.budgetCurrency)} />
-            <DetailRow label="Pace" value={formatPaceLabel(trip.pace)} />
-            <DetailRow
-              label="Created"
-              value={formatDate(trip.createdAt, {
-                dateStyle: "medium",
-                timeStyle: "short"
-              })}
-            />
-          </dl>
-          <div className="mt-6">
-            <p className="text-sm font-medium text-slate-700">Interests</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {trip.interests.length > 0 ? (
-                trip.interests.map((interest) => (
-                  <span
-                    key={interest}
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
-                  >
-                    {formatInterestLabel(interest)}
-                  </span>
-                ))
-              ) : (
-                <span className="text-sm text-slate-500">No interests selected</span>
-              )}
+        <aside className="space-y-6">
+          <Card>
+            <h2 className="text-lg font-semibold text-slate-950">Trip details</h2>
+            <dl className="mt-5 space-y-4 text-sm">
+              <DetailRow label="Start date" value={trip.startDate ? formatDate(trip.startDate) : "Not set"} />
+              <DetailRow label="Duration" value={`${trip.days} ${trip.days === 1 ? "day" : "days"}`} />
+              <DetailRow label="Travelers" value={`${trip.travelers}`} />
+              <DetailRow label="Budget" value={formatBudget(trip.budgetAmount, trip.budgetCurrency)} />
+              <DetailRow label="Pace" value={formatPaceLabel(trip.pace)} />
+              <DetailRow
+                label="Created"
+                value={formatDate(trip.createdAt, {
+                  dateStyle: "medium",
+                  timeStyle: "short"
+                })}
+              />
+            </dl>
+            <div className="mt-6">
+              <p className="text-sm font-medium text-slate-700">Interests</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {trip.interests.length > 0 ? (
+                  trip.interests.map((interest) => (
+                    <span
+                      key={interest}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                    >
+                      {formatInterestLabel(interest)}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-slate-500">No interests selected</span>
+                )}
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+
+          <ShareTripPanel tripId={trip.id} />
+        </aside>
 
         <section className="min-w-0">
           <WeatherForecastCard

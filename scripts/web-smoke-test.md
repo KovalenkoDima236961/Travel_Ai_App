@@ -114,6 +114,20 @@ http://localhost:3000
 56. Go to `/trips`.
 57. Confirm the trip appears in the list.
 
+## Public Trip Sharing
+
+1. Log in and open a completed trip.
+2. Click `Create share link` in the `Share itinerary` panel.
+3. Confirm a public link appears.
+4. Click `Copy link`.
+5. Open the copied `/share/{shareToken}` link in an incognito/private browser.
+6. Confirm the itinerary is visible without logging in.
+7. Confirm map, place details, distance estimates, and weather context render when the trip has the needed data.
+8. Confirm edit, regenerate, place-review, and version-history controls are not visible.
+9. Return to the owner tab and click `Disable link`.
+10. Refresh the public link.
+11. Confirm `This shared trip is unavailable or the link has been disabled.` appears.
+
 ## Opening Hours
 
 1. Log in and open a completed trip with a start date.

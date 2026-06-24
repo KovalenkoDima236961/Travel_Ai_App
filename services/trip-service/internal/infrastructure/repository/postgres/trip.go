@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres/dto"
 	storage "github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 )
@@ -47,6 +48,21 @@ func (r *Repository) Create(ctx context.Context, t *entity.Trip) (*entity.Trip, 
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build insert: %w", err)
+	}
+
+	return dto.Scan(r.db.QueryRow(ctx, query, args...))
+}
+
+// GetByID loads a trip without owner scoping. It is used only after an enabled
+// public share token has already been validated.
+func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.Columns).
+		From("trips").
+		Where(sq.Eq{"id": dto.IDArg(id)}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build select by id: %w", err)
 	}
 
 	return dto.Scan(r.db.QueryRow(ctx, query, args...))
@@ -260,6 +276,94 @@ func (r *Repository) GetItineraryVersionByIDTripAndUser(
 	return dto.ScanItineraryVersion(r.db.QueryRow(ctx, query, args...))
 }
 
+// CreateTripShare inserts a new public share row for a trip.
+func (r *Repository) CreateTripShare(ctx context.Context, share *entity.TripShare) (*entity.TripShare, error) {
+	query, args, err := r.db.Builder.
+		Insert("trip_shares").
+		Columns(dto.TripShareInsertColumns()...).
+		Values(dto.TripShareInsertValues(share)...).
+		Suffix("RETURNING " + dto.TripShareColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build insert trip share: %w", err)
+	}
+
+	created, err := dto.ScanTripShare(r.db.QueryRow(ctx, query, args...))
+	if err != nil {
+		return nil, mapTripShareWriteError(err)
+	}
+	return created, nil
+}
+
+// GetTripShareByTripAndUser returns one owned share row.
+func (r *Repository) GetTripShareByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripShareColumns).
+		From("trip_shares").
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"user_id": dto.IDArg(userID),
+		}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get trip share by trip: %w", err)
+	}
+
+	return dto.ScanTripShare(r.db.QueryRow(ctx, query, args...))
+}
+
+// GetTripShareByToken returns a share row by its opaque public token.
+func (r *Repository) GetTripShareByToken(ctx context.Context, shareToken string) (*entity.TripShare, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripShareColumns).
+		From("trip_shares").
+		Where(sq.Eq{"share_token": shareToken}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get trip share by token: %w", err)
+	}
+
+	return dto.ScanTripShare(r.db.QueryRow(ctx, query, args...))
+}
+
+// EnableTripShare re-enables an existing share row without rotating its token.
+func (r *Repository) EnableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_shares").
+		Set("enabled", true).
+		Set("disabled_at", nil).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"user_id": dto.IDArg(userID),
+		}).
+		Suffix("RETURNING " + dto.TripShareColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build enable trip share: %w", err)
+	}
+
+	return dto.ScanTripShare(r.db.QueryRow(ctx, query, args...))
+}
+
+// DisableTripShare disables an existing share row for an owned trip.
+func (r *Repository) DisableTripShare(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_shares").
+		Set("enabled", false).
+		Set("disabled_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"user_id": dto.IDArg(userID),
+		}).
+		Suffix("RETURNING " + dto.TripShareColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build disable trip share: %w", err)
+	}
+
+	return dto.ScanTripShare(r.db.QueryRow(ctx, query, args...))
+}
+
 func (r *Repository) updateItineraryByUserID(
 	ctx context.Context,
 	q rowQuerier,
@@ -323,4 +427,11 @@ func (r *Repository) createItineraryVersion(
 	}
 
 	return dto.ScanItineraryVersion(q.QueryRow(ctx, query, args...))
+}
+
+func mapTripShareWriteError(err error) error {
+	if storage.UniqueConstraintViolation(err) {
+		return fmt.Errorf("trip share conflict: %w", domainerrs.ErrConflict)
+	}
+	return err
 }

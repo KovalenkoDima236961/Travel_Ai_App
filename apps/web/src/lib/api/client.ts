@@ -15,6 +15,7 @@ type ApiErrorPayload = {
 type ApiFetchOptions = {
   baseUrl?: string;
   serviceName?: string;
+  auth?: boolean;
 };
 
 export class ApiError extends Error {
@@ -37,6 +38,14 @@ export async function apiFetch<T>(
   return apiFetchInternal<T>(path, init, true, options);
 }
 
+export async function apiFetchPublic<T>(
+  path: string,
+  init: RequestInit = {},
+  options: ApiFetchOptions = {}
+): Promise<T> {
+  return apiFetchInternal<T>(path, init, false, { ...options, auth: false });
+}
+
 async function apiFetchInternal<T>(
   path: string,
   init: RequestInit = {},
@@ -46,12 +55,13 @@ async function apiFetchInternal<T>(
   const url = buildApiUrl(path, options.baseUrl);
   const headers = new Headers(init.headers);
   const accessToken = getAccessToken();
+  const includeAuth = options.auth !== false;
 
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
   }
 
-  if (accessToken && !headers.has("Authorization")) {
+  if (includeAuth && accessToken && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
 
@@ -73,7 +83,7 @@ async function apiFetchInternal<T>(
     );
   }
 
-  if (response.status === 401 && allowRefresh) {
+  if (includeAuth && response.status === 401 && allowRefresh) {
     const refreshToken = getRefreshToken();
     if (refreshToken) {
       try {

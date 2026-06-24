@@ -57,3 +57,8 @@ place_enrichment:
   min_confidence: 0.75
   max_items: 20
   overwrite_existing: false
+
+public_sharing:
+  enabled: true
+  public_web_base_url: http://localhost:3000
+  share_token_bytes: 32

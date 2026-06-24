@@ -36,6 +36,8 @@ func NewRouter(
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
 
+	tripHandler.RegisterPublicRoutes(r)
+
 	devUserID, err := uuid.Parse(authCfg.DevUserID)
 	if err != nil {
 		log.Panic("invalid dev user id", zap.String("dev_user_id", authCfg.DevUserID), zap.Error(err))

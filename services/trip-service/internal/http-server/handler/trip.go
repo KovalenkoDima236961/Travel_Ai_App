@@ -39,6 +39,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/", h.Create)
 		r.Get("/", h.List)
 		r.Get("/{id}", h.Get)
+		r.Get("/{id}/share", h.GetShare)
+		r.Post("/{id}/share", h.CreateShare)
+		r.Delete("/{id}/share", h.DisableShare)
 		r.Post("/{id}/generate", h.Generate)
 		r.Put("/{id}/itinerary", h.UpdateItinerary)
 		r.Get("/{id}/itinerary/versions", h.ListItineraryVersions)
@@ -47,6 +50,11 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/itinerary/days/{dayNumber}/regenerate", h.RegenerateDay)
 		r.Post("/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate", h.RegenerateItem)
 	})
+}
+
+// RegisterPublicRoutes mounts unauthenticated read-only public routes.
+func (h *Handler) RegisterPublicRoutes(r chi.Router) {
+	r.Get("/public/trips/{shareToken}", h.GetPublicTrip)
 }
 
 // Create handles POST /trips.
@@ -106,6 +114,70 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response.NewTrip(t))
+}
+
+// GetShare handles GET /trips/{id}/share.
+func (h *Handler) GetShare(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	share, err := h.svc.GetTripShare(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewTripShareInfo(share))
+}
+
+// CreateShare handles POST /trips/{id}/share.
+func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	share, err := h.svc.CreateOrEnableTripShare(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewTripShareInfo(share))
+}
+
+// DisableShare handles DELETE /trips/{id}/share.
+func (h *Handler) DisableShare(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := h.svc.DisableTripShare(r.Context(), id); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+// GetPublicTrip handles GET /public/trips/{shareToken}.
+func (h *Handler) GetPublicTrip(w http.ResponseWriter, r *http.Request) {
+	shareToken := strings.TrimSpace(chi.URLParam(r, "shareToken"))
+
+	t, share, err := h.svc.GetPublicTripByShareToken(r.Context(), shareToken)
+	if err != nil {
+		if errors.Is(err, domainerrs.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "shared trip not found")
+			return
+		}
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewPublicTrip(t, share.CreatedAt))
 }
 
 // Generate handles POST /trips/{id}/generate.

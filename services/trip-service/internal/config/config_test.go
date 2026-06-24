@@ -38,6 +38,9 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"PLACE_ENRICHMENT_MIN_CONFIDENCE",
 		"PLACE_ENRICHMENT_MAX_ITEMS",
 		"PLACE_ENRICHMENT_OVERWRITE_EXISTING",
+		"PUBLIC_SHARING_ENABLED",
+		"PUBLIC_WEB_BASE_URL",
+		"SHARE_TOKEN_BYTES",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -128,6 +131,15 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if cfg.PlaceEnrichment.OverwriteExisting {
 		t.Fatal("expected place enrichment not to overwrite existing places by default")
 	}
+	if !cfg.PublicSharing.Enabled {
+		t.Fatal("expected public sharing to be enabled by default")
+	}
+	if cfg.PublicSharing.PublicWebBaseURL != "http://localhost:3000" {
+		t.Fatalf("expected public web base URL default, got %q", cfg.PublicSharing.PublicWebBaseURL)
+	}
+	if cfg.PublicSharing.ShareTokenBytes != 32 {
+		t.Fatalf("expected share token bytes default 32, got %d", cfg.PublicSharing.ShareTokenBytes)
+	}
 }
 
 func TestLoadReadsCORSOverrides(t *testing.T) {
@@ -159,6 +171,9 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"PLACE_ENRICHMENT_MIN_CONFIDENCE",
 		"PLACE_ENRICHMENT_MAX_ITEMS",
 		"PLACE_ENRICHMENT_OVERWRITE_EXISTING",
+		"PUBLIC_SHARING_ENABLED",
+		"PUBLIC_WEB_BASE_URL",
+		"SHARE_TOKEN_BYTES",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")

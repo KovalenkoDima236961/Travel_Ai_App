@@ -60,6 +60,10 @@ type mockRepo struct {
 	getVersionID      uuid.UUID
 	getVersionTripID  uuid.UUID
 	getVersionUserID  uuid.UUID
+
+	shareByTrip  *entity.TripShare
+	shareByToken *entity.TripShare
+	shareErr     error
 }
 
 func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -78,6 +82,16 @@ func (m *mockRepo) GetByIDAndUserID(_ context.Context, _, userID uuid.UUID) (*en
 	m.getByIDUserID = userID
 	if m.getByIDErr != nil {
 		return nil, m.getByIDErr
+	}
+	return m.getByIDResult, nil
+}
+
+func (m *mockRepo) GetByID(_ context.Context, _ uuid.UUID) (*entity.Trip, error) {
+	if m.getByIDErr != nil {
+		return nil, m.getByIDErr
+	}
+	if m.getByIDResult == nil {
+		return nil, domainerrs.ErrNotFound
 	}
 	return m.getByIDResult, nil
 }
@@ -156,6 +170,58 @@ func (m *mockRepo) GetItineraryVersionByIDTripAndUser(_ context.Context, id, tri
 		}
 	}
 	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
+	if m.shareErr != nil {
+		return nil, m.shareErr
+	}
+	now := time.Now()
+	out := *share
+	out.ID = uuid.New()
+	out.CreatedAt = now
+	m.shareByTrip = &out
+	m.shareByToken = &out
+	return &out, nil
+}
+
+func (m *mockRepo) GetTripShareByTripAndUser(_ context.Context, _, _ uuid.UUID) (*entity.TripShare, error) {
+	if m.shareByTrip == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	return m.shareByTrip, nil
+}
+
+func (m *mockRepo) GetTripShareByToken(_ context.Context, _ string) (*entity.TripShare, error) {
+	if m.shareByToken == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	return m.shareByToken, nil
+}
+
+func (m *mockRepo) EnableTripShare(_ context.Context, _, _ uuid.UUID) (*entity.TripShare, error) {
+	if m.shareByTrip == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	enabled := *m.shareByTrip
+	enabled.Enabled = true
+	enabled.DisabledAt = nil
+	m.shareByTrip = &enabled
+	m.shareByToken = &enabled
+	return &enabled, nil
+}
+
+func (m *mockRepo) DisableTripShare(_ context.Context, _, _ uuid.UUID) (*entity.TripShare, error) {
+	if m.shareByTrip == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	disabledAt := time.Now()
+	disabled := *m.shareByTrip
+	disabled.Enabled = false
+	disabled.DisabledAt = &disabledAt
+	m.shareByTrip = &disabled
+	m.shareByToken = &disabled
+	return &disabled, nil
 }
 
 func countTripVersions(versions []entity.ItineraryVersion, tripID uuid.UUID) int {
