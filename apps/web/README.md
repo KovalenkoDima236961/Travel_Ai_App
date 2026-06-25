@@ -239,8 +239,17 @@ for logged-out / public share viewers and makes no requests for them.
   paths), attaching the user's bearer token via the shared `apiFetch` client. The
   base URL comes from `lib/config.ts` (`getNotificationApiBaseUrl`).
 
-Limitations: polling only (no WebSockets/push/email), and the bell shows a count
-plus the latest items rather than a real-time stream.
+In-app notifications may **also trigger an email** depending on server
+configuration: the Notification Service can send email for selected types
+(collaboration invited, comment created, collaborator role changed/removed by
+default) after creating the in-app row. This is entirely backend-side — there is
+no web UI for it in v1 and no per-user email preferences. Locally the default
+`EMAIL_PROVIDER=mock` sends nothing externally (see the Notification Service and
+infra READMEs).
+
+Limitations: polling only (no WebSockets/push), in-app notifications surface in
+the bell, and the bell shows a count plus the latest items rather than a
+real-time stream. No per-user email preferences or unsubscribe page yet.
 
 ## Public Trip Sharing
 

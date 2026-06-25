@@ -27,8 +27,36 @@ jwt:
 
 internal:
   # Shared service-to-service token. Trip Service presents it in the
-  # X-Internal-Service-Token header on /internal/* endpoints.
+  # X-Internal-Service-Token header on /internal/* endpoints. The same token is
+  # presented by this service when calling Auth Service's /internal/users/batch.
   service_token: "dev-internal-service-token"
+
+# Optional email delivery for selected notification types. The mock provider
+# never sends external mail and is the safe local-dev default.
+email:
+  enabled: true
+  fail_open: true
+  provider: "mock" # mock | smtp
+  # Comma-separated allowlist of notification types that may trigger an email.
+  types: "collaboration_invited,comment_created,collaborator_role_changed,collaborator_removed"
+  # Used to build safe links back to the Web App.
+  public_web_base_url: "http://localhost:3000"
+  smtp:
+    host: ""
+    port: 587
+    username: ""
+    # SMTP_PASSWORD comes only from the environment; never commit a real one.
+    password: ""
+    from_email: "no-reply@localhost"
+    from_name: "AI Travel Planner"
+    use_tls: true
+
+# Service that owns recipient identity. In v1 Auth Service owns email; the
+# user-lookup client calls AUTH_SERVICE_URL and presents the internal token.
+users:
+  auth_service_url: "http://auth-service:8082"
+  user_service_url: "http://user-service:8083"
+  timeout_seconds: 5
 
 cors:
   allowed_origins: "http://localhost:3000"

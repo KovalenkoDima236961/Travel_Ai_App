@@ -23,6 +23,7 @@ type authRepository interface {
 	CreateUser(ctx context.Context, user *entity.User) (*entity.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*entity.User, error)
+	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.User, error)
 	CreateRefreshToken(ctx context.Context, token *entity.RefreshToken) (*entity.RefreshToken, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (*entity.RefreshToken, error)
 	RotateRefreshToken(ctx context.Context, oldTokenID uuid.UUID, revokedAt time.Time, newToken *entity.RefreshToken) (*entity.RefreshToken, error)
@@ -202,6 +203,30 @@ func (s *Service) UserByEmail(ctx context.Context, email string) (*entity.User, 
 		return nil, err
 	}
 	return s.repo.GetUserByEmail(ctx, normalized)
+}
+
+// UsersByIDs resolves a set of registered users by id for trusted internal
+// callers (e.g. Notification Service resolving recipient emails). It returns
+// only the users that exist; ids with no matching account are simply omitted so
+// the caller can decide how to handle a partial result. Duplicate ids are
+// de-duplicated before the lookup.
+func (s *Service) UsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.User, error) {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	unique := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return nil, nil
+	}
+	return s.repo.GetUsersByIDs(ctx, unique)
 }
 
 func (s *Service) issueAuthResponse(ctx context.Context, user entity.User) (*appdto.AuthResult, error) {

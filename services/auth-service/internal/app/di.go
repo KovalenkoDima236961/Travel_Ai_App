@@ -46,7 +46,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	svc := auth.New(repo, password, tokens, log)
 	authHandler := handler.New(svc, log)
 	readinessHandler := httpserver.NewReadinessHandler(db, log)
-	router := httpserver.NewRouter(log, authHandler, readinessHandler, cfg.CORS)
+	router := httpserver.NewRouter(log, authHandler, readinessHandler, cfg.CORS, cfg.Internal)
 
 	return &container{
 		db:     db,

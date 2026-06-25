@@ -79,6 +79,35 @@ endpoints, so users only see their own notifications; the browser reaches it via
 `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:8086`. The internal
 endpoint is network-internal and requires `INTERNAL_SERVICE_TOKEN`.
 
+### Email notifications (mock by default)
+
+The Notification Service can also send **email** for selected notification types
+after creating the in-app rows. It is **off-network-safe by default**:
+`EMAIL_PROVIDER=mock` sends nothing externally and only logs a masked
+recipient/subject line, so `EMAIL_NOTIFICATIONS_ENABLED=true` is fine locally.
+Recipient emails are resolved from Auth Service via `POST /internal/users/batch`,
+authenticated with the same `INTERNAL_SERVICE_TOKEN` (Auth Service now also reads
+this variable). `EMAIL_NOTIFICATIONS_FAIL_OPEN=true` keeps an email failure from
+affecting the in-app notification.
+
+To run with mock email (default): nothing to do — just start the stack and watch
+`docker compose -f infra/docker-compose.yml logs notification-service | grep 'email send'`.
+
+To configure real SMTP, set in `infra/.env`:
+
+```bash
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.example.com        # required for smtp
+SMTP_PORT=587                     # STARTTLS port (implicit TLS / 465 unsupported in v1)
+SMTP_USERNAME=apikey              # optional; enables auth when set
+SMTP_PASSWORD=...                 # NEVER commit a real value
+SMTP_FROM_EMAIL=no-reply@example.com   # required for smtp
+SMTP_FROM_NAME=AI Travel Planner
+```
+
+> **Warning:** never commit real SMTP credentials. `infra/.env` is gitignored;
+> keep secrets there or in your shell environment only.
+
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right
 environment values:

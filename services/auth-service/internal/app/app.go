@@ -78,4 +78,7 @@ func warnWeakDevelopmentSecret(cfg *config.Config, log *zap.Logger) {
 			zap.Int("length", len(secret)),
 		)
 	}
+	if strings.TrimSpace(cfg.Internal.ServiceToken) == config.DefaultDevelopmentInternalToken {
+		log.Warn("internal service token is the development default")
+	}
 }

@@ -70,6 +70,32 @@ func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (*entity.Use
 	return dto.ScanUser(r.db.QueryRow(ctx, query, args...))
 }
 
+// GetUsersByIDs loads the registered users matching any of the given ids. It is
+// used by the internal batch lookup (service-to-service). Absent ids are simply
+// not present in the result; the caller decides how to handle a partial match.
+func (r *Repository) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	query, args, err := r.db.Builder.
+		Select(dto.UserColumns).
+		From("users").
+		Where(sq.Eq{"id": ids}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get users by ids: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query users by ids: %w", err)
+	}
+	defer rows.Close()
+
+	return dto.ScanUsers(rows)
+}
+
 func (r *Repository) CreateRefreshToken(ctx context.Context, token *entity.RefreshToken) (*entity.RefreshToken, error) {
 	query, args, err := r.db.Builder.
 		Insert("refresh_tokens").

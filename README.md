@@ -53,9 +53,16 @@ valid Auth Service JWT, so users only ever see their own notifications and publi
 share viewers have no access. The web app shows a header notification bell with a
 polled unread badge, a dropdown of recent notifications, and a `/notifications`
 page; clicking a notification marks it read and navigates to the related trip.
-No email, push, WebSockets, RabbitMQ, or background workers in v1 — the
-synchronous HTTP design is deliberately simple and replaceable by an event bus
-later.
+The Notification Service also supports **optional email notifications (v1)**: for
+selected types (collaboration invited, comment created, collaborator role
+changed/removed by default) it resolves the recipient's email from Auth Service
+(internal `POST /internal/users/batch`) and sends a short email after the in-app
+rows are created. Email is behind a provider switch (`EMAIL_PROVIDER=mock` by
+default — sends nothing externally; `smtp` for real delivery) and is fail-open by
+default, so an email failure never affects the in-app notification. No push,
+WebSockets, RabbitMQ, background workers, per-user email preferences, or digests
+in v1 — the synchronous HTTP design is deliberately simple and replaceable by an
+event bus / async worker later.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.

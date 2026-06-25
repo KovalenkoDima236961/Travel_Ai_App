@@ -34,6 +34,49 @@ type Config struct {
 	JWT        JWTConfig       `yaml:"jwt" validate:"required"`
 	Internal   InternalConfig  `yaml:"internal" validate:"required"`
 	CORS       CORSConfig      `yaml:"cors" validate:"required"`
+	Email      EmailConfig     `yaml:"email" validate:"required"`
+	Users      UsersConfig     `yaml:"users" validate:"required"`
+}
+
+// EmailConfig controls optional email delivery for selected notification types.
+// Email is sent synchronously after in-app notification rows are created. The
+// mock provider never sends external mail and is the local-dev default.
+type EmailConfig struct {
+	// Enabled turns email sending on/off globally.
+	Enabled bool `yaml:"enabled" env:"EMAIL_NOTIFICATIONS_ENABLED" env-default:"true"`
+	// FailOpen, when true, logs email errors but never fails in-app notification
+	// creation. When false, a send failure surfaces as a 502 from the batch
+	// endpoint (in-app rows are already committed and are never rolled back).
+	FailOpen bool `yaml:"fail_open" env:"EMAIL_NOTIFICATIONS_FAIL_OPEN" env-default:"true"`
+	// Provider selects the email sender implementation: "mock" or "smtp".
+	Provider string `yaml:"provider" env:"EMAIL_PROVIDER" env-default:"mock" validate:"required,oneof=mock smtp"`
+	// Types is the comma-separated allowlist of notification types that may
+	// trigger an email. Anything outside this list is skipped.
+	Types string `yaml:"types" env:"EMAIL_NOTIFICATION_TYPES" env-default:"collaboration_invited,comment_created,collaborator_role_changed,collaborator_removed"`
+	// PublicWebBaseURL is used to build safe links back to the Web App.
+	PublicWebBaseURL string     `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
+	SMTP             SMTPConfig `yaml:"smtp"`
+}
+
+// SMTPConfig holds SMTP provider settings. SMTP_PASSWORD must never be logged.
+type SMTPConfig struct {
+	Host      string `yaml:"host" env:"SMTP_HOST" env-default:""`
+	Port      int    `yaml:"port" env:"SMTP_PORT" env-default:"587"`
+	Username  string `yaml:"username" env:"SMTP_USERNAME" env-default:""`
+	Password  string `yaml:"password" env:"SMTP_PASSWORD" env-default:""`
+	FromEmail string `yaml:"from_email" env:"SMTP_FROM_EMAIL" env-default:"no-reply@localhost"`
+	FromName  string `yaml:"from_name" env:"SMTP_FROM_NAME" env-default:"AI Travel Planner"`
+	UseTLS    bool   `yaml:"use_tls" env:"SMTP_USE_TLS" env-default:"true"`
+}
+
+// UsersConfig points at the service that owns user identity. In v1 Auth Service
+// owns recipient email, so the user-lookup client targets AuthServiceURL. The
+// shared internal service token (Internal.ServiceToken) authenticates the call.
+// UserServiceURL is reserved for future display-name/profile enrichment.
+type UsersConfig struct {
+	AuthServiceURL string `yaml:"auth_service_url" env:"AUTH_SERVICE_URL" env-default:"http://auth-service:8082"`
+	UserServiceURL string `yaml:"user_service_url" env:"USER_SERVICE_URL" env-default:"http://user-service:8083"`
+	TimeoutSeconds int    `yaml:"timeout_seconds" env:"USER_LOOKUP_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -108,8 +151,24 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validateInternalToken(); err != nil {
 		return nil, err
 	}
+	if err := cfg.validateEmail(); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
+}
+
+// EmailNotificationTypes parses the comma-separated allowlist into a trimmed,
+// lower-cased slice. Empty entries are dropped.
+func (c *Config) EmailNotificationTypes() []string {
+	parts := strings.Split(c.Email.Types, ",")
+	types := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			types = append(types, trimmed)
+		}
+	}
+	return types
 }
 
 // IsProduction reports whether the service runs in a production profile.
@@ -157,5 +216,21 @@ func (c *Config) validateInternalToken() error {
 		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use the development default in production")
 	}
 	c.Internal.ServiceToken = token
+	return nil
+}
+
+// validateEmail enforces provider-specific requirements. The SMTP provider needs
+// at least a host and a from-address; the mock provider has no requirements.
+func (c *Config) validateEmail() error {
+	provider := strings.ToLower(strings.TrimSpace(c.Email.Provider))
+	c.Email.Provider = provider
+	if provider == "smtp" {
+		if strings.TrimSpace(c.Email.SMTP.Host) == "" {
+			return fmt.Errorf("SMTP_HOST is required when EMAIL_PROVIDER=smtp")
+		}
+		if strings.TrimSpace(c.Email.SMTP.FromEmail) == "" {
+			return fmt.Errorf("SMTP_FROM_EMAIL is required when EMAIL_PROVIDER=smtp")
+		}
+	}
 	return nil
 }

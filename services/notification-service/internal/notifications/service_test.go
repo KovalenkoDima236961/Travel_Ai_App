@@ -139,8 +139,11 @@ func TestCreateBatch_SkipsSelfNotification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if created != 1 {
-		t.Fatalf("expected 1 created (self-notification skipped), got %d", created)
+	if len(created) != 1 {
+		t.Fatalf("expected 1 created (self-notification skipped), got %d", len(created))
+	}
+	if created[0].UserID != other {
+		t.Fatalf("expected the created notification to target the non-actor recipient, got %s", created[0].UserID)
 	}
 	if len(repo.rows) != 1 || repo.rows[0].UserID != other {
 		t.Fatalf("expected only the non-actor recipient stored, got %+v", repo.rows)
@@ -159,8 +162,8 @@ func TestCreateBatch_AllSelfNotificationsCreatesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if created != 0 {
-		t.Fatalf("expected 0 created, got %d", created)
+	if len(created) != 0 {
+		t.Fatalf("expected 0 created, got %d", len(created))
 	}
 }
 
@@ -214,8 +217,8 @@ func TestCreateBatch_EmptyMetadataDoesNotBreak(t *testing.T) {
 	in.Metadata = nil
 
 	created, err := svc.CreateBatch(context.Background(), []CreateInput{in})
-	if err != nil || created != 1 {
-		t.Fatalf("expected 1 created with nil metadata, got %d err=%v", created, err)
+	if err != nil || len(created) != 1 {
+		t.Fatalf("expected 1 created with nil metadata, got %d err=%v", len(created), err)
 	}
 }
 

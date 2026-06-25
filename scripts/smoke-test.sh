@@ -571,6 +571,16 @@ assert_status "Unauthenticated notifications access" "401"
 echo "Confirming the invited collaborator received a collaboration_invited notification..."
 assert_notification_has "Collaborator invite notification" "${COLLAB_ACCESS_TOKEN}" "collaboration_invited"
 
+# Email notifications (v1): with EMAIL_PROVIDER=mock (the default), this invite —
+# and the comment below — also trigger a mock email inside Notification Service.
+# The mock provider sends nothing externally; it logs a masked recipient/subject
+# line ("email send (mock)"), so there is no externally observable signal to
+# assert here without adding a debug endpoint (intentionally avoided). To verify:
+#   docker compose -f infra/docker-compose.yml logs notification-service | grep 'email send'
+# With real SMTP configured (EMAIL_PROVIDER=smtp + SMTP_*), verify delivery in the
+# recipient inbox. By default itinerary_updated is NOT allowlisted, so itinerary
+# edits create in-app notifications but send no email.
+
 echo "Confirming notifications are private to their owner..."
 COLLAB_FOREIGN_NOTIFICATIONS="$(jq --arg uid "${COLLAB_USER_ID}" '[.items[] | select(.userId != $uid)] | length' <<<"${LAST_BODY}")"
 if [[ "${COLLAB_FOREIGN_NOTIFICATIONS}" -ne 0 ]]; then

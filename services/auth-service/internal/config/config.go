@@ -14,6 +14,11 @@ import (
 const (
 	DefaultDevelopmentJWTSecret  = "change-me-in-development"
 	MinProductionJWTSecretLength = 32
+
+	// DefaultDevelopmentInternalToken is the shared service-to-service token used
+	// for local development. Internal callers (e.g. Notification Service resolving
+	// recipient emails) present it on internal endpoints.
+	DefaultDevelopmentInternalToken = "dev-internal-service-token"
 )
 
 type Config struct {
@@ -21,7 +26,16 @@ type Config struct {
 	HTTPServer HTTPServer      `yaml:"http_server" validate:"required"`
 	Postgres   postgres.Config `yaml:"postgres" validate:"required"`
 	JWT        JWTConfig       `yaml:"jwt" validate:"required"`
+	Internal   InternalConfig  `yaml:"internal" validate:"required"`
 	CORS       CORSConfig      `yaml:"cors" validate:"required"`
+}
+
+// InternalConfig controls service-to-service authentication for internal
+// endpoints (currently POST /internal/users/batch). Callers present the shared
+// token in the X-Internal-Service-Token header. This mirrors the v1 scheme used
+// by Notification Service and can be replaced later by mTLS or signed tokens.
+type InternalConfig struct {
+	ServiceToken string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
 }
 
 type HTTPServer struct {
@@ -77,6 +91,9 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validateJWTSecret(); err != nil {
 		return nil, err
 	}
+	if err := cfg.validateInternalToken(); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
@@ -121,5 +138,17 @@ func (c *Config) validateJWTSecret() error {
 		return fmt.Errorf("JWT_ACCESS_SECRET must be at least %d characters in production", MinProductionJWTSecretLength)
 	}
 	c.JWT.AccessSecret = secret
+	return nil
+}
+
+func (c *Config) validateInternalToken() error {
+	token := strings.TrimSpace(c.Internal.ServiceToken)
+	if token == "" {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN is required")
+	}
+	if c.IsProduction() && token == DefaultDevelopmentInternalToken {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use the development default in production")
+	}
+	c.Internal.ServiceToken = token
 	return nil
 }

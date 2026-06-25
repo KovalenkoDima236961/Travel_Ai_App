@@ -171,6 +171,9 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-development}
       ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      # Shared service-to-service token. Notification Service presents it when
+      # calling POST /internal/users/batch to resolve recipient emails.
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}
       POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_service}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -250,6 +253,23 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-development}
       AUTH_HEADER_NAME: ${AUTH_HEADER_NAME:-Authorization}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}
+      # Email notifications (v1). Mock provider sends no external mail and is the
+      # safe local-dev default. Never commit real SMTP credentials.
+      EMAIL_NOTIFICATIONS_ENABLED: ${EMAIL_NOTIFICATIONS_ENABLED:-true}
+      EMAIL_NOTIFICATIONS_FAIL_OPEN: ${EMAIL_NOTIFICATIONS_FAIL_OPEN:-true}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-mock}
+      EMAIL_NOTIFICATION_TYPES: ${EMAIL_NOTIFICATION_TYPES:-collaboration_invited,comment_created,collaborator_role_changed,collaborator_removed}
+      PUBLIC_WEB_BASE_URL: ${PUBLIC_WEB_BASE_URL:-http://localhost:3000}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_INTERNAL_URL:-http://auth-service:8082}
+      USER_SERVICE_URL: ${USER_SERVICE_INTERNAL_URL:-http://user-service:8083}
+      USER_LOOKUP_TIMEOUT_SECONDS: ${USER_LOOKUP_TIMEOUT_SECONDS:-5}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@localhost}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-AI Travel Planner}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
       POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notification_service}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -263,6 +283,8 @@ services:
       CORS_ALLOWED_HEADERS: ${CORS_ALLOWED_HEADERS:-Content-Type,Authorization}
     depends_on:
       postgres:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     ports:
       - "${NOTIFICATION_SERVICE_PORT:-8086}:8086"

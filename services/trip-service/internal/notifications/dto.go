@@ -46,6 +46,17 @@ type notificationPayload struct {
 
 type batchResponse struct {
 	Created int `json:"created"`
+	// Email is the optional email fan-out summary the Notification Service now
+	// returns. Trip Service does not act on it (it knows nothing about email);
+	// it is decoded only to document the contract and is otherwise ignored.
+	Email *emailStats `json:"email,omitempty"`
+}
+
+type emailStats struct {
+	Attempted int `json:"attempted"`
+	Sent      int `json:"sent"`
+	Skipped   int `json:"skipped"`
+	Failed    int `json:"failed"`
 }
 
 func toPayload(in NotificationCreateInput) notificationPayload {

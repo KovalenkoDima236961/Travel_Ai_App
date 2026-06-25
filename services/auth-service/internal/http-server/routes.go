@@ -11,14 +11,22 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/handler"
+	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/middleware"
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
+//
+// Route groups:
+//   - /health, /ready are open (no auth).
+//   - /auth/* and the legacy /internal/users/by-email are mounted directly.
+//   - new /internal/* service-to-service routes require the internal service
+//     token (no user JWT) and are intended for the private service network only.
 func NewRouter(
 	log *zap.Logger,
 	authHandler *handler.Handler,
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
+	internalCfg config.InternalConfig,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -34,6 +42,12 @@ func NewRouter(
 	}
 
 	authHandler.RegisterRoutes(r)
+
+	// Internal service-to-service routes: require the internal token only.
+	r.Group(func(r chi.Router) {
+		r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+		authHandler.RegisterInternalRoutes(r)
+	})
 
 	return r
 }

@@ -38,24 +38,28 @@ func New(repo Repository, log *zap.Logger) *Service {
 	return &Service{repo: repo, log: log}
 }
 
-// CreateBatch validates and persists a batch of notifications, returning how
-// many were created. Notifications addressed to the actor themselves are
-// skipped (userId == actorUserId) so users never get notified about their own
-// actions. An empty batch (or a batch that is entirely self-notifications)
-// creates nothing and returns 0 without error.
-func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) (int, error) {
+// CreateBatch validates and persists a batch of notifications, returning the
+// notifications that were created (so the caller can fan out email for selected
+// types). Notifications addressed to the actor themselves are skipped (userId ==
+// actorUserId) so users never get notified about their own actions. An empty
+// batch (or a batch that is entirely self-notifications) creates nothing and
+// returns an empty slice without error.
+//
+// The whole batch is inserted in one transaction, so on success the returned
+// slice is exactly what was persisted.
+func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) ([]entity.Notification, error) {
 	if len(inputs) == 0 {
-		return 0, apperrs.NewInvalidInput("notifications array is required")
+		return nil, apperrs.NewInvalidInput("notifications array is required")
 	}
 	if len(inputs) > MaxBatchSize {
-		return 0, apperrs.NewInvalidInput("batch size must be at most %d", MaxBatchSize)
+		return nil, apperrs.NewInvalidInput("batch size must be at most %d", MaxBatchSize)
 	}
 
 	toCreate := make([]entity.Notification, 0, len(inputs))
 	for i := range inputs {
 		in := inputs[i]
 		if err := validateCreateInput(in); err != nil {
-			return 0, err
+			return nil, err
 		}
 		// Skip self-notifications defensively even though Trip Service is also
 		// expected to omit them.
@@ -77,14 +81,13 @@ func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) (int, e
 	}
 
 	if len(toCreate) == 0 {
-		return 0, nil
+		return nil, nil
 	}
 
-	created, err := s.repo.CreateNotifications(ctx, toCreate)
-	if err != nil {
-		return 0, err
+	if _, err := s.repo.CreateNotifications(ctx, toCreate); err != nil {
+		return nil, err
 	}
-	return created, nil
+	return toCreate, nil
 }
 
 // List returns one newest-first page of a user's notifications plus an opaque

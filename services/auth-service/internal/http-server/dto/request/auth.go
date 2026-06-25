@@ -45,3 +45,10 @@ type Logout struct {
 func (r Logout) ToInput() appdto.LogoutInput {
 	return appdto.LogoutInput{RefreshToken: r.RefreshToken}
 }
+
+// InternalUsersBatch is the POST /internal/users/batch request body. It is sent
+// by trusted internal callers (e.g. Notification Service resolving recipient
+// emails) — never by browsers.
+type InternalUsersBatch struct {
+	UserIDs []string `json:"userIds"`
+}

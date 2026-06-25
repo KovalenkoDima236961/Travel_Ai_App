@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/dto"
@@ -25,7 +26,12 @@ type authService interface {
 	Logout(ctx context.Context, in appdto.LogoutInput) error
 	CurrentUser(ctx context.Context, accessToken string) (*entity.User, error)
 	UserByEmail(ctx context.Context, email string) (*entity.User, error)
+	UsersByIDs(ctx context.Context, ids []uuid.UUID) ([]*entity.User, error)
 }
+
+// maxInternalUserBatch caps how many ids a single internal batch lookup may
+// request, bounding the work a trusted caller can trigger.
+const maxInternalUserBatch = 200
 
 // Handler wires the auth use case to HTTP.
 type Handler struct {
@@ -42,6 +48,11 @@ func New(svc authService, log *zap.Logger) *Handler {
 }
 
 // RegisterRoutes mounts the auth routes onto the given chi router.
+//
+// NOTE: /internal/users/by-email predates the internal service-token scheme and
+// is still called by Trip Service without a token, so it stays unprotected for
+// now (see its TODO). New internal endpoints are registered via
+// RegisterInternalRoutes behind the internal service-token middleware.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", h.Register)
@@ -51,6 +62,14 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/me", h.Me)
 	})
 	r.Get("/internal/users/by-email", h.InternalUserByEmail)
+}
+
+// RegisterInternalRoutes mounts service-to-service endpoints that require the
+// internal service token. The caller wraps these in the internal-token
+// middleware; they must never be exposed to browsers and never require a user
+// JWT.
+func (h *Handler) RegisterInternalRoutes(r chi.Router) {
+	r.Post("/internal/users/batch", h.InternalUsersBatch)
 }
 
 // Register handles POST /auth/register.
@@ -144,6 +163,42 @@ func (h *Handler) InternalUserByEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, response.NewInternalUserLookup(user))
+}
+
+// InternalUsersBatch resolves a set of registered users by id for trusted
+// internal callers (e.g. Notification Service resolving recipient emails). The
+// route is mounted behind the internal service-token middleware. The response
+// contains only the users that exist; ids with no matching account are omitted.
+func (h *Handler) InternalUsersBatch(w http.ResponseWriter, r *http.Request) {
+	var req request.InternalUsersBatch
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if len(req.UserIDs) == 0 {
+		writeError(w, http.StatusBadRequest, "userIds is required")
+		return
+	}
+	if len(req.UserIDs) > maxInternalUserBatch {
+		writeError(w, http.StatusBadRequest, "userIds exceeds maximum batch size")
+		return
+	}
+
+	ids := make([]uuid.UUID, 0, len(req.UserIDs))
+	for _, raw := range req.UserIDs {
+		id, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "userIds must be valid uuids")
+			return
+		}
+		ids = append(ids, id)
+	}
+
+	users, err := h.svc.UsersByIDs(r.Context(), ids)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewInternalUsersBatch(users))
 }
 
 func bearerToken(header string) (string, bool) {

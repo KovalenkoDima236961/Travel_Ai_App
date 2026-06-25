@@ -85,6 +85,20 @@ func (r *memoryRepository) GetUserByID(_ context.Context, id uuid.UUID) (*entity
 	return &user, nil
 }
 
+func (r *memoryRepository) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]*entity.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	users := make([]*entity.User, 0, len(ids))
+	for _, id := range ids {
+		if user, ok := r.usersByID[id]; ok {
+			u := user
+			users = append(users, &u)
+		}
+	}
+	return users, nil
+}
+
 func (r *memoryRepository) CreateRefreshToken(_ context.Context, token *entity.RefreshToken) (*entity.RefreshToken, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

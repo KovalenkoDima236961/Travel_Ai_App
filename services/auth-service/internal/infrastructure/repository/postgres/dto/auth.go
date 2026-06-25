@@ -56,6 +56,30 @@ func ScanUser(row pgx.Row) (*entity.User, error) {
 	return &user, nil
 }
 
+// ScanUsers reads a set of user rows (used by the internal batch lookup). It
+// returns the users in result order; callers match them back to the requested
+// ids and treat any absent id as "not found".
+func ScanUsers(rows pgx.Rows) ([]*entity.User, error) {
+	users := make([]*entity.User, 0)
+	for rows.Next() {
+		var user entity.User
+		if err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.PasswordHash,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan user row: %w", err)
+		}
+		users = append(users, &user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate user rows: %w", err)
+	}
+	return users, nil
+}
+
 func ScanRefreshToken(row pgx.Row) (*entity.RefreshToken, error) {
 	var (
 		token     entity.RefreshToken

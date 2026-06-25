@@ -20,6 +20,13 @@ type InternalUserLookup struct {
 	DisplayName string `json:"displayName"`
 }
 
+// InternalUsersBatch is the response for POST /internal/users/batch. It contains
+// only the users that exist; ids with no matching account are omitted so the
+// caller can decide how to handle a partial result.
+type InternalUsersBatch struct {
+	Items []InternalUserLookup `json:"items"`
+}
+
 // Auth contains a user and token pair.
 type Auth struct {
 	User         User   `json:"user"`
@@ -52,6 +59,17 @@ func NewInternalUserLookup(user *entity.User) InternalUserLookup {
 		Email:       user.Email,
 		DisplayName: "",
 	}
+}
+
+// NewInternalUsersBatch maps a set of resolved users into the batch response.
+// DisplayName is empty in v1 (Auth Service owns email, not profile display
+// names); callers fall back to a neutral greeting when it is blank.
+func NewInternalUsersBatch(users []*entity.User) InternalUsersBatch {
+	items := make([]InternalUserLookup, 0, len(users))
+	for _, user := range users {
+		items = append(items, NewInternalUserLookup(user))
+	}
+	return InternalUsersBatch{Items: items}
 }
 
 func NewAuth(result *appdto.AuthResult) Auth {

@@ -30,3 +30,9 @@ jwt:
   access_secret: "change-me-in-development"
   access_token_ttl_minutes: 15
   refresh_token_ttl_days: 30
+
+# Shared service-to-service token. Internal callers (e.g. Notification Service
+# resolving recipient emails via POST /internal/users/batch) present it in the
+# X-Internal-Service-Token header. Override in production; never commit a real one.
+internal:
+  service_token: "dev-internal-service-token"
