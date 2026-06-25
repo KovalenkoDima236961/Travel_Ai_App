@@ -264,6 +264,10 @@ echo "Checking Notification Service readiness..."
 request GET "${NOTIFICATION_SERVICE_URL}/ready"
 assert_2xx "Notification Service readiness check"
 
+echo "Checking Notification Service stream requires auth..."
+request GET "${NOTIFICATION_SERVICE_URL}/notifications/stream"
+assert_status "Notification stream requires auth" "401"
+
 PLACE_PROVIDER_MODE="${PLACE_PROVIDER:-mock}"
 PLACE_PROVIDER_FALLBACK="${PLACE_PROVIDER_FALLBACK_TO_MOCK:-true}"
 

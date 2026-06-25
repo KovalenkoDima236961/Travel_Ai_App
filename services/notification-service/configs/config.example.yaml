@@ -58,6 +58,12 @@ users:
   user_service_url: "http://user-service:8083"
   timeout_seconds: 5
 
+sse:
+  enabled: true
+  heartbeat_seconds: 25
+  write_timeout_seconds: 10
+  max_connections_per_user: 5
+
 cors:
   allowed_origins: "http://localhost:3000"
   allowed_methods: "GET,PUT,PATCH,OPTIONS"

@@ -41,3 +41,7 @@ export type UnreadNotificationsResponse = {
 export type MarkNotificationResponse = {
   success: boolean;
 };
+
+export type NotificationCreatedStreamPayload = {
+  notification: AppNotification;
+};

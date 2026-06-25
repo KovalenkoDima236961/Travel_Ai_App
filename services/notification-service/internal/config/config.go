@@ -36,6 +36,7 @@ type Config struct {
 	CORS       CORSConfig      `yaml:"cors" validate:"required"`
 	Email      EmailConfig     `yaml:"email" validate:"required"`
 	Users      UsersConfig     `yaml:"users" validate:"required"`
+	SSE        SSEConfig       `yaml:"sse" validate:"required"`
 }
 
 // EmailConfig controls optional email delivery for selected notification types.
@@ -77,6 +78,15 @@ type UsersConfig struct {
 	AuthServiceURL string `yaml:"auth_service_url" env:"AUTH_SERVICE_URL" env-default:"http://auth-service:8082"`
 	UserServiceURL string `yaml:"user_service_url" env:"USER_SERVICE_URL" env-default:"http://user-service:8083"`
 	TimeoutSeconds int    `yaml:"timeout_seconds" env:"USER_LOOKUP_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
+}
+
+// SSEConfig controls the authenticated Server-Sent Events stream for real-time
+// in-app notification delivery. Delivery is in-memory and instance-local.
+type SSEConfig struct {
+	Enabled               bool `yaml:"enabled" env:"NOTIFICATION_SSE_ENABLED" env-default:"true"`
+	HeartbeatSeconds      int  `yaml:"heartbeat_seconds" env:"NOTIFICATION_SSE_HEARTBEAT_SECONDS" env-default:"25" validate:"min=1"`
+	WriteTimeoutSeconds   int  `yaml:"write_timeout_seconds" env:"NOTIFICATION_SSE_WRITE_TIMEOUT_SECONDS" env-default:"10" validate:"min=1"`
+	MaxConnectionsPerUser int  `yaml:"max_connections_per_user" env:"NOTIFICATION_SSE_MAX_CONNECTIONS_PER_USER" env-default:"5" validate:"min=1"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -174,6 +184,16 @@ func (c *Config) EmailNotificationTypes() []string {
 // IsProduction reports whether the service runs in a production profile.
 func (c *Config) IsProduction() bool {
 	return c.Env == "production"
+}
+
+// SSEHeartbeatInterval returns the configured heartbeat period.
+func (c *Config) SSEHeartbeatInterval() time.Duration {
+	return time.Duration(c.SSE.HeartbeatSeconds) * time.Second
+}
+
+// SSEWriteTimeout returns the per-event SSE write timeout.
+func (c *Config) SSEWriteTimeout() time.Duration {
+	return time.Duration(c.SSE.WriteTimeoutSeconds) * time.Second
 }
 
 func (c *Config) applyDefaults() {

@@ -35,6 +35,12 @@ func TestLoadDevelopmentDefaults(t *testing.T) {
 	if cfg.Internal.ServiceToken != DefaultDevelopmentInternalToken {
 		t.Fatalf("unexpected internal token %q", cfg.Internal.ServiceToken)
 	}
+	if !cfg.SSE.Enabled {
+		t.Fatal("expected SSE enabled by default")
+	}
+	if cfg.SSE.HeartbeatSeconds != 25 || cfg.SSE.WriteTimeoutSeconds != 10 || cfg.SSE.MaxConnectionsPerUser != 5 {
+		t.Fatalf("unexpected SSE defaults: %+v", cfg.SSE)
+	}
 }
 
 func TestProductionRejectsDefaultJWTSecret(t *testing.T) {

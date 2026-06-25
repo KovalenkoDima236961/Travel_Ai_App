@@ -11,8 +11,10 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/emailnotifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/request"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 )
 
 // internalService is the create port used by trusted internal callers. It now
@@ -41,6 +43,7 @@ type InternalHandler struct {
 	svc         internalService
 	emails      emailDispatcher
 	preferences internalPreferenceService
+	streams     stream.Manager
 	log         *zap.Logger
 }
 
@@ -59,6 +62,12 @@ func NewInternal(svc internalService, emails emailDispatcher, log *zap.Logger, p
 		prefs = preferenceSvc[0]
 	}
 	return &InternalHandler{svc: svc, emails: emails, preferences: prefs, log: log}
+}
+
+// EnableStream wires optional in-memory fanout after batch creation.
+func (h *InternalHandler) EnableStream(manager stream.Manager) *InternalHandler {
+	h.streams = manager
+	return h
 }
 
 // RegisterRoutes mounts the internal routes. The caller wraps these in the
@@ -115,6 +124,8 @@ func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.publishCreated(r.Context(), batchResult.Created)
+
 	emailResult, emailErr := h.emails.SendEmailsForNotifications(r.Context(), batchResult.EmailCandidates, preferenceSet)
 	if emailErr != nil {
 		// Fail-closed: rows are committed but email delivery failed. Surface a
@@ -135,6 +146,25 @@ func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		SkippedByPreference: batchResult.SkippedByPreference,
 		Email:               emailResult,
 	})
+}
+
+type notificationCreatedPayload struct {
+	Notification response.Notification `json:"notification"`
+}
+
+func (h *InternalHandler) publishCreated(ctx context.Context, created []entity.Notification) {
+	if h.streams == nil || len(created) == 0 {
+		return
+	}
+	for i := range created {
+		notification := created[i]
+		h.streams.PublishToUser(ctx, notification.UserID, stream.StreamEvent{
+			Name: stream.EventNotificationCreated,
+			Data: notificationCreatedPayload{
+				Notification: response.NewNotification(notification),
+			},
+		})
+	}
 }
 
 // noopEmailDispatcher reports every created notification as skipped without

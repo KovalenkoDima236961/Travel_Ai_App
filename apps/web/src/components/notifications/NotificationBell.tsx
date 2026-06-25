@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useUnreadNotificationCount } from "@/lib/notifications/use-notifications";
+import { useNotificationStream } from "@/lib/notifications/use-notification-stream";
 import { NotificationsDropdown } from "@/components/notifications/NotificationsDropdown";
 
 /**
@@ -17,7 +18,8 @@ export function NotificationBell() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const enabled = !isLoading && isAuthenticated;
-  const unread = useUnreadNotificationCount(enabled);
+  const stream = useNotificationStream(enabled);
+  const unread = useUnreadNotificationCount(enabled, stream.isConnected);
 
   // Close the dropdown when clicking outside or pressing Escape.
   useEffect(() => {

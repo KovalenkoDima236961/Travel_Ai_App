@@ -11,18 +11,23 @@ import {
 } from "@/lib/api/notifications";
 
 const UNREAD_POLL_INTERVAL_MS = 45_000;
+const UNREAD_POLL_INTERVAL_WITH_STREAM_MS = 120_000;
 
 /**
  * Polls the current user's unread notification count. Polling is enabled only
  * for authenticated users so logged-out / public share viewers never call the
  * Notification Service.
  */
-export function useUnreadNotificationCount(enabled: boolean) {
+export function useUnreadNotificationCount(enabled: boolean, streamConnected = false) {
   return useQuery({
     queryKey: notificationKeys.unreadCount,
     queryFn: getUnreadNotificationCount,
     enabled,
-    refetchInterval: enabled ? UNREAD_POLL_INTERVAL_MS : false,
+    refetchInterval: enabled
+      ? streamConnected
+        ? UNREAD_POLL_INTERVAL_WITH_STREAM_MS
+        : UNREAD_POLL_INTERVAL_MS
+      : false,
     refetchOnWindowFocus: true
   });
 }

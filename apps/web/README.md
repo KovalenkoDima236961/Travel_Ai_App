@@ -221,7 +221,18 @@ for logged-out / public share viewers and makes no requests for them.
 
 - The unread count is polled (~every 45s) via `GET /notifications/unread-count`
   using React Query (`lib/notifications/use-notifications.ts`); a red badge shows
-  when the count is greater than zero (`99+` cap).
+  when the count is greater than zero (`99+` cap). Polling remains enabled as a
+  fallback and slows to ~120s while the real-time stream is connected.
+- The bell also mounts a fetch-based Server-Sent Events stream
+  (`lib/notifications/use-notification-stream.ts`) to
+  `GET /notifications/stream`. Native `EventSource` is not used because it cannot
+  send an `Authorization` header; the app uses `fetch` with
+  `Authorization: Bearer <accessToken>` and parses SSE chunks manually in
+  `lib/notifications/sse-parser.ts`.
+- On `notification.created`, the stream invalidates the notification list and
+  unread-count React Query keys so the badge/dropdown update without a manual
+  refresh. `heartbeat` events only keep the stream alive. If the stream
+  disconnects, the hook reconnects with backoff while polling continues.
 - Clicking the bell opens a dropdown
   (`components/notifications/NotificationsDropdown.tsx`) that fetches the latest
   10 notifications (`GET /notifications?limit=10`), with loading / empty
@@ -249,10 +260,10 @@ Notification Service via the same-origin notification proxy. Locally the default
 `EMAIL_PROVIDER=mock` sends nothing externally (see the Notification Service and
 infra READMEs).
 
-Limitations: polling only (no WebSockets/push), in-app notifications surface in
-the bell, and the bell shows a count plus the latest items rather than a
-real-time stream. No unsubscribe links, email digests, quiet hours, or per-trip
-notification preferences yet.
+Limitations: real-time updates are SSE-only with polling recovery (no
+WebSockets/push), in-app notifications surface in the bell, and the bell shows a
+count plus the latest items. No unsubscribe links, email digests, quiet hours,
+or per-trip notification preferences yet.
 
 ## Public Trip Sharing
 

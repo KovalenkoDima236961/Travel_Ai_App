@@ -5,9 +5,10 @@ private, per-user notifications ("a collaborator commented on your trip", "you
 were invited to collaborate", …) and is written/read over plain HTTP.
 
 It is intentionally small and replaceable: Trip Service calls it **synchronously**
-after a successful action, and the web app **polls** it for the unread count.
-There is no message broker and no WebSocket. It can **optionally send email** for
-selected notification types after the in-app rows are created — see
+after a successful action, and the web app opens an authenticated
+Server-Sent Events stream for new in-app notifications while keeping polling as
+a fallback. There is no message broker and no WebSocket. It can **optionally send
+email** for selected notification types after the in-app rows are created — see
 [Email notifications (v1)](#email-notifications-v1) and [Limitations](#limitations).
 
 ## Architecture
@@ -39,6 +40,7 @@ see their own notifications.
 |--------|-------------------------------|-------------|
 | GET    | `/notifications?limit=&cursor=` | Current user's notifications, newest first, cursor-paginated. |
 | GET    | `/notifications/unread-count`   | `{ "count": N }` of unread notifications. |
+| GET    | `/notifications/stream`         | Authenticated SSE stream for real-time notification updates. |
 | GET    | `/notifications/preferences`     | Full effective in-app/email preference matrix for the current user. |
 | PUT    | `/notifications/preferences`     | Upsert the current user's notification preferences. |
 | PATCH  | `/notifications/{id}/read`      | Mark one notification read (idempotent). |
@@ -46,6 +48,36 @@ see their own notifications.
 
 `limit` defaults to 30, max 100. `cursor` is the opaque `nextCursor` from a prior
 list response.
+
+### Real-time notifications (v1)
+
+`GET /notifications/stream` is an authenticated Server-Sent Events endpoint. The
+client sends the same `Authorization: Bearer <accessToken>` header used for the
+other user-facing notification routes.
+
+The stream emits:
+
+- `notification.created` after an in-app notification row has been created in
+  the database and preference filtering has allowed it.
+- `heartbeat` periodically, and once on connect with `{ "status": "connected" }`.
+
+`notification.created` uses the same notification DTO shape as
+`GET /notifications`:
+
+```text
+event: notification.created
+data: {"notification":{"id":"...","userId":"...","tripId":"...","actorUserId":"...","type":"comment_created","title":"New comment","message":"...","entityType":"comment","entityId":"...","metadata":{},"readAt":null,"createdAt":"..."}}
+```
+
+The stream manager is in-memory and supports multiple active tabs/devices per
+user, capped by `NOTIFICATION_SSE_MAX_CONNECTIONS_PER_USER`. If the cap is
+exceeded, the new stream request returns `429`. If a connected client falls
+behind and its event queue fills, the event is dropped for that client only; the
+notification row remains recoverable through the list endpoint and polling.
+
+If a reverse proxy is placed in front of this service, disable response buffering
+for `/notifications/stream` and keep the connection alive. The service sets
+`X-Accel-Buffering: no`, but proxy configuration may still be required.
 
 ### Internal (require `X-Internal-Service-Token`, no user JWT)
 For the private service network only — never exposed to browsers.
@@ -289,6 +321,10 @@ Loaded from a YAML file (`-config ./configs/config.yaml`) or environment.
 | `AUTH_SERVICE_URL` | `http://auth-service:8082` | Service that owns recipient email (v1) |
 | `USER_SERVICE_URL` | `http://user-service:8083` | Reserved for future display-name enrichment |
 | `USER_LOOKUP_TIMEOUT_SECONDS` | `5` | Recipient lookup timeout |
+| `NOTIFICATION_SSE_ENABLED` | `true` | Enable authenticated SSE stream |
+| `NOTIFICATION_SSE_HEARTBEAT_SECONDS` | `25` | Heartbeat interval |
+| `NOTIFICATION_SSE_WRITE_TIMEOUT_SECONDS` | `10` | Per-event stream write timeout |
+| `NOTIFICATION_SSE_MAX_CONNECTIONS_PER_USER` | `5` | Active SSE connections allowed per user on this instance |
 | `SMTP_HOST` | empty | SMTP host (required when provider=smtp) |
 | `SMTP_PORT` | `587` | SMTP port |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | empty | SMTP auth (used when username set); password is never logged |
@@ -318,13 +354,17 @@ make lint          # golangci-lint
 
 - **Email is synchronous** inside the batch request — no retry queue and no
   background worker. A slow SMTP server slows the request.
+- Real-time delivery is Server-Sent Events only, in-memory, and instance-local.
+- No cross-instance fanout guarantee.
+- No replay stream; clients recover missed events through `GET /notifications`
+  and unread-count polling.
 - No push notifications.
 - No per-trip notification preferences.
 - No unsubscribe links.
 - No quiet hours.
 - No email digests.
 - `mock` provider is the local-dev default and sends no external mail.
-- No WebSockets / Server-Sent Events — the web app polls the unread count.
+- No WebSockets.
 - No RabbitMQ / Kafka / event bus — Trip Service calls this service
   **synchronously over HTTP** after a successful action, fail-open (a
   notification failure never breaks the originating Trip Service action).

@@ -189,6 +189,22 @@ http://localhost:3000
 10. Confirm no new in-app `comment_created` notification appears.
 11. Re-enable both comment preferences and save.
 
+## Real-time Notifications
+
+1. Start the full stack and open `http://localhost:3000`.
+2. Log in as a trip owner in one browser.
+3. Log in as an accepted collaborator in a second browser.
+4. Keep the authenticated header visible in both browsers so the notification
+   bell is mounted.
+5. As the owner, invite the collaborator, or as the collaborator, create a
+   comment on the shared trip.
+6. Confirm the other user's notification badge updates without a manual refresh.
+7. Open the notification dropdown and confirm the new notification appears.
+8. Stop only the Notification Service, or set `NOTIFICATION_SSE_ENABLED=false`
+   and restart it.
+9. Refresh the web app and confirm the notification UI still works through the
+   polling fallback, even though real-time updates are unavailable.
+
 ## Public Trip Sharing
 
 1. Log in and open a completed trip.

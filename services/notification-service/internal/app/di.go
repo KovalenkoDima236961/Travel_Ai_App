@@ -15,6 +15,7 @@ import (
 	notificationrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/storage/postgres"
@@ -44,6 +45,13 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	repo := notificationrepo.New(db)
 	svc := notifications.New(repo, log)
 	preferenceSvc := preferences.New(repo, log)
+	streamCfg := stream.Normalize(stream.Config{
+		Enabled:               cfg.SSE.Enabled,
+		HeartbeatInterval:     cfg.SSEHeartbeatInterval(),
+		WriteTimeout:          cfg.SSEWriteTimeout(),
+		MaxConnectionsPerUser: cfg.SSE.MaxConnectionsPerUser,
+	})
+	streamManager := stream.NewManager(streamCfg, log)
 
 	// Email fan-out: select the sender (mock/smtp), build the recipient lookup
 	// client (Auth Service owns email in v1), and wire the orchestration. Sender
@@ -81,8 +89,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		Types:            cfg.EmailNotificationTypes(),
 	}, userLookup, emailSender, log)
 
-	notificationHandler := handler.New(svc, log, preferenceSvc)
-	internalHandler := handler.NewInternal(svc, emailSvc, log, preferenceSvc)
+	notificationHandler := handler.New(svc, log, preferenceSvc).EnableStream(streamManager, streamCfg)
+	internalHandler := handler.NewInternal(svc, emailSvc, log, preferenceSvc).EnableStream(streamManager)
 	readinessHandler := httpserver.NewReadinessHandler(db, log)
 
 	router := httpserver.NewRouter(

@@ -51,8 +51,9 @@ from user-facing endpoints (`GET /notifications`, `GET /notifications/unread-cou
 `PATCH /notifications/{id}/read`, `PATCH /notifications/read-all`) that require a
 valid Auth Service JWT, so users only ever see their own notifications and public
 share viewers have no access. The web app shows a header notification bell with a
-polled unread badge, a dropdown of recent notifications, and a `/notifications`
-page; clicking a notification marks it read and navigates to the related trip.
+real-time SSE-backed unread badge, polling fallback, a dropdown of recent
+notifications, and a `/notifications` page; clicking a notification marks it
+read and navigates to the related trip.
 The Notification Service also supports **optional email notifications (v1)**: for
 selected types (collaboration invited, comment created, collaborator role
 changed/removed by default) it resolves the recipient's email from Auth Service
@@ -63,10 +64,12 @@ control global category preferences for in-app and email delivery through
 categories are enabled and email trip updates are disabled. Email is behind a
 provider switch (`EMAIL_PROVIDER=mock` by default — sends nothing externally;
 `smtp` for real delivery) and is fail-open by default, so an email failure never
-affects in-app notification creation. No push, WebSockets, RabbitMQ, background
-workers, per-trip notification preferences, quiet hours, unsubscribe links, or
-digests in v1 — the synchronous HTTP design is deliberately simple and
-replaceable by an event bus / async worker later.
+affects in-app notification creation. Real-time notification delivery uses
+authenticated Server-Sent Events from Notification Service with an in-memory,
+single-instance connection manager; polling remains the recovery path. No push,
+WebSockets, RabbitMQ, background workers, per-trip notification preferences,
+quiet hours, unsubscribe links, or digests in v1 — the synchronous HTTP design
+is deliberately simple and replaceable by an event bus / async worker later.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.

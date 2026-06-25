@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -53,13 +54,16 @@ func (r *Repository) CreateNotifications(ctx context.Context, notifications []en
 			Insert("notifications").
 			Columns(dto.InsertColumns()...).
 			Values(values...).
+			Suffix("RETURNING created_at").
 			ToSql()
 		if err != nil {
 			return 0, fmt.Errorf("build insert notification: %w", err)
 		}
-		if _, err := tx.Exec(ctx, query, args...); err != nil {
+		var createdAt time.Time
+		if err := tx.QueryRow(ctx, query, args...).Scan(&createdAt); err != nil {
 			return 0, fmt.Errorf("insert notification: %w", err)
 		}
+		notifications[i].CreatedAt = createdAt.UTC()
 		created++
 	}
 

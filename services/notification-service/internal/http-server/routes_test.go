@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 )
 
 const (
@@ -188,6 +190,42 @@ func newTestRouterFull(svc *fakeService, emails *fakeEmailDispatcher, prefs *fak
 	)
 }
 
+func newTestRouterFullWithStream(
+	svc *fakeService,
+	emails *fakeEmailDispatcher,
+	prefs *fakePreferenceService,
+	streamManager stream.Manager,
+	streamCfg stream.Config,
+) http.Handler {
+	var internal *handler.InternalHandler
+	if emails == nil && prefs == nil {
+		internal = handler.NewInternal(svc, nil, zap.NewNop())
+	} else if emails == nil {
+		internal = handler.NewInternal(svc, nil, zap.NewNop(), prefs)
+	} else if prefs == nil {
+		internal = handler.NewInternal(svc, emails, zap.NewNop())
+	} else {
+		internal = handler.NewInternal(svc, emails, zap.NewNop(), prefs)
+	}
+	internal.EnableStream(streamManager)
+
+	userHandler := handler.New(svc, zap.NewNop())
+	if prefs != nil {
+		userHandler = handler.New(svc, zap.NewNop(), prefs)
+	}
+	userHandler.EnableStream(streamManager, streamCfg)
+
+	return NewRouter(
+		zap.NewNop(),
+		userHandler,
+		internal,
+		nil,
+		config.CORSConfig{AllowedOrigins: "http://localhost:3000"},
+		config.JWTConfig{AccessSecret: testJWTSecret, HeaderName: "Authorization"},
+		config.InternalConfig{ServiceToken: testInternalToken},
+	)
+}
+
 // mintAccessToken builds a minimal HS256 access token accepted by the auth
 // middleware (sub + exp claims).
 func mintAccessToken(t *testing.T, secret string, userID uuid.UUID, ttl time.Duration) string {
@@ -203,6 +241,18 @@ func mintAccessToken(t *testing.T, secret string, userID uuid.UUID, ttl time.Dur
 
 func base64URL(s string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(s))
+}
+
+func waitForStreamCount(t *testing.T, manager stream.Manager, userID uuid.UUID, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if got := manager.CountForUser(userID); got == want {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("expected stream count %d for user %s, got %d", want, userID, manager.CountForUser(userID))
 }
 
 func TestHealthReturnsOK(t *testing.T) {
@@ -337,6 +387,148 @@ func TestListRejectsTokenSignedWithWrongSecret(t *testing.T) {
 	}
 }
 
+func TestStreamRequiresJWT(t *testing.T) {
+	streamManager := stream.NewManager(stream.Config{MaxConnectionsPerUser: 5}, nil)
+	router := newTestRouterFullWithStream(
+		&fakeService{},
+		nil,
+		nil,
+		streamManager,
+		stream.Config{Enabled: true, HeartbeatInterval: time.Second, WriteTimeout: time.Second, MaxConnectionsPerUser: 5},
+	)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/notifications/stream", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", rec.Code)
+	}
+}
+
+func TestStreamWritesHeadersAndHeartbeat(t *testing.T) {
+	streamManager := stream.NewManager(stream.Config{MaxConnectionsPerUser: 5}, nil)
+	router := newTestRouterFullWithStream(
+		&fakeService{},
+		nil,
+		nil,
+		streamManager,
+		stream.Config{Enabled: true, HeartbeatInterval: time.Second, WriteTimeout: time.Second, MaxConnectionsPerUser: 5},
+	)
+	userID := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/notifications/stream", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	rec := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		router.ServeHTTP(rec, req)
+		close(done)
+	}()
+	waitForStreamCount(t, streamManager, userID, 1)
+	cancel()
+	<-done
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("expected text/event-stream, got %q", got)
+	}
+	if got := rec.Header().Get("X-Accel-Buffering"); got != "no" {
+		t.Fatalf("expected X-Accel-Buffering=no, got %q", got)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("event: heartbeat\n")) {
+		t.Fatalf("expected initial heartbeat, got %q", rec.Body.String())
+	}
+}
+
+func TestStreamDisabledReturns503(t *testing.T) {
+	streamManager := stream.NewManager(stream.Config{MaxConnectionsPerUser: 5}, nil)
+	router := newTestRouterFullWithStream(
+		&fakeService{},
+		nil,
+		nil,
+		streamManager,
+		stream.Config{Enabled: false, HeartbeatInterval: time.Second, WriteTimeout: time.Second, MaxConnectionsPerUser: 5},
+	)
+	userID := uuid.New()
+	req := httptest.NewRequest(http.MethodGet, "/notifications/stream", nil)
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStreamMaxConnectionsReturns429(t *testing.T) {
+	userID := uuid.New()
+	streamManager := stream.NewManager(stream.Config{MaxConnectionsPerUser: 1}, nil)
+	existing := stream.NewClient(userID)
+	if err := streamManager.Register(userID, existing); err != nil {
+		t.Fatalf("register existing stream: %v", err)
+	}
+	defer streamManager.Unregister(userID, existing.ID)
+
+	router := newTestRouterFullWithStream(
+		&fakeService{},
+		nil,
+		nil,
+		streamManager,
+		stream.Config{Enabled: true, HeartbeatInterval: time.Second, WriteTimeout: time.Second, MaxConnectionsPerUser: 1},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/notifications/stream", nil)
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStreamReceivesPublishedNotification(t *testing.T) {
+	userID := uuid.New()
+	streamManager := stream.NewManager(stream.Config{MaxConnectionsPerUser: 5}, nil)
+	router := newTestRouterFullWithStream(
+		&fakeService{},
+		nil,
+		nil,
+		streamManager,
+		stream.Config{Enabled: true, HeartbeatInterval: time.Second, WriteTimeout: time.Second, MaxConnectionsPerUser: 5},
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/notifications/stream", nil).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	rec := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		router.ServeHTTP(rec, req)
+		close(done)
+	}()
+	waitForStreamCount(t, streamManager, userID, 1)
+
+	streamManager.PublishToUser(context.Background(), userID, stream.StreamEvent{
+		Name: stream.EventNotificationCreated,
+		Data: map[string]string{"id": "n1"},
+	})
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	<-done
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "event: notification.created\n") {
+		t.Fatalf("expected notification.created event, got %q", body)
+	}
+	if !strings.Contains(body, `"id":"n1"`) {
+		t.Fatalf("expected published payload, got %q", body)
+	}
+}
+
 func TestInternalBatchRequiresToken(t *testing.T) {
 	router := newTestRouter(&fakeService{})
 	body := []byte(`{"notifications":[]}`)
@@ -383,6 +575,45 @@ func TestInternalBatchCreatesNotifications(t *testing.T) {
 	}
 	if len(svc.created) != 1 || svc.created[0].UserID != recipient {
 		t.Fatalf("expected one create for recipient, got %+v", svc.created)
+	}
+}
+
+func TestInternalBatchPublishesCreatedNotificationToStream(t *testing.T) {
+	svc := &fakeService{}
+	streamManager := stream.NewManager(stream.Config{MaxConnectionsPerUser: 5}, nil)
+	recipient := uuid.New()
+	client := stream.NewClient(recipient)
+	if err := streamManager.Register(recipient, client); err != nil {
+		t.Fatalf("register stream client: %v", err)
+	}
+	defer streamManager.Unregister(recipient, client.ID)
+
+	router := newTestRouterFullWithStream(
+		svc,
+		nil,
+		nil,
+		streamManager,
+		stream.Config{Enabled: true, HeartbeatInterval: time.Second, WriteTimeout: time.Second, MaxConnectionsPerUser: 5},
+	)
+	rec := postBatch(t, router, recipient, uuid.New())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	select {
+	case got := <-client.Send:
+		if got.Name != stream.EventNotificationCreated {
+			t.Fatalf("expected notification.created, got %+v", got)
+		}
+		payload, err := json.Marshal(got.Data)
+		if err != nil {
+			t.Fatalf("marshal event payload: %v", err)
+		}
+		if !bytes.Contains(payload, []byte(`"notification"`)) || !bytes.Contains(payload, []byte(recipient.String())) {
+			t.Fatalf("unexpected event payload: %s", payload)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for created notification event")
 	}
 }
 
@@ -481,6 +712,46 @@ func TestInternalBatchReportsInAppPreferenceSkip(t *testing.T) {
 	}
 	if resp.Email.Skipped != 1 {
 		t.Fatalf("expected noop email dispatcher to receive preserved candidate, got %+v", resp.Email)
+	}
+}
+
+func TestInternalBatchDoesNotPublishWhenInAppPreferenceSkips(t *testing.T) {
+	svc := &fakeService{}
+	recipient := uuid.New()
+	streamManager := stream.NewManager(stream.Config{MaxConnectionsPerUser: 5}, nil)
+	client := stream.NewClient(recipient)
+	if err := streamManager.Register(recipient, client); err != nil {
+		t.Fatalf("register stream client: %v", err)
+	}
+	defer streamManager.Unregister(recipient, client.ID)
+
+	prefs := &fakePreferenceService{set: preferences.BuildEffectiveSet(
+		[]uuid.UUID{recipient},
+		[]entity.NotificationPreference{
+			{
+				UserID:   recipient,
+				Channel:  preferences.ChannelInApp,
+				Category: preferences.CategoryComments,
+				Enabled:  false,
+			},
+		},
+	)}
+	router := newTestRouterFullWithStream(
+		svc,
+		nil,
+		prefs,
+		streamManager,
+		stream.Config{Enabled: true, HeartbeatInterval: time.Second, WriteTimeout: time.Second, MaxConnectionsPerUser: 5},
+	)
+
+	rec := postBatch(t, router, recipient, uuid.New())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	select {
+	case got := <-client.Send:
+		t.Fatalf("expected no stream event for skipped in-app notification, got %+v", got)
+	default:
 	}
 }
 

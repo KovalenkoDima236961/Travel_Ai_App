@@ -2,9 +2,11 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -16,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 )
 
 // notificationService is the user-facing port. The concrete notifications.Service
@@ -39,6 +42,8 @@ type preferenceService interface {
 type Handler struct {
 	svc         notificationService
 	preferences preferenceService
+	streams     stream.Manager
+	streamCfg   stream.Config
 	log         *zap.Logger
 }
 
@@ -54,12 +59,22 @@ func New(svc notificationService, log *zap.Logger, preferenceSvc ...preferenceSe
 	return &Handler{svc: svc, preferences: prefs, log: log}
 }
 
+// EnableStream wires the optional SSE stream endpoint onto the handler.
+func (h *Handler) EnableStream(manager stream.Manager, cfg stream.Config) *Handler {
+	h.streams = manager
+	h.streamCfg = stream.Normalize(cfg)
+	return h
+}
+
 // RegisterRoutes mounts the user-facing notification routes. The caller is
 // responsible for wrapping these in JWT auth middleware.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/notifications", func(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/unread-count", h.UnreadCount)
+		if h.streams != nil {
+			r.Get("/stream", h.Stream)
+		}
 		if h.preferences != nil {
 			r.Get("/preferences", h.GetPreferences)
 			r.Put("/preferences", h.UpdatePreferences)
@@ -67,6 +82,95 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Patch("/read-all", h.MarkAllRead)
 		r.Patch("/{id}/read", h.MarkRead)
 	})
+}
+
+// Stream handles GET /notifications/stream. It keeps an authenticated SSE
+// response open for the current user and receives events from the in-memory
+// stream manager.
+func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !h.streamCfg.Enabled {
+		writeError(w, http.StatusServiceUnavailable, "notification stream disabled")
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+
+	client := stream.NewClient(user.ID)
+	if err := h.streams.Register(user.ID, client); err != nil {
+		if errors.Is(err, stream.ErrMaxConnectionsExceeded) {
+			writeError(w, http.StatusTooManyRequests, "too many active notification streams")
+			return
+		}
+		h.log.Error("register notification stream client",
+			zap.String("user_id", user.ID.String()),
+			zap.Error(err),
+		)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	defer h.streams.Unregister(user.ID, client.ID)
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	controller := http.NewResponseController(w)
+	_ = controller.SetWriteDeadline(time.Time{})
+
+	writeEvent := func(event stream.StreamEvent) bool {
+		if h.streamCfg.WriteTimeout > 0 {
+			_ = controller.SetWriteDeadline(time.Now().Add(h.streamCfg.WriteTimeout))
+		}
+		if err := stream.WriteSSE(w, event.Name, event.Data); err != nil {
+			h.log.Debug("write notification stream event failed",
+				zap.String("user_id", user.ID.String()),
+				zap.String("client_id", client.ID),
+				zap.String("event", event.Name),
+				zap.Error(err),
+			)
+			return false
+		}
+		flusher.Flush()
+		if h.streamCfg.WriteTimeout > 0 {
+			_ = controller.SetWriteDeadline(time.Time{})
+		}
+		return true
+	}
+
+	if !writeEvent(heartbeatEvent("connected")) {
+		return
+	}
+
+	ticker := time.NewTicker(h.streamCfg.HeartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event, ok := <-client.Send:
+			if !ok {
+				return
+			}
+			if !writeEvent(event) {
+				return
+			}
+		case <-ticker.C:
+			if !writeEvent(heartbeatEvent("")) {
+				return
+			}
+		}
+	}
 }
 
 // List handles GET /notifications. It returns the current user's notifications
@@ -225,4 +329,14 @@ func parseLimit(w http.ResponseWriter, raw string) (int, bool) {
 		return 0, false
 	}
 	return limit, true
+}
+
+func heartbeatEvent(status string) stream.StreamEvent {
+	data := map[string]string{
+		"ts": time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if status != "" {
+		data["status"] = status
+	}
+	return stream.StreamEvent{Name: stream.EventHeartbeat, Data: data}
 }
