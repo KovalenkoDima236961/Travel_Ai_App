@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -9,6 +10,7 @@ import (
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 )
 
 // ListItineraryVersions returns summary snapshots for one owned trip, newest
@@ -102,6 +104,18 @@ func (s *Service) RestoreItineraryVersion(ctx context.Context, tripID, versionID
 			"sourceVersionSource": string(version.Source),
 		},
 	})
+
+	destination := tripDestination(trip)
+	s.notifyTripBroadcast(ctx, trip, user.ID,
+		notifications.TypeVersionRestored,
+		"Itinerary version restored",
+		fmt.Sprintf("An itinerary version for %s was restored.", destination),
+		notifications.EntityItineraryVersion, activityEntityID(version.ID),
+		map[string]any{
+			"tripId":      tripID.String(),
+			"destination": destination,
+			"versionId":   version.ID.String(),
+		})
 
 	return updated, nil
 }

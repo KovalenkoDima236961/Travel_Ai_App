@@ -34,8 +34,14 @@ NEXT_PUBLIC_AUTH_SERVICE_URL=http://localhost:8082
 NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080
 NEXT_PUBLIC_USER_SERVICE_URL=http://localhost:8083
 NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:8086
 TRIP_SERVICE_INTERNAL_URL=http://localhost:8080
+NOTIFICATION_SERVICE_INTERNAL_URL=http://localhost:8086
 ```
+
+`NOTIFICATION_SERVICE_INTERNAL_URL` is used by the server-side notification proxy
+route (`app/api/notification-service/[...path]`); in Docker Compose it is the
+internal hostname `http://notification-service:8086`.
 
 ## Backend
 
@@ -203,8 +209,38 @@ setting changes.
   edit/regenerate, and version-restore actions the page invalidates the activity
   query (`activityKeys`) so the feed refreshes; otherwise it updates on reload.
 
-Limitations: no real-time updates, no notifications, no filtering/search, and
-generic actor labels.
+Limitations: no real-time updates, no filtering/search, and generic actor
+labels. In-app notifications for these events are surfaced separately by the
+notification bell (see below).
+
+## Notifications
+
+The authenticated header (`components/layout/AppHeader.tsx`) shows a notification
+bell (`components/notifications/NotificationBell.tsx`) backed by the Notification
+Service. It is private, authenticated, per-user data — the bell renders nothing
+for logged-out / public share viewers and makes no requests for them.
+
+- The unread count is polled (~every 45s) via `GET /notifications/unread-count`
+  using React Query (`lib/notifications/use-notifications.ts`); a red badge shows
+  when the count is greater than zero (`99+` cap).
+- Clicking the bell opens a dropdown
+  (`components/notifications/NotificationsDropdown.tsx`) that fetches the latest
+  10 notifications (`GET /notifications?limit=10`), with loading / empty
+  (`No notifications yet.`) / error states, an unread dot indicator, relative
+  timestamps, and a `Mark all as read` action. A `View all` link opens the full
+  `/notifications` page (`app/notifications/page.tsx`) with `Load more` cursor
+  pagination.
+- Clicking a notification marks it read (`PATCH /notifications/{id}/read`),
+  refreshes the unread count, and navigates to the related destination resolved
+  by `lib/notifications/notification-navigation.ts` (`collaboration_invited` →
+  `/trips`; anything with a `tripId` → `/trips/{tripId}`; otherwise `/trips`).
+- All requests go through the same-origin proxy route
+  `app/api/notification-service/[...path]` (which never forwards `internal/*`
+  paths), attaching the user's bearer token via the shared `apiFetch` client. The
+  base URL comes from `lib/config.ts` (`getNotificationApiBaseUrl`).
+
+Limitations: polling only (no WebSockets/push/email), and the bell shows a count
+plus the latest items rather than a real-time stream.
 
 ## Public Trip Sharing
 

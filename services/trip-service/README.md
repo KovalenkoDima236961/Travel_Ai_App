@@ -171,6 +171,11 @@ Key environment variables:
 | `EXTERNAL_INTEGRATIONS_SERVICE_URL` | `http://external-integrations-service:8084` | Base URL for weather forecast and place enrichment lookups during generation. |
 | `WEATHER_CONTEXT_ENABLED` | `true` | Fetch weather before full and partial itinerary generation when the trip has a start date. |
 | `WEATHER_CONTEXT_TIMEOUT_SECONDS` | `5` | HTTP client timeout for weather forecast calls. |
+| `NOTIFICATIONS_ENABLED` | `true` | Fan out in-app notifications to the Notification Service after successful actions. Set `false` to make no calls. |
+| `NOTIFICATIONS_FAIL_OPEN` | `true` | Keep a notification failure from breaking the originating action (logged and swallowed). |
+| `NOTIFICATION_SERVICE_URL` | `http://notification-service:8086` | Base URL for the Notification Service internal batch endpoint. |
+| `NOTIFICATION_SERVICE_TOKEN` | `dev-internal-service-token` | Shared `X-Internal-Service-Token` value. Never logged. |
+| `NOTIFICATION_SERVICE_TIMEOUT_SECONDS` | `3` | HTTP client timeout for the synchronous notification call. |
 | `WEATHER_CONTEXT_FAIL_OPEN` | `true` | Continue generation without weather when External Integrations Service fails. Set `false` to return `502` with `{"error":"failed to load weather forecast"}`. |
 | `PLACE_ENRICHMENT_ENABLED` | `true` | Try to auto-attach place metadata after generated itinerary payloads. |
 | `PLACE_ENRICHMENT_FAIL_OPEN` | `true` | Continue generation without place matches when External Integrations Service fails. Set `false` to return `502` with `{"error":"failed to enrich itinerary places"}`. |
@@ -358,10 +363,45 @@ Protected endpoint:
   (older) events exist. An invalid cursor is a `400`. Response shape:
   `{"items":[{"id","tripId","actorUserId","eventType","entityType","entityId","metadata","createdAt"}],"nextCursor":"..."}`.
 
-Limitations: no real-time updates, no notifications, no filtering/search, and
-actor display names are generic ("You" for the requester, "Collaborator"
-otherwise — no batch user lookup in v1). Activity recording failure does not
-fail the originating action.
+Limitations: no real-time updates, no filtering/search, and actor display names
+are generic ("You" for the requester, "Collaborator" otherwise — no batch user
+lookup in v1). Activity recording failure does not fail the originating action.
+In-app notifications for these events are delivered separately by the
+Notification Service (see below).
+
+## Notifications integration v1
+
+After recording an activity event for an important successful action, Trip
+Service also fans out **in-app notifications** by calling the Notification
+Service (`services/notification-service`) over plain HTTP. The client lives in
+`internal/notifications` (`client.go`, `dto.go`, `module.go`); the fan-out
+orchestration (recipient resolution + fail-open send) lives in
+`internal/application/service/notifications.go`.
+
+- **Transport**: synchronous `POST /internal/notifications/batch`, authenticated
+  with `X-Internal-Service-Token` (`NOTIFICATION_SERVICE_TOKEN`). Bounded by
+  `NOTIFICATION_SERVICE_TIMEOUT_SECONDS` (default `3`). The token is never logged.
+- **Recipients**: the trip owner plus accepted collaborators, **always excluding
+  the actor** (no self-notifications) and pending/removed collaborators.
+  Collaboration events target a single user (the invited/affected collaborator,
+  or the owner on accept). When the recipient set is empty (e.g. owner generates
+  an itinerary with no collaborators) **no HTTP call is made**.
+- **Events** (after success only): `collaboration_invited`,
+  `collaboration_accepted`, `collaborator_role_changed`, `collaborator_removed`,
+  `comment_created`, `itinerary_updated`, `itinerary_generated`,
+  `day_regenerated`, `item_regenerated`, `version_restored`. Type/entity
+  constants live in `internal/notifications/types.go`.
+- **Fail-open**: with `NOTIFICATIONS_FAIL_OPEN=true` a notification failure is
+  logged and swallowed — it never breaks the originating Trip Service action
+  (the action and its activity event have already been committed).
+- **No secrets in metadata**: notification metadata follows the same sanitization
+  rules as activity metadata (no tokens, passwords, JWTs, comment bodies, or full
+  itinerary JSON). Comment notifications include day/item context but not the
+  comment body.
+- **Config**: `NOTIFICATIONS_ENABLED` (default `true`), `NOTIFICATIONS_FAIL_OPEN`
+  (default `true`), `NOTIFICATION_SERVICE_URL`, `NOTIFICATION_SERVICE_TOKEN`,
+  `NOTIFICATION_SERVICE_TIMEOUT_SECONDS`. With `NOTIFICATIONS_ENABLED=false` Trip
+  Service makes no calls.
 
 ## Run with Docker Compose
 

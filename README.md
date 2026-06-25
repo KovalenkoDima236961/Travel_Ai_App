@@ -1,8 +1,8 @@
 # Travel AI App
 
 AI travel planning project with Go Auth Service, Go Trip Service, Go User
-Service, Go External Integrations Service, Python/FastAPI AI Planning Service,
-and a Next.js web app.
+Service, Go External Integrations Service, Go Notification Service,
+Python/FastAPI AI Planning Service, and a Next.js web app.
 
 Auth Service v1 lives in `services/auth-service` and supports email/password
 registration, login, refresh token rotation, logout, and JWT-backed `/auth/me`.
@@ -38,7 +38,24 @@ route, so public share viewers never see activity. Events are recorded only
 after an action succeeds, recording failures never fail the action, and metadata
 is small and sanitized (no secrets, passwords, tokens, comment bodies, or full
 itinerary JSON). The web app shows a `Recent activity` panel on private trip
-detail pages. No real-time updates, notifications, or filtering in v1.
+detail pages. No real-time updates or filtering in v1.
+Notification Service v1 lives in `services/notification-service` and owns
+private, per-user in-app notifications in its own database. After a successful
+collaboration/comment/itinerary action, Trip Service calls the Notification
+Service **synchronously over HTTP** (internal `POST /internal/notifications/batch`,
+authenticated with a shared `INTERNAL_SERVICE_TOKEN`) to create notifications for
+the affected users — owner and accepted collaborators, never the actor
+themselves. Notification creation is fail-open: a failure is logged and never
+breaks the originating Trip Service action. Users read their own notifications
+from user-facing endpoints (`GET /notifications`, `GET /notifications/unread-count`,
+`PATCH /notifications/{id}/read`, `PATCH /notifications/read-all`) that require a
+valid Auth Service JWT, so users only ever see their own notifications and public
+share viewers have no access. The web app shows a header notification bell with a
+polled unread badge, a dropdown of recent notifications, and a `/notifications`
+page; clicking a notification marks it read and navigates to the related trip.
+No email, push, WebSockets, RabbitMQ, or background workers in v1 — the
+synchronous HTTP design is deliberately simple and replaceable by an event bus
+later.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.

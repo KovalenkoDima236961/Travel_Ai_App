@@ -70,6 +70,8 @@ type mockRepo struct {
 
 	collaboratorByUser    *entity.TripCollaborator
 	collaboratorByUserErr error
+
+	listCollaborators []entity.TripCollaborator
 }
 
 func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -257,6 +259,9 @@ func (m *mockRepo) GetTripCollaboratorByID(_ context.Context, _, _ uuid.UUID) (*
 }
 
 func (m *mockRepo) ListTripCollaborators(_ context.Context, _ uuid.UUID) ([]entity.TripCollaborator, error) {
+	if m.listCollaborators != nil {
+		return m.listCollaborators, nil
+	}
 	return []entity.TripCollaborator{}, nil
 }
 

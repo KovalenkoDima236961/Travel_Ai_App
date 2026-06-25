@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/mail"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 )
 
 var ErrRegisteredUserNotFound = errors.New("registered user not found")
@@ -94,6 +96,20 @@ func (s *Service) InviteTripCollaborator(ctx context.Context, tripID uuid.UUID, 
 		Metadata:    inviteMetadata,
 	})
 
+	// Notify only the invited collaborator.
+	destination := tripDestination(trip)
+	s.notifyDirect(ctx, collaborator.UserID, tripID, user.ID,
+		notifications.TypeCollaborationInvited,
+		"You were invited to collaborate on a trip",
+		fmt.Sprintf("You were invited to collaborate on %s as %s.", destination, collaborator.Role),
+		notifications.EntityCollaborator, activityEntityID(collaborator.ID),
+		map[string]any{
+			"tripId":         tripID.String(),
+			"destination":    destination,
+			"role":           string(collaborator.Role),
+			"collaboratorId": collaborator.ID.String(),
+		})
+
 	return info, nil
 }
 
@@ -122,7 +138,8 @@ func (s *Service) UpdateTripCollaborator(ctx context.Context, tripID, collaborat
 	if err != nil {
 		return appdto.TripCollaboratorInfo{}, err
 	}
-	if _, _, err := s.requireOwner(ctx, tripID, user.ID); err != nil {
+	trip, _, err := s.requireOwner(ctx, tripID, user.ID)
+	if err != nil {
 		return appdto.TripCollaboratorInfo{}, err
 	}
 	role, err := normalizeCollaboratorRole(in.Role)
@@ -153,6 +170,20 @@ func (s *Service) UpdateTripCollaborator(ctx context.Context, tripID, collaborat
 				"newRole":            string(updated.Role),
 			},
 		})
+
+		// Notify the affected collaborator that their role changed.
+		destination := tripDestination(trip)
+		s.notifyDirect(ctx, updated.UserID, tripID, user.ID,
+			notifications.TypeCollaboratorRoleChange,
+			"Your trip role changed",
+			fmt.Sprintf("Your role for %s was changed from %s to %s.", destination, existing.Role, updated.Role),
+			notifications.EntityCollaborator, activityEntityID(updated.ID),
+			map[string]any{
+				"tripId":      tripID.String(),
+				"destination": destination,
+				"oldRole":     string(existing.Role),
+				"newRole":     string(updated.Role),
+			})
 	}
 
 	return appdto.TripCollaboratorInfo{Collaborator: *updated}, nil
@@ -163,7 +194,8 @@ func (s *Service) RemoveTripCollaborator(ctx context.Context, tripID, collaborat
 	if err != nil {
 		return err
 	}
-	if _, _, err := s.requireOwner(ctx, tripID, user.ID); err != nil {
+	trip, _, err := s.requireOwner(ctx, tripID, user.ID)
+	if err != nil {
 		return err
 	}
 	removed, err := s.repo.RemoveTripCollaborator(ctx, tripID, collaboratorID)
@@ -182,6 +214,19 @@ func (s *Service) RemoveTripCollaborator(ctx context.Context, tripID, collaborat
 			"role":               string(removed.Role),
 		},
 	})
+
+	// Notify the removed collaborator that they lost access.
+	destination := tripDestination(trip)
+	s.notifyDirect(ctx, removed.UserID, tripID, user.ID,
+		notifications.TypeCollaboratorRemoved,
+		"You were removed from a trip",
+		fmt.Sprintf("You no longer have access to %s.", destination),
+		notifications.EntityCollaborator, activityEntityID(removed.ID),
+		map[string]any{
+			"tripId":      tripID.String(),
+			"destination": destination,
+			"role":        string(removed.Role),
+		})
 
 	return nil
 }
@@ -207,6 +252,25 @@ func (s *Service) AcceptTripCollaborator(ctx context.Context, tripID, collaborat
 			"role":               string(collaborator.Role),
 		},
 	})
+
+	// Notify the trip owner that their invitation was accepted. The invitee is
+	// the actor, so loading the trip lets us address the owner directly.
+	if trip, err := s.repo.GetByID(ctx, tripID); err == nil {
+		if ownerID, ownerErr := tripOwnerID(trip); ownerErr == nil {
+			destination := tripDestination(trip)
+			s.notifyDirect(ctx, ownerID, tripID, user.ID,
+				notifications.TypeCollaborationAccepted,
+				"Collaboration invitation accepted",
+				fmt.Sprintf("A collaborator accepted your invitation for %s.", destination),
+				notifications.EntityCollaborator, activityEntityID(collaborator.ID),
+				map[string]any{
+					"tripId":         tripID.String(),
+					"destination":    destination,
+					"collaboratorId": collaborator.ID.String(),
+					"role":           string(collaborator.Role),
+				})
+		}
+	}
 
 	return appdto.TripCollaboratorInfo{Collaborator: *collaborator}, nil
 }

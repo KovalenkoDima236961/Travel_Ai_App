@@ -30,8 +30,9 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 
 The web app is included in this stack and waits for Trip Service to become
 healthy before starting. Auth Service also runs in the stack at
-`http://localhost:8082`, User Service runs at `http://localhost:8083`, and
-External Integrations Service runs at `http://localhost:8084`.
+`http://localhost:8082`, User Service runs at `http://localhost:8083`,
+External Integrations Service runs at `http://localhost:8084`, and Notification
+Service runs at `http://localhost:8086`.
 Auth Service, Trip Service, and User Service share `JWT_ACCESS_SECRET` locally
 so downstream services can validate Auth Service access tokens without calling
 Auth Service on every request.
@@ -64,6 +65,19 @@ Collaborative Planning v1 is enabled by Trip Service's
 existing registered users by exact email; Auth Service resolves the email to a
 user ID. The internal lookup endpoint is network-internal only in this Compose
 stack and is not service-authenticated yet.
+Notification Service v1 runs at `http://localhost:8086` with its own
+`notification_service` database on the shared Postgres (created by
+`infra/postgres/init/002-create-notification-database.sql`). Trip Service fans
+out in-app notifications to it after successful actions via
+`NOTIFICATION_SERVICE_URL=http://notification-service:8086`, authenticated with
+`NOTIFICATION_SERVICE_TOKEN` (the shared `INTERNAL_SERVICE_TOKEN`).
+`NOTIFICATIONS_ENABLED=true` enables the path and `NOTIFICATIONS_FAIL_OPEN=true`
+keeps a notification failure from breaking the Trip Service action;
+`NOTIFICATION_SERVICE_TIMEOUT_SECONDS=3` bounds the synchronous call. The
+Notification Service validates the shared `JWT_ACCESS_SECRET` on its user-facing
+endpoints, so users only see their own notifications; the browser reaches it via
+`NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:8086`. The internal
+endpoint is network-internal and requires `INTERNAL_SERVICE_TOKEN`.
 
 The helper scripts pass `--env-file infra/.env` explicitly. If you intentionally
 use the shorter command below, confirm Docker Compose is picking up the right
@@ -97,6 +111,7 @@ Useful local URLs:
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083
 - External Integrations Service: http://localhost:8084
+- Notification Service: http://localhost:8086
 - AI Planning Service: http://localhost:8000
 
 The `web-app` service receives browser-facing and internal service URLs:
@@ -109,10 +124,14 @@ The `web-app` service receives browser-facing and internal service URLs:
   Service calls.
 - `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084` for
   browser-facing External Integrations Service calls.
+- `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:8086` for browser-facing
+  Notification Service calls.
 - `TRIP_SERVICE_INTERNAL_URL=http://trip-service:8080` for server-side Next.js
   proxy calls inside Docker Compose.
 - `USER_SERVICE_INTERNAL_URL=http://user-service:8083` for future server-side
   Next.js proxy calls inside Docker Compose.
+- `NOTIFICATION_SERVICE_INTERNAL_URL=http://notification-service:8086` for the
+  server-side Next.js notification proxy inside Docker Compose.
 
 Trip Service also receives:
 
@@ -286,12 +305,14 @@ AUTH_SERVICE_URL=http://localhost:8082 \
 SMOKE_USER_SERVICE_URL=http://localhost:8083 \
 SMOKE_AI_PLANNING_SERVICE_URL=http://localhost:8000 \
 SMOKE_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084 \
+SMOKE_NOTIFICATION_SERVICE_URL=http://localhost:8086 \
 WEB_APP_URL=http://localhost:3000 \
 ./scripts/smoke-test.sh
 ```
 
-The smoke script also tolerates `USER_SERVICE_URL=http://user-service:8083` and
-`AI_PLANNING_SERVICE_URL=http://ai-planning-service:8000` from a sourced
+The smoke script also tolerates `USER_SERVICE_URL=http://user-service:8083`,
+`AI_PLANNING_SERVICE_URL=http://ai-planning-service:8000`, and
+`NOTIFICATION_SERVICE_URL=http://notification-service:8086` from a sourced
 `infra/.env` by mapping those internal Docker hostnames back to localhost.
 
 ## Useful URLs
@@ -302,6 +323,7 @@ The smoke script also tolerates `USER_SERVICE_URL=http://user-service:8083` and
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083
 - External Integrations Service: http://localhost:8084
+- Notification Service: http://localhost:8086
 - AI Planning Service: http://localhost:8000
 - Ollama: http://localhost:11434
 - Adminer: http://localhost:8081

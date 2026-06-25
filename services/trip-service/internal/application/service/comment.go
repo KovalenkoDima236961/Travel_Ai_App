@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 )
 
 const (
@@ -116,6 +118,29 @@ func (s *Service) CreateComment(ctx context.Context, tripID uuid.UUID, in appdto
 		EntityID:    activityEntityID(created.ID),
 		Metadata:    commentActivityMetadata(trip, created.DayNumber, created.ItemIndex),
 	})
+
+	// Notify the owner and accepted collaborators (except the comment author).
+	// The comment body is intentionally omitted to avoid leaking content/noise.
+	itemName := itineraryItemName(trip, created.DayNumber, created.ItemIndex)
+	location := fmt.Sprintf("Day %d", created.DayNumber)
+	if itemName != "" {
+		location = fmt.Sprintf("Day %d · %s", created.DayNumber, itemName)
+	}
+	commentMetadata := map[string]any{
+		"tripId":    tripID.String(),
+		"dayNumber": created.DayNumber,
+		"itemIndex": created.ItemIndex,
+		"commentId": created.ID.String(),
+	}
+	if itemName != "" {
+		commentMetadata["itemName"] = itemName
+	}
+	s.notifyTripBroadcast(ctx, trip, user.ID,
+		notifications.TypeCommentCreated,
+		"New comment",
+		fmt.Sprintf("A collaborator commented on %s.", location),
+		notifications.EntityComment, activityEntityID(created.ID),
+		commentMetadata)
 
 	return s.toCommentInfo(*created, user.ID, access), nil
 }

@@ -354,11 +354,52 @@ actions) or on page reload.
 12. Confirm there is no activity panel on the public page and no activity is
     exposed.
 
+## Notifications (Notification Service)
+
+In-app notifications are private, per-user data served by the Notification
+Service. The header shows a bell with an unread badge for logged-in users; the
+badge is polled (~every 45s) and refreshes immediately after you act on
+notifications. The bell never appears for logged-out / public share viewers.
+
+Use two browsers (or one normal + one private window) so two users are logged in
+at once: the trip **owner** and a **second user** (collaborator).
+
+1. Start the full stack (`docker compose -f infra/docker-compose.yml up --build`).
+2. In browser A, log in as the owner and create a trip (e.g. `Rome`, `days=3`).
+   Generate the itinerary and open its detail page.
+3. In browser B, register/log in as a second user. Confirm the bell shows **no**
+   unread badge yet.
+4. In browser A, open `Share & Collaborators` and invite the second user (by the
+   email they registered with) as `viewer` or `editor`.
+5. In browser B, within ~45s (or reload), confirm the bell shows an unread
+   badge. Open the dropdown and confirm an invitation notification:
+   - `You were invited to collaborate on a trip`.
+6. Click the invitation notification. Confirm it is marked read (badge
+   decreases) and you navigate to `/trips` (where the invitation can be
+   accepted). Accept the invitation.
+7. In browser A (owner), confirm the bell shows an unread badge and the dropdown
+   shows `Collaboration invitation accepted`.
+8. In browser B (collaborator), open the shared trip and add a comment on an
+   itinerary item.
+9. In browser A (owner), confirm a new `New comment` notification appears.
+   Click it and confirm you navigate to the trip detail page (`/trips/{id}`).
+10. In the owner's dropdown, click `Mark all as read` and confirm the unread
+    badge clears. Open `/notifications` (View all) and confirm the full list
+    renders with `Load more` when there are more than 30 items.
+11. Confirm the actor never notifies themselves: the comment author (browser B)
+    does **not** receive their own `New comment` notification.
+12. Open the public share link (`/share/<shareToken>`) in a logged-out session
+    and confirm there is **no** notification bell.
+
 ## Troubleshooting
 
 - CORS error in browser console: confirm Trip Service has
   `CORS_ALLOWED_ORIGINS=http://localhost:3000`, then rebuild/restart
   `trip-service`.
+- Notification bell missing or badge not updating: confirm `notification-service`
+  is healthy (`docker compose -f infra/docker-compose.yml ps`) and that
+  `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` is reachable from the browser. The
+  unread count polls about every 45 seconds; reload to force a refresh.
 - Trip Service offline: check `docker compose -f infra/docker-compose.yml ps`
   and `docker compose -f infra/docker-compose.yml logs trip-service`.
 - User Service offline: check `docker compose -f infra/docker-compose.yml ps`

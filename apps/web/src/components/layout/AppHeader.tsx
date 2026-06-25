@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button, buttonStyles } from "@/components/ui/Button";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export function AppHeader() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export function AppHeader() {
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/settings">
                 Settings
               </Link>
+              <NotificationBell />
               <span className="hidden max-w-40 truncate text-sm text-slate-600 lg:inline">
                 {user?.email}
               </span>

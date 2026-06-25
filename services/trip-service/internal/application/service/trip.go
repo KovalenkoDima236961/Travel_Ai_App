@@ -19,6 +19,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -200,6 +201,9 @@ type Service struct {
 	placeEnrichmentFailOpen bool
 	userLookupProvider      userLookupProvider
 	activity                activityService
+	notifier                notifier
+	notificationsEnabled    bool
+	notificationsFailOpen   bool
 	publicSharingEnabled    bool
 	publicWebBaseURL        string
 	shareTokenBytes         int
@@ -423,6 +427,17 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		Metadata:    map[string]any{"source": "GENERATED"},
 	})
 
+	// Notify accepted collaborators (if any) that the itinerary was generated.
+	// When the owner generates an initial itinerary with no collaborators, the
+	// recipient set is empty and no notification is created.
+	destination := tripDestination(current)
+	s.notifyTripBroadcast(ctx, current, user.ID,
+		notifications.TypeItineraryGenerated,
+		"Itinerary generated",
+		fmt.Sprintf("The itinerary for %s was generated.", destination),
+		notifications.EntityItinerary, activityEntityID(id),
+		map[string]any{"tripId": id.String(), "destination": destination})
+
 	return updated, nil
 }
 
@@ -484,6 +499,14 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 		EntityID:    activityEntityID(id),
 		Metadata:    map[string]any{"source": "MANUAL_EDIT"},
 	})
+
+	destination := tripDestination(current)
+	s.notifyTripBroadcast(ctx, current, user.ID,
+		notifications.TypeItineraryUpdated,
+		"Itinerary updated",
+		fmt.Sprintf("The itinerary for %s was updated.", destination),
+		notifications.EntityItinerary, activityEntityID(id),
+		map[string]any{"tripId": id.String(), "destination": destination})
 
 	return updated, nil
 }
@@ -579,6 +602,14 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 		EntityType:  activityEntityType(activity.EntityItineraryDay),
 		Metadata:    map[string]any{"dayNumber": dayNumber},
 	})
+
+	destination := tripDestination(current)
+	s.notifyTripBroadcast(ctx, current, user.ID,
+		notifications.TypeDayRegenerated,
+		"Day regenerated",
+		fmt.Sprintf("Day %d of %s was regenerated.", dayNumber, destination),
+		notifications.EntityItineraryDay, nil,
+		map[string]any{"tripId": id.String(), "destination": destination, "dayNumber": dayNumber})
 
 	return updated, nil
 }
@@ -688,6 +719,23 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		EntityType:  activityEntityType(activity.EntityItineraryItem),
 		Metadata:    itemMetadata,
 	})
+
+	destination := tripDestination(current)
+	itemNotificationMetadata := map[string]any{
+		"tripId":      id.String(),
+		"destination": destination,
+		"dayNumber":   dayNumber,
+		"itemIndex":   itemIndex,
+	}
+	if name := strings.TrimSpace(normalizedReplacement.Name); name != "" {
+		itemNotificationMetadata["itemName"] = name
+	}
+	s.notifyTripBroadcast(ctx, current, user.ID,
+		notifications.TypeItemRegenerated,
+		"Item regenerated",
+		fmt.Sprintf("An item on Day %d of %s was regenerated.", dayNumber, destination),
+		notifications.EntityItineraryItem, nil,
+		itemNotificationMetadata)
 
 	return updated, nil
 }

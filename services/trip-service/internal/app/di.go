@@ -15,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
 	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -109,25 +110,53 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		return nil, fmt.Errorf("init user lookup client: %w", err)
 	}
 	activitySvc := activity.New(repo, log)
-	svc := service.New(repo, gen, log, service.WithUserContext(
-		userContextClient,
-		cfg.UserContext.Enabled,
-		cfg.UserContext.FailOpen,
-	), service.WithWeatherContext(
-		weatherContextClient,
-		cfg.WeatherContext.Enabled,
-		cfg.WeatherContext.FailOpen,
-	), service.WithPlaceEnrichment(
-		placeEnrichmentSvc,
-		cfg.PlaceEnrichment.Enabled,
-		cfg.PlaceEnrichment.FailOpen,
-	), service.WithPublicSharing(
-		cfg.PublicSharing.Enabled,
-		cfg.PublicSharing.PublicWebBaseURL,
-		cfg.PublicSharing.ShareTokenBytes,
-		cfg.PublicSharing.PublicShareAccessSecret,
-		cfg.PublicSharing.PublicShareAccessTTLMinutes,
-	), service.WithUserLookup(userLookupClient), service.WithActivity(activitySvc))
+
+	var notificationClient *notifications.Client
+	if cfg.Notifications.Enabled {
+		notificationClient, err = notifications.New(notifications.Config{
+			BaseURL:        cfg.Notifications.NotificationServiceURL,
+			Token:          cfg.Notifications.NotificationServiceToken,
+			TimeoutSeconds: cfg.Notifications.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init notification client: %w", err)
+		}
+	}
+
+	opts := []service.Option{
+		service.WithUserContext(
+			userContextClient,
+			cfg.UserContext.Enabled,
+			cfg.UserContext.FailOpen,
+		),
+		service.WithWeatherContext(
+			weatherContextClient,
+			cfg.WeatherContext.Enabled,
+			cfg.WeatherContext.FailOpen,
+		),
+		service.WithPlaceEnrichment(
+			placeEnrichmentSvc,
+			cfg.PlaceEnrichment.Enabled,
+			cfg.PlaceEnrichment.FailOpen,
+		),
+		service.WithPublicSharing(
+			cfg.PublicSharing.Enabled,
+			cfg.PublicSharing.PublicWebBaseURL,
+			cfg.PublicSharing.ShareTokenBytes,
+			cfg.PublicSharing.PublicShareAccessSecret,
+			cfg.PublicSharing.PublicShareAccessTTLMinutes,
+		),
+		service.WithUserLookup(userLookupClient),
+		service.WithActivity(activitySvc),
+	}
+	if notificationClient != nil {
+		opts = append(opts, service.WithNotifications(
+			notificationClient,
+			cfg.Notifications.Enabled,
+			cfg.Notifications.FailOpen,
+		))
+	}
+	svc := service.New(repo, gen, log, opts...)
 	tripHandler := handler.New(svc, validator, log)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,

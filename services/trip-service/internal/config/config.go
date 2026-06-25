@@ -26,6 +26,19 @@ type Config struct {
 	PlaceEnrichment    PlaceEnrichmentConfig    `yaml:"place_enrichment"`
 	UserLookup         UserLookupConfig         `yaml:"user_lookup"`
 	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
+	Notifications      NotificationsConfig      `yaml:"notifications"`
+}
+
+// NotificationsConfig controls synchronous in-app notification fan-out to the
+// Notification Service after successful collaboration/comment/itinerary actions.
+// When disabled, Trip Service makes no calls. FailOpen keeps a notification
+// failure from breaking the originating action (the recommended v1 default).
+type NotificationsConfig struct {
+	Enabled                  bool   `yaml:"enabled" env:"NOTIFICATIONS_ENABLED" env-default:"true"`
+	FailOpen                 bool   `yaml:"fail_open" env:"NOTIFICATIONS_FAIL_OPEN" env-default:"true"`
+	NotificationServiceURL   string `yaml:"notification_service_url" env:"NOTIFICATION_SERVICE_URL" env-default:"http://notification-service:8086"`
+	NotificationServiceToken string `yaml:"notification_service_token" env:"NOTIFICATION_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	TimeoutSeconds           int    `yaml:"timeout_seconds" env:"NOTIFICATION_SERVICE_TIMEOUT_SECONDS" env-default:"3" validate:"min=1"`
 }
 
 // HTTPServer holds the HTTP listener configuration.

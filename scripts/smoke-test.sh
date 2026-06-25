@@ -6,10 +6,14 @@ AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8082}"
 USER_SERVICE_URL="${SMOKE_USER_SERVICE_URL:-${USER_SERVICE_URL:-http://localhost:8083}}"
 AI_PLANNING_SERVICE_URL="${SMOKE_AI_PLANNING_SERVICE_URL:-${AI_PLANNING_SERVICE_URL:-http://localhost:8000}}"
 EXTERNAL_INTEGRATIONS_SERVICE_URL="${SMOKE_EXTERNAL_INTEGRATIONS_SERVICE_URL:-${NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL:-http://localhost:8084}}"
+NOTIFICATION_SERVICE_URL="${SMOKE_NOTIFICATION_SERVICE_URL:-${NOTIFICATION_SERVICE_URL:-http://localhost:8086}}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
 
 if [[ "${USER_SERVICE_URL}" == "http://user-service:8083" ]]; then
   USER_SERVICE_URL="http://localhost:${USER_SERVICE_PORT:-8083}"
+fi
+if [[ "${NOTIFICATION_SERVICE_URL}" == "http://notification-service:8086" ]]; then
+  NOTIFICATION_SERVICE_URL="http://localhost:${NOTIFICATION_SERVICE_PORT:-8086}"
 fi
 if [[ "${AI_PLANNING_SERVICE_URL}" == "http://ai-planning-service:8000" ]]; then
   AI_PLANNING_SERVICE_URL="http://localhost:${AI_HTTP_PORT:-8000}"
@@ -135,6 +139,51 @@ assert_activity_has() {
   fi
 }
 
+# fetch_notifications loads a user's notifications into LAST_BODY. Trip Service
+# creates notifications synchronously, but a tiny retry guards against scheduling
+# jitter between the action returning and the row being visible.
+fetch_notifications() {
+  local token="$1"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications?limit=100" "${token}"
+    if [[ "${LAST_STATUS}" =~ ^2 ]]; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "Fetching notifications failed with HTTP ${LAST_STATUS}" >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+}
+
+# assert_notification_has fails unless the given user has at least one
+# notification of the given type, retrying briefly to absorb timing.
+assert_notification_has() {
+  local label="$1"
+  local token="$2"
+  local notification_type="$3"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    fetch_notifications "${token}"
+    if jq -e --arg t "${notification_type}" '.items | any(.type == $t)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "${label}: notifications missing expected type '${notification_type}'" >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+}
+
+# unread_count returns the unread notification count for a user.
+unread_count() {
+  local token="$1"
+  request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/unread-count" "${token}"
+  assert_2xx "Unread notification count"
+  jq -r '.count // 0' <<<"${LAST_BODY}"
+}
+
 echo "Checking Auth Service health..."
 request GET "${AUTH_SERVICE_URL}/health"
 assert_2xx "Auth Service health check"
@@ -154,6 +203,14 @@ assert_2xx "AI Planning Service health check"
 echo "Checking External Integrations Service health..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/health"
 assert_2xx "External Integrations Service health check"
+
+echo "Checking Notification Service health..."
+request GET "${NOTIFICATION_SERVICE_URL}/health"
+assert_2xx "Notification Service health check"
+
+echo "Checking Notification Service readiness..."
+request GET "${NOTIFICATION_SERVICE_URL}/ready"
+assert_2xx "Notification Service readiness check"
 
 PLACE_PROVIDER_MODE="${PLACE_PROVIDER:-mock}"
 PLACE_PROVIDER_FALLBACK="${PLACE_PROVIDER_FALLBACK_TO_MOCK:-true}"
@@ -289,6 +346,7 @@ assert_2xx "Auth login"
 
 ACCESS_TOKEN="$(jq -r '.accessToken // empty' <<<"${LAST_BODY}")"
 REFRESH_TOKEN="$(jq -r '.refreshToken // empty' <<<"${LAST_BODY}")"
+OWNER_USER_ID="$(jq -r '.user.id // empty' <<<"${LAST_BODY}")"
 if [[ -z "${ACCESS_TOKEN}" || -z "${REFRESH_TOKEN}" ]]; then
   echo "Auth login response did not include both tokens." >&2
   echo "${LAST_BODY}" >&2
@@ -506,6 +564,21 @@ echo "Confirming pending collaborator cannot fetch activity..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Pending collaborator activity access" "404"
 
+echo "Confirming notification endpoints reject unauthenticated access..."
+request GET "${NOTIFICATION_SERVICE_URL}/notifications"
+assert_status "Unauthenticated notifications access" "401"
+
+echo "Confirming the invited collaborator received a collaboration_invited notification..."
+assert_notification_has "Collaborator invite notification" "${COLLAB_ACCESS_TOKEN}" "collaboration_invited"
+
+echo "Confirming notifications are private to their owner..."
+COLLAB_FOREIGN_NOTIFICATIONS="$(jq --arg uid "${COLLAB_USER_ID}" '[.items[] | select(.userId != $uid)] | length' <<<"${LAST_BODY}")"
+if [[ "${COLLAB_FOREIGN_NOTIFICATIONS}" -ne 0 ]]; then
+  echo "Collaborator notification list leaked another user's notifications." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Confirming the trip_created activity event was recorded..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=100" "${ACCESS_TOKEN}"
 assert_2xx "Owner fetch early activity"
@@ -515,6 +588,17 @@ assert_activity_has "Owner early activity" "itinerary_generated"
 echo "Accepting collaborator invitation..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}/accept" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Accept collaboration invitation"
+
+echo "Confirming the owner received a collaboration_accepted notification..."
+assert_notification_has "Owner accepted notification" "${ACCESS_TOKEN}" "collaboration_accepted"
+if [[ -n "${OWNER_USER_ID}" ]]; then
+  OWNER_FOREIGN_NOTIFICATIONS="$(jq --arg uid "${OWNER_USER_ID}" '[.items[] | select(.userId != $uid)] | length' <<<"${LAST_BODY}")"
+  if [[ "${OWNER_FOREIGN_NOTIFICATIONS}" -ne 0 ]]; then
+    echo "Owner notification list leaked another user's notifications." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+fi
 
 echo "Checking Shared with me list..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/shared-with-me" "${COLLAB_ACCESS_TOKEN}"
@@ -576,6 +660,48 @@ COLLAB_COMMENT_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
 if [[ -z "${COLLAB_COMMENT_ID}" ]]; then
   echo "Viewer comment response did not include an id." >&2
   echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Confirming the owner received a comment_created notification..."
+assert_notification_has "Owner comment notification" "${ACCESS_TOKEN}" "comment_created"
+
+echo "Confirming the owner has unread notifications..."
+OWNER_UNREAD_BEFORE="$(unread_count "${ACCESS_TOKEN}")"
+if [[ "${OWNER_UNREAD_BEFORE}" -lt 1 ]]; then
+  echo "Owner unread notification count should be greater than zero, got ${OWNER_UNREAD_BEFORE}." >&2
+  exit 1
+fi
+
+echo "Marking one owner notification read and confirming the unread count decreases..."
+fetch_notifications "${ACCESS_TOKEN}"
+FIRST_UNREAD_ID="$(jq -r '[.items[] | select(.readAt == null)][0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${FIRST_UNREAD_ID}" ]]; then
+  echo "Owner has no unread notification to mark read." >&2
+  exit 1
+fi
+request_with_bearer PATCH "${NOTIFICATION_SERVICE_URL}/notifications/${FIRST_UNREAD_ID}/read" "${ACCESS_TOKEN}"
+assert_2xx "Mark notification read"
+OWNER_UNREAD_AFTER_ONE="$(unread_count "${ACCESS_TOKEN}")"
+if [[ "${OWNER_UNREAD_AFTER_ONE}" -ge "${OWNER_UNREAD_BEFORE}" ]]; then
+  echo "Unread count did not decrease after marking one read (${OWNER_UNREAD_BEFORE} -> ${OWNER_UNREAD_AFTER_ONE})." >&2
+  exit 1
+fi
+
+echo "Confirming mark-read is idempotent..."
+request_with_bearer PATCH "${NOTIFICATION_SERVICE_URL}/notifications/${FIRST_UNREAD_ID}/read" "${ACCESS_TOKEN}"
+assert_2xx "Mark notification read (idempotent)"
+
+echo "Confirming a user cannot mark another user's notification read..."
+request_with_bearer PATCH "${NOTIFICATION_SERVICE_URL}/notifications/${FIRST_UNREAD_ID}/read" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Cross-user mark read blocked" "404"
+
+echo "Marking all owner notifications read and confirming the unread count is zero..."
+request_with_bearer PATCH "${NOTIFICATION_SERVICE_URL}/notifications/read-all" "${ACCESS_TOKEN}"
+assert_2xx "Mark all notifications read"
+OWNER_UNREAD_FINAL="$(unread_count "${ACCESS_TOKEN}")"
+if [[ "${OWNER_UNREAD_FINAL}" -ne 0 ]]; then
+  echo "Unread count should be zero after mark-all-read, got ${OWNER_UNREAD_FINAL}." >&2
   exit 1
 fi
 

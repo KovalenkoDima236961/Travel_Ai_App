@@ -1,0 +1,36 @@
+env: development
+
+http_server:
+  address: ":8086"
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 15s
+
+postgres:
+  database: notification_service
+  username: postgres
+  password: postgres
+  host: localhost
+  port: 5432
+  min-conns: 2
+  max-conns: 10
+  mig-path: ./migrations
+
+jwt:
+  # Must match Auth Service's JWT_ACCESS_SECRET so access tokens validate.
+  access_secret: "change-me-in-development"
+  # Optional; reserved for stricter validation. Leave empty in v1.
+  issuer: ""
+  audience: ""
+  header_name: "Authorization"
+
+internal:
+  # Shared service-to-service token. Trip Service presents it in the
+  # X-Internal-Service-Token header on /internal/* endpoints.
+  service_token: "dev-internal-service-token"
+
+cors:
+  allowed_origins: "http://localhost:3000"
+  allowed_methods: "GET,PATCH,OPTIONS"
+  allowed_headers: "Content-Type,Authorization"
