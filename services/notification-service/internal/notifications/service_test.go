@@ -22,6 +22,18 @@ type fakeRepo struct {
 	now  time.Time
 }
 
+type fakeInAppGate struct {
+	allowed map[string]bool
+}
+
+func (g fakeInAppGate) AllowInApp(_ uuid.UUID, notificationType string) bool {
+	allowed, ok := g.allowed[notificationType]
+	if !ok {
+		return true
+	}
+	return allowed
+}
+
 func newFakeRepo() *fakeRepo {
 	return &fakeRepo{now: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)}
 }
@@ -167,6 +179,50 @@ func TestCreateBatch_AllSelfNotificationsCreatesNothing(t *testing.T) {
 	}
 }
 
+func TestCreateBatchWithPreferencesSkipsDisabledInApp(t *testing.T) {
+	repo := newFakeRepo()
+	svc := New(repo, nil)
+	user := uuid.New()
+	actor := uuid.New()
+	in := validInput(user)
+	in.ActorUserID = &actor
+
+	result, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{in}, fakeInAppGate{
+		allowed: map[string]bool{TypeCommentCreated: false},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Created) != 0 || len(repo.rows) != 0 {
+		t.Fatalf("expected no stored in-app notifications, got result=%+v rows=%+v", result, repo.rows)
+	}
+	if result.Skipped != 1 || result.SkippedByPreference != 1 {
+		t.Fatalf("expected preference skip counts, got %+v", result)
+	}
+	if len(result.EmailCandidates) != 1 || result.EmailCandidates[0].UserID != user {
+		t.Fatalf("expected email candidate preserved despite in-app skip, got %+v", result.EmailCandidates)
+	}
+}
+
+func TestCreateBatchWithPreferencesCreatesWhenInAppEnabled(t *testing.T) {
+	repo := newFakeRepo()
+	svc := New(repo, nil)
+	user := uuid.New()
+
+	result, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{validInput(user)}, fakeInAppGate{
+		allowed: map[string]bool{TypeCommentCreated: true},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Created) != 1 || len(repo.rows) != 1 {
+		t.Fatalf("expected one stored notification, got result=%+v rows=%+v", result, repo.rows)
+	}
+	if result.Skipped != 0 || result.SkippedByPreference != 0 {
+		t.Fatalf("expected no skip counts, got %+v", result)
+	}
+}
+
 func TestCreateBatch_ValidatesFields(t *testing.T) {
 	svc := New(newFakeRepo(), nil)
 	user := uuid.New()
@@ -174,7 +230,6 @@ func TestCreateBatch_ValidatesFields(t *testing.T) {
 	cases := map[string]func(*CreateInput){
 		"missing user":    func(in *CreateInput) { in.UserID = uuid.Nil },
 		"missing type":    func(in *CreateInput) { in.Type = "" },
-		"unknown type":    func(in *CreateInput) { in.Type = "definitely_not_a_type" },
 		"missing title":   func(in *CreateInput) { in.Title = "  " },
 		"long title":      func(in *CreateInput) { in.Title = strings.Repeat("x", MaxTitleLength+1) },
 		"missing message": func(in *CreateInput) { in.Message = "" },
@@ -190,6 +245,21 @@ func TestCreateBatch_ValidatesFields(t *testing.T) {
 				t.Fatalf("expected InvalidInputError, got %v", err)
 			}
 		})
+	}
+}
+
+func TestCreateBatch_AllowsUnknownTypeForFutureInAppCompatibility(t *testing.T) {
+	repo := newFakeRepo()
+	svc := New(repo, nil)
+	in := validInput(uuid.New())
+	in.Type = "future_notification_type"
+
+	created, err := svc.CreateBatch(context.Background(), []CreateInput{in})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(created) != 1 || created[0].Type != "future_notification_type" {
+		t.Fatalf("expected unknown type to be created in-app, got %+v", created)
 	}
 }
 

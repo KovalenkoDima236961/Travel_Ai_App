@@ -108,6 +108,44 @@ request_with_bearer() {
   rm -f "${response_file}"
 }
 
+request_with_internal_token() {
+  local method="$1"
+  local url="$2"
+  local token="$3"
+  local body="${4:-}"
+  local response_file
+  response_file="$(mktemp)"
+
+  if [[ -n "${body}" ]]; then
+    if ! LAST_STATUS="$(
+      curl -sS -o "${response_file}" -w "%{http_code}" \
+        -X "${method}" \
+        -H "Content-Type: application/json" \
+        -H "X-Internal-Service-Token: ${token}" \
+        --data "${body}" \
+        "${url}"
+    )"; then
+      LAST_BODY="$(cat "${response_file}")"
+      rm -f "${response_file}"
+      return 1
+    fi
+  else
+    if ! LAST_STATUS="$(
+      curl -sS -o "${response_file}" -w "%{http_code}" \
+        -X "${method}" \
+        -H "X-Internal-Service-Token: ${token}" \
+        "${url}"
+    )"; then
+      LAST_BODY="$(cat "${response_file}")"
+      rm -f "${response_file}"
+      return 1
+    fi
+  fi
+
+  LAST_BODY="$(cat "${response_file}")"
+  rm -f "${response_file}"
+}
+
 assert_2xx() {
   local label="$1"
   if [[ ! "${LAST_STATUS}" =~ ^2 ]]; then
@@ -174,6 +212,20 @@ assert_notification_has() {
   echo "${label}: notifications missing expected type '${notification_type}'" >&2
   echo "${LAST_BODY}" >&2
   exit 1
+}
+
+# assert_notification_absent fails if the given user has a notification of the
+# given type. It fetches once; use it after a synchronous action has returned.
+assert_notification_absent() {
+  local label="$1"
+  local token="$2"
+  local notification_type="$3"
+  fetch_notifications "${token}"
+  if jq -e --arg t "${notification_type}" '.items | any(.type == $t)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
+    echo "${label}: notifications unexpectedly contained type '${notification_type}'" >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
 }
 
 # unread_count returns the unread notification count for a user.
@@ -454,6 +506,18 @@ if [[ "${PATCHED_STYLE_COUNT}" -ne 3 || "${PATCHED_WALKING}" != "8" || "${PATCHE
   exit 1
 fi
 
+echo "Checking default notification preferences..."
+request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${ACCESS_TOKEN}"
+assert_2xx "Get default notification preferences"
+NOTIFICATION_PREF_COUNT="$(jq '.items | length' <<<"${LAST_BODY}")"
+DEFAULT_IN_APP_COMMENTS="$(jq -r '.items[] | select(.channel == "in_app" and .category == "comments") | .enabled' <<<"${LAST_BODY}")"
+DEFAULT_EMAIL_TRIP_UPDATES="$(jq -r '.items[] | select(.channel == "email" and .category == "trip_updates") | .enabled' <<<"${LAST_BODY}")"
+if [[ "${NOTIFICATION_PREF_COUNT}" -ne 8 || "${DEFAULT_IN_APP_COMMENTS}" != "true" || "${DEFAULT_EMAIL_TRIP_UPDATES}" != "false" ]]; then
+  echo "Default notification preferences did not match expected values." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking optional AI Planning destination context endpoint..."
 if request GET "${AI_PLANNING_SERVICE_URL}/destination-context"; then
   if [[ "${LAST_STATUS}" =~ ^2 ]]; then
@@ -589,6 +653,37 @@ if [[ "${COLLAB_FOREIGN_NOTIFICATIONS}" -ne 0 ]]; then
   exit 1
 fi
 
+echo "Disabling collaborator email collaboration notifications..."
+DISABLE_COLLAB_EMAIL_PREF='{"items":[{"channel":"email","category":"collaboration","enabled":false}]}'
+request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${COLLAB_ACCESS_TOKEN}" "${DISABLE_COLLAB_EMAIL_PREF}"
+assert_2xx "Disable collaborator email collaboration notifications"
+COLLAB_EMAIL_COLLAB_ENABLED="$(jq -r '.items[] | select(.channel == "email" and .category == "collaboration") | .enabled' <<<"${LAST_BODY}")"
+if [[ "${COLLAB_EMAIL_COLLAB_ENABLED}" != "false" ]]; then
+  echo "Collaborator email collaboration preference was not disabled." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+if [[ -n "${SMOKE_INTERNAL_SERVICE_TOKEN:-}" ]]; then
+  echo "Checking email skippedByPreference through the internal batch endpoint..."
+  DIRECT_ACTOR_USER_ID="${OWNER_USER_ID:-${AUTH_ME_ID}}"
+  DIRECT_BATCH_PAYLOAD="$(jq -nc \
+    --arg userId "${COLLAB_USER_ID}" \
+    --arg actorUserId "${DIRECT_ACTOR_USER_ID}" \
+    '{notifications:[{userId:$userId,actorUserId:$actorUserId,type:"collaboration_invited",title:"Smoke preference check",message:"Smoke preference check.",metadata:{destination:"Rome"}}]}')"
+  request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${DIRECT_BATCH_PAYLOAD}"
+  assert_2xx "Internal batch email preference check"
+  DIRECT_CREATED="$(jq -r '.created // 0' <<<"${LAST_BODY}")"
+  DIRECT_EMAIL_SKIPPED_BY_PREF="$(jq -r '.email.skippedByPreference // 0' <<<"${LAST_BODY}")"
+  if [[ "${DIRECT_CREATED}" -lt 1 || "${DIRECT_EMAIL_SKIPPED_BY_PREF}" -lt 1 ]]; then
+    echo "Internal batch did not report expected created/skippedByPreference stats." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+else
+  echo "SMOKE_INTERNAL_SERVICE_TOKEN is not set; skipping direct email skippedByPreference check."
+fi
+
 echo "Confirming the trip_created activity event was recorded..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=100" "${ACCESS_TOKEN}"
 assert_2xx "Owner fetch early activity"
@@ -662,6 +757,34 @@ echo "Confirming an accepted viewer collaborator can fetch activity..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Accepted collaborator fetch activity"
 
+echo "Disabling collaborator in-app comment notifications..."
+DISABLE_COLLAB_COMMENT_PREF='{"items":[{"channel":"in_app","category":"comments","enabled":false}]}'
+request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${COLLAB_ACCESS_TOKEN}" "${DISABLE_COLLAB_COMMENT_PREF}"
+assert_2xx "Disable collaborator in-app comment notifications"
+COLLAB_COMMENTS_IN_APP_ENABLED="$(jq -r '.items[] | select(.channel == "in_app" and .category == "comments") | .enabled' <<<"${LAST_BODY}")"
+if [[ "${COLLAB_COMMENTS_IN_APP_ENABLED}" != "false" ]]; then
+  echo "Collaborator in-app comment preference was not disabled." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Confirming disabled in-app comments suppress future collaborator notifications..."
+OWNER_COMMENT_PREF_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Owner: preference smoke check."}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" "${OWNER_COMMENT_PREF_PAYLOAD}"
+assert_2xx "Owner create preference-check comment"
+assert_notification_absent "Collaborator disabled comment preference" "${COLLAB_ACCESS_TOKEN}" "comment_created"
+
+echo "Re-enabling collaborator in-app comment notifications..."
+ENABLE_COLLAB_COMMENT_PREF='{"items":[{"channel":"in_app","category":"comments","enabled":true}]}'
+request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${COLLAB_ACCESS_TOKEN}" "${ENABLE_COLLAB_COMMENT_PREF}"
+assert_2xx "Re-enable collaborator in-app comment notifications"
+
+echo "Confirming re-enabled in-app comments create future collaborator notifications..."
+OWNER_COMMENT_PREF_PAYLOAD_2='{"dayNumber":1,"itemIndex":0,"body":"Owner: notification should return."}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" "${OWNER_COMMENT_PREF_PAYLOAD_2}"
+assert_2xx "Owner create re-enabled notification comment"
+assert_notification_has "Collaborator re-enabled comment notification" "${COLLAB_ACCESS_TOKEN}" "comment_created"
+
 echo "Adding a viewer collaborator comment..."
 COLLAB_COMMENT_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Viewer: sounds good to me."}'
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}" "${COLLAB_COMMENT_PAYLOAD}"
@@ -733,12 +856,12 @@ echo "Rejecting a comment on a non-existent itinerary item..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" '{"dayNumber":99,"itemIndex":0,"body":"Nowhere"}'
 assert_status "Comment on missing item rejected" "400"
 
-echo "Confirming comment counts include both active comments..."
+echo "Confirming comment counts include all active comments..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments/counts" "${ACCESS_TOKEN}"
 assert_2xx "List comment counts"
 DAY1_ITEM0_COUNT="$(jq -r '[.items[] | select(.dayNumber == 1 and .itemIndex == 0) | .count] | first // 0' <<<"${LAST_BODY}")"
-if [[ "${DAY1_ITEM0_COUNT}" != "2" ]]; then
-  echo "Comment counts did not report 2 active comments on day 1 item 0." >&2
+if [[ "${DAY1_ITEM0_COUNT}" != "4" ]]; then
+  echo "Comment counts did not report 4 active comments on day 1 item 0." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi

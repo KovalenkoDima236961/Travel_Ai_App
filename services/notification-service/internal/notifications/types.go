@@ -35,9 +35,10 @@ const (
 	EntityItineraryVersion = "itinerary_version"
 )
 
-// knownTypes is the set of notification types this version recognises. The
-// internal create endpoint rejects unknown types so a typo at a caller never
-// silently lands an un-renderable notification in a user's inbox.
+// knownTypes is the set of notification types this version recognises. Unknown
+// types are still accepted by the create path for forward compatibility, but
+// this helper remains useful for renderers/tests that need to distinguish known
+// vocabulary from future types.
 var knownTypes = map[string]struct{}{
 	TypeCollaborationInvited:   {},
 	TypeCollaborationAccepted:  {},

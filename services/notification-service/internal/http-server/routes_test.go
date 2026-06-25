@@ -23,6 +23,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/handler"
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
 )
 
 const (
@@ -40,10 +41,22 @@ type fakeService struct {
 }
 
 func (f *fakeService) CreateBatch(_ context.Context, inputs []notifications.CreateInput) ([]entity.Notification, error) {
-	f.created = append(f.created, inputs...)
+	result, err := f.CreateBatchWithPreferences(context.Background(), inputs, nil)
+	if err != nil {
+		return nil, err
+	}
+	return result.Created, nil
+}
+
+func (f *fakeService) CreateBatchWithPreferences(_ context.Context, inputs []notifications.CreateInput, gate notifications.InAppPreferenceGate) (*notifications.BatchCreateResult, error) {
+	result := &notifications.BatchCreateResult{Requested: len(inputs)}
 	out := make([]entity.Notification, 0, len(inputs))
 	for _, in := range inputs {
-		out = append(out, entity.Notification{
+		if in.ActorUserID != nil && *in.ActorUserID == in.UserID {
+			result.Skipped++
+			continue
+		}
+		n := entity.Notification{
 			ID:          uuid.New(),
 			UserID:      in.UserID,
 			TripID:      in.TripID,
@@ -52,9 +65,18 @@ func (f *fakeService) CreateBatch(_ context.Context, inputs []notifications.Crea
 			Title:       in.Title,
 			Message:     in.Message,
 			Metadata:    in.Metadata,
-		})
+		}
+		result.EmailCandidates = append(result.EmailCandidates, n)
+		if gate != nil && !gate.AllowInApp(in.UserID, in.Type) {
+			result.Skipped++
+			result.SkippedByPreference++
+			continue
+		}
+		f.created = append(f.created, in)
+		out = append(out, n)
 	}
-	return out, nil
+	result.Created = out
+	return result, nil
 }
 
 // fakeEmailDispatcher records the notifications it is asked to email and returns
@@ -66,9 +88,51 @@ type fakeEmailDispatcher struct {
 	gotLen int
 }
 
-func (f *fakeEmailDispatcher) SendEmailsForNotifications(_ context.Context, notifications []entity.Notification) (emailnotifications.EmailSendResult, error) {
+func (f *fakeEmailDispatcher) SendEmailsForNotifications(_ context.Context, notifications []entity.Notification, _ ...emailnotifications.EmailPreferenceGate) (emailnotifications.EmailSendResult, error) {
 	f.gotLen = len(notifications)
 	return f.result, f.err
+}
+
+type fakePreferenceService struct {
+	result     *preferences.PreferencesResult
+	set        *preferences.EffectiveSet
+	getUser    uuid.UUID
+	updateUser uuid.UUID
+	updated    []preferences.PreferenceInput
+	err        error
+}
+
+func (f *fakePreferenceService) GetPreferences(_ context.Context, userID uuid.UUID) (*preferences.PreferencesResult, error) {
+	f.getUser = userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.result != nil {
+		return f.result, nil
+	}
+	return &preferences.PreferencesResult{Items: []preferences.PreferenceItem{
+		{Channel: preferences.ChannelInApp, Category: preferences.CategoryComments, Enabled: true},
+		{Channel: preferences.ChannelEmail, Category: preferences.CategoryComments, Enabled: true},
+	}}, nil
+}
+
+func (f *fakePreferenceService) UpdatePreferences(_ context.Context, userID uuid.UUID, items []preferences.PreferenceInput) (*preferences.PreferencesResult, error) {
+	f.updateUser = userID
+	f.updated = append([]preferences.PreferenceInput(nil), items...)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.GetPreferences(context.Background(), userID)
+}
+
+func (f *fakePreferenceService) EffectiveForUsers(_ context.Context, userIDs []uuid.UUID) (*preferences.EffectiveSet, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.set != nil {
+		return f.set, nil
+	}
+	return preferences.BuildEffectiveSet(userIDs, nil), nil
 }
 
 func (f *fakeService) List(_ context.Context, in notifications.ListInput) (*notifications.ListResult, error) {
@@ -95,15 +159,27 @@ func newTestRouter(svc *fakeService) http.Handler {
 }
 
 func newTestRouterWithEmail(svc *fakeService, emails *fakeEmailDispatcher) http.Handler {
+	return newTestRouterFull(svc, emails, nil)
+}
+
+func newTestRouterFull(svc *fakeService, emails *fakeEmailDispatcher, prefs *fakePreferenceService) http.Handler {
 	var internal *handler.InternalHandler
-	if emails == nil {
+	if emails == nil && prefs == nil {
 		internal = handler.NewInternal(svc, nil, zap.NewNop())
-	} else {
+	} else if emails == nil {
+		internal = handler.NewInternal(svc, nil, zap.NewNop(), prefs)
+	} else if prefs == nil {
 		internal = handler.NewInternal(svc, emails, zap.NewNop())
+	} else {
+		internal = handler.NewInternal(svc, emails, zap.NewNop(), prefs)
+	}
+	userHandler := handler.New(svc, zap.NewNop())
+	if prefs != nil {
+		userHandler = handler.New(svc, zap.NewNop(), prefs)
 	}
 	return NewRouter(
 		zap.NewNop(),
-		handler.New(svc, zap.NewNop()),
+		userHandler,
 		internal,
 		nil,
 		config.CORSConfig{AllowedOrigins: "http://localhost:3000"},
@@ -170,6 +246,86 @@ func TestListNotificationsUsesTokenSubject(t *testing.T) {
 	}
 }
 
+func TestGetNotificationPreferencesRequiresJWT(t *testing.T) {
+	router := newTestRouterFull(&fakeService{}, nil, &fakePreferenceService{})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/notifications/preferences", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", rec.Code)
+	}
+}
+
+func TestGetNotificationPreferencesUsesTokenSubject(t *testing.T) {
+	prefs := &fakePreferenceService{}
+	router := newTestRouterFull(&fakeService{}, nil, prefs)
+	userID := uuid.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/notifications/preferences", nil)
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if prefs.getUser != userID {
+		t.Fatalf("expected preferences scoped to token subject %s, got %s", userID, prefs.getUser)
+	}
+	var body struct {
+		Items []struct {
+			Channel  string `json:"channel"`
+			Category string `json:"category"`
+			Enabled  bool   `json:"enabled"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body.Items) == 0 {
+		t.Fatal("expected preference items")
+	}
+}
+
+func TestPutNotificationPreferencesSavesCurrentUser(t *testing.T) {
+	prefs := &fakePreferenceService{}
+	router := newTestRouterFull(&fakeService{}, nil, prefs)
+	userID := uuid.New()
+
+	body := []byte(`{"items":[{"channel":"email","category":"comments","enabled":false}]}`)
+	req := httptest.NewRequest(http.MethodPut, "/notifications/preferences", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if prefs.updateUser != userID {
+		t.Fatalf("expected update scoped to token subject %s, got %s", userID, prefs.updateUser)
+	}
+	if len(prefs.updated) != 1 || prefs.updated[0].Channel != preferences.ChannelEmail ||
+		prefs.updated[0].Category != preferences.CategoryComments || prefs.updated[0].Enabled {
+		t.Fatalf("unexpected updated preferences: %+v", prefs.updated)
+	}
+}
+
+func TestPutNotificationPreferencesRejectsMissingEnabled(t *testing.T) {
+	router := newTestRouterFull(&fakeService{}, nil, &fakePreferenceService{})
+	userID := uuid.New()
+
+	body := []byte(`{"items":[{"channel":"email","category":"comments"}]}`)
+	req := httptest.NewRequest(http.MethodPut, "/notifications/preferences", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestListRejectsTokenSignedWithWrongSecret(t *testing.T) {
 	router := newTestRouter(&fakeService{})
 	req := httptest.NewRequest(http.MethodGet, "/notifications", nil)
@@ -232,12 +388,16 @@ func TestInternalBatchCreatesNotifications(t *testing.T) {
 
 // batchResponseBody mirrors the internal batch endpoint's JSON response shape.
 type batchResponseBody struct {
-	Created int `json:"created"`
-	Email   struct {
-		Attempted int `json:"attempted"`
-		Sent      int `json:"sent"`
-		Skipped   int `json:"skipped"`
-		Failed    int `json:"failed"`
+	Requested           int `json:"requested"`
+	Created             int `json:"created"`
+	Skipped             int `json:"skipped"`
+	SkippedByPreference int `json:"skippedByPreference"`
+	Email               struct {
+		Attempted           int `json:"attempted"`
+		Sent                int `json:"sent"`
+		Skipped             int `json:"skipped"`
+		SkippedByPreference int `json:"skippedByPreference"`
+		Failed              int `json:"failed"`
 	} `json:"email"`
 }
 
@@ -287,6 +447,40 @@ func TestInternalBatchEmailDisabledCreatesOnly(t *testing.T) {
 	}
 	if resp.Created != 1 || resp.Email.Skipped != 1 || resp.Email.Sent != 0 {
 		t.Fatalf("expected created=1 skipped=1, got %+v", resp)
+	}
+}
+
+func TestInternalBatchReportsInAppPreferenceSkip(t *testing.T) {
+	svc := &fakeService{}
+	recipient := uuid.New()
+	prefs := &fakePreferenceService{set: preferences.BuildEffectiveSet(
+		[]uuid.UUID{recipient},
+		[]entity.NotificationPreference{
+			{
+				UserID:   recipient,
+				Channel:  preferences.ChannelInApp,
+				Category: preferences.CategoryComments,
+				Enabled:  false,
+			},
+		},
+	)}
+
+	rec := postBatch(t, newTestRouterFull(svc, nil, prefs), recipient, uuid.New())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp batchResponseBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Requested != 1 || resp.Created != 0 || resp.Skipped != 1 || resp.SkippedByPreference != 1 {
+		t.Fatalf("expected in-app preference skip stats, got %+v", resp)
+	}
+	if len(svc.created) != 0 {
+		t.Fatalf("expected no in-app create calls, got %+v", svc.created)
+	}
+	if resp.Email.Skipped != 1 {
+		t.Fatalf("expected noop email dispatcher to receive preserved candidate, got %+v", resp.Email)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
 )
 
 // CreateNotificationsBatch is the body of POST /internal/notifications/batch.
@@ -28,6 +29,19 @@ type CreateNotification struct {
 	EntityType  *string        `json:"entityType"`
 	EntityID    *string        `json:"entityId"`
 	Metadata    map[string]any `json:"metadata"`
+}
+
+// UpdateNotificationPreferences is the body of PUT /notifications/preferences.
+type UpdateNotificationPreferences struct {
+	Items []NotificationPreferenceItem `json:"items"`
+}
+
+// NotificationPreferenceItem is one requested channel/category setting. Enabled
+// is a pointer so omission is distinguishable from false and can be rejected.
+type NotificationPreferenceItem struct {
+	Channel  string `json:"channel"`
+	Category string `json:"category"`
+	Enabled  *bool  `json:"enabled"`
 }
 
 // ToInputs validates id formats and maps the batch into application
@@ -101,4 +115,27 @@ func normalizeEntityType(raw *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+// ToInputs validates transport-only preference requirements and maps the
+// request into application inputs. Vocabulary and duplicate checks stay in the
+// preferences service so they are unit-testable outside HTTP.
+func (u UpdateNotificationPreferences) ToInputs() ([]preferences.PreferenceInput, error) {
+	if u.Items == nil {
+		return nil, apperrs.NewInvalidInput("items array is required")
+	}
+
+	inputs := make([]preferences.PreferenceInput, 0, len(u.Items))
+	for i := range u.Items {
+		item := u.Items[i]
+		if item.Enabled == nil {
+			return nil, apperrs.NewInvalidInput("enabled is required")
+		}
+		inputs = append(inputs, preferences.PreferenceInput{
+			Channel:  strings.TrimSpace(item.Channel),
+			Category: strings.TrimSpace(item.Category),
+			Enabled:  *item.Enabled,
+		})
+	}
+	return inputs, nil
 }

@@ -12,8 +12,10 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
 )
 
 // notificationService is the user-facing port. The concrete notifications.Service
@@ -25,19 +27,31 @@ type notificationService interface {
 	MarkAllRead(ctx context.Context, userID uuid.UUID) (int, error)
 }
 
+// preferenceService is the user-facing preference port. The concrete
+// preferences.Service satisfies it; tests can substitute a fake.
+type preferenceService interface {
+	GetPreferences(ctx context.Context, userID uuid.UUID) (*preferences.PreferencesResult, error)
+	UpdatePreferences(ctx context.Context, userID uuid.UUID, items []preferences.PreferenceInput) (*preferences.PreferencesResult, error)
+}
+
 // Handler serves a user's own notifications. All routes it registers must be
 // mounted behind JWT auth so user_id always comes from a validated token.
 type Handler struct {
-	svc notificationService
-	log *zap.Logger
+	svc         notificationService
+	preferences preferenceService
+	log         *zap.Logger
 }
 
 // New constructs the user-facing notification HTTP handler.
-func New(svc notificationService, log *zap.Logger) *Handler {
+func New(svc notificationService, log *zap.Logger, preferenceSvc ...preferenceService) *Handler {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Handler{svc: svc, log: log}
+	var prefs preferenceService
+	if len(preferenceSvc) > 0 {
+		prefs = preferenceSvc[0]
+	}
+	return &Handler{svc: svc, preferences: prefs, log: log}
 }
 
 // RegisterRoutes mounts the user-facing notification routes. The caller is
@@ -46,6 +60,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/notifications", func(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/unread-count", h.UnreadCount)
+		if h.preferences != nil {
+			r.Get("/preferences", h.GetPreferences)
+			r.Put("/preferences", h.UpdatePreferences)
+		}
 		r.Patch("/read-all", h.MarkAllRead)
 		r.Patch("/{id}/read", h.MarkRead)
 	})
@@ -100,6 +118,59 @@ func (h *Handler) UnreadCount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response.UnreadCount{Count: count})
+}
+
+// GetPreferences handles GET /notifications/preferences.
+func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if h.preferences == nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	result, err := h.preferences.GetPreferences(r.Context(), user.ID)
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewNotificationPreferences(result))
+}
+
+// UpdatePreferences handles PUT /notifications/preferences. The user id comes
+// only from the JWT subject; request bodies never carry a user id.
+func (h *Handler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if h.preferences == nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	var req request.UpdateNotificationPreferences
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	inputs, err := req.ToInputs()
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+
+	result, err := h.preferences.UpdatePreferences(r.Context(), user.ID, inputs)
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewNotificationPreferences(result))
 }
 
 // MarkRead handles PATCH /notifications/{id}/read. It is idempotent and only

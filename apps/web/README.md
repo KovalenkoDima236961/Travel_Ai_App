@@ -152,9 +152,8 @@ Viewer UI:
 - Hides edit, regenerate, place review actions, route optimization apply,
   restore, public share, and collaborator management.
 
-Current v1 limitations: registered users only, no email notifications, no
-real-time editing, no activity feed, and no conflict resolution beyond last
-write wins.
+Current v1 limitations: registered users only, no real-time editing, and no
+conflict resolution beyond last write wins.
 
 ## Itinerary Comments
 
@@ -242,14 +241,18 @@ for logged-out / public share viewers and makes no requests for them.
 In-app notifications may **also trigger an email** depending on server
 configuration: the Notification Service can send email for selected types
 (collaboration invited, comment created, collaborator role changed/removed by
-default) after creating the in-app row. This is entirely backend-side — there is
-no web UI for it in v1 and no per-user email preferences. Locally the default
+default). The `/settings` page includes a `Notification preferences` section
+where authenticated users can enable or disable in-app and email delivery by
+category: collaboration invitations, comments, role changes, and trip updates.
+These settings are saved through `GET/PUT /notifications/preferences` on the
+Notification Service via the same-origin notification proxy. Locally the default
 `EMAIL_PROVIDER=mock` sends nothing externally (see the Notification Service and
 infra READMEs).
 
 Limitations: polling only (no WebSockets/push), in-app notifications surface in
 the bell, and the bell shows a count plus the latest items rather than a
-real-time stream. No per-user email preferences or unsubscribe page yet.
+real-time stream. No unsubscribe links, email digests, quiet hours, or per-trip
+notification preferences yet.
 
 ## Public Trip Sharing
 
@@ -516,6 +519,12 @@ The frontend calls the protected User Service endpoints from `/settings`:
 - `PUT /users/me/profile`
 - `GET /users/me/preferences`
 - `PATCH /users/me/preferences`
+
+The settings page also calls the protected Notification Service preference
+endpoints:
+
+- `GET /notifications/preferences`
+- `PUT /notifications/preferences`
 
 Browser requests go through the Next.js route proxy at `/api/trip-service/*`,
 which forwards to `TRIP_SERVICE_INTERNAL_URL` when set, then falls back to

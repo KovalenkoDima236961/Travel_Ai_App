@@ -13,6 +13,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/infrastructure/repository/postgres/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
 	storage "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/storage/postgres"
 )
 
@@ -198,4 +199,78 @@ func (r *Repository) MarkAllNotificationsRead(ctx context.Context, userID uuid.U
 		return 0, fmt.Errorf("mark all notifications read: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+// ListNotificationPreferencesByUsers returns all stored preference overrides
+// for the given users. Missing rows are intentionally not synthesized here; the
+// preferences service merges defaults over the sparse stored overrides.
+func (r *Repository) ListNotificationPreferencesByUsers(ctx context.Context, userIDs []uuid.UUID) ([]entity.NotificationPreference, error) {
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]any, 0, len(userIDs))
+	for _, id := range userIDs {
+		if id == uuid.Nil {
+			continue
+		}
+		ids = append(ids, dto.IDArg(id))
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	query, args, err := r.db.Builder.
+		Select(dto.PreferenceColumns).
+		From("notification_preferences").
+		Where(sq.Eq{"user_id": ids}).
+		OrderBy("user_id", "channel", "category").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list notification preferences: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query notification preferences: %w", err)
+	}
+	defer rows.Close()
+
+	return dto.ScanPreferenceRows(rows)
+}
+
+// UpsertNotificationPreferencesBatch stores sparse preference overrides for a
+// user. The caller validates vocabulary and duplicates before reaching the
+// repository. A transaction keeps a multi-item save atomic.
+func (r *Repository) UpsertNotificationPreferencesBatch(ctx context.Context, userID uuid.UUID, items []preferences.PreferenceInput) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin notification preferences tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	for i := range items {
+		item := items[i]
+		query, args, err := r.db.Builder.
+			Insert("notification_preferences").
+			Columns(dto.PreferenceInsertColumns()...).
+			Values(dto.PreferenceInsertValues(dto.IDArg(userID), item.Channel, item.Category, item.Enabled)...).
+			Suffix("ON CONFLICT (user_id, channel, category) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()").
+			ToSql()
+		if err != nil {
+			return fmt.Errorf("build upsert notification preference: %w", err)
+		}
+		if _, err := tx.Exec(ctx, query, args...); err != nil {
+			return fmt.Errorf("upsert notification preference: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit notification preferences tx: %w", err)
+	}
+	return nil
 }

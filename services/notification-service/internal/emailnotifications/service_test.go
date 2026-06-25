@@ -34,6 +34,18 @@ type fakeSender struct {
 	attempts int
 }
 
+type fakeEmailPreferenceGate struct {
+	allowed map[string]bool
+}
+
+func (f fakeEmailPreferenceGate) AllowEmail(_ uuid.UUID, notificationType string) bool {
+	allowed, ok := f.allowed[notificationType]
+	if !ok {
+		return true
+	}
+	return allowed
+}
+
 func (f *fakeSender) Send(_ context.Context, msg email.EmailMessage) error {
 	f.attempts++
 	if f.failAll || f.failTo[msg.ToEmail] {
@@ -109,6 +121,53 @@ func TestSendEmails_SkipsSelfNotification(t *testing.T) {
 	}
 	if len(lookup.gotIDs) != 0 {
 		t.Fatal("expected no recipient lookup for a self-only batch")
+	}
+}
+
+func TestSendEmails_SkipsDisabledPreference(t *testing.T) {
+	recipient := uuid.New()
+	actor := uuid.New()
+	lookup := &fakeLookup{profiles: map[uuid.UUID]users.UserProfile{
+		recipient: {UserID: recipient, Email: "anna@example.com"},
+	}}
+	sender := &fakeSender{}
+	svc := newService(t, true, lookup, sender)
+
+	res, err := svc.SendEmailsForNotifications(
+		context.Background(),
+		[]entity.Notification{notify(recipient, actor, notifications.TypeCommentCreated)},
+		fakeEmailPreferenceGate{allowed: map[string]bool{notifications.TypeCommentCreated: false}},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Skipped != 1 || res.SkippedByPreference != 1 || res.Attempted != 0 {
+		t.Fatalf("expected preference skip with no send attempt, got %+v", res)
+	}
+	if len(lookup.gotIDs) != 0 || sender.attempts != 0 {
+		t.Fatal("expected no lookup or send when preference disables email")
+	}
+}
+
+func TestSendEmails_SendsEnabledPreference(t *testing.T) {
+	recipient := uuid.New()
+	actor := uuid.New()
+	lookup := &fakeLookup{profiles: map[uuid.UUID]users.UserProfile{
+		recipient: {UserID: recipient, Email: "anna@example.com"},
+	}}
+	sender := &fakeSender{}
+	svc := newService(t, true, lookup, sender)
+
+	res, err := svc.SendEmailsForNotifications(
+		context.Background(),
+		[]entity.Notification{notify(recipient, actor, notifications.TypeCommentCreated)},
+		fakeEmailPreferenceGate{allowed: map[string]bool{notifications.TypeCommentCreated: true}},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Attempted != 1 || res.Sent != 1 || res.SkippedByPreference != 0 {
+		t.Fatalf("expected enabled preference email sent, got %+v", res)
 	}
 }
 

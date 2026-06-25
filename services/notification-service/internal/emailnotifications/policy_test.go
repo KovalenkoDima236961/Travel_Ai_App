@@ -18,6 +18,14 @@ func defaultAllowlist() []string {
 	}
 }
 
+type fakeEmailGate struct {
+	allowed bool
+}
+
+func (g fakeEmailGate) AllowEmail(uuid.UUID, string) bool {
+	return g.allowed
+}
+
 func TestShouldSendEmail(t *testing.T) {
 	recipient := uuid.New()
 	actor := uuid.New()
@@ -57,6 +65,21 @@ func TestShouldSendEmail(t *testing.T) {
 		n := entity.Notification{UserID: recipient, ActorUserID: &actor, Type: notifications.TypeCommentCreated}
 		if !enabled.ShouldSendEmail(n) {
 			t.Fatal("expected true for allowlisted comment_created to a non-actor")
+		}
+	})
+
+	t.Run("allowlisted enabled preference is true", func(t *testing.T) {
+		n := entity.Notification{UserID: recipient, ActorUserID: &actor, Type: notifications.TypeCommentCreated}
+		if !enabled.ShouldSendEmail(n, fakeEmailGate{allowed: true}) {
+			t.Fatal("expected true for allowlisted comment_created with enabled preference")
+		}
+	})
+
+	t.Run("allowlisted disabled preference is false", func(t *testing.T) {
+		n := entity.Notification{UserID: recipient, ActorUserID: &actor, Type: notifications.TypeCommentCreated}
+		decision := enabled.Evaluate(n, fakeEmailGate{allowed: false})
+		if decision.Send || !decision.SkippedByPreference {
+			t.Fatalf("expected preference skip, got %+v", decision)
 		}
 	})
 }

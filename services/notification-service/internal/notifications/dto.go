@@ -53,6 +53,25 @@ type CreateInput struct {
 	Metadata    map[string]any
 }
 
+// InAppPreferenceGate reports whether an in-app row may be created for a
+// recipient/type pair. It is implemented by the preferences EffectiveSet without
+// importing that package here.
+type InAppPreferenceGate interface {
+	AllowInApp(userID uuid.UUID, notificationType string) bool
+}
+
+// BatchCreateResult reports how an internal batch was handled. Created contains
+// only persisted in-app rows. EmailCandidates contains all non-self,
+// successfully validated notification objects so email can remain independent
+// from in-app preferences.
+type BatchCreateResult struct {
+	Requested           int
+	Created             []entity.Notification
+	EmailCandidates     []entity.Notification
+	Skipped             int
+	SkippedByPreference int
+}
+
 // ListInput selects a page of a user's notifications, newest first. Cursor
 // fields are nil for the first page.
 type ListInput struct {

@@ -25,12 +25,13 @@ type UserLookup interface {
 //	Sent      = attempted that succeeded
 //	Failed    = attempted that failed to send
 //	Skipped   = candidates not emailed (disabled, not allowlisted, self,
-//	            no recipient email, or no template)
+//	            preference-disabled, no recipient email, or no template)
 type EmailSendResult struct {
-	Attempted int `json:"attempted"`
-	Sent      int `json:"sent"`
-	Skipped   int `json:"skipped"`
-	Failed    int `json:"failed"`
+	Attempted           int `json:"attempted"`
+	Sent                int `json:"sent"`
+	Skipped             int `json:"skipped"`
+	SkippedByPreference int `json:"skippedByPreference"`
+	Failed              int `json:"failed"`
 }
 
 // Config configures the email orchestration.
@@ -78,14 +79,19 @@ func New(cfg Config, lookup UserLookup, sender email.EmailSender, log *zap.Logge
 //   - Individual send failure: counted as Failed and logged. Fail-closed returns
 //     a non-nil error after attempting the rest of the batch; fail-open returns
 //     nil so the in-app batch still reports success.
-func (s *Service) SendEmailsForNotifications(ctx context.Context, notifications []entity.Notification) (EmailSendResult, error) {
+func (s *Service) SendEmailsForNotifications(ctx context.Context, notifications []entity.Notification, gates ...EmailPreferenceGate) (EmailSendResult, error) {
 	var result EmailSendResult
+	gate := firstGate(gates)
 
 	eligible := make([]entity.Notification, 0, len(notifications))
 	idSet := make(map[uuid.UUID]struct{})
 	for _, n := range notifications {
-		if !s.policy.ShouldSendEmail(n) {
+		decision := s.policy.Evaluate(n, gate)
+		if !decision.Send {
 			result.Skipped++
+			if decision.SkippedByPreference {
+				result.SkippedByPreference++
+			}
 			continue
 		}
 		eligible = append(eligible, n)

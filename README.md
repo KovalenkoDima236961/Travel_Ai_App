@@ -57,12 +57,16 @@ The Notification Service also supports **optional email notifications (v1)**: fo
 selected types (collaboration invited, comment created, collaborator role
 changed/removed by default) it resolves the recipient's email from Auth Service
 (internal `POST /internal/users/batch`) and sends a short email after the in-app
-rows are created. Email is behind a provider switch (`EMAIL_PROVIDER=mock` by
-default — sends nothing externally; `smtp` for real delivery) and is fail-open by
-default, so an email failure never affects the in-app notification. No push,
-WebSockets, RabbitMQ, background workers, per-user email preferences, or digests
-in v1 — the synchronous HTTP design is deliberately simple and replaceable by an
-event bus / async worker later.
+rows are created. Notification Preferences v1 lets each authenticated user
+control global category preferences for in-app and email delivery through
+`GET/PUT /notifications/preferences`; missing rows use defaults where in-app
+categories are enabled and email trip updates are disabled. Email is behind a
+provider switch (`EMAIL_PROVIDER=mock` by default — sends nothing externally;
+`smtp` for real delivery) and is fail-open by default, so an email failure never
+affects in-app notification creation. No push, WebSockets, RabbitMQ, background
+workers, per-trip notification preferences, quiet hours, unsubscribe links, or
+digests in v1 — the synchronous HTTP design is deliberately simple and
+replaceable by an event bus / async worker later.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.
@@ -131,6 +135,8 @@ delete-others, comments require auth, and public shares expose no comments),
 verifies the activity feed records major actions and that
 owner/accepted-collaborator can read it while pending/removed/non-collaborators,
 unauthenticated requests, and the public share endpoint cannot,
+checks notification preferences can suppress and re-enable future comment
+notifications,
 confirms only that user can access the trip and versions, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,

@@ -39,6 +39,8 @@ see their own notifications.
 |--------|-------------------------------|-------------|
 | GET    | `/notifications?limit=&cursor=` | Current user's notifications, newest first, cursor-paginated. |
 | GET    | `/notifications/unread-count`   | `{ "count": N }` of unread notifications. |
+| GET    | `/notifications/preferences`     | Full effective in-app/email preference matrix for the current user. |
+| PUT    | `/notifications/preferences`     | Upsert the current user's notification preferences. |
 | PATCH  | `/notifications/{id}/read`      | Mark one notification read (idempotent). |
 | PATCH  | `/notifications/read-all`       | Mark all of the user's unread notifications read. |
 
@@ -50,19 +52,30 @@ For the private service network only — never exposed to browsers.
 
 | Method | Path                            | Description |
 |--------|---------------------------------|-------------|
-| POST   | `/internal/notifications/batch` | Create up to 100 notifications. Skips any where `userId == actorUserId`. Then fans out email for allowlisted types. Returns `{ "created": N, "email": { "attempted", "sent", "skipped", "failed" } }`. |
+| POST   | `/internal/notifications/batch` | Create up to 100 notifications. Skips any where `userId == actorUserId`, applies in-app preferences, then fans out email independently for allowlisted/preference-enabled types. |
 
 Example response:
 
 ```json
 {
+  "requested": 5,
   "created": 3,
-  "email": { "attempted": 2, "sent": 2, "skipped": 1, "failed": 0 }
+  "skipped": 2,
+  "skippedByPreference": 2,
+  "email": {
+    "attempted": 1,
+    "sent": 1,
+    "skipped": 4,
+    "skippedByPreference": 3,
+    "failed": 0
+  }
 }
 ```
 
 In-app rows are created **first** and are never rolled back because of an email
-failure. When email is fail-open (or disabled) a send failure is reported only in
+failure. Email is evaluated separately from in-app preferences: a user can
+disable in-app comments while keeping comment emails enabled, or the reverse.
+When email is fail-open (or disabled) a send failure is reported only in
 `email.failed` with HTTP 201; when email is fail-closed and a send fails the rows
 still exist but the endpoint returns **502** so the caller can observe the
 degraded delivery.
@@ -89,8 +102,10 @@ Example batch request:
 
 ## Database
 
-One table, `notifications`, in its own logical database (`notification_service`).
-Migrations live in `migrations/` and run on startup.
+The service owns its own logical database (`notification_service`). Migrations
+live in `migrations/` and run on startup.
+
+### `notifications`
 
 | Column          | Type        | Notes |
 |-----------------|-------------|-------|
@@ -110,14 +125,83 @@ Migrations live in `migrations/` and run on startup.
 Indexed on `user_id`, `(user_id, read_at)`, `(user_id, created_at DESC)`,
 `trip_id`, `type`, and `(entity_type, entity_id)`.
 
+### `notification_preferences`
+
+Stores sparse per-user overrides for future notifications. Missing rows mean
+"use defaults"; existing notification rows are never modified.
+
+| Column       | Type          | Notes |
+|--------------|---------------|-------|
+| `id`         | UUID PK       | `gen_random_uuid()` |
+| `user_id`    | UUID NOT NULL | owner of the preference |
+| `channel`    | TEXT NOT NULL | `in_app` or `email` |
+| `category`   | TEXT NOT NULL | `collaboration`, `comments`, `trip_updates`, or `role_changes` |
+| `enabled`    | BOOLEAN NOT NULL | channel/category state |
+| `created_at` | TIMESTAMP NOT NULL DEFAULT NOW() | |
+| `updated_at` | TIMESTAMP NOT NULL DEFAULT NOW() | updated on upsert |
+
+Constrained by `UNIQUE (user_id, channel, category)` and indexed on `user_id`
+and `(user_id, channel)`.
+
 ## Notification types
 
 `collaboration_invited`, `collaboration_accepted`, `collaborator_role_changed`,
 `collaborator_removed`, `comment_created`, `itinerary_updated`,
 `itinerary_generated`, `day_regenerated`, `item_regenerated`, `version_restored`.
 
-The internal endpoint **rejects unknown types** so a caller typo never lands an
-un-renderable notification in someone's inbox.
+Unknown types are accepted for forward compatibility and use the preference
+fallbacks documented below: in-app allowed, email blocked.
+
+## Notification preferences (v1)
+
+Preferences are global per user, category-based, and apply only to future
+notifications.
+
+Channels:
+
+- `in_app`
+- `email`
+
+Categories and type mapping:
+
+- `collaboration`: `collaboration_invited`, `collaboration_accepted`
+- `comments`: `comment_created`
+- `role_changes`: `collaborator_role_changed`, `collaborator_removed`
+- `trip_updates`: `itinerary_updated`, `itinerary_generated`,
+  `day_regenerated`, `item_regenerated`, `version_restored`
+
+Defaults for a user with no stored rows:
+
+| Category | In-app | Email |
+|----------|--------|-------|
+| `collaboration` | enabled | enabled |
+| `comments` | enabled | enabled |
+| `role_changes` | enabled | enabled |
+| `trip_updates` | enabled | disabled |
+
+`GET /notifications/preferences` returns all 8 channel/category combinations
+after merging stored rows over these defaults:
+
+```json
+{
+  "items": [
+    { "channel": "in_app", "category": "collaboration", "enabled": true },
+    { "channel": "email", "category": "trip_updates", "enabled": false }
+  ]
+}
+```
+
+`PUT /notifications/preferences` accepts up to 20 items and upserts each
+channel/category pair for the authenticated user. `enabled` is required, unknown
+channels/categories are rejected with 400, and duplicate pairs in one request are
+rejected. The request never accepts a user id; the user comes from the JWT
+subject.
+
+Preferences do not affect core app data: collaboration invitation records,
+comments, collaborator roles, activity feed rows, and existing notifications are
+unchanged. If in-app collaboration invitations are disabled, the invitation still
+exists in the Trips page invitation flow; only the notification row is skipped.
+Unknown notification types are allowed in-app by default and are not emailed.
 
 ## Authentication
 
@@ -133,11 +217,13 @@ un-renderable notification in someone's inbox.
 
 ## Email notifications (v1)
 
-After in-app rows are created, the internal batch handler hands the created
-notifications to the email orchestration (`internal/emailnotifications`), which:
+After the internal batch is validated, the handler hands non-self email
+candidates to the email orchestration (`internal/emailnotifications`), which:
 
 1. **Filters** by policy — email must be enabled, the type must be in the
-   allowlist, and the recipient must not be the actor.
+   allowlist, the type must map to a preference category, the recipient's email
+   preference for that category must be enabled, and the recipient must not be
+   the actor.
 2. **Resolves** recipient emails in one batch call to Auth Service
    (`POST /internal/users/batch`), authenticated with `INTERNAL_SERVICE_TOKEN`.
    Auth Service owns email in v1; `displayName` is currently empty and templates
@@ -156,7 +242,7 @@ Sending is **synchronous** inside the request — there is no queue or worker ye
   when the server advertises it (use a STARTTLS port such as 587 — implicit TLS
   on 465 is not supported in v1). An unsupported provider is a **startup error**.
 
-### Allowlisted types
+### Allowlisted types and preferences
 
 `EMAIL_NOTIFICATION_TYPES` (comma-separated). Default:
 `collaboration_invited`, `comment_created`, `collaborator_role_changed`,
@@ -164,6 +250,10 @@ Sending is **synchronous** inside the request — there is no queue or worker ye
 `item_regenerated`, `version_restored`, `itinerary_updated`,
 `itinerary_generated`) have templates and can be enabled by adding them to the
 allowlist.
+
+The allowlist and user preferences are both required. If a type is allowlisted
+but the recipient disabled email for its category, the email is skipped and
+counted in `email.skippedByPreference`.
 
 ### Fail-open behavior
 
@@ -229,7 +319,9 @@ make lint          # golangci-lint
 - **Email is synchronous** inside the batch request — no retry queue and no
   background worker. A slow SMTP server slows the request.
 - No push notifications.
-- No per-user notification/email preferences and no unsubscribe/preferences page.
+- No per-trip notification preferences.
+- No unsubscribe links.
+- No quiet hours.
 - No email digests.
 - `mock` provider is the local-dev default and sends no external mail.
 - No WebSockets / Server-Sent Events — the web app polls the unread count.

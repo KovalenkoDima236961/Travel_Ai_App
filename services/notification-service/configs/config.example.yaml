@@ -60,5 +60,5 @@ users:
 
 cors:
   allowed_origins: "http://localhost:3000"
-  allowed_methods: "GET,PATCH,OPTIONS"
+  allowed_methods: "GET,PUT,PATCH,OPTIONS"
   allowed_headers: "Content-Type,Authorization"

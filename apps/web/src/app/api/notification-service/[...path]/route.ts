@@ -15,9 +15,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   return proxyNotificationServiceRequest(request, context);
 }
 
-// Only GET and PATCH are proxied: the user-facing Notification Service API is
-// read + mark-read only. The internal batch-create endpoint is intentionally not
-// reachable from the browser.
+export async function PUT(request: NextRequest, context: RouteContext) {
+  return proxyNotificationServiceRequest(request, context);
+}
+
+// Only user-facing methods are proxied. The internal batch-create endpoint is
+// intentionally not reachable from the browser.
 async function proxyNotificationServiceRequest(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
 

@@ -172,6 +172,23 @@ http://localhost:3000
     incognito window and confirm no `Comments` buttons, comment panels, or comment
     summary appear, and that no comment requests are made.
 
+## Notification Preferences
+
+1. Log in.
+2. Open `/settings`.
+3. Confirm `Notification preferences` appears below the profile and travel
+   preference sections.
+4. Disable `Email notifications` → `Comments` and save.
+5. As a collaborator, create a comment on one of your trips.
+6. Confirm the in-app `comment_created` notification still appears when
+   `In-app notifications` → `Comments` remains enabled.
+7. With the default mock email provider, confirm Notification Service logs do not
+   show a mock comment email for that recipient after email comments are disabled.
+8. Disable `In-app notifications` → `Comments` and save.
+9. Create another comment from a collaborator.
+10. Confirm no new in-app `comment_created` notification appears.
+11. Re-enable both comment preferences and save.
+
 ## Public Trip Sharing
 
 1. Log in and open a completed trip.

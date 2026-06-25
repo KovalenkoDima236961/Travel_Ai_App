@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
 )
 
 // Notification is the user-facing JSON representation of a notification.
@@ -41,6 +42,18 @@ type Success struct {
 	Success bool `json:"success"`
 }
 
+// NotificationPreference is one user-facing preference setting.
+type NotificationPreference struct {
+	Channel  string `json:"channel"`
+	Category string `json:"category"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// NotificationPreferences is the full effective preference matrix.
+type NotificationPreferences struct {
+	Items []NotificationPreference `json:"items"`
+}
+
 // NewNotification maps a domain notification to its API representation.
 func NewNotification(n entity.Notification) Notification {
 	metadata := n.Metadata
@@ -74,6 +87,22 @@ func NewNotificationList(notifications []entity.Notification, nextCursor string)
 		cursor = &nextCursor
 	}
 	return NotificationList{Items: items, NextCursor: cursor}
+}
+
+// NewNotificationPreferences maps the preferences use-case result to JSON.
+func NewNotificationPreferences(result *preferences.PreferencesResult) NotificationPreferences {
+	if result == nil {
+		return NotificationPreferences{Items: []NotificationPreference{}}
+	}
+	items := make([]NotificationPreference, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, NotificationPreference{
+			Channel:  item.Channel,
+			Category: item.Category,
+			Enabled:  item.Enabled,
+		})
+	}
+	return NotificationPreferences{Items: items}
 }
 
 func timePtrString(t *time.Time) *string {

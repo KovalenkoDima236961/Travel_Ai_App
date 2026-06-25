@@ -48,6 +48,18 @@ func New(repo Repository, log *zap.Logger) *Service {
 // The whole batch is inserted in one transaction, so on success the returned
 // slice is exactly what was persisted.
 func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) ([]entity.Notification, error) {
+	result, err := s.CreateBatchWithPreferences(ctx, inputs, nil)
+	if err != nil {
+		return nil, err
+	}
+	return result.Created, nil
+}
+
+// CreateBatchWithPreferences validates an internal batch, creates in-app rows
+// allowed by the supplied preference gate, and returns email candidates
+// independently of the in-app outcome. A nil gate means "allow all in-app",
+// preserving the legacy behavior used by existing tests and callers.
+func (s *Service) CreateBatchWithPreferences(ctx context.Context, inputs []CreateInput, gate InAppPreferenceGate) (*BatchCreateResult, error) {
 	if len(inputs) == 0 {
 		return nil, apperrs.NewInvalidInput("notifications array is required")
 	}
@@ -55,6 +67,7 @@ func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) ([]enti
 		return nil, apperrs.NewInvalidInput("batch size must be at most %d", MaxBatchSize)
 	}
 
+	result := &BatchCreateResult{Requested: len(inputs)}
 	toCreate := make([]entity.Notification, 0, len(inputs))
 	for i := range inputs {
 		in := inputs[i]
@@ -64,9 +77,10 @@ func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) ([]enti
 		// Skip self-notifications defensively even though Trip Service is also
 		// expected to omit them.
 		if in.ActorUserID != nil && *in.ActorUserID == in.UserID {
+			result.Skipped++
 			continue
 		}
-		toCreate = append(toCreate, entity.Notification{
+		notification := entity.Notification{
 			ID:          uuid.New(),
 			UserID:      in.UserID,
 			TripID:      in.TripID,
@@ -77,17 +91,30 @@ func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) ([]enti
 			EntityType:  in.EntityType,
 			EntityID:    in.EntityID,
 			Metadata:    sanitizeMetadata(in.Metadata),
-		})
+		}
+		result.EmailCandidates = append(result.EmailCandidates, notification)
+		if gate != nil && !gate.AllowInApp(in.UserID, in.Type) {
+			result.Skipped++
+			result.SkippedByPreference++
+			s.log.Debug("in-app notification skipped by user preference",
+				zap.String("user_id", in.UserID.String()),
+				zap.String("type", in.Type),
+			)
+			continue
+		}
+		toCreate = append(toCreate, notification)
 	}
 
 	if len(toCreate) == 0 {
-		return nil, nil
+		result.Created = []entity.Notification{}
+		return result, nil
 	}
 
 	if _, err := s.repo.CreateNotifications(ctx, toCreate); err != nil {
 		return nil, err
 	}
-	return toCreate, nil
+	result.Created = toCreate
+	return result, nil
 }
 
 // List returns one newest-first page of a user's notifications plus an opaque
@@ -140,9 +167,6 @@ func validateCreateInput(in CreateInput) error {
 	notificationType := strings.TrimSpace(in.Type)
 	if notificationType == "" {
 		return apperrs.NewInvalidInput("type is required")
-	}
-	if !IsKnownType(notificationType) {
-		return apperrs.NewInvalidInput("type %q is not a known notification type", notificationType)
 	}
 	if strings.TrimSpace(in.Title) == "" {
 		return apperrs.NewInvalidInput("title is required")
