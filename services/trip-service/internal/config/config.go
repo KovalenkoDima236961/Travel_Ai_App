@@ -27,6 +27,7 @@ type Config struct {
 	UserLookup         UserLookupConfig         `yaml:"user_lookup"`
 	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
 	Notifications      NotificationsConfig      `yaml:"notifications"`
+	Presence           PresenceConfig           `yaml:"presence"`
 }
 
 // NotificationsConfig controls synchronous in-app notification fan-out to the
@@ -39,6 +40,15 @@ type NotificationsConfig struct {
 	NotificationServiceURL   string `yaml:"notification_service_url" env:"NOTIFICATION_SERVICE_URL" env-default:"http://notification-service:8086"`
 	NotificationServiceToken string `yaml:"notification_service_token" env:"NOTIFICATION_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
 	TimeoutSeconds           int    `yaml:"timeout_seconds" env:"NOTIFICATION_SERVICE_TIMEOUT_SECONDS" env-default:"3" validate:"min=1"`
+}
+
+// PresenceConfig controls instance-local real-time trip presence.
+type PresenceConfig struct {
+	Enabled                      bool `yaml:"enabled" env:"TRIP_PRESENCE_ENABLED" env-default:"true"`
+	HeartbeatSeconds             int  `yaml:"heartbeat_seconds" env:"TRIP_PRESENCE_HEARTBEAT_SECONDS" env-default:"25" validate:"min=1"`
+	StaleAfterSeconds            int  `yaml:"stale_after_seconds" env:"TRIP_PRESENCE_STALE_AFTER_SECONDS" env-default:"60" validate:"min=1"`
+	MaxConnectionsPerUserPerTrip int  `yaml:"max_connections_per_user_per_trip" env:"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP" env-default:"5" validate:"min=1"`
+	SendFullSnapshot             bool `yaml:"send_full_snapshot" env:"TRIP_PRESENCE_SEND_FULL_SNAPSHOT" env-default:"true"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -120,6 +130,16 @@ type PublicSharingConfig struct {
 
 // IsProduction reports whether the service runs in a production profile.
 func (c *Config) IsProduction() bool { return c.Env == "production" }
+
+// PresenceHeartbeatInterval returns the configured presence heartbeat period.
+func (c *Config) PresenceHeartbeatInterval() time.Duration {
+	return time.Duration(c.Presence.HeartbeatSeconds) * time.Second
+}
+
+// PresenceStaleAfter returns the configured stale-session threshold.
+func (c *Config) PresenceStaleAfter() time.Duration {
+	return time.Duration(c.Presence.StaleAfterSeconds) * time.Second
+}
 
 // MustLoad loads and validates the configuration, panicking on any error.
 // It is intended for use during application bootstrap.

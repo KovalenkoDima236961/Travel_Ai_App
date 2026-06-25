@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -11,6 +11,10 @@ import { ExportTripMenu } from "@/components/export/ExportTripMenu";
 import { ItemCommentsPanel } from "@/components/comments/ItemCommentsPanel";
 import { TripCommentsSummary } from "@/components/comments/TripCommentsSummary";
 import { PageContainer } from "@/components/layout/PageContainer";
+import {
+  PresenceEditingWarning,
+  TripPresenceIndicator
+} from "@/components/presence/TripPresenceIndicator";
 import { CollaboratorsPanel } from "@/components/trips/CollaboratorsPanel";
 import { GenerateItineraryButton } from "@/components/trips/GenerateItineraryButton";
 import {
@@ -51,6 +55,8 @@ import {
 import { getMyPreferences, userKeys } from "@/lib/api/user";
 import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
+import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
+import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
 import {
   formatBudget,
   formatDate,
@@ -178,6 +184,47 @@ function TripDetailPageContent() {
     queryFn: () => listTripCommentCounts(tripId),
     enabled: commentsEnabled
   });
+  const presenceEnabled =
+    Boolean(tripId) &&
+    Boolean(currentUserId) &&
+    Boolean(
+      tripAccess &&
+        (tripAccess.role === "owner" ||
+          tripAccess.role === "editor" ||
+          tripAccess.role === "viewer")
+    );
+  const presenceStream = useTripPresenceStream({
+    tripId,
+    enabled: presenceEnabled
+  });
+  const setPresenceState = useTripPresenceState(tripId, presenceEnabled);
+
+  useEffect(() => {
+    if (!presenceEnabled) {
+      return;
+    }
+    return () => {
+      void setPresenceState("viewing");
+    };
+  }, [presenceEnabled, setPresenceState]);
+
+  useEffect(() => {
+    if (!presenceEnabled) {
+      return;
+    }
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        void setPresenceState("viewing");
+      } else if (isEditing) {
+        void setPresenceState("editing");
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isEditing, presenceEnabled, setPresenceState]);
+
   const commentCounts = commentCountsQuery.data ?? [];
   const commentCountMap = useMemo(
     () => buildCommentCountMap(commentCounts),
@@ -249,12 +296,14 @@ function TripDetailPageContent() {
     setRegenerationError(null);
     setSuccessMessage(null);
     setIsEditing(true);
+    void setPresenceState("editing");
   }
 
   function cancelEditing() {
     setIsEditing(false);
     setDraftItinerary(null);
     setEditorErrors([]);
+    void setPresenceState("viewing");
   }
 
   async function saveItinerary() {
@@ -280,6 +329,7 @@ function TripDetailPageContent() {
       await tripQuery.refetch();
       setDraftItinerary(null);
       setIsEditing(false);
+      void setPresenceState("viewing");
       setSuccessMessage("Itinerary saved.");
     } catch (error) {
       setEditorErrors([
@@ -423,6 +473,14 @@ function TripDetailPageContent() {
             </div>
           </Card>
 
+          {presenceEnabled ? (
+            <TripPresenceIndicator
+              currentUserId={currentUserId}
+              isConnected={presenceStream.isConnected}
+              snapshot={presenceStream.snapshot}
+            />
+          ) : null}
+
           {canManageShare ? <ShareTripPanel tripId={trip.id} /> : null}
           <CollaboratorsPanel
             canManageCollaborators={canManageCollaborators}
@@ -468,6 +526,11 @@ function TripDetailPageContent() {
                 routeEstimatesByDay={routeEstimatesByDay}
                 trip={trip}
                 weatherForecast={weatherForecastQuery.data ?? null}
+              />
+
+              <PresenceEditingWarning
+                currentUserId={currentUserId}
+                snapshot={presenceStream.snapshot}
               />
 
               {isEditing && draftItinerary ? (

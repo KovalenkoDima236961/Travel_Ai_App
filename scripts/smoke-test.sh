@@ -268,6 +268,14 @@ echo "Checking Notification Service stream requires auth..."
 request GET "${NOTIFICATION_SERVICE_URL}/notifications/stream"
 assert_status "Notification stream requires auth" "401"
 
+echo "Checking Trip Service presence stream requires auth..."
+request GET "${TRIP_SERVICE_URL}/trips/00000000-0000-0000-0000-000000000001/presence/stream"
+assert_status "Trip presence stream requires auth" "401"
+
+echo "Checking Trip Service presence state requires auth..."
+request POST "${TRIP_SERVICE_URL}/trips/00000000-0000-0000-0000-000000000001/presence/state" '{"state":"viewing"}'
+assert_status "Trip presence state requires auth" "401"
+
 PLACE_PROVIDER_MODE="${PLACE_PROVIDER:-mock}"
 PLACE_PROVIDER_FALLBACK="${PLACE_PROVIDER_FALLBACK_TO_MOCK:-true}"
 
@@ -570,6 +578,22 @@ if [[ -z "${TRIP_ID}" ]]; then
 fi
 echo "Created trip ${TRIP_ID}."
 
+echo "Checking owner trip presence state and snapshot endpoints..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${ACCESS_TOKEN}" '{"state":"away"}'
+assert_status "Trip presence invalid state" "400"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${ACCESS_TOKEN}" '{"state":"viewing"}'
+assert_2xx "Owner trip presence viewing state"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${ACCESS_TOKEN}" '{"state":"editing"}'
+assert_2xx "Owner trip presence editing state"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence" "${ACCESS_TOKEN}"
+assert_2xx "Owner trip presence snapshot"
+PRESENCE_TRIP_ID="$(jq -r '.tripId // empty' <<<"${LAST_BODY}")"
+if [[ "${PRESENCE_TRIP_ID}" != "${TRIP_ID}" ]]; then
+  echo "Presence snapshot did not include expected tripId ${TRIP_ID}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Generating itinerary with Authorization header..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${ACCESS_TOKEN}"
 assert_2xx "Generate itinerary"
@@ -631,6 +655,10 @@ assert_status "Pending collaborator comment access" "404"
 echo "Confirming pending collaborator cannot fetch activity..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Pending collaborator activity access" "404"
+
+echo "Confirming pending collaborator cannot update presence..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${COLLAB_ACCESS_TOKEN}" '{"state":"viewing"}'
+assert_status "Pending collaborator presence access" "404"
 
 echo "Confirming notification endpoints reject unauthenticated access..."
 request GET "${NOTIFICATION_SERVICE_URL}/notifications"
@@ -719,6 +747,10 @@ if [[ "${SHARED_TRIP_COUNT}" -ne 1 ]]; then
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+
+echo "Checking accepted viewer can update viewing presence..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${COLLAB_ACCESS_TOKEN}" '{"state":"viewing"}'
+assert_2xx "Accepted viewer presence state"
 
 echo "Checking viewer can view but cannot edit..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
@@ -929,6 +961,10 @@ assert_status "Removed collaborator comment access" "404"
 echo "Confirming removed collaborator cannot fetch activity..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Removed collaborator activity access" "404"
+
+echo "Confirming removed collaborator cannot update presence..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${COLLAB_ACCESS_TOKEN}" '{"state":"viewing"}'
+assert_status "Removed collaborator presence access" "404"
 
 echo "Creating password-protected public share link..."
 FUTURE_EXPIRES_AT="$(python3 -c 'from datetime import datetime, timezone, timedelta; print((datetime.now(timezone.utc) + timedelta(days=7)).isoformat().replace("+00:00", "Z"))')"
@@ -1266,6 +1302,9 @@ assert_status "Second user create comment on first user's trip" "404"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's activity" "404"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${OTHER_ACCESS_TOKEN}" '{"state":"viewing"}'
+assert_status "Second user update first user's presence" "404"
 
 echo "Verifying the owner activity feed recorded the major actions..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=100" "${ACCESS_TOKEN}"

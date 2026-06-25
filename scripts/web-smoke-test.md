@@ -172,6 +172,24 @@ http://localhost:3000
     incognito window and confirm no `Comments` buttons, comment panels, or comment
     summary appear, and that no comment requests are made.
 
+## Real-time Trip Presence
+
+1. Start the full stack.
+2. Create owner and collaborator accounts.
+3. As the owner, create and generate a trip.
+4. Invite the collaborator as `editor`.
+5. Accept the invitation as the collaborator.
+6. Open the same private trip in two browsers.
+7. Confirm each user sees the other in `Currently here`.
+8. As the owner, click `Edit itinerary`.
+9. Confirm the collaborator sees an editing warning for the owner.
+10. Cancel or save the owner edit.
+11. Confirm the collaborator sees the owner return to `viewing`.
+12. Close one browser tab.
+13. Confirm the other user disappears from the presence list.
+14. Open the public `/share/{shareToken}` link.
+15. Confirm presence is not shown and no presence requests are made.
+
 ## Notification Preferences
 
 1. Log in.

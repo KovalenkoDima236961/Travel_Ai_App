@@ -41,6 +41,11 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"PUBLIC_SHARING_ENABLED",
 		"PUBLIC_WEB_BASE_URL",
 		"SHARE_TOKEN_BYTES",
+		"TRIP_PRESENCE_ENABLED",
+		"TRIP_PRESENCE_HEARTBEAT_SECONDS",
+		"TRIP_PRESENCE_STALE_AFTER_SECONDS",
+		"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP",
+		"TRIP_PRESENCE_SEND_FULL_SNAPSHOT",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -140,6 +145,21 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if cfg.PublicSharing.ShareTokenBytes != 32 {
 		t.Fatalf("expected share token bytes default 32, got %d", cfg.PublicSharing.ShareTokenBytes)
 	}
+	if !cfg.Presence.Enabled {
+		t.Fatal("expected trip presence to be enabled by default")
+	}
+	if cfg.Presence.HeartbeatSeconds != 25 {
+		t.Fatalf("expected trip presence heartbeat 25s, got %d", cfg.Presence.HeartbeatSeconds)
+	}
+	if cfg.Presence.StaleAfterSeconds != 60 {
+		t.Fatalf("expected trip presence stale after 60s, got %d", cfg.Presence.StaleAfterSeconds)
+	}
+	if cfg.Presence.MaxConnectionsPerUserPerTrip != 5 {
+		t.Fatalf("expected trip presence max connections 5, got %d", cfg.Presence.MaxConnectionsPerUserPerTrip)
+	}
+	if !cfg.Presence.SendFullSnapshot {
+		t.Fatal("expected trip presence full snapshots by default")
+	}
 }
 
 func TestLoadReadsCORSOverrides(t *testing.T) {
@@ -174,6 +194,11 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"PUBLIC_SHARING_ENABLED",
 		"PUBLIC_WEB_BASE_URL",
 		"SHARE_TOKEN_BYTES",
+		"TRIP_PRESENCE_ENABLED",
+		"TRIP_PRESENCE_HEARTBEAT_SECONDS",
+		"TRIP_PRESENCE_STALE_AFTER_SECONDS",
+		"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP",
+		"TRIP_PRESENCE_SEND_FULL_SNAPSHOT",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")

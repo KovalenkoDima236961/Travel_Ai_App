@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 )
@@ -46,6 +47,17 @@ func (a TripAccess) CanRestoreVersion() bool {
 
 func (a TripAccess) CanDelete() bool {
 	return a.Level == AccessLevelOwner
+}
+
+// GetTripAccess resolves the current authenticated user's private access level
+// for a trip. Public share viewers are intentionally not represented here.
+func (s *Service) GetTripAccess(ctx context.Context, tripID uuid.UUID) (TripAccess, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return TripAccess{Level: AccessLevelNone}, err
+	}
+	_, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
+	return access, err
 }
 
 func (s *Service) tripForAccess(ctx context.Context, tripID, actorUserID uuid.UUID) (*entity.Trip, TripAccess, error) {

@@ -18,19 +18,29 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
 // Handler wires the trip use case to HTTP.
 type Handler struct {
-	svc       *service.Service
-	validator validation.Validator
-	log       *zap.Logger
+	svc         *service.Service
+	validator   validation.Validator
+	log         *zap.Logger
+	presence    presence.Manager
+	presenceCfg presence.Config
 }
 
 // New constructs the trip HTTP handler.
 func New(svc *service.Service, validator validation.Validator, log *zap.Logger) *Handler {
 	return &Handler{svc: svc, validator: validator, log: log}
+}
+
+// EnablePresence wires optional trip presence endpoints onto the handler.
+func (h *Handler) EnablePresence(manager presence.Manager, cfg presence.Config) *Handler {
+	h.presence = manager
+	h.presenceCfg = presence.Normalize(cfg)
+	return h
 }
 
 // RegisterRoutes mounts the trip routes onto the given chi router.
@@ -45,6 +55,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/share", h.CreateShare)
 		r.Patch("/{id}/share", h.UpdateShare)
 		r.Delete("/{id}/share", h.DisableShare)
+		r.Get("/{id}/presence", h.GetPresenceSnapshot)
+		r.Get("/{id}/presence/stream", h.StreamPresence)
+		r.Post("/{id}/presence/state", h.UpdatePresenceState)
 		r.Post("/{id}/collaborators", h.InviteTripCollaborator)
 		r.Get("/{id}/collaborators", h.ListTripCollaborators)
 		r.Patch("/{id}/collaborators/{collaboratorId}", h.UpdateTripCollaborator)

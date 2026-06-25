@@ -47,6 +47,37 @@ describe("parseSSEBuffer", () => {
     });
   });
 
+  it("parses presence snapshot events", () => {
+    const result = parseSSEBuffer(
+      'event: presence.snapshot\ndata: {"tripId":"t1","users":[{"userId":"u1","role":"owner","state":"viewing","connectedAt":"2026-06-25T12:00:00Z","lastSeenAt":"2026-06-25T12:00:00Z"}]}\n\n'
+    );
+
+    expect(result.events[0]).toMatchObject({
+      event: "presence.snapshot",
+      data: {
+        tripId: "t1",
+        users: [
+          expect.objectContaining({
+            userId: "u1",
+            role: "owner",
+            state: "viewing"
+          })
+        ]
+      }
+    });
+  });
+
+  it("parses split presence chunks", () => {
+    const first = parseSSEChunk("", 'event: presence.snapshot\ndata: {"tripId":"t1","users"');
+    expect(first.events).toHaveLength(0);
+
+    const second = parseSSEChunk(first.remainder, ':[]}\n\n');
+    expect(second.events[0]).toMatchObject({
+      event: "presence.snapshot",
+      data: { tripId: "t1", users: [] }
+    });
+  });
+
   it("keeps unknown events for the caller to ignore", () => {
     const result = parseSSEBuffer('event: something.new\ndata: {"ok":true}\n\n');
     expect(result.events[0]).toMatchObject({

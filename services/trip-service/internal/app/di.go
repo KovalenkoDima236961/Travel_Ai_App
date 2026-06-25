@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -157,7 +158,17 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		))
 	}
 	svc := service.New(repo, gen, log, opts...)
-	tripHandler := handler.New(svc, validator, log)
+	presenceCfg := presence.Normalize(presence.Config{
+		Enabled:                      cfg.Presence.Enabled,
+		HeartbeatInterval:            cfg.PresenceHeartbeatInterval(),
+		StaleAfter:                   cfg.PresenceStaleAfter(),
+		MaxConnectionsPerUserPerTrip: cfg.Presence.MaxConnectionsPerUserPerTrip,
+		SendFullSnapshot:             cfg.Presence.SendFullSnapshot,
+	})
+	presenceManager := presence.NewManager(presenceCfg, log)
+	closer.Add("trip-presence-cleanup", presence.StartCleanupLoop(context.Background(), presenceManager, presenceCfg, log))
+
+	tripHandler := handler.New(svc, validator, log).EnablePresence(presenceManager, presenceCfg)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,
 		cfg.ItineraryGenerator.Mode,

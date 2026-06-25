@@ -80,6 +80,9 @@ The frontend calls the protected Trip Service endpoints:
 - `DELETE /trips/{id}/collaborators/{collaboratorId}`
 - `POST /trips/{id}/collaborators/{collaboratorId}/accept`
 - `POST /trips/{id}/collaborators/{collaboratorId}/decline`
+- `GET /trips/{id}/presence/stream`
+- `POST /trips/{id}/presence/state`
+- `GET /trips/{id}/presence`
 - `GET /collaboration/invitations`
 - `GET /trips/{id}/comments` (and `?dayNumber=&itemIndex=` for one item)
 - `GET /trips/{id}/comments/counts`
@@ -152,8 +155,28 @@ Viewer UI:
 - Hides edit, regenerate, place review actions, route optimization apply,
   restore, public share, and collaborator management.
 
-Current v1 limitations: registered users only, no real-time editing, and no
-conflict resolution beyond last write wins.
+Current v1 limitations: registered users only, advisory presence only, no
+real-time itinerary sync, and no conflict resolution beyond last write wins.
+
+## Real-time Trip Presence
+
+Private trip detail pages show a `Currently here` presence card for owners and
+accepted collaborators. The Web App opens a fetch-based Server-Sent Events
+stream (`lib/presence/use-trip-presence-stream.ts`) to
+`GET /trips/{id}/presence/stream`. Native `EventSource` is not used because the
+stream requires `Authorization: Bearer <accessToken>`; chunks are parsed with
+the shared SSE parser in `lib/notifications/sse-parser.ts`.
+
+When an owner/editor enters manual itinerary edit mode, the page calls
+`POST /trips/{id}/presence/state` with `{"state":"editing"}`. Saving, canceling,
+leaving the page, or hiding the tab best-effort returns the state to
+`viewing`; stream disconnects also unregister the session server-side. Viewers
+connect and appear as `viewing`, but cannot enter edit mode.
+
+If another collaborator is currently editing, an amber warning appears near the
+itinerary edit controls. The warning is advisory only: it never blocks editing,
+saving, regeneration, restore, or route optimization. Public share pages do not
+mount presence UI and make no presence requests.
 
 ## Itinerary Comments
 

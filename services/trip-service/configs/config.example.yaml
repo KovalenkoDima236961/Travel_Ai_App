@@ -68,3 +68,10 @@ public_sharing:
   share_token_bytes: 32
   public_share_access_secret: dev-public-share-secret-change-me
   public_share_access_ttl_minutes: 60
+
+presence:
+  enabled: true
+  heartbeat_seconds: 25
+  stale_after_seconds: 60
+  max_connections_per_user_per_trip: 5
+  send_full_snapshot: true

@@ -188,6 +188,11 @@ Key environment variables:
 | `SHARE_TOKEN_BYTES` | `32` | Number of cryptographically random bytes used before base64url encoding share tokens. Minimum 32. |
 | `PUBLIC_SHARE_ACCESS_SECRET` | `dev-public-share-secret-change-me` | Dev-only HS256 secret for short-lived public share unlock tokens. Use a different value than `JWT_ACCESS_SECRET`. |
 | `PUBLIC_SHARE_ACCESS_TTL_MINUTES` | `60` | Lifetime for public share unlock tokens. |
+| `TRIP_PRESENCE_ENABLED` | `true` | Enables private-trip presence endpoints and SSE stream. |
+| `TRIP_PRESENCE_HEARTBEAT_SECONDS` | `25` | Heartbeat interval for presence SSE connections. |
+| `TRIP_PRESENCE_STALE_AFTER_SECONDS` | `60` | In-memory sessions older than this are removed by cleanup. |
+| `TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP` | `5` | Active presence streams allowed per user per trip on this instance. |
+| `TRIP_PRESENCE_SEND_FULL_SNAPSHOT` | `true` | Sends full `presence.snapshot` payloads for v1 clients. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -252,8 +257,38 @@ Protected collaboration endpoints:
 
 `GET /trips/{id}` returns an `access` object with the viewer's role and
 capabilities. Public share links remain independent and read-only. Current
-limitations: registered users only, no email notifications, no real-time sync,
-no activity feed, and last-write-wins editing.
+limitations: registered users only, advisory presence only, no real-time
+itinerary sync, no hard edit locks, no conflict detection, and last-write-wins
+editing.
+
+### Real-time Trip Presence v1
+
+Owners and accepted collaborators can see who else is currently viewing or
+editing a private trip. Presence is owned by Trip Service because private trip
+access is resolved here. Public share viewers are never included.
+
+Protected presence endpoints:
+
+- `GET /trips/{id}/presence/stream` opens an authenticated Server-Sent Events
+  stream. Events are:
+  - `presence.snapshot`: full snapshot with `tripId` and collapsed `users`.
+  - `presence.heartbeat`: keepalive payload with `ts`.
+- `POST /trips/{id}/presence/state` accepts `{"state":"viewing"}` or
+  `{"state":"editing"}` and returns `{"success":true}`. Invalid states return
+  `400`.
+- `GET /trips/{id}/presence` returns the current full snapshot for fallback and
+  manual debugging.
+
+Snapshot users include `userId`, optional `displayName`, `role`
+(`owner`/`editor`/`viewer`), `state` (`viewing`/`editing`), `connectedAt`, and
+`lastSeenAt`. Multiple tabs/devices for the same user collapse into one user;
+if any active session is editing, the collapsed user state is `editing`.
+
+Presence is v1 advisory only: it is in-memory, instance-local, has no
+multi-instance guarantee, no Redis/pubsub, no replay, no hard locking, no
+conflict detection, and does not block edits or saves. Disconnects unregister
+sessions and stale sessions are cleaned up using
+`TRIP_PRESENCE_STALE_AFTER_SECONDS`.
 
 ## Itinerary Comments v1
 

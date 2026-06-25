@@ -28,6 +28,12 @@ leave comments on individual itinerary items. Comments live in a dedicated
 `trip_id`/`day_number`/`item_index`, and are soft-deleted. Authors can edit and
 delete their own comments; trip owners can delete any comment. Comments are a
 private authenticated feature and are never exposed on public share links/pages.
+Real-time Trip Presence v1 lets owners and accepted collaborators see who else
+is viewing or editing a private trip. Trip Service exposes an authenticated SSE
+stream and advisory state update endpoint backed by an in-memory,
+single-instance presence manager. The Web App shows `Currently here` on private
+trip detail pages and warns when another collaborator is editing. Presence is
+not a lock, does not sync documents, and is never shown on public share pages.
 Activity Feed / Audit Log v1 records important successful actions on a trip
 (creation, generation, edits, regenerations, version restores, comments,
 collaborator changes, and share setting changes) as persistent rows in a
@@ -138,6 +144,8 @@ delete-others, comments require auth, and public shares expose no comments),
 verifies the activity feed records major actions and that
 owner/accepted-collaborator can read it while pending/removed/non-collaborators,
 unauthenticated requests, and the public share endpoint cannot,
+checks presence state/snapshot access for owners, collaborators, removed
+collaborators, and non-collaborators,
 checks notification preferences can suppress and re-enable future comment
 notifications,
 confirms only that user can access the trip and versions, and logs out.
