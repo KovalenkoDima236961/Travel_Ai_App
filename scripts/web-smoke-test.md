@@ -200,6 +200,26 @@ http://localhost:3000
 14. Open the public `/share/{shareToken}` link.
 15. Confirm presence is not shown and no presence requests are made.
 
+## Soft Edit Locks
+
+1. Log in as an owner in browser A.
+2. Log in as an accepted `editor` collaborator in browser B.
+3. Open the same completed private trip in both browsers.
+4. In browser A, click `Edit itinerary`.
+5. Confirm browser A enters edit mode and the lock status says
+   `You are editing this itinerary`.
+6. In browser B, confirm the lock status says another collaborator is editing.
+7. In browser B, click `Edit itinerary`.
+8. Confirm the `Someone is already editing` warning appears.
+9. Click `Cancel` and confirm browser B stays out of edit mode.
+10. In browser A, click `Cancel` or save the itinerary.
+11. In browser B, click `Edit itinerary` again and confirm no warning appears.
+12. Repeat the flow, but click `Continue anyway` in browser B.
+13. Confirm both users can enter edit mode, presence can show multiple editors,
+    and a stale save still shows the itinerary conflict warning.
+14. Open the public `/share/{shareToken}` page and confirm no edit-lock status
+    or edit-lock requests appear.
+
 ## Notification Preferences
 
 1. Log in.

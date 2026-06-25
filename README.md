@@ -39,6 +39,13 @@ trip detail pages and warns when another collaborator is editing. Presence is
 not a lock, does not sync documents, and is never shown on public share pages;
 revision-checked writes are the backend protection against stale itinerary
 saves.
+Soft Edit Locks v1 add advisory, in-memory itinerary edit locks in Trip Service.
+Owners/editors attempt to acquire or renew a temporary lock before manual edit
+mode, viewers can only read lock status, and public share viewers have no
+access. If another editor holds the lock, the Web App warns the user but allows
+`Continue anyway`; `itineraryRevision` conflict detection remains the final
+safety mechanism. Locks are instance-local, expire automatically, and are not
+hard blocking.
 Activity Feed / Audit Log v1 records important successful actions on a trip
 (creation, generation, edits, regenerations, version restores, comments,
 collaborator changes, and share setting changes) as persistent rows in a

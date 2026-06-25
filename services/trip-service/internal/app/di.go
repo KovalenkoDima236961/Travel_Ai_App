@@ -11,6 +11,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
@@ -168,7 +169,18 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	presenceManager := presence.NewManager(presenceCfg, log)
 	closer.Add("trip-presence-cleanup", presence.StartCleanupLoop(context.Background(), presenceManager, presenceCfg, log))
 
-	tripHandler := handler.New(svc, validator, log).EnablePresence(presenceManager, presenceCfg)
+	editLocksCfg := editlocks.Normalize(editlocks.Config{
+		Enabled:         cfg.EditLocks.Enabled,
+		TTL:             cfg.EditLockTTL(),
+		RenewalInterval: cfg.EditLockRenewalInterval(),
+		CleanupInterval: cfg.EditLockCleanupInterval(),
+	})
+	editLockManager := editlocks.NewManager()
+	closer.Add("trip-edit-lock-cleanup", editlocks.StartCleanupLoop(context.Background(), editLockManager, editLocksCfg, log))
+
+	tripHandler := handler.New(svc, validator, log).
+		EnablePresence(presenceManager, presenceCfg).
+		EnableEditLocks(editLockManager, editLocksCfg)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,
 		cfg.ItineraryGenerator.Mode,

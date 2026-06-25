@@ -75,3 +75,9 @@ presence:
   stale_after_seconds: 60
   max_connections_per_user_per_trip: 5
   send_full_snapshot: true
+
+edit_locks:
+  enabled: true
+  ttl_seconds: 180
+  renew_seconds: 45
+  stale_cleanup_seconds: 30

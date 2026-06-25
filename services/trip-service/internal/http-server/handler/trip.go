@@ -16,6 +16,7 @@ import (
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
@@ -29,6 +30,8 @@ type Handler struct {
 	log         *zap.Logger
 	presence    presence.Manager
 	presenceCfg presence.Config
+	editLocks   editlocks.Manager
+	editLockCfg editlocks.Config
 }
 
 // New constructs the trip HTTP handler.
@@ -40,6 +43,13 @@ func New(svc *service.Service, validator validation.Validator, log *zap.Logger) 
 func (h *Handler) EnablePresence(manager presence.Manager, cfg presence.Config) *Handler {
 	h.presence = manager
 	h.presenceCfg = presence.Normalize(cfg)
+	return h
+}
+
+// EnableEditLocks wires optional advisory edit-lock endpoints onto the handler.
+func (h *Handler) EnableEditLocks(manager editlocks.Manager, cfg editlocks.Config) *Handler {
+	h.editLocks = manager
+	h.editLockCfg = editlocks.Normalize(cfg)
 	return h
 }
 
@@ -58,6 +68,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/presence", h.GetPresenceSnapshot)
 		r.Get("/{id}/presence/stream", h.StreamPresence)
 		r.Post("/{id}/presence/state", h.UpdatePresenceState)
+		r.Get("/{id}/edit-lock", h.GetEditLock)
+		r.Post("/{id}/edit-lock", h.AcquireEditLock)
+		r.Delete("/{id}/edit-lock", h.ReleaseEditLock)
 		r.Post("/{id}/collaborators", h.InviteTripCollaborator)
 		r.Get("/{id}/collaborators", h.ListTripCollaborators)
 		r.Patch("/{id}/collaborators/{collaboratorId}", h.UpdateTripCollaborator)

@@ -18,6 +18,13 @@ overwrite. Generate, regenerate, restore, place review, and route optimization
 actions send the latest displayed revision; on conflict they show a readable
 message and refetch the trip.
 
+Before manual itinerary edit mode starts, the page attempts to acquire Trip
+Service's advisory soft edit lock. If another owner/editor currently owns the
+lock, the page warns the user and lets them cancel or continue anyway. The lock
+renews while the user remains in edit mode and is best-effort released on save,
+cancel, conflict resolution, and unmount. It does not replace revision conflict
+detection.
+
 ## Source Layout
 
 Application code lives under `src/`:
@@ -92,6 +99,9 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}/presence/stream`
 - `POST /trips/{id}/presence/state`
 - `GET /trips/{id}/presence`
+- `GET /trips/{id}/edit-lock`
+- `POST /trips/{id}/edit-lock`
+- `DELETE /trips/{id}/edit-lock`
 - `GET /collaboration/invitations`
 - `GET /trips/{id}/comments` (and `?dayNumber=&itemIndex=` for one item)
 - `GET /trips/{id}/comments/counts`
@@ -164,8 +174,9 @@ Viewer UI:
 - Hides edit, regenerate, place review actions, route optimization apply,
   restore, public share, and collaborator management.
 
-Current v1 limitations: registered users only, advisory presence only, no
-real-time itinerary sync, no automatic merge, no diff viewer, and no locking.
+Current v1 limitations: registered users only, advisory presence and soft edit
+locks only, no real-time itinerary sync, no automatic merge, no diff viewer, and
+no hard blocking locks.
 
 ## Real-time Trip Presence
 
@@ -186,6 +197,26 @@ If another collaborator is currently editing, an amber warning appears near the
 itinerary edit controls. The warning is advisory only: it never blocks editing,
 saving, regeneration, restore, or route optimization. Public share pages do not
 mount presence UI and make no presence requests.
+
+## Soft Edit Locks
+
+Private trip detail pages fetch `GET /trips/{id}/edit-lock` for owners and
+accepted collaborators. When an owner/editor clicks `Edit itinerary`, the page
+calls `POST /trips/{id}/edit-lock` before entering edit mode.
+
+If acquire succeeds, the page enters edit mode, stores the current
+`itineraryRevision`, sets presence to `editing`, and renews the lock every 45
+seconds while editing. Save, cancel, conflict resolution, and unmount stop the
+renewal loop and best-effort call `DELETE /trips/{id}/edit-lock`.
+
+If acquire returns `409 edit_lock_conflict`, the `Someone is already editing`
+dialog shows the collaborator name when available, otherwise `A collaborator`.
+Choosing `Cancel` leaves edit mode closed. Choosing `Continue anyway` enters
+edit mode without owning or renewing the lock; stale-save conflict detection
+still protects the final save.
+
+Viewers can see lock status but have no edit button and cannot acquire locks.
+Public share pages do not fetch or show edit locks.
 
 ## Itinerary Comments
 

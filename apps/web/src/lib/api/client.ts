@@ -12,6 +12,7 @@ type ApiErrorPayload = {
   message?: string;
   fields?: Record<string, string>;
   currentItineraryRevision?: number;
+  [key: string]: unknown;
 };
 
 type ApiFetchOptions = {
@@ -25,13 +26,15 @@ export class ApiError extends Error {
   code?: string;
   fields?: Record<string, string>;
   currentItineraryRevision?: number;
+  payload?: ApiErrorPayload | null;
 
   constructor(
     message: string,
     status: number,
     fields?: Record<string, string>,
     code?: string,
-    currentItineraryRevision?: number
+    currentItineraryRevision?: number,
+    payload?: ApiErrorPayload | null
   ) {
     super(message);
     this.name = "ApiError";
@@ -39,6 +42,7 @@ export class ApiError extends Error {
     this.fields = fields;
     this.code = code;
     this.currentItineraryRevision = currentItineraryRevision;
+    this.payload = payload;
   }
 }
 
@@ -141,7 +145,8 @@ async function apiFetchInternal<T>(
       response.status,
       payload?.fields,
       payload?.error,
-      payload?.currentItineraryRevision
+      payload?.currentItineraryRevision,
+      payload
     );
   }
 

@@ -46,6 +46,10 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"TRIP_PRESENCE_STALE_AFTER_SECONDS",
 		"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP",
 		"TRIP_PRESENCE_SEND_FULL_SNAPSHOT",
+		"TRIP_EDIT_LOCKS_ENABLED",
+		"TRIP_EDIT_LOCK_TTL_SECONDS",
+		"TRIP_EDIT_LOCK_RENEW_SECONDS",
+		"TRIP_EDIT_LOCK_STALE_CLEANUP_SECONDS",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -160,6 +164,18 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if !cfg.Presence.SendFullSnapshot {
 		t.Fatal("expected trip presence full snapshots by default")
 	}
+	if !cfg.EditLocks.Enabled {
+		t.Fatal("expected trip edit locks to be enabled by default")
+	}
+	if cfg.EditLocks.TTLSeconds != 180 {
+		t.Fatalf("expected trip edit lock TTL 180s, got %d", cfg.EditLocks.TTLSeconds)
+	}
+	if cfg.EditLocks.RenewSeconds != 45 {
+		t.Fatalf("expected trip edit lock renew interval 45s, got %d", cfg.EditLocks.RenewSeconds)
+	}
+	if cfg.EditLocks.StaleCleanupSeconds != 30 {
+		t.Fatalf("expected trip edit lock cleanup interval 30s, got %d", cfg.EditLocks.StaleCleanupSeconds)
+	}
 }
 
 func TestLoadReadsCORSOverrides(t *testing.T) {
@@ -199,6 +215,10 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"TRIP_PRESENCE_STALE_AFTER_SECONDS",
 		"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP",
 		"TRIP_PRESENCE_SEND_FULL_SNAPSHOT",
+		"TRIP_EDIT_LOCKS_ENABLED",
+		"TRIP_EDIT_LOCK_TTL_SECONDS",
+		"TRIP_EDIT_LOCK_RENEW_SECONDS",
+		"TRIP_EDIT_LOCK_STALE_CLEANUP_SECONDS",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")

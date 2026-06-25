@@ -235,6 +235,10 @@ Key environment variables:
 | `TRIP_PRESENCE_STALE_AFTER_SECONDS` | `60` | In-memory sessions older than this are removed by cleanup. |
 | `TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP` | `5` | Active presence streams allowed per user per trip on this instance. |
 | `TRIP_PRESENCE_SEND_FULL_SNAPSHOT` | `true` | Sends full `presence.snapshot` payloads for v1 clients. |
+| `TRIP_EDIT_LOCKS_ENABLED` | `true` | Enables advisory in-memory itinerary edit locks. When disabled, acquire returns success with `disabled:true`. |
+| `TRIP_EDIT_LOCK_TTL_SECONDS` | `180` | Lifetime for one itinerary edit lock after acquire/renew. |
+| `TRIP_EDIT_LOCK_RENEW_SECONDS` | `45` | Recommended frontend renewal interval while the user remains in edit mode. |
+| `TRIP_EDIT_LOCK_STALE_CLEANUP_SECONDS` | `30` | Interval for removing expired in-memory edit locks. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -299,9 +303,10 @@ Protected collaboration endpoints:
 
 `GET /trips/{id}` returns an `access` object with the viewer's role and
 capabilities. Public share links remain independent and read-only. Current
-limitations: registered users only, advisory presence only, no real-time
-itinerary sync, no hard edit locks, no conflict detection, and last-write-wins
-editing.
+limitations: registered users only, advisory presence and edit locks only, no
+real-time itinerary sync, no hard edit locks, no automatic merge, and no diff
+viewer. `itineraryRevision` conflict detection remains the backend protection
+against stale itinerary saves.
 
 ### Real-time Trip Presence v1
 
@@ -331,6 +336,75 @@ multi-instance guarantee, no Redis/pubsub, no replay, no hard locking, no
 conflict detection, and does not block edits or saves. Disconnects unregister
 sessions and stale sessions are cleaned up using
 `TRIP_PRESENCE_STALE_AFTER_SECONDS`.
+
+### Soft Edit Locks v1
+
+Owners and accepted editor collaborators can acquire an advisory temporary lock
+before entering manual itinerary edit mode. Viewers can read lock status but
+cannot acquire or release locks. Public share viewers cannot access these
+private endpoints.
+
+Protected edit-lock endpoints:
+
+- `GET /trips/{id}/edit-lock` returns the current itinerary lock or
+  `{"locked":false,"scope":"itinerary","tripId":"..."}`. Owner, editor, and
+  viewer collaborators can read it.
+- `POST /trips/{id}/edit-lock` accepts `{"scope":"itinerary"}`; `scope` is
+  optional and defaults to `itinerary`. Owners/editors acquire a new lock or
+  renew their own lock.
+- `DELETE /trips/{id}/edit-lock` accepts the same optional body and releases the
+  caller's active lock. Releasing no lock returns `{"released":false}`.
+
+Acquire/renew success returns HTTP `200`:
+
+```json
+{
+  "acquired": true,
+  "renewed": true,
+  "lock": {
+    "locked": true,
+    "scope": "itinerary",
+    "tripId": "uuid",
+    "lockedByUserId": "uuid",
+    "lockedByRole": "owner",
+    "lockedByCurrentUser": true,
+    "createdAt": "2026-06-25T12:00:00Z",
+    "expiresAt": "2026-06-25T12:03:00Z",
+    "ttlSeconds": 180
+  }
+}
+```
+
+If another user owns the active lock, acquire returns HTTP `409`:
+
+```json
+{
+  "error": "edit_lock_conflict",
+  "message": "Another user is already editing this itinerary.",
+  "acquired": false,
+  "reason": "locked_by_other_user",
+  "lock": {
+    "locked": true,
+    "scope": "itinerary",
+    "tripId": "uuid",
+    "lockedByUserId": "uuid",
+    "lockedByRole": "editor",
+    "lockedByCurrentUser": false,
+    "expiresAt": "2026-06-25T12:03:00Z"
+  }
+}
+```
+
+If `TRIP_EDIT_LOCKS_ENABLED=false`, `GET` returns unlocked with
+`disabled:true`, `POST` returns `{"acquired":true,"disabled":true}`, and
+`DELETE` returns `{"released":false}`. This keeps the Web App non-blocking when
+locks are disabled.
+
+Soft edit locks are advisory only. They are in-memory, instance-local, scoped
+only to `itinerary`, expire automatically, have no Redis/database persistence,
+and do not block any itinerary mutation endpoint. `PUT /itinerary`,
+regeneration, restore, and route optimization continue to rely on
+`expectedItineraryRevision`; stale saves still return `itinerary_conflict`.
 
 ## Itinerary Comments v1
 

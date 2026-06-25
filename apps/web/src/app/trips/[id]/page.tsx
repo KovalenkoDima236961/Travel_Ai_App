@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { EditLockStatus } from "@/components/edit-locks/EditLockStatus";
+import { SoftEditLockWarningDialog } from "@/components/edit-locks/SoftEditLockWarningDialog";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
 import { ItemCommentsPanel } from "@/components/comments/ItemCommentsPanel";
 import { TripCommentsSummary } from "@/components/comments/TripCommentsSummary";
@@ -56,6 +58,7 @@ import {
 import { getMyPreferences, userKeys } from "@/lib/api/user";
 import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
+import { useTripEditLock } from "@/lib/edit-locks/use-trip-edit-lock";
 import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
 import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
 import {
@@ -65,6 +68,7 @@ import {
   formatPaceLabel
 } from "@/lib/utils";
 import type { RouteEstimate } from "@/types/route";
+import type { EditLockView } from "@/types/edit-locks";
 import type { Itinerary, Trip } from "@/types/trip";
 
 export default function TripDetailPage() {
@@ -96,6 +100,7 @@ function TripDetailPageContent() {
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
   const [regeneratingTarget, setRegeneratingTarget] = useState<RegeneratingTarget | null>(null);
   const [optimizingDayNumber, setOptimizingDayNumber] = useState<number | null>(null);
+  const [lockWarning, setLockWarning] = useState<EditLockView | null>(null);
 
   const tripQuery = useQuery({
     queryKey: tripKeys.detail(tripId),
@@ -215,6 +220,26 @@ function TripDetailPageContent() {
     enabled: presenceEnabled
   });
   const setPresenceState = useTripPresenceState(tripId, presenceEnabled);
+  const editLocksEnabled =
+    Boolean(tripId) &&
+    Boolean(currentUserId) &&
+    Boolean(
+      tripAccess &&
+        (tripAccess.role === "owner" ||
+          tripAccess.role === "editor" ||
+          tripAccess.role === "viewer")
+    );
+  const canEditLoadedItinerary =
+    Boolean(tripQuery.data) &&
+    (tripAccess?.canEdit ?? true) &&
+    tripQuery.data?.status === "COMPLETED" &&
+    Boolean(tripQuery.data?.itinerary);
+  const editLock = useTripEditLock({
+    tripId,
+    enabled: editLocksEnabled,
+    canEdit: canEditLoadedItinerary,
+    onLockConflict: setLockWarning
+  });
 
   useEffect(() => {
     if (!presenceEnabled) {
@@ -308,7 +333,7 @@ function TripDetailPageContent() {
         ) ?? null
       : null;
 
-  function startEditing() {
+  function enterEditMode() {
     if (!trip.itinerary) {
       return;
     }
@@ -322,7 +347,31 @@ function TripDetailPageContent() {
     void setPresenceState("editing");
   }
 
-  function cancelEditing() {
+  async function startEditing() {
+    if (!canEditItinerary) {
+      return;
+    }
+
+    try {
+      const result = await editLock.acquire();
+      if (result.acquired) {
+        enterEditMode();
+        return;
+      }
+      if (result.lock) {
+        setLockWarning(result.lock);
+        return;
+      }
+      setEditorErrors(["Could not start edit mode."]);
+    } catch (error) {
+      setEditorErrors([
+        error instanceof Error ? error.message : "Could not start edit mode."
+      ]);
+    }
+  }
+
+  async function cancelEditing() {
+    await editLock.release();
     setIsEditing(false);
     setDraftItinerary(null);
     setBaseItineraryRevision(null);
@@ -356,6 +405,7 @@ function TripDetailPageContent() {
       await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
       await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       await tripQuery.refetch();
+      await editLock.release();
       setDraftItinerary(null);
       setBaseItineraryRevision(null);
       setIsEditing(false);
@@ -374,6 +424,7 @@ function TripDetailPageContent() {
   }
 
   async function reloadLatestAfterConflict() {
+    await editLock.release();
     setItineraryConflictMessage(null);
     setDraftItinerary(null);
     setBaseItineraryRevision(null);
@@ -383,6 +434,7 @@ function TripDetailPageContent() {
   }
 
   async function cancelLocalChangesAfterConflict() {
+    await editLock.release();
     setItineraryConflictMessage(null);
     setDraftItinerary(null);
     setBaseItineraryRevision(null);
@@ -481,6 +533,11 @@ function TripDetailPageContent() {
       title: item?.name ?? `Item ${itemIndex + 1}`,
       time: item?.time ?? null
     });
+  }
+
+  function continueAfterEditLockWarning() {
+    setLockWarning(null);
+    enterEditMode();
   }
 
   return (
@@ -599,6 +656,12 @@ function TripDetailPageContent() {
                 currentUserId={currentUserId}
                 snapshot={presenceStream.snapshot}
               />
+              <EditLockStatus lock={editLock.lock} />
+              {editLock.error ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                  {editLock.error}
+                </div>
+              ) : null}
 
               {isEditing && draftItinerary ? (
                 <>
@@ -670,8 +733,13 @@ function TripDetailPageContent() {
                   {canEditItinerary ? (
                     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
                       {exportTrip ? <ExportTripMenu exportTrip={exportTrip} /> : <span />}
-                      <Button onClick={startEditing} type="button" variant="secondary">
-                        Edit itinerary
+                      <Button
+                        disabled={editLock.loading}
+                        onClick={startEditing}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {editLock.loading ? "Checking..." : "Edit itinerary"}
                       </Button>
                     </div>
                   ) : null}
@@ -778,6 +846,13 @@ function TripDetailPageContent() {
           />
         </section>
       </div>
+      {lockWarning ? (
+        <SoftEditLockWarningDialog
+          lock={lockWarning}
+          onCancel={() => setLockWarning(null)}
+          onContinue={continueAfterEditLockWarning}
+        />
+      ) : null}
     </PageContainer>
   );
 }

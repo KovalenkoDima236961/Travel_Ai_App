@@ -28,6 +28,7 @@ type Config struct {
 	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
 	Notifications      NotificationsConfig      `yaml:"notifications"`
 	Presence           PresenceConfig           `yaml:"presence"`
+	EditLocks          EditLocksConfig          `yaml:"edit_locks"`
 }
 
 // NotificationsConfig controls synchronous in-app notification fan-out to the
@@ -49,6 +50,14 @@ type PresenceConfig struct {
 	StaleAfterSeconds            int  `yaml:"stale_after_seconds" env:"TRIP_PRESENCE_STALE_AFTER_SECONDS" env-default:"60" validate:"min=1"`
 	MaxConnectionsPerUserPerTrip int  `yaml:"max_connections_per_user_per_trip" env:"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP" env-default:"5" validate:"min=1"`
 	SendFullSnapshot             bool `yaml:"send_full_snapshot" env:"TRIP_PRESENCE_SEND_FULL_SNAPSHOT" env-default:"true"`
+}
+
+// EditLocksConfig controls instance-local advisory itinerary edit locks.
+type EditLocksConfig struct {
+	Enabled             bool `yaml:"enabled" env:"TRIP_EDIT_LOCKS_ENABLED" env-default:"true"`
+	TTLSeconds          int  `yaml:"ttl_seconds" env:"TRIP_EDIT_LOCK_TTL_SECONDS" env-default:"180" validate:"min=1"`
+	RenewSeconds        int  `yaml:"renew_seconds" env:"TRIP_EDIT_LOCK_RENEW_SECONDS" env-default:"45" validate:"min=1"`
+	StaleCleanupSeconds int  `yaml:"stale_cleanup_seconds" env:"TRIP_EDIT_LOCK_STALE_CLEANUP_SECONDS" env-default:"30" validate:"min=1"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -139,6 +148,18 @@ func (c *Config) PresenceHeartbeatInterval() time.Duration {
 // PresenceStaleAfter returns the configured stale-session threshold.
 func (c *Config) PresenceStaleAfter() time.Duration {
 	return time.Duration(c.Presence.StaleAfterSeconds) * time.Second
+}
+
+func (c *Config) EditLockTTL() time.Duration {
+	return time.Duration(c.EditLocks.TTLSeconds) * time.Second
+}
+
+func (c *Config) EditLockRenewalInterval() time.Duration {
+	return time.Duration(c.EditLocks.RenewSeconds) * time.Second
+}
+
+func (c *Config) EditLockCleanupInterval() time.Duration {
+	return time.Duration(c.EditLocks.StaleCleanupSeconds) * time.Second
 }
 
 // MustLoad loads and validates the configuration, panicking on any error.

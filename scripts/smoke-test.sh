@@ -276,6 +276,10 @@ echo "Checking Trip Service presence state requires auth..."
 request POST "${TRIP_SERVICE_URL}/trips/00000000-0000-0000-0000-000000000001/presence/state" '{"state":"viewing"}'
 assert_status "Trip presence state requires auth" "401"
 
+echo "Checking Trip Service edit lock requires auth..."
+request GET "${TRIP_SERVICE_URL}/trips/00000000-0000-0000-0000-000000000001/edit-lock"
+assert_status "Trip edit lock requires auth" "401"
+
 PLACE_PROVIDER_MODE="${PLACE_PROVIDER:-mock}"
 PLACE_PROVIDER_FALLBACK="${PLACE_PROVIDER_FALLBACK_TO_MOCK:-true}"
 
@@ -781,6 +785,18 @@ VIEWER_EDIT_PAYLOAD='{"itinerary":{"days":[{"day":1,"title":"Viewer blocked day"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_EDIT_PAYLOAD}"
 assert_status "Viewer itinerary edit" "403"
 
+echo "Checking viewer can read but cannot acquire edit lock..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer read edit lock"
+VIEWER_LOCKED="$(jq -r '.locked // true' <<<"${LAST_BODY}")"
+if [[ "${VIEWER_LOCKED}" != "false" ]]; then
+  echo "Expected no active edit lock before owner acquires one." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}" '{"scope":"itinerary"}'
+assert_status "Viewer acquire edit lock" "403"
+
 echo "Creating an owner comment on the first itinerary item..."
 OWNER_COMMENT_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Owner: can we start this earlier?"}'
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" "${OWNER_COMMENT_PAYLOAD}"
@@ -942,6 +958,70 @@ echo "Changing collaborator role to editor..."
 request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}" "${ACCESS_TOKEN}" '{"role":"editor"}'
 assert_2xx "Update collaborator role to editor"
 
+echo "Checking advisory itinerary edit locks..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${ACCESS_TOKEN}" '{"scope":"itinerary"}'
+assert_2xx "Owner acquire edit lock"
+OWNER_LOCK_ACQUIRED="$(jq -r '.acquired // false' <<<"${LAST_BODY}")"
+OWNER_LOCK_USER_ID="$(jq -r '.lock.lockedByUserId // empty' <<<"${LAST_BODY}")"
+OWNER_LOCK_CURRENT="$(jq -r '.lock.lockedByCurrentUser // false' <<<"${LAST_BODY}")"
+if [[ "${OWNER_LOCK_ACQUIRED}" != "true" || "${OWNER_LOCK_USER_ID}" != "${OWNER_USER_ID}" || "${OWNER_LOCK_CURRENT}" != "true" ]]; then
+  echo "Owner edit lock acquire response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${ACCESS_TOKEN}" '{"scope":"itinerary"}'
+assert_2xx "Owner renew edit lock"
+OWNER_LOCK_RENEWED="$(jq -r '.renewed // false' <<<"${LAST_BODY}")"
+if [[ "${OWNER_LOCK_RENEWED}" != "true" ]]; then
+  echo "Owner edit lock renew response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}" '{"scope":"itinerary"}'
+assert_status "Editor edit lock conflict" "409"
+EDIT_LOCK_ERROR="$(jq -r '.error // empty' <<<"${LAST_BODY}")"
+EDIT_LOCK_REASON="$(jq -r '.reason // empty' <<<"${LAST_BODY}")"
+EDIT_LOCK_OWNER="$(jq -r '.lock.lockedByUserId // empty' <<<"${LAST_BODY}")"
+if [[ "${EDIT_LOCK_ERROR}" != "edit_lock_conflict" || "${EDIT_LOCK_REASON}" != "locked_by_other_user" || "${EDIT_LOCK_OWNER}" != "${OWNER_USER_ID}" ]]; then
+  echo "Editor edit lock conflict response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Editor read owner edit lock"
+EDITOR_SEES_OWNER_LOCK="$(jq -r '.lockedByUserId // empty' <<<"${LAST_BODY}")"
+EDITOR_LOCK_CURRENT="$(jq -r '.lockedByCurrentUser // true' <<<"${LAST_BODY}")"
+if [[ "${EDITOR_SEES_OWNER_LOCK}" != "${OWNER_USER_ID}" || "${EDITOR_LOCK_CURRENT}" != "false" ]]; then
+  echo "Editor did not see the owner edit lock as expected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${ACCESS_TOKEN}" '{"scope":"itinerary"}'
+assert_2xx "Owner release edit lock"
+OWNER_LOCK_RELEASED="$(jq -r '.released // false' <<<"${LAST_BODY}")"
+if [[ "${OWNER_LOCK_RELEASED}" != "true" ]]; then
+  echo "Owner edit lock release response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}" '{"scope":"itinerary"}'
+assert_2xx "Editor acquire edit lock after owner release"
+EDITOR_LOCK_ACQUIRED="$(jq -r '.acquired // false' <<<"${LAST_BODY}")"
+EDITOR_LOCK_USER_ID="$(jq -r '.lock.lockedByUserId // empty' <<<"${LAST_BODY}")"
+if [[ "${EDITOR_LOCK_ACQUIRED}" != "true" || "${EDITOR_LOCK_USER_ID}" != "${COLLAB_USER_ID}" ]]; then
+  echo "Editor edit lock acquire response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}" '{"scope":"itinerary"}'
+assert_2xx "Editor release edit lock"
+
 EDITOR_EDIT_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{
   expectedItineraryRevision: $revision,
   itinerary: {
@@ -1055,17 +1135,22 @@ fi
 echo "Fetching unlocked public shared trip..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_2xx "Fetch public shared trip"
+PUBLIC_TRIP_BODY="${LAST_BODY}"
 
-PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${LAST_BODY}")"
-PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${LAST_BODY}")"
+echo "Confirming public share token cannot access edit locks..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share edit lock access" "401"
+
+PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${PUBLIC_TRIP_BODY}")"
+PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${PUBLIC_TRIP_BODY}")"
 if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; then
   echo "Public shared trip did not include expected destination and itinerary." >&2
-  echo "${LAST_BODY}" >&2
+  echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
 fi
-if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments")' >/dev/null <<<"${LAST_BODY}"; then
+if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments")' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
   echo "Public shared trip exposed private fields." >&2
-  echo "${LAST_BODY}" >&2
+  echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
 fi
 
