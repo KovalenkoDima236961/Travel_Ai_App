@@ -106,7 +106,8 @@ func TestUpdateItinerary_NotifiesCollaboratorsExceptActor(t *testing.T) {
 	// authContext() acts as the owner (testUserID); GetByID returns a trip owned
 	// by testUserID, so the owner is the actor and must be excluded.
 	if _, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
-		Itinerary: validExistingItineraryRaw(t),
+		ExpectedItineraryRevision: intPtr(0),
+		Itinerary:                 validExistingItineraryRaw(t),
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

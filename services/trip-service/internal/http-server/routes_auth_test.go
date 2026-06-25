@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
+	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
@@ -708,7 +710,7 @@ func TestPartialRegenerationOwnerCanUpdateAndNonOwnerReceives404(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/days/1/regenerate", bytes.NewReader([]byte(`{"instruction":"make it cheaper"}`)))
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/days/1/regenerate", bytes.NewReader([]byte(regenerateDayJSON(1, "make it cheaper"))))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+ownerToken)
 	router.ServeHTTP(rec, req)
@@ -825,7 +827,7 @@ func TestValidTokenCreatesAndScopesTripsToCurrentUser(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/trips/"+tripID.String()+"/generate", nil)
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+tripID.String()+"/generate", bytes.NewReader([]byte(expectedRevisionJSON(0))))
 	req.Header.Set("Authorization", "Bearer "+ownerToken)
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -943,6 +945,103 @@ func TestUpdateItineraryOwnerCanEditAndChangesPersist(t *testing.T) {
 	}
 }
 
+func TestItineraryRevisionConflictFlow(t *testing.T) {
+	router, repo := newAuthTestRouter(t, config.AuthConfig{
+		Required:        true,
+		JWTAccessSecret: testJWTSecret,
+		HeaderName:      "Authorization",
+		DevUserID:       "00000000-0000-0000-0000-000000000001",
+	})
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/trips", bytes.NewReader([]byte(validCreateTripJSON())))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create HTTP 201, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		ID                string `json:"id"`
+		ItineraryRevision int    `json:"itineraryRevision"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	if created.ItineraryRevision != 0 {
+		t.Fatalf("expected new trip revision 0, got %d", created.ItineraryRevision)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(`{"itinerary":{"days":[{"day":1,"title":"Day","items":[{"time":"09:00","type":"activity","name":"Walk"}]}]}}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing revision HTTP 400, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var missingBody struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &missingBody); err != nil {
+		t.Fatalf("decode missing revision response: %v", err)
+	}
+	if missingBody.Error != "expected_itinerary_revision_required" {
+		t.Fatalf("unexpected missing revision error body: %+v", missingBody)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSONWithRevision(0))))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected revision 0 update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var updated struct {
+		ItineraryRevision int `json:"itineraryRevision"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode update response: %v", err)
+	}
+	if updated.ItineraryRevision != 1 {
+		t.Fatalf("expected update to increment revision to 1, got %d", updated.ItineraryRevision)
+	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one version after successful update, got %d", len(repo.versions))
+	}
+	activityCount := len(repo.activityEvents)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSONWithRevision(0))))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected stale update HTTP 409, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var conflictBody struct {
+		Error                    string `json:"error"`
+		Message                  string `json:"message"`
+		CurrentItineraryRevision int    `json:"currentItineraryRevision"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &conflictBody); err != nil {
+		t.Fatalf("decode conflict response: %v", err)
+	}
+	if conflictBody.Error != "itinerary_conflict" || conflictBody.CurrentItineraryRevision != 1 {
+		t.Fatalf("unexpected conflict body: %+v", conflictBody)
+	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("conflict must not create version, got %d", len(repo.versions))
+	}
+	if len(repo.activityEvents) != activityCount {
+		t.Fatalf("conflict must not create activity event")
+	}
+}
+
 func TestCollaborativePlanningInviteAcceptRolesAndRemoval(t *testing.T) {
 	router, _ := newAuthTestRouter(t, config.AuthConfig{
 		Required:        true,
@@ -1053,7 +1152,7 @@ func TestCollaborativePlanningInviteAcceptRolesAndRemoval(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSONWithRevision(1))))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+viewerToken)
 	router.ServeHTTP(rec, req)
@@ -1071,7 +1170,7 @@ func TestCollaborativePlanningInviteAcceptRolesAndRemoval(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSONWithRevision(1))))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+viewerToken)
 	router.ServeHTTP(rec, req)
@@ -1207,7 +1306,7 @@ func TestItineraryVersionHistoryOwnerCanPreviewRestoreAndNonOwnerReceives404(t *
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/generate", nil)
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/generate", bytes.NewReader([]byte(expectedRevisionJSON(0))))
 	req.Header.Set("Authorization", "Bearer "+ownerToken)
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -1215,7 +1314,7 @@ func TestItineraryVersionHistoryOwnerCanPreviewRestoreAndNonOwnerReceives404(t *
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSON())))
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+created.ID+"/itinerary", bytes.NewReader([]byte(validUpdateItineraryJSONWithRevision(1))))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+ownerToken)
 	router.ServeHTTP(rec, req)
@@ -1285,7 +1384,7 @@ func TestItineraryVersionHistoryOwnerCanPreviewRestoreAndNonOwnerReceives404(t *
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/versions/"+generatedVersionID+"/restore", nil)
+	req = httptest.NewRequest(http.MethodPost, "/trips/"+created.ID+"/itinerary/versions/"+generatedVersionID+"/restore", bytes.NewReader([]byte(expectedRevisionJSON(2))))
 	req.Header.Set("Authorization", "Bearer "+ownerToken)
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -1519,10 +1618,11 @@ func (r *routeTestRepo) UpdateItineraryByUserIDAndCreateVersion(
 	id, userID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
-	return r.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, source, metadata)
+	return r.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, expectedItineraryRevision, source, metadata)
 }
 
 func (r *routeTestRepo) UpdateItineraryAndCreateVersion(
@@ -1530,6 +1630,7 @@ func (r *routeTestRepo) UpdateItineraryAndCreateVersion(
 	id, ownerUserID, actorUserID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
@@ -1537,8 +1638,12 @@ func (r *routeTestRepo) UpdateItineraryAndCreateVersion(
 	if err != nil {
 		return nil, nil, err
 	}
+	if trip.ItineraryRevision != expectedItineraryRevision {
+		return nil, nil, apperrs.NewItineraryConflict(trip.ItineraryRevision)
+	}
 	trip.Itinerary = itinerary
 	trip.Status = status
+	trip.ItineraryRevision++
 	trip.UpdatedAt = time.Now().UTC()
 	r.trips[id] = *trip
 	version := entity.ItineraryVersion{
@@ -1957,7 +2062,12 @@ func validCreateTripJSON() string {
 }
 
 func validUpdateItineraryJSON() string {
+	return validUpdateItineraryJSONWithRevision(0)
+}
+
+func validUpdateItineraryJSONWithRevision(revision int) string {
 	return `{
+		"expectedItineraryRevision": ` + strconv.Itoa(revision) + `,
 		"itinerary": {
 			"days": [
 				{
@@ -1976,6 +2086,21 @@ func validUpdateItineraryJSON() string {
 			]
 		}
 	}`
+}
+
+func expectedRevisionJSON(revision int) string {
+	return `{"expectedItineraryRevision":` + strconv.Itoa(revision) + `}`
+}
+
+func regenerateDayJSON(revision int, instruction string) string {
+	if strings.TrimSpace(instruction) == "" {
+		return expectedRevisionJSON(revision)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"expectedItineraryRevision": revision,
+		"instruction":               instruction,
+	})
+	return string(body)
 }
 
 func signAccessToken(t *testing.T, userID uuid.UUID, email, secret string, ttl time.Duration) string {

@@ -17,7 +17,7 @@ import (
 const TripCollaboratorColumns = "id, trip_id, user_id, role, status, invited_by_user_id, invited_at, accepted_at, removed_at, updated_at"
 
 const TripColumnsWithAlias = "t.id, t.user_id, t.destination, t.start_date, t.days, t.budget_amount, " +
-	"t.budget_currency, t.travelers, t.interests, t.pace, t.status, t.itinerary, t.created_at, t.updated_at"
+	"t.budget_currency, t.travelers, t.interests, t.pace, t.status, t.itinerary, t.itinerary_revision, t.created_at, t.updated_at"
 
 const TripCollaboratorColumnsWithAlias = "c.id, c.trip_id, c.user_id, c.role, c.status, c.invited_by_user_id, " +
 	"c.invited_at, c.accepted_at, c.removed_at, c.updated_at"
@@ -90,6 +90,7 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 		interestsRaw                   []byte
 		pace, tripStatus               string
 		itineraryRaw                   []byte
+		itineraryRevision              int32
 		tripCreatedAt, tripUpdatedAt   pgtype.Timestamp
 		id, collaboratorTripID, userID pgtype.UUID
 		role, status                   string
@@ -111,6 +112,7 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 		&pace,
 		&tripStatus,
 		&itineraryRaw,
+		&itineraryRevision,
 		&tripCreatedAt,
 		&tripUpdatedAt,
 		&id,
@@ -137,19 +139,20 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 	}
 
 	trip := entity.Trip{
-		ID:             uuid.UUID(tripID.Bytes),
-		UserID:         fromPgUUID(tripUserID),
-		Destination:    destination,
-		StartDate:      fromPgDate(startDate),
-		Days:           days,
-		BudgetAmount:   fromPgNumeric(budgetAmount),
-		BudgetCurrency: budgetCurrency.String,
-		Travelers:      travelers.Int32,
-		Interests:      interests,
-		Pace:           pace,
-		Status:         entity.Status(tripStatus),
-		CreatedAt:      tripCreatedAt.Time,
-		UpdatedAt:      tripUpdatedAt.Time,
+		ID:                uuid.UUID(tripID.Bytes),
+		UserID:            fromPgUUID(tripUserID),
+		Destination:       destination,
+		StartDate:         fromPgDate(startDate),
+		Days:              days,
+		BudgetAmount:      fromPgNumeric(budgetAmount),
+		BudgetCurrency:    budgetCurrency.String,
+		Travelers:         travelers.Int32,
+		Interests:         interests,
+		Pace:              pace,
+		Status:            entity.Status(tripStatus),
+		ItineraryRevision: int(itineraryRevision),
+		CreatedAt:         tripCreatedAt.Time,
+		UpdatedAt:         tripUpdatedAt.Time,
 	}
 	if len(itineraryRaw) > 0 {
 		trip.Itinerary = json.RawMessage(itineraryRaw)

@@ -9,7 +9,9 @@ import {
 
 type ApiErrorPayload = {
   error?: string;
+  message?: string;
   fields?: Record<string, string>;
+  currentItineraryRevision?: number;
 };
 
 type ApiFetchOptions = {
@@ -20,14 +22,38 @@ type ApiFetchOptions = {
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
   fields?: Record<string, string>;
+  currentItineraryRevision?: number;
 
-  constructor(message: string, status: number, fields?: Record<string, string>) {
+  constructor(
+    message: string,
+    status: number,
+    fields?: Record<string, string>,
+    code?: string,
+    currentItineraryRevision?: number
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.fields = fields;
+    this.code = code;
+    this.currentItineraryRevision = currentItineraryRevision;
   }
+}
+
+export type ItineraryConflictError = ApiError & {
+  code: "itinerary_conflict";
+  currentItineraryRevision: number;
+};
+
+export function isItineraryConflictError(error: unknown): error is ItineraryConflictError {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.code === "itinerary_conflict" &&
+    typeof error.currentItineraryRevision === "number"
+  );
 }
 
 export async function apiFetch<T>(
@@ -104,11 +130,19 @@ async function apiFetchInternal<T>(
   if (!response.ok) {
     const payload = await readJson<ApiErrorPayload>(response);
     const message =
-      typeof payload?.error === "string" && payload.error.trim().length > 0
-        ? payload.error
-        : `Request failed with status ${response.status}`;
+      typeof payload?.message === "string" && payload.message.trim().length > 0
+        ? payload.message
+        : typeof payload?.error === "string" && payload.error.trim().length > 0
+          ? payload.error
+          : `Request failed with status ${response.status}`;
 
-    throw new ApiError(message, response.status, payload?.fields);
+    throw new ApiError(
+      message,
+      response.status,
+      payload?.fields,
+      payload?.error,
+      payload?.currentItineraryRevision
+    );
   }
 
   if (response.status === 204) {

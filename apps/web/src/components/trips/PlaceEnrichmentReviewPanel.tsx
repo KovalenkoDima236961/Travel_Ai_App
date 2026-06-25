@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AttachPlaceDialog } from "@/components/places/AttachPlaceDialog";
 import { Button } from "@/components/ui/Button";
+import { isItineraryConflictError } from "@/lib/api/client";
 import { tripKeys, updateTripItinerary } from "@/lib/api/trips";
 import {
   getPlaceMatchReviewItems,
@@ -43,7 +44,8 @@ export function PlaceEnrichmentReviewPanel({
   );
 
   const updateMutation = useMutation({
-    mutationFn: (updatedItinerary: Itinerary) => updateTripItinerary(trip.id, updatedItinerary)
+    mutationFn: (updatedItinerary: Itinerary) =>
+      updateTripItinerary(trip.id, updatedItinerary, trip.itineraryRevision)
   });
 
   if (!itinerary || reviewItems.length === 0 || !summary) {
@@ -66,7 +68,12 @@ export function PlaceEnrichmentReviewPanel({
         await queryClient.invalidateQueries({ queryKey: tripKeys.detail(trip.id) });
       }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save place review.");
+      if (isItineraryConflictError(saveError)) {
+        setError("This itinerary changed. Reload latest version before trying again.");
+        await queryClient.invalidateQueries({ queryKey: tripKeys.detail(trip.id) });
+      } else {
+        setError(saveError instanceof Error ? saveError.message : "Could not save place review.");
+      }
     } finally {
       setSavingItemId(null);
     }

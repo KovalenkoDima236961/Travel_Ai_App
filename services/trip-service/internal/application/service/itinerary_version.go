@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -60,7 +61,11 @@ func (s *Service) GetItineraryVersion(ctx context.Context, tripID, versionID uui
 // RestoreItineraryVersion replaces the current trip itinerary with an existing
 // snapshot and records that restore as a new version. Old versions remain
 // untouched.
-func (s *Service) RestoreItineraryVersion(ctx context.Context, tripID, versionID uuid.UUID) (*entity.Trip, error) {
+func (s *Service) RestoreItineraryVersion(
+	ctx context.Context,
+	tripID, versionID uuid.UUID,
+	in appdto.RestoreItineraryVersionInput,
+) (*entity.Trip, error) {
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -68,6 +73,13 @@ func (s *Service) RestoreItineraryVersion(ctx context.Context, tripID, versionID
 
 	trip, _, err := s.requireEditorOrOwner(ctx, tripID, user.ID)
 	if err != nil {
+		return nil, err
+	}
+	expectedRevision, err := requireExpectedItineraryRevision(in.ExpectedItineraryRevision)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkCurrentItineraryRevision(expectedRevision, trip.ItineraryRevision); err != nil {
 		return nil, err
 	}
 	ownerID, err := tripOwnerID(trip)
@@ -85,10 +97,19 @@ func (s *Service) RestoreItineraryVersion(ctx context.Context, tripID, versionID
 		return nil, err
 	}
 
-	updated, err := s.saveItineraryWithVersion(ctx, tripID, ownerID, user.ID, normalized, entity.ItineraryVersionSourceRestored, map[string]any{
-		"restoredFromVersionId":     version.ID.String(),
-		"restoredFromVersionNumber": version.VersionNumber,
-	})
+	updated, err := s.saveItineraryWithVersion(
+		ctx,
+		tripID,
+		ownerID,
+		user.ID,
+		normalized,
+		expectedRevision,
+		entity.ItineraryVersionSourceRestored,
+		map[string]any{
+			"restoredFromVersionId":     version.ID.String(),
+			"restoredFromVersionNumber": version.VersionNumber,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

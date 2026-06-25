@@ -37,23 +37,52 @@ func (r CreateTrip) ToInput() appdto.CreateTripInput {
 
 // UpdateTripItinerary is the JSON body accepted by PUT /trips/{id}/itinerary.
 type UpdateTripItinerary struct {
-	Itinerary json.RawMessage `json:"itinerary"`
+	Itinerary                 json.RawMessage `json:"itinerary"`
+	ExpectedItineraryRevision *int            `json:"expectedItineraryRevision"`
 }
 
 // ToInput maps the transport request to the application-level input.
 func (r UpdateTripItinerary) ToInput() appdto.UpdateItineraryInput {
-	return appdto.UpdateItineraryInput{Itinerary: r.Itinerary}
+	return appdto.UpdateItineraryInput{
+		Itinerary:                 r.Itinerary,
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+	}
+}
+
+// GenerateTripItinerary is the JSON body accepted by POST /trips/{id}/generate.
+type GenerateTripItinerary struct {
+	ExpectedItineraryRevision *int `json:"expectedItineraryRevision"`
+}
+
+func (r GenerateTripItinerary) ToInput() appdto.GenerateItineraryInput {
+	return appdto.GenerateItineraryInput{
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+	}
 }
 
 // RegenerateItineraryPart is the JSON body accepted by partial itinerary
 // regeneration endpoints.
 type RegenerateItineraryPart struct {
-	Instruction string `json:"instruction"`
+	Instruction               string `json:"instruction"`
+	ExpectedItineraryRevision *int   `json:"expectedItineraryRevision"`
 }
 
 // ToInput maps the transport request to the application-level input.
 func (r RegenerateItineraryPart) ToInput() appdto.RegenerateItineraryPartInput {
-	return appdto.RegenerateItineraryPartInput{Instruction: r.Instruction}
+	return appdto.RegenerateItineraryPartInput{
+		Instruction:               r.Instruction,
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+	}
+}
+
+type RestoreItineraryVersion struct {
+	ExpectedItineraryRevision *int `json:"expectedItineraryRevision"`
+}
+
+func (r RestoreItineraryVersion) ToInput() appdto.RestoreItineraryVersionInput {
+	return appdto.RestoreItineraryVersionInput{
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+	}
 }
 
 // CreateTripShare is the optional JSON body accepted by POST /trips/{id}/share.

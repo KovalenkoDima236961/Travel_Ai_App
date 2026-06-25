@@ -576,6 +576,12 @@ if [[ -z "${TRIP_ID}" ]]; then
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${TRIP_REVISION}" != "0" ]]; then
+  echo "Expected new trip itineraryRevision=0, got ${TRIP_REVISION}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 echo "Created trip ${TRIP_ID}."
 
 echo "Checking owner trip presence state and snapshot endpoints..."
@@ -595,8 +601,15 @@ if [[ "${PRESENCE_TRIP_ID}" != "${TRIP_ID}" ]]; then
 fi
 
 echo "Generating itinerary with Authorization header..."
-request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${ACCESS_TOKEN}"
+GENERATE_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${ACCESS_TOKEN}" "${GENERATE_PAYLOAD}"
 assert_2xx "Generate itinerary"
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${TRIP_REVISION}" != "1" ]]; then
+  echo "Expected generated trip itineraryRevision=1, got ${TRIP_REVISION}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 echo "Fetching completed trip with Authorization header..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
@@ -604,6 +617,7 @@ assert_2xx "Fetch trip"
 
 STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
 DAYS_COUNT="$(jq '.itinerary.days | length' <<<"${LAST_BODY}")"
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 if [[ "${STATUS}" != "COMPLETED" ]]; then
   echo "Expected trip status COMPLETED, got ${STATUS}." >&2
@@ -928,9 +942,21 @@ echo "Changing collaborator role to editor..."
 request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}" "${ACCESS_TOKEN}" '{"role":"editor"}'
 assert_2xx "Update collaborator role to editor"
 
-EDITOR_EDIT_PAYLOAD='{"itinerary":{"days":[{"day":1,"title":"Editor Smoke Test Day","items":[{"time":"10:00","type":"activity","name":"Editor Smoke Test Activity"}]}]}}'
+EDITOR_EDIT_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{
+  expectedItineraryRevision: $revision,
+  itinerary: {
+    days: [
+      {
+        day: 1,
+        title: "Editor Smoke Test Day",
+        items: [{time:"10:00",type:"activity",name:"Editor Smoke Test Activity"}]
+      }
+    ]
+  }
+}')"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${EDITOR_EDIT_PAYLOAD}"
 assert_2xx "Editor itinerary edit"
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 echo "Checking editor cannot manage public share settings..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${COLLAB_ACCESS_TOKEN}"
@@ -1116,7 +1142,8 @@ echo "Personalization context path exercised through Trip Service -> User Servic
 
 echo "Editing itinerary with Authorization header..."
 EDIT_ITINERARY_PAYLOAD="$(
-  jq -nc --argjson place "${PLACE_JSON}" '{
+  jq -nc --argjson place "${PLACE_JSON}" --argjson revision "${TRIP_REVISION}" '{
+    expectedItineraryRevision: $revision,
     itinerary: {
       days: [
         {
@@ -1137,8 +1164,39 @@ EDIT_ITINERARY_PAYLOAD="$(
     }
   }'
 )"
+STALE_EDIT_ITINERARY_PAYLOAD="$(
+  jq -nc --argjson place "${PLACE_JSON}" --argjson revision "$((TRIP_REVISION - 1))" '{
+    expectedItineraryRevision: $revision,
+    itinerary: {
+      days: [
+        {
+          day: 1,
+          title: "Stale Smoke Test Day",
+          items: [
+            {
+              time: "10:00",
+              type: "activity",
+              name: "Stale Smoke Test Activity",
+              place: $place
+            }
+          ]
+        }
+      ]
+    }
+  }'
+)"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${ACCESS_TOKEN}" "${STALE_EDIT_ITINERARY_PAYLOAD}"
+assert_status "Stale itinerary edit" "409"
+CONFLICT_ERROR="$(jq -r '.error // empty' <<<"${LAST_BODY}")"
+CONFLICT_REVISION="$(jq -r '.currentItineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${CONFLICT_ERROR}" != "itinerary_conflict" || "${CONFLICT_REVISION}" != "${TRIP_REVISION}" ]]; then
+  echo "Stale itinerary edit did not return expected conflict payload." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${ACCESS_TOKEN}" "${EDIT_ITINERARY_PAYLOAD}"
 assert_2xx "Edit itinerary"
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 EDIT_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
 EDIT_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
@@ -1215,8 +1273,10 @@ if [[ -z "${GENERATED_VERSION_TITLE}" ]]; then
 fi
 
 echo "Restoring generated itinerary version..."
-request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${GENERATED_VERSION_ID}/restore" "${ACCESS_TOKEN}"
+RESTORE_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/versions/${GENERATED_VERSION_ID}/restore" "${ACCESS_TOKEN}" "${RESTORE_PAYLOAD}"
 assert_2xx "Restore generated itinerary version"
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 RESTORED_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
 if [[ "${RESTORED_TITLE}" != "${GENERATED_VERSION_TITLE}" ]]; then
@@ -1229,6 +1289,7 @@ fi
 echo "Fetching restored trip with Authorization header..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
 assert_2xx "Fetch restored trip"
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 EDITED_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
 EDITED_TITLE="$(jq -r '.itinerary.days[0].title // empty' <<<"${LAST_BODY}")"
@@ -1249,6 +1310,22 @@ if [[ "${VERSION_COUNT_AFTER_RESTORE}" -le "${VERSION_COUNT_AFTER_EDIT}" || "${R
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+
+echo "Checking day regeneration revision conflicts..."
+STALE_DAY_REGEN_PAYLOAD="$(jq -nc --argjson revision "$((TRIP_REVISION - 1))" '{expectedItineraryRevision:$revision,instruction:"make day one slower paced"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/days/1/regenerate" "${ACCESS_TOKEN}" "${STALE_DAY_REGEN_PAYLOAD}"
+assert_status "Stale day regeneration" "409"
+CONFLICT_ERROR="$(jq -r '.error // empty' <<<"${LAST_BODY}")"
+CONFLICT_REVISION="$(jq -r '.currentItineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${CONFLICT_ERROR}" != "itinerary_conflict" || "${CONFLICT_REVISION}" != "${TRIP_REVISION}" ]]; then
+  echo "Stale day regeneration did not return expected conflict payload." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+DAY_REGEN_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision,instruction:"make day one slower paced"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/days/1/regenerate" "${ACCESS_TOKEN}" "${DAY_REGEN_PAYLOAD}"
+assert_2xx "Current day regeneration"
+TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 echo "Listing trips for current user..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips?limit=20&offset=0" "${ACCESS_TOKEN}"
@@ -1372,5 +1449,5 @@ OTHER_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${OTHER_REFRESH_TOKEN}" '{ref
 request POST "${AUTH_SERVICE_URL}/auth/logout" "${OTHER_LOGOUT_PAYLOAD}"
 assert_2xx "Logout second user"
 
-echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), version restore worked, the activity feed recorded major actions with access enforced, and owner isolation was enforced."
+echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), revision conflicts were rejected, version restore worked, the activity feed recorded major actions with access enforced, and owner isolation was enforced."
 echo "Open ${WEB_APP_URL}/login to run the manual browser flow."

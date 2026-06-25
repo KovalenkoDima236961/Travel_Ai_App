@@ -414,7 +414,13 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, err := h.svc.Generate(r.Context(), id)
+	var req request.GenerateTripItinerary
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	t, err := h.svc.Generate(r.Context(), id, req.ToInput())
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -556,7 +562,13 @@ func (h *Handler) RestoreItineraryVersion(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	t, err := h.svc.RestoreItineraryVersion(r.Context(), id, versionID)
+	var req request.RestoreItineraryVersion
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	t, err := h.svc.RestoreItineraryVersion(r.Context(), id, versionID, req.ToInput())
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -637,7 +649,20 @@ func (h *Handler) writeValidationError(w http.ResponseWriter, err error) {
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var invalid *apperrs.InvalidInputError
 	var dependency *apperrs.DependencyError
+	var revisionRequired *apperrs.ExpectedItineraryRevisionRequiredError
+	var conflict *apperrs.ItineraryConflictError
 	switch {
+	case errors.As(err, &revisionRequired):
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error":   "expected_itinerary_revision_required",
+			"message": revisionRequired.Error(),
+		})
+	case errors.As(err, &conflict):
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":                    "itinerary_conflict",
+			"message":                  conflict.Error(),
+			"currentItineraryRevision": conflict.CurrentItineraryRevision,
+		})
 	case errors.As(err, &invalid):
 		writeError(w, http.StatusBadRequest, invalid.Error())
 	case errors.As(err, &dependency):

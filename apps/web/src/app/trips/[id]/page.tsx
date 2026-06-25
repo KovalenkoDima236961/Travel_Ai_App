@@ -38,6 +38,7 @@ import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { activityKeys } from "@/lib/api/activity";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
+import { isItineraryConflictError } from "@/lib/api/client";
 import { buildCommentCountMap } from "@/lib/comments/comment-counts";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import {
@@ -88,7 +89,9 @@ function TripDetailPageContent() {
     time?: string | null;
   } | null>(null);
   const [draftItinerary, setDraftItinerary] = useState<Itinerary | null>(null);
+  const [baseItineraryRevision, setBaseItineraryRevision] = useState<number | null>(null);
   const [editorErrors, setEditorErrors] = useState<string[]>([]);
+  const [itineraryConflictMessage, setItineraryConflictMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
   const [regeneratingTarget, setRegeneratingTarget] = useState<RegeneratingTarget | null>(null);
@@ -113,19 +116,33 @@ function TripDetailPageContent() {
   const maxWalkingKmPerDay = preferencesQuery.data?.maxWalkingKmPerDay ?? null;
 
   const updateMutation = useMutation({
-    mutationFn: (itinerary: Itinerary) => updateTripItinerary(tripId, itinerary)
+    mutationFn: ({
+      itinerary,
+      expectedRevision
+    }: {
+      itinerary: Itinerary;
+      expectedRevision: number;
+    }) => updateTripItinerary(tripId, itinerary, expectedRevision)
   });
 
   const regenerationMutation = useMutation({
-    mutationFn: (target: RegeneratingTarget & { instruction?: string }) => {
+    mutationFn: (
+      target: RegeneratingTarget & { instruction?: string; expectedRevision: number }
+    ) => {
       if (target.type === "day") {
-        return regenerateItineraryDay(tripId, target.dayNumber, target.instruction);
+        return regenerateItineraryDay(
+          tripId,
+          target.dayNumber,
+          target.instruction,
+          target.expectedRevision
+        );
       }
       return regenerateItineraryItem(
         tripId,
         target.dayNumber,
         target.itemIndex,
-        target.instruction
+        target.instruction,
+        target.expectedRevision
       );
     }
   });
@@ -280,6 +297,10 @@ function TripDetailPageContent() {
   const canRestoreVersion = access?.canRestoreVersion ?? canMutateTrip;
   const canGenerate = canMutateTrip && (trip.status === "DRAFT" || trip.status === "FAILED");
   const canEditItinerary = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
+  const editingRevisionChanged =
+    isEditing &&
+    baseItineraryRevision != null &&
+    trip.itineraryRevision !== baseItineraryRevision;
   const optimizingDay =
     optimizingDayNumber != null
       ? (trip.itinerary?.days ?? []).find(
@@ -292,7 +313,9 @@ function TripDetailPageContent() {
       return;
     }
     setDraftItinerary(prepareItineraryForEdit(trip.itinerary));
+    setBaseItineraryRevision(trip.itineraryRevision);
     setEditorErrors([]);
+    setItineraryConflictMessage(null);
     setRegenerationError(null);
     setSuccessMessage(null);
     setIsEditing(true);
@@ -302,7 +325,9 @@ function TripDetailPageContent() {
   function cancelEditing() {
     setIsEditing(false);
     setDraftItinerary(null);
+    setBaseItineraryRevision(null);
     setEditorErrors([]);
+    setItineraryConflictMessage(null);
     void setPresenceState("viewing");
   }
 
@@ -320,22 +345,50 @@ function TripDetailPageContent() {
 
     try {
       setEditorErrors([]);
+      setItineraryConflictMessage(null);
       setRegenerationError(null);
-      const updated = await updateMutation.mutateAsync(normalized);
+      const updated = await updateMutation.mutateAsync({
+        itinerary: normalized,
+        expectedRevision: baseItineraryRevision ?? trip.itineraryRevision
+      });
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
       await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
       await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       await tripQuery.refetch();
       setDraftItinerary(null);
+      setBaseItineraryRevision(null);
       setIsEditing(false);
       void setPresenceState("viewing");
       setSuccessMessage("Itinerary saved.");
     } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setItineraryConflictMessage("This itinerary changed while you were editing.");
+        setEditorErrors([]);
+        return;
+      }
       setEditorErrors([
         error instanceof Error ? error.message : "Could not save itinerary."
       ]);
     }
+  }
+
+  async function reloadLatestAfterConflict() {
+    setItineraryConflictMessage(null);
+    setDraftItinerary(null);
+    setBaseItineraryRevision(null);
+    setIsEditing(false);
+    void setPresenceState("viewing");
+    await tripQuery.refetch();
+  }
+
+  async function cancelLocalChangesAfterConflict() {
+    setItineraryConflictMessage(null);
+    setDraftItinerary(null);
+    setBaseItineraryRevision(null);
+    setIsEditing(false);
+    void setPresenceState("viewing");
+    await tripQuery.refetch();
   }
 
   async function regenerateDay(dayNumber: number, instruction?: string) {
@@ -361,7 +414,11 @@ function TripDetailPageContent() {
       setRegenerationError(null);
       setSuccessMessage(null);
       setRegeneratingTarget(target);
-      const updated = await regenerationMutation.mutateAsync({ ...target, instruction });
+      const updated = await regenerationMutation.mutateAsync({
+        ...target,
+        instruction,
+        expectedRevision: trip.itineraryRevision
+      });
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
       await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
@@ -369,6 +426,11 @@ function TripDetailPageContent() {
       await tripQuery.refetch();
       setSuccessMessage(message);
     } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setRegenerationError("This itinerary changed. Reload latest version before trying again.");
+        await tripQuery.refetch();
+        return;
+      }
       setRegenerationError(
         error instanceof Error ? error.message : "Could not regenerate itinerary."
       );
@@ -433,7 +495,12 @@ function TripDetailPageContent() {
             <TripStatusBadge status={trip.status} />
           </div>
         </div>
-        {canGenerate ? <GenerateItineraryButton tripId={trip.id} /> : null}
+        {canGenerate ? (
+          <GenerateItineraryButton
+            itineraryRevision={trip.itineraryRevision}
+            tripId={trip.id}
+          />
+        ) : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -535,6 +602,39 @@ function TripDetailPageContent() {
 
               {isEditing && draftItinerary ? (
                 <>
+                  {editingRevisionChanged ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      This itinerary was updated while you are editing.
+                    </div>
+                  ) : null}
+                  {itineraryConflictMessage ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                      <h2 className="font-semibold">
+                        This itinerary changed while you were editing
+                      </h2>
+                      <p className="mt-1 leading-6">
+                        Someone else saved changes before you. To avoid overwriting their
+                        work, reload the latest itinerary before editing again.
+                      </p>
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          disabled={tripQuery.isFetching}
+                          onClick={reloadLatestAfterConflict}
+                          type="button"
+                        >
+                          Reload latest
+                        </Button>
+                        <Button
+                          disabled={tripQuery.isFetching}
+                          onClick={cancelLocalChangesAfterConflict}
+                          type="button"
+                          variant="secondary"
+                        >
+                          Cancel my changes
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-end">
                     <Button
                       disabled={updateMutation.isPending}
@@ -609,6 +709,7 @@ function TripDetailPageContent() {
                   <ItineraryVersionHistory
                     canRestore={canRestoreVersion}
                     currency={trip.budgetCurrency}
+                    itineraryRevision={trip.itineraryRevision}
                     onRestored={handleVersionRestored}
                     restoreDisabled={isEditing || !canRestoreVersion}
                     tripId={trip.id}
@@ -616,6 +717,7 @@ function TripDetailPageContent() {
                   {trip.itinerary && optimizingDay ? (
                     <OptimizeDayOrderDialog
                       day={optimizingDay}
+                      expectedItineraryRevision={trip.itineraryRevision}
                       itinerary={trip.itinerary}
                       onApplied={handleOptimizationApplied}
                       onClose={() => setOptimizingDayNumber(null)}

@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres/dto"
@@ -154,10 +156,21 @@ func (r *Repository) UpdateItineraryByUserIDAndCreateVersion(
 	id, userID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
-	return r.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, source, metadata)
+	return r.UpdateItineraryAndCreateVersion(
+		ctx,
+		id,
+		userID,
+		userID,
+		itinerary,
+		status,
+		expectedItineraryRevision,
+		source,
+		metadata,
+	)
 }
 
 // UpdateItineraryAndCreateVersion stores a current itinerary snapshot and
@@ -169,6 +182,7 @@ func (r *Repository) UpdateItineraryAndCreateVersion(
 	id, ownerUserID, actorUserID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
@@ -184,8 +198,23 @@ func (r *Repository) UpdateItineraryAndCreateVersion(
 		}
 	}()
 
-	updated, err := r.updateItineraryByUserID(ctx, tx, id, ownerUserID, itinerary, status)
+	updated, err := r.updateItineraryByUserIDWithRevision(
+		ctx,
+		tx,
+		id,
+		ownerUserID,
+		itinerary,
+		status,
+		expectedItineraryRevision,
+	)
 	if err != nil {
+		if errors.Is(err, domainerrs.ErrNotFound) {
+			currentRevision, revisionErr := r.currentItineraryRevisionByUserID(ctx, tx, id, ownerUserID)
+			if revisionErr != nil {
+				return nil, nil, revisionErr
+			}
+			return nil, nil, apperrs.NewItineraryConflict(currentRevision)
+		}
 		return nil, nil, err
 	}
 
@@ -662,6 +691,61 @@ func (r *Repository) updateItineraryByUserID(
 	}
 
 	return dto.Scan(q.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) updateItineraryByUserIDWithRevision(
+	ctx context.Context,
+	q rowQuerier,
+	id, userID uuid.UUID,
+	itinerary json.RawMessage,
+	status entity.Status,
+	expectedItineraryRevision int,
+) (*entity.Trip, error) {
+	query, args, err := r.db.Builder.
+		Update("trips").
+		Set("itinerary", []byte(itinerary)).
+		Set("status", string(status)).
+		Set("itinerary_revision", sq.Expr("itinerary_revision + 1")).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":                 dto.IDArg(id),
+			"user_id":            dto.IDArg(userID),
+			"itinerary_revision": expectedItineraryRevision,
+		}).
+		Suffix("RETURNING " + dto.Columns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build revision checked update itinerary: %w", err)
+	}
+
+	return dto.Scan(q.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) currentItineraryRevisionByUserID(
+	ctx context.Context,
+	q rowQuerier,
+	id, userID uuid.UUID,
+) (int, error) {
+	query, args, err := r.db.Builder.
+		Select("itinerary_revision").
+		From("trips").
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
+		ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("build current itinerary revision: %w", err)
+	}
+
+	var revision int
+	if err := q.QueryRow(ctx, query, args...).Scan(&revision); err != nil {
+		if storage.NoRowsFound(err) {
+			return 0, domainerrs.ErrNotFound
+		}
+		return 0, fmt.Errorf("scan current itinerary revision: %w", err)
+	}
+	return revision, nil
 }
 
 func (r *Repository) nextItineraryVersionNumber(ctx context.Context, q rowQuerier, tripID uuid.UUID) (int, error) {

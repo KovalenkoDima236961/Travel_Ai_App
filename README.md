@@ -10,13 +10,16 @@ Trip Service validates those JWT access tokens locally with the shared
 `JWT_ACCESS_SECRET` and scopes `/trips` data by the authenticated `sub` user ID.
 Trip Service also records itinerary version snapshots after generation, manual
 edits, partial regeneration, and restores; users can preview older versions and
-restore them without deleting history. Authenticated trip owners can also create
-one public read-only share link per trip. Public share links use opaque random
-tokens, expose only sanitized trip/itinerary data at `/share/{shareToken}`, and
-can be disabled by the owner. Share Controls v1 adds optional expiration and
-password protection; protected public viewers unlock with a short-lived public
-share token that is separate from normal user auth JWTs and scoped to one share
-token.
+restore them without deleting history. Conflict Detection v1 adds integer
+`itineraryRevision` values and requires itinerary mutations to send
+`expectedItineraryRevision`; stale mutations return HTTP `409
+itinerary_conflict` instead of silently overwriting newer changes. Authenticated
+trip owners can also create one public read-only share link per trip. Public
+share links use opaque random tokens, expose only sanitized trip/itinerary data
+at `/share/{shareToken}`, and can be disabled by the owner. Share Controls v1
+adds optional expiration and password protection; protected public viewers
+unlock with a short-lived public share token that is separate from normal user
+auth JWTs and scoped to one share token.
 Collaborative Planning v1 lets trip owners invite existing registered users by
 email as `viewer` or `editor` collaborators. Pending invitees can accept from
 the web app, accepted viewers get read-only private trip access, and accepted
@@ -33,7 +36,9 @@ is viewing or editing a private trip. Trip Service exposes an authenticated SSE
 stream and advisory state update endpoint backed by an in-memory,
 single-instance presence manager. The Web App shows `Currently here` on private
 trip detail pages and warns when another collaborator is editing. Presence is
-not a lock, does not sync documents, and is never shown on public share pages.
+not a lock, does not sync documents, and is never shown on public share pages;
+revision-checked writes are the backend protection against stale itinerary
+saves.
 Activity Feed / Audit Log v1 records important successful actions on a trip
 (creation, generation, edits, regenerations, version restores, comments,
 collaborator changes, and share setting changes) as persistent rows in a
@@ -147,7 +152,8 @@ unauthenticated requests, and the public share endpoint cannot,
 checks presence state/snapshot access for owners, collaborators, removed
 collaborators, and non-collaborators,
 checks notification preferences can suppress and re-enable future comment
-notifications,
+notifications, verifies itinerary revision conflict detection rejects stale
+manual edits and day regeneration attempts,
 confirms only that user can access the trip and versions, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,

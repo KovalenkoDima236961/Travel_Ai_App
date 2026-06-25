@@ -2,24 +2,34 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
+import { isItineraryConflictError } from "@/lib/api/client";
 import { generateItinerary, tripKeys } from "@/lib/api/trips";
 import { getErrorMessage } from "@/lib/utils";
 
 type GenerateItineraryButtonProps = {
   tripId: string;
+  itineraryRevision: number;
 };
 
-export function GenerateItineraryButton({ tripId }: GenerateItineraryButtonProps) {
+export function GenerateItineraryButton({
+  tripId,
+  itineraryRevision
+}: GenerateItineraryButtonProps) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () => generateItinerary(tripId),
+    mutationFn: () => generateItinerary(tripId, itineraryRevision),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
       ]);
+    },
+    onError: async (error) => {
+      if (isItineraryConflictError(error)) {
+        await queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      }
     }
   });
 
@@ -33,7 +43,9 @@ export function GenerateItineraryButton({ tripId }: GenerateItineraryButtonProps
       </p>
       {mutation.isError ? (
         <p className="max-w-xs text-sm text-red-700" role="alert">
-          {getErrorMessage(mutation.error, "Could not generate itinerary.")}
+          {isItineraryConflictError(mutation.error)
+            ? "This itinerary changed. Reload latest version before trying again."
+            : getErrorMessage(mutation.error, "Could not generate itinerary.")}
         </p>
       ) : null}
     </div>

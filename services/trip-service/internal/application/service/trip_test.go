@@ -141,10 +141,11 @@ func (m *mockRepo) UpdateItineraryByUserIDAndCreateVersion(
 	id, userID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
-	return m.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, source, metadata)
+	return m.UpdateItineraryAndCreateVersion(ctx, id, userID, userID, itinerary, status, expectedItineraryRevision, source, metadata)
 }
 
 func (m *mockRepo) UpdateItineraryAndCreateVersion(
@@ -152,6 +153,7 @@ func (m *mockRepo) UpdateItineraryAndCreateVersion(
 	id, ownerUserID, actorUserID uuid.UUID,
 	itinerary json.RawMessage,
 	status entity.Status,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, *entity.ItineraryVersion, error) {
@@ -175,7 +177,12 @@ func (m *mockRepo) UpdateItineraryAndCreateVersion(
 		CreatedAt:       time.Now(),
 	}
 	m.versions = append(m.versions, version)
-	return &entity.Trip{ID: id, Status: status, Itinerary: itinerary}, &version, nil
+	return &entity.Trip{
+		ID:                id,
+		Status:            status,
+		Itinerary:         itinerary,
+		ItineraryRevision: expectedItineraryRevision + 1,
+	}, &version, nil
 }
 
 func (m *mockRepo) ListItineraryVersionsByTripAndUser(_ context.Context, tripID, userID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error) {
@@ -619,6 +626,10 @@ func testUserID() uuid.UUID {
 	return uuid.MustParse("11111111-1111-1111-1111-111111111111")
 }
 
+func intPtr(v int) *int {
+	return &v
+}
+
 func assertInvalidInput(t *testing.T, err error) {
 	t.Helper()
 	var invalid *apperrs.InvalidInputError
@@ -729,7 +740,7 @@ func TestGenerate_Success_SetsCompleted(t *testing.T) {
 	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
 	svc := newTestService(repo, gen)
 
-	got, err := svc.Generate(authContext(), id)
+	got, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -803,7 +814,7 @@ func TestGenerate_PlaceEnrichmentEnabled_SavesEnrichedGeneratedVersion(t *testin
 	}
 	svc := New(repo, &mockGenerator{result: &generated}, zap.NewNop(), WithPlaceEnrichment(enricher, true, true))
 
-	got, err := svc.Generate(authContext(), id)
+	got, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -838,7 +849,7 @@ func TestGenerate_PlaceEnrichmentDisabled_SkipsEnrichment(t *testing.T) {
 	enricher := &mockPlaceEnrichmentProvider{err: errors.New("should not be called")}
 	svc := New(repo, &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}, zap.NewNop(), WithPlaceEnrichment(enricher, false, false))
 
-	if _, err := svc.Generate(authContext(), id); err != nil {
+	if _, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if enricher.called {
@@ -862,7 +873,7 @@ func TestGenerate_PlaceEnrichmentFailOpen_ContinuesWithOriginalItinerary(t *test
 	enricher := &mockPlaceEnrichmentProvider{err: errors.New("place service down")}
 	svc := New(repo, &mockGenerator{result: generated}, zap.NewNop(), WithPlaceEnrichment(enricher, true, true))
 
-	got, err := svc.Generate(authContext(), id)
+	got, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -891,7 +902,7 @@ func TestGenerate_PlaceEnrichmentFailClosed_ReturnsDependencyError(t *testing.T)
 	enricher := &mockPlaceEnrichmentProvider{err: errors.New("place service down")}
 	svc := New(repo, &mockGenerator{result: generated}, zap.NewNop(), WithPlaceEnrichment(enricher, true, false))
 
-	_, err := svc.Generate(authContext(), id)
+	_, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err == nil {
 		t.Fatal("expected enrichment dependency error")
 	}
@@ -937,7 +948,7 @@ func TestGenerate_UserContextSuccess_PassesProfileAndPreferencesToGenerator(t *t
 	}
 	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, true))
 
-	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -965,7 +976,7 @@ func TestGenerate_UserContextFailOpen_ContinuesWithoutPersonalization(t *testing
 	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
 	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, true))
 
-	got, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	got, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -990,7 +1001,7 @@ func TestGenerate_UserContextFailClosed_ReturnsDependencyError(t *testing.T) {
 	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
 	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, false))
 
-	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1018,7 +1029,7 @@ func TestGenerate_UserContextDisabled_DoesNotCallProvider(t *testing.T) {
 	userContextProvider := &mockUserContextProvider{err: errors.New("should not be called")}
 	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, false, false))
 
-	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id)
+	_, err := svc.Generate(authContextWithToken("access-token-for-forwarding"), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1043,7 +1054,7 @@ func TestGenerate_WeatherContextSuccess_PassesForecastToGenerator(t *testing.T) 
 	weatherProvider := &mockWeatherContextProvider{result: testWeatherForecast()}
 	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
 
-	_, err := svc.Generate(authContext(), id)
+	_, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1069,7 +1080,7 @@ func TestGenerate_WeatherContextFailOpen_ContinuesWithoutWeather(t *testing.T) {
 	weatherProvider := &mockWeatherContextProvider{err: errors.New("weather service down")}
 	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
 
-	got, err := svc.Generate(authContext(), id)
+	got, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1095,7 +1106,7 @@ func TestGenerate_WeatherContextFailClosed_ReturnsDependencyError(t *testing.T) 
 	weatherProvider := &mockWeatherContextProvider{err: errors.New("weather service down")}
 	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, false))
 
-	_, err := svc.Generate(authContext(), id)
+	_, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1124,7 +1135,7 @@ func TestGenerate_WeatherContextDisabled_DoesNotCallProvider(t *testing.T) {
 	weatherProvider := &mockWeatherContextProvider{err: errors.New("should not be called")}
 	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, false, false))
 
-	_, err := svc.Generate(authContext(), id)
+	_, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1142,7 +1153,7 @@ func TestGenerate_MissingStartDateSkipsWeatherContext(t *testing.T) {
 	weatherProvider := &mockWeatherContextProvider{err: errors.New("should not be called")}
 	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, false))
 
-	_, err := svc.Generate(authContext(), id)
+	_, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1165,7 +1176,7 @@ func TestGenerate_UserContextLogging_DoesNotLogAccessToken(t *testing.T) {
 	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
 	svc := New(repo, gen, logger, WithUserContext(userContextProvider, true, true))
 
-	_, err := svc.Generate(authContextWithToken("secret-access-token"), id)
+	_, err := svc.Generate(authContextWithToken("secret-access-token"), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1190,7 +1201,7 @@ func TestGenerate_GeneratorError_SetsFailed(t *testing.T) {
 	gen := &mockGenerator{err: errors.New("generation boom")}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.Generate(authContext(), id)
+	_, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{ExpectedItineraryRevision: intPtr(0)})
 	if err == nil {
 		t.Fatal("expected an error when the generator fails")
 	}
@@ -1217,7 +1228,8 @@ func TestUpdateItinerary_CreatesManualEditVersion(t *testing.T) {
 	svc := newTestService(repo, &mockGenerator{})
 
 	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
-		Itinerary: validExistingItineraryRaw(t),
+		ExpectedItineraryRevision: intPtr(0),
+		Itinerary:                 validExistingItineraryRaw(t),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1236,13 +1248,91 @@ func TestUpdateItinerary_CreatesManualEditVersion(t *testing.T) {
 	}
 }
 
+func TestUpdateItinerary_MissingExpectedRevisionRejected(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{}
+	svc := newTestService(repo, &mockGenerator{})
+
+	_, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+		Itinerary: validExistingItineraryRaw(t),
+	})
+	if !errors.Is(err, apperrs.ErrExpectedItineraryRevisionRequired) {
+		t.Fatalf("expected missing revision error, got %v", err)
+	}
+	if len(repo.versions) != 0 || len(repo.updateItinRaw) != 0 {
+		t.Fatalf("missing revision must not save itinerary or version")
+	}
+}
+
+func TestUpdateItinerary_StaleRevisionReturnsConflictAndDoesNotSave(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{
+			ID:                id,
+			Destination:       "Rome",
+			Days:              2,
+			Pace:              "balanced",
+			ItineraryRevision: 3,
+		},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	_, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
+		ExpectedItineraryRevision: intPtr(2),
+		Itinerary:                 validExistingItineraryRaw(t),
+	})
+	var conflict *apperrs.ItineraryConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("expected itinerary conflict, got %v", err)
+	}
+	if conflict.CurrentItineraryRevision != 3 {
+		t.Fatalf("expected current revision 3, got %d", conflict.CurrentItineraryRevision)
+	}
+	if len(repo.versions) != 0 || len(repo.updateItinRaw) != 0 {
+		t.Fatalf("conflict must not save itinerary or version")
+	}
+}
+
+func TestGenerate_StaleRevisionDoesNotCallGeneratorOrMarkProcessing(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		getByIDResult: &entity.Trip{
+			ID:                id,
+			Destination:       "Rome",
+			Days:              2,
+			Pace:              "balanced",
+			ItineraryRevision: 1,
+		},
+	}
+	gen := &mockGenerator{result: &aggregate.Itinerary{Destination: "Rome"}}
+	svc := newTestService(repo, gen)
+
+	_, err := svc.Generate(authContext(), id, appdto.GenerateItineraryInput{
+		ExpectedItineraryRevision: intPtr(0),
+	})
+	var conflict *apperrs.ItineraryConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("expected itinerary conflict, got %v", err)
+	}
+	if gen.called {
+		t.Fatal("stale generation must not call generator")
+	}
+	if len(repo.statusSeq) != 0 {
+		t.Fatalf("stale generation must not update status, got %v", repo.statusSeq)
+	}
+	if len(repo.versions) != 0 {
+		t.Fatalf("stale generation must not create version, got %+v", repo.versions)
+	}
+}
+
 func TestUpdateItinerary_WithItemPlaceSucceedsAndVersionsPlaceMetadata(t *testing.T) {
 	id := uuid.New()
 	repo := &mockRepo{}
 	svc := newTestService(repo, &mockGenerator{})
 
 	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
-		Itinerary: validItineraryWithPlaceRaw(t),
+		ExpectedItineraryRevision: intPtr(0),
+		Itinerary:                 validItineraryWithPlaceRaw(t),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1275,7 +1365,8 @@ func TestUpdateItinerary_WithOldPlaceWithoutOpeningHoursStillSucceeds(t *testing
 	svc := newTestService(repo, &mockGenerator{})
 
 	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
-		Itinerary: validItineraryWithPlaceWithoutOpeningHoursRaw(t),
+		ExpectedItineraryRevision: intPtr(0),
+		Itinerary:                 validItineraryWithPlaceWithoutOpeningHoursRaw(t),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1297,7 +1388,8 @@ func TestUpdateItinerary_WithPlaceEnrichmentSucceedsAndVersionsMetadata(t *testi
 	svc := newTestService(repo, &mockGenerator{})
 
 	got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
-		Itinerary: validItineraryWithPlaceEnrichmentRaw(t),
+		ExpectedItineraryRevision: intPtr(0),
+		Itinerary:                 validItineraryWithPlaceEnrichmentRaw(t),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1330,7 +1422,8 @@ func TestUpdateItinerary_WithPlaceEnrichmentReviewStatusSucceedsAndVersionsMetad
 			svc := newTestService(repo, &mockGenerator{})
 
 			got, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
-				Itinerary: validItineraryWithPlaceEnrichmentReviewRaw(t, status),
+				ExpectedItineraryRevision: intPtr(0),
+				Itinerary:                 validItineraryWithPlaceEnrichmentReviewRaw(t, status),
 			})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -1406,7 +1499,8 @@ func TestUpdateItinerary_InvalidPlaceEnrichmentReturnsInvalidInput(t *testing.T)
 			svc := newTestService(repo, &mockGenerator{})
 
 			_, err := svc.UpdateItinerary(authContext(), uuid.New(), appdto.UpdateItineraryInput{
-				Itinerary: itineraryWithMutatedPlaceEnrichmentRaw(t, tt.mutate),
+				ExpectedItineraryRevision: intPtr(0),
+				Itinerary:                 itineraryWithMutatedPlaceEnrichmentRaw(t, tt.mutate),
 			})
 			assertInvalidInput(t, err)
 			if len(repo.versions) != 0 {
@@ -1475,7 +1569,8 @@ func TestUpdateItinerary_InvalidPlaceMetadataReturnsInvalidInput(t *testing.T) {
 			svc := newTestService(repo, &mockGenerator{})
 
 			_, err := svc.UpdateItinerary(authContext(), uuid.New(), appdto.UpdateItineraryInput{
-				Itinerary: itineraryWithMutatedPlaceRaw(t, tt.mutate),
+				ExpectedItineraryRevision: intPtr(0),
+				Itinerary:                 itineraryWithMutatedPlaceRaw(t, tt.mutate),
 			})
 			assertInvalidInput(t, err)
 			if len(repo.versions) != 0 {
@@ -1491,7 +1586,8 @@ func TestUpdateItinerary_InvalidPayloadDoesNotCreateVersion(t *testing.T) {
 	svc := newTestService(repo, &mockGenerator{})
 
 	_, err := svc.UpdateItinerary(authContext(), id, appdto.UpdateItineraryInput{
-		Itinerary: json.RawMessage(`{"days":[]}`),
+		ExpectedItineraryRevision: intPtr(0),
+		Itinerary:                 json.RawMessage(`{"days":[]}`),
 	})
 	assertInvalidInput(t, err)
 	if len(repo.versions) != 0 {
@@ -1535,7 +1631,7 @@ func TestRegenerateDay_ReplacesOnlySelectedDay(t *testing.T) {
 	}
 	svc := newTestService(repo, gen)
 
-	got, err := svc.RegenerateDay(authContext(), id, 2, appdto.RegenerateItineraryPartInput{Instruction: " make it cheaper "})
+	got, err := svc.RegenerateDay(authContext(), id, 2, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0), Instruction: " make it cheaper "})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1592,7 +1688,7 @@ func TestRegenerateItem_ReplacesOnlySelectedItem(t *testing.T) {
 	}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.RegenerateItem(authContext(), id, 1, 1, appdto.RegenerateItineraryPartInput{Instruction: "avoid museums"})
+	_, err := svc.RegenerateItem(authContext(), id, 1, 1, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0), Instruction: "avoid museums"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1647,7 +1743,7 @@ func TestRegenerateDay_WeatherContextSuccess_PassesForecastToGenerator(t *testin
 	weatherProvider := &mockWeatherContextProvider{result: testWeatherForecast()}
 	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
 
-	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1679,7 +1775,7 @@ func TestRegenerateItem_WeatherContextSuccess_PassesForecastToGenerator(t *testi
 	weatherProvider := &mockWeatherContextProvider{result: testWeatherForecast()}
 	svc := New(repo, gen, zap.NewNop(), WithWeatherContext(weatherProvider, true, true))
 
-	_, err := svc.RegenerateItem(authContext(), id, 1, 0, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateItem(authContext(), id, 1, 0, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1698,7 +1794,7 @@ func TestRegenerateDay_MissingItineraryReturnsInvalidInput(t *testing.T) {
 	gen := &mockGenerator{}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	assertInvalidInput(t, err)
 	if gen.regenerateDayCalled {
 		t.Fatal("generator must not be called for missing current itinerary")
@@ -1716,7 +1812,7 @@ func TestRegenerateDay_InvalidDayNumberReturnsInvalidInput(t *testing.T) {
 	gen := &mockGenerator{}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.RegenerateDay(authContext(), id, 3, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateDay(authContext(), id, 3, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	assertInvalidInput(t, err)
 	if gen.regenerateDayCalled {
 		t.Fatal("generator must not be called for invalid day number")
@@ -1731,7 +1827,7 @@ func TestRegenerateItem_InvalidItemIndexReturnsInvalidInput(t *testing.T) {
 	gen := &mockGenerator{}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.RegenerateItem(authContext(), id, 1, 9, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateItem(authContext(), id, 1, 9, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	assertInvalidInput(t, err)
 	if gen.regenerateItemCalled {
 		t.Fatal("generator must not be called for invalid item index")
@@ -1746,7 +1842,7 @@ func TestRegenerateDay_InstructionTooLongReturnsInvalidInput(t *testing.T) {
 	gen := &mockGenerator{}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{Instruction: strings.Repeat("x", maxInstructionLength+1)})
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0), Instruction: strings.Repeat("x", maxInstructionLength+1)})
 	assertInvalidInput(t, err)
 	if gen.regenerateDayCalled {
 		t.Fatal("generator must not be called for overlong instruction")
@@ -1766,7 +1862,7 @@ func TestRegenerateDay_InvalidAIReplacementDoesNotSave(t *testing.T) {
 	}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateDay(authContext(), id, 1, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	var dependencyErr *apperrs.DependencyError
 	if !errors.As(err, &dependencyErr) {
 		t.Fatalf("expected dependency error, got %v", err)
@@ -1789,7 +1885,7 @@ func TestRegenerateItem_InvalidAIReplacementDoesNotSave(t *testing.T) {
 	}
 	svc := newTestService(repo, gen)
 
-	_, err := svc.RegenerateItem(authContext(), id, 1, 0, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateItem(authContext(), id, 1, 0, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	var dependencyErr *apperrs.DependencyError
 	if !errors.As(err, &dependencyErr) {
 		t.Fatalf("expected dependency error, got %v", err)
@@ -1811,7 +1907,7 @@ func TestRegenerateDay_UserContextFailOpen_ContinuesWithoutPersonalization(t *te
 	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
 	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, true))
 
-	_, err := svc.RegenerateDay(authContextWithToken("access-token-for-forwarding"), id, 1, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateDay(authContextWithToken("access-token-for-forwarding"), id, 1, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1832,7 +1928,7 @@ func TestRegenerateItem_UserContextFailClosed_ReturnsDependencyError(t *testing.
 	userContextProvider := &mockUserContextProvider{err: errors.New("user service down")}
 	svc := New(repo, gen, zap.NewNop(), WithUserContext(userContextProvider, true, false))
 
-	_, err := svc.RegenerateItem(authContextWithToken("access-token-for-forwarding"), id, 1, 0, appdto.RegenerateItineraryPartInput{})
+	_, err := svc.RegenerateItem(authContextWithToken("access-token-for-forwarding"), id, 1, 0, appdto.RegenerateItineraryPartInput{ExpectedItineraryRevision: intPtr(0)})
 	var dependencyErr *apperrs.DependencyError
 	if !errors.As(err, &dependencyErr) {
 		t.Fatalf("expected dependency error, got %v", err)
@@ -1987,7 +2083,7 @@ func TestRestoreItineraryVersion_UpdatesTripAndCreatesRestoredVersion(t *testing
 	}
 	svc := newTestService(repo, &mockGenerator{})
 
-	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID)
+	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID, appdto.RestoreItineraryVersionInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -2029,7 +2125,7 @@ func TestRestoreItineraryVersion_RestoresPlaceMetadata(t *testing.T) {
 	}
 	svc := newTestService(repo, &mockGenerator{})
 
-	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID)
+	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID, appdto.RestoreItineraryVersionInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -2072,7 +2168,7 @@ func TestRestoreItineraryVersion_RestoresPlaceEnrichmentReviewStatus(t *testing.
 	}
 	svc := newTestService(repo, &mockGenerator{})
 
-	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID)
+	got, err := svc.RestoreItineraryVersion(authContext(), tripID, versionID, appdto.RestoreItineraryVersionInput{ExpectedItineraryRevision: intPtr(0)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -2097,13 +2193,13 @@ func TestItineraryVersionNumbersIncrementPerTrip(t *testing.T) {
 	repo := &mockRepo{}
 	svc := newTestService(repo, &mockGenerator{})
 
-	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), firstTripID, appdto.UpdateItineraryInput{Itinerary: validExistingItineraryRaw(t)}); err != nil {
+	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), firstTripID, appdto.UpdateItineraryInput{ExpectedItineraryRevision: intPtr(0), Itinerary: validExistingItineraryRaw(t)}); err != nil {
 		t.Fatalf("first trip first update: %v", err)
 	}
-	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), firstTripID, appdto.UpdateItineraryInput{Itinerary: validExistingItineraryRaw(t)}); err != nil {
+	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), firstTripID, appdto.UpdateItineraryInput{ExpectedItineraryRevision: intPtr(0), Itinerary: validExistingItineraryRaw(t)}); err != nil {
 		t.Fatalf("first trip second update: %v", err)
 	}
-	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), secondTripID, appdto.UpdateItineraryInput{Itinerary: validExistingItineraryRaw(t)}); err != nil {
+	if _, err := svc.UpdateItinerary(auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}), secondTripID, appdto.UpdateItineraryInput{ExpectedItineraryRevision: intPtr(0), Itinerary: validExistingItineraryRaw(t)}); err != nil {
 		t.Fatalf("second trip first update: %v", err)
 	}
 

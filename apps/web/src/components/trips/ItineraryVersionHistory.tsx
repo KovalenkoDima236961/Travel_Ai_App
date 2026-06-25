@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ItineraryView } from "@/components/trips/ItineraryView";
 import { Button } from "@/components/ui/Button";
+import { isItineraryConflictError } from "@/lib/api/client";
 import {
   getItineraryVersion,
   listItineraryVersions,
@@ -21,6 +22,7 @@ import type { Trip } from "@/types/trip";
 type ItineraryVersionHistoryProps = {
   tripId: string;
   currency?: string;
+  itineraryRevision: number;
   canRestore?: boolean;
   restoreDisabled?: boolean;
   onRestored?: (trip: Trip) => void;
@@ -37,6 +39,7 @@ const sourceLabels: Record<ItineraryVersionSource, string> = {
 export function ItineraryVersionHistory({
   tripId,
   currency = "EUR",
+  itineraryRevision,
   canRestore = true,
   restoreDisabled = false,
   onRestored
@@ -58,7 +61,8 @@ export function ItineraryVersionHistory({
   });
 
   const restoreMutation = useMutation({
-    mutationFn: (versionId: string) => restoreItineraryVersion(tripId, versionId)
+    mutationFn: (versionId: string) =>
+      restoreItineraryVersion(tripId, versionId, itineraryRevision)
   });
 
   async function viewVersion(version: ItineraryVersionSummary) {
@@ -90,7 +94,12 @@ export function ItineraryVersionHistory({
       setSuccessMessage(`Version ${version.versionNumber} restored.`);
       onRestored?.(updatedTrip);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not restore version.");
+      if (isItineraryConflictError(error)) {
+        setErrorMessage("This itinerary changed. Reload latest version before trying again.");
+        await queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : "Could not restore version.");
+      }
     }
   }
 

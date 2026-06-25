@@ -34,5 +34,6 @@ export type SharedTripSummary = {
   role: CollaboratorRole;
   ownerUserId?: string | null;
   status: TripStatus;
+  itineraryRevision: number;
   updatedAt?: string | null;
 };

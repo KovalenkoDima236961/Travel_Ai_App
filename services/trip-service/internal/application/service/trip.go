@@ -68,6 +68,7 @@ type tripRepository interface {
 		id, ownerUserID, actorUserID uuid.UUID,
 		itinerary json.RawMessage,
 		status entity.Status,
+		expectedItineraryRevision int,
 		source entity.ItineraryVersionSource,
 		metadata map[string]any,
 	) (*entity.Trip, *entity.ItineraryVersion, error)
@@ -76,6 +77,7 @@ type tripRepository interface {
 		id, userID uuid.UUID,
 		itinerary json.RawMessage,
 		status entity.Status,
+		expectedItineraryRevision int,
 		source entity.ItineraryVersionSource,
 		metadata map[string]any,
 	) (*entity.Trip, *entity.ItineraryVersion, error)
@@ -349,7 +351,7 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]entity.Trip, i
 // Generate runs the planning flow: PROCESSING -> generate itinerary -> COMPLETED
 // (or FAILED on error). The itinerary itself is produced by the injected
 // ItineraryGenerator port.
-func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {
+func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.GenerateItineraryInput) (*entity.Trip, error) {
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -357,6 +359,13 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 
 	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
 	if err != nil {
+		return nil, err
+	}
+	expectedRevision, err := requireExpectedItineraryRevision(in.ExpectedItineraryRevision)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkCurrentItineraryRevision(expectedRevision, current.ItineraryRevision); err != nil {
 		return nil, err
 	}
 	ownerID, err := tripOwnerID(current)
@@ -405,11 +414,22 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID) (*entity.Trip, err
 		return nil, err
 	}
 
-	updated, err := s.saveItineraryWithVersion(ctx, id, ownerID, user.ID, raw, entity.ItineraryVersionSourceGenerated, map[string]any{
-		"generator": "full",
-	})
+	updated, err := s.saveItineraryWithVersion(
+		ctx,
+		id,
+		ownerID,
+		user.ID,
+		raw,
+		expectedRevision,
+		entity.ItineraryVersionSourceGenerated,
+		map[string]any{
+			"generator": "full",
+		},
+	)
 	if err != nil {
-		s.markFailed(ctx, id, ownerID)
+		if !isItineraryConflict(err) {
+			s.markFailed(ctx, id, ownerID)
+		}
 		return nil, err
 	}
 
@@ -452,6 +472,13 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 	if err != nil {
 		return nil, err
 	}
+	expectedRevision, err := requireExpectedItineraryRevision(in.ExpectedItineraryRevision)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkCurrentItineraryRevision(expectedRevision, current.ItineraryRevision); err != nil {
+		return nil, err
+	}
 	ownerID, err := tripOwnerID(current)
 	if err != nil {
 		return nil, err
@@ -474,7 +501,16 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 		return nil, err
 	}
 
-	updated, err := s.saveItineraryWithVersion(ctx, id, ownerID, user.ID, normalized, entity.ItineraryVersionSourceManualEdit, map[string]any{})
+	updated, err := s.saveItineraryWithVersion(
+		ctx,
+		id,
+		ownerID,
+		user.ID,
+		normalized,
+		expectedRevision,
+		entity.ItineraryVersionSourceManualEdit,
+		map[string]any{},
+	)
 	if err != nil {
 		s.log.Warn("itinerary update failed",
 			append(fields,
@@ -526,9 +562,17 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
 		return nil, err
 	}
-
 	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
 	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	expectedRevision, err := requireExpectedItineraryRevision(in.ExpectedItineraryRevision)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	if err := checkCurrentItineraryRevision(expectedRevision, current.ItineraryRevision); err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, false, err)
 		return nil, err
 	}
@@ -584,10 +628,19 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	}
 
 	currentItinerary.Days[dayIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(ctx, id, ownerID, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateDay, map[string]any{
-		"dayNumber":          dayNumber,
-		"instructionPresent": instruction != "",
-	})
+	updated, err := s.saveRegeneratedItinerary(
+		ctx,
+		id,
+		ownerID,
+		user.ID,
+		currentItinerary,
+		expectedRevision,
+		entity.ItineraryVersionSourceRegenerateDay,
+		map[string]any{
+			"dayNumber":          dayNumber,
+			"instructionPresent": instruction != "",
+		},
+	)
 	if err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
 		return nil, err
@@ -629,9 +682,17 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
 		return nil, err
 	}
-
 	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
 	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	expectedRevision, err := requireExpectedItineraryRevision(in.ExpectedItineraryRevision)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
+		return nil, err
+	}
+	if err := checkCurrentItineraryRevision(expectedRevision, current.ItineraryRevision); err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, false, err)
 		return nil, err
 	}
@@ -693,11 +754,20 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 	}
 
 	currentItinerary.Days[dayIndex].Items[itemIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(ctx, id, ownerID, user.ID, currentItinerary, entity.ItineraryVersionSourceRegenerateItem, map[string]any{
-		"dayNumber":          dayNumber,
-		"itemIndex":          itemIndex,
-		"instructionPresent": instruction != "",
-	})
+	updated, err := s.saveRegeneratedItinerary(
+		ctx,
+		id,
+		ownerID,
+		user.ID,
+		currentItinerary,
+		expectedRevision,
+		entity.ItineraryVersionSourceRegenerateItem,
+		map[string]any{
+			"dayNumber":          dayNumber,
+			"itemIndex":          itemIndex,
+			"instructionPresent": instruction != "",
+		},
+	)
 	if err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
 		return nil, err
@@ -1106,6 +1176,7 @@ func (s *Service) saveRegeneratedItinerary(
 	ctx context.Context,
 	tripID, ownerUserID, actorUserID uuid.UUID,
 	itinerary aggregate.Itinerary,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, error) {
@@ -1113,13 +1184,23 @@ func (s *Service) saveRegeneratedItinerary(
 	if err != nil {
 		return nil, err
 	}
-	return s.saveItineraryWithVersion(ctx, tripID, ownerUserID, actorUserID, raw, source, metadata)
+	return s.saveItineraryWithVersion(
+		ctx,
+		tripID,
+		ownerUserID,
+		actorUserID,
+		raw,
+		expectedItineraryRevision,
+		source,
+		metadata,
+	)
 }
 
 func (s *Service) saveItineraryWithVersion(
 	ctx context.Context,
 	tripID, ownerUserID, actorUserID uuid.UUID,
 	itinerary json.RawMessage,
+	expectedItineraryRevision int,
 	source entity.ItineraryVersionSource,
 	metadata map[string]any,
 ) (*entity.Trip, error) {
@@ -1130,10 +1211,33 @@ func (s *Service) saveItineraryWithVersion(
 		actorUserID,
 		itinerary,
 		entity.StatusCompleted,
+		expectedItineraryRevision,
 		source,
 		metadata,
 	)
 	return updated, err
+}
+
+func requireExpectedItineraryRevision(expected *int) (int, error) {
+	if expected == nil {
+		return 0, apperrs.ErrExpectedItineraryRevisionRequired
+	}
+	if *expected < 0 {
+		return 0, apperrs.NewInvalidInput("expectedItineraryRevision must be >= 0")
+	}
+	return *expected, nil
+}
+
+func checkCurrentItineraryRevision(expected, current int) error {
+	if expected != current {
+		return apperrs.NewItineraryConflict(current)
+	}
+	return nil
+}
+
+func isItineraryConflict(err error) bool {
+	var conflict *apperrs.ItineraryConflictError
+	return errors.As(err, &conflict)
 }
 
 func tripOwnerID(t *entity.Trip) (uuid.UUID, error) {

@@ -20,18 +20,19 @@ const (
 // Trip is the domain entity, using plain Go types. Infrastructure adapters map
 // between this and their own representations (DB rows, API payloads).
 type Trip struct {
-	ID             uuid.UUID
-	UserID         *uuid.UUID
-	Destination    string
-	StartDate      *time.Time
-	Days           int32
-	BudgetAmount   *float64
-	BudgetCurrency string
-	Travelers      int32
-	Interests      []string
-	Pace           string
-	Status         Status
-	Itinerary      json.RawMessage
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                uuid.UUID
+	UserID            *uuid.UUID
+	Destination       string
+	StartDate         *time.Time
+	Days              int32
+	BudgetAmount      *float64
+	BudgetCurrency    string
+	Travelers         int32
+	Interests         []string
+	Pace              string
+	Status            Status
+	Itinerary         json.RawMessage
+	ItineraryRevision int
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }

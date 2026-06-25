@@ -140,8 +140,18 @@ http://localhost:3000
 18. Open version history and confirm a new version exists.
 19. Confirm share controls and collaborator controls are still hidden for the
     editor.
-20. Log back in as owner and remove the collaborator.
-21. Log in as collaborator again and confirm the trip no longer opens and no
+20. Open the same trip in two browsers as owner/editor or as the same user.
+21. In browser A, click `Edit itinerary` and leave the draft open.
+22. In browser B, regenerate a day or save a small itinerary edit.
+23. Return to browser A and click `Save`.
+24. Confirm the conflict warning appears:
+    `This itinerary changed while you were editing`.
+25. Click `Reload latest`.
+26. Confirm the latest itinerary appears and the old draft is discarded.
+27. Repeat the conflict check with `Cancel my changes` and confirm edit mode
+    exits without forcing an overwrite.
+28. Log back in as owner and remove the collaborator.
+29. Log in as collaborator again and confirm the trip no longer opens and no
     longer appears under `Shared with me`.
 
 ## Itinerary Comments

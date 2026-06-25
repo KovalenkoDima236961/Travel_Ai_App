@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
-import { updateTripItinerary } from "@/lib/api/trips";
+import { isItineraryConflictError } from "@/lib/api/client";
+import { tripKeys, updateTripItinerary } from "@/lib/api/trips";
 import {
   applyOptimizedDayToItinerary,
   optimizeDayOrder,
@@ -21,6 +22,7 @@ type OptimizeDayOrderDialogProps = {
   onClose: () => void;
   tripId: string;
   itinerary: Itinerary;
+  expectedItineraryRevision: number;
   day: ItineraryDay;
   onApplied?: (updatedTrip: Trip) => void;
 };
@@ -34,15 +36,18 @@ export function OptimizeDayOrderDialog({
   onClose,
   tripId,
   itinerary,
+  expectedItineraryRevision,
   day,
   onApplied
 }: OptimizeDayOrderDialogProps) {
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
   const result = useMemo(() => optimizeDayOrder(day), [day]);
 
   const applyMutation = useMutation({
-    mutationFn: (updatedItinerary: Itinerary) => updateTripItinerary(tripId, updatedItinerary)
+    mutationFn: (updatedItinerary: Itinerary) =>
+      updateTripItinerary(tripId, updatedItinerary, expectedItineraryRevision)
   });
 
   if (!open) {
@@ -68,9 +73,14 @@ export function OptimizeDayOrderDialog({
       onApplied?.(updatedTrip);
       onClose();
     } catch (applyError) {
-      setError(
-        applyError instanceof Error ? applyError.message : "Could not apply optimized order."
-      );
+      if (isItineraryConflictError(applyError)) {
+        setError("This itinerary changed. Reload latest version before trying again.");
+        await queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      } else {
+        setError(
+          applyError instanceof Error ? applyError.message : "Could not apply optimized order."
+        );
+      }
     }
   }
 

@@ -12,6 +12,48 @@ that user or an accepted collaborator. It also stores itinerary version
 snapshots for successful itinerary changes so users can preview and restore
 earlier plans.
 
+## Conflict Detection v1
+
+Trips have an `itinerary_revision INT NOT NULL DEFAULT 0` column. Private trip
+responses include it as `itineraryRevision`; public share responses omit it
+because public trips are read-only.
+
+Every private itinerary-changing request must include `expectedItineraryRevision`:
+
+- `POST /trips/{id}/generate`
+- `PUT /trips/{id}/itinerary`
+- `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`
+- `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`
+- `POST /trips/{id}/itinerary/versions/{versionId}/restore`
+
+Missing revisions return:
+
+```json
+{
+  "error": "expected_itinerary_revision_required",
+  "message": "expectedItineraryRevision is required."
+}
+```
+
+Stale revisions return HTTP `409`:
+
+```json
+{
+  "error": "itinerary_conflict",
+  "message": "This itinerary was changed by someone else.",
+  "currentItineraryRevision": 8
+}
+```
+
+Successful itinerary changes atomically check the expected revision in SQL,
+increment `itinerary_revision` exactly once, and then create the itinerary
+version. Conflicts do not create versions, activity events, or notifications.
+Trip metadata, comments, collaborators, shares, presence, notifications, public
+views, and exports do not increment the revision.
+
+Limitations: v1 does not merge edits, show diffs, lock trips, or provide
+real-time document synchronization.
+
 ## Tech stack
 
 | Concern           | Choice                                                        |

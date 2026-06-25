@@ -59,6 +59,7 @@ export type Trip = {
   pace: Pace;
   status: TripStatus;
   itinerary?: Itinerary | null;
+  itineraryRevision: number;
   access?: TripAccess | null;
   createdAt: string;
   updatedAt: string;

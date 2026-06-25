@@ -25,13 +25,27 @@ type CreateTripInput struct {
 // UpdateItineraryInput is the application-level payload for replacing a trip's
 // itinerary JSON.
 type UpdateItineraryInput struct {
-	Itinerary json.RawMessage
+	Itinerary                 json.RawMessage
+	ExpectedItineraryRevision *int
+}
+
+// GenerateItineraryInput is the application-level payload for full itinerary
+// generation.
+type GenerateItineraryInput struct {
+	ExpectedItineraryRevision *int
 }
 
 // RegenerateItineraryPartInput is the application-level payload for partial AI
 // regeneration. Instruction is optional and normalized by the service.
 type RegenerateItineraryPartInput struct {
-	Instruction string
+	Instruction               string
+	ExpectedItineraryRevision *int
+}
+
+// RestoreItineraryVersionInput is the application-level payload for restoring a
+// saved itinerary version.
+type RestoreItineraryVersionInput struct {
+	ExpectedItineraryRevision *int
 }
 
 // CreateTripShareInput holds optional initial controls for a new or re-enabled

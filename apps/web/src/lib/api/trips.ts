@@ -71,27 +71,33 @@ export function createTrip(input: CreateTripInput) {
   });
 }
 
-export function generateItinerary(id: string) {
+export function generateItinerary(id: string, expectedItineraryRevision: number) {
   return apiFetch<Trip | Itinerary>(`/trips/${id}/generate`, {
-    method: "POST"
+    method: "POST",
+    body: JSON.stringify({ expectedItineraryRevision })
   });
 }
 
-export function updateTripItinerary(tripId: string, itinerary: Itinerary) {
+export function updateTripItinerary(
+  tripId: string,
+  itinerary: Itinerary,
+  expectedItineraryRevision: number
+) {
   return apiFetch<Trip>(`/trips/${tripId}/itinerary`, {
     method: "PUT",
-    body: JSON.stringify({ itinerary })
+    body: JSON.stringify({ itinerary, expectedItineraryRevision })
   });
 }
 
 export function regenerateItineraryDay(
   tripId: string,
   dayNumber: number,
-  instruction?: string
+  instruction: string | undefined,
+  expectedItineraryRevision: number
 ) {
   return apiFetch<Trip>(`/trips/${tripId}/itinerary/days/${dayNumber}/regenerate`, {
     method: "POST",
-    body: JSON.stringify(cleanRegenerationPayload(instruction))
+    body: JSON.stringify(cleanRegenerationPayload(instruction, expectedItineraryRevision))
   });
 }
 
@@ -99,13 +105,14 @@ export function regenerateItineraryItem(
   tripId: string,
   dayNumber: number,
   itemIndex: number,
-  instruction?: string
+  instruction: string | undefined,
+  expectedItineraryRevision: number
 ) {
   return apiFetch<Trip>(
     `/trips/${tripId}/itinerary/days/${dayNumber}/items/${itemIndex}/regenerate`,
     {
       method: "POST",
-      body: JSON.stringify(cleanRegenerationPayload(instruction))
+      body: JSON.stringify(cleanRegenerationPayload(instruction, expectedItineraryRevision))
     }
   );
 }
@@ -122,11 +129,16 @@ export function getItineraryVersion(tripId: string, versionId: string) {
   );
 }
 
-export function restoreItineraryVersion(tripId: string, versionId: string) {
+export function restoreItineraryVersion(
+  tripId: string,
+  versionId: string,
+  expectedItineraryRevision: number
+) {
   return apiFetch<Trip>(
     `/trips/${tripId}/itinerary/versions/${versionId}/restore`,
     {
-      method: "POST"
+      method: "POST",
+      body: JSON.stringify({ expectedItineraryRevision })
     }
   );
 }
@@ -250,9 +262,9 @@ function cleanCreateTripPayload(input: CreateTripInput) {
   };
 }
 
-function cleanRegenerationPayload(instruction?: string) {
+function cleanRegenerationPayload(instruction: string | undefined, expectedItineraryRevision: number) {
   const trimmed = instruction?.trim() ?? "";
-  return trimmed ? { instruction: trimmed } : {};
+  return trimmed ? { instruction: trimmed, expectedItineraryRevision } : { expectedItineraryRevision };
 }
 
 function cleanShareSettingsPayload(input: UpdateTripShareRequest) {

@@ -13,21 +13,22 @@ import (
 
 // Trip is the JSON representation of a trip returned to clients.
 type Trip struct {
-	ID             uuid.UUID     `json:"id"`
-	UserID         *uuid.UUID    `json:"userId,omitempty"`
-	Destination    string        `json:"destination"`
-	StartDate      *string       `json:"startDate,omitempty"`
-	Days           int32         `json:"days"`
-	BudgetAmount   *float64      `json:"budgetAmount,omitempty"`
-	BudgetCurrency string        `json:"budgetCurrency"`
-	Travelers      int32         `json:"travelers"`
-	Interests      []string      `json:"interests"`
-	Pace           string        `json:"pace"`
-	Status         entity.Status `json:"status"`
-	Itinerary      any           `json:"itinerary,omitempty"`
-	Access         *TripAccess   `json:"access,omitempty"`
-	CreatedAt      time.Time     `json:"createdAt"`
-	UpdatedAt      time.Time     `json:"updatedAt"`
+	ID                uuid.UUID     `json:"id"`
+	UserID            *uuid.UUID    `json:"userId,omitempty"`
+	Destination       string        `json:"destination"`
+	StartDate         *string       `json:"startDate,omitempty"`
+	Days              int32         `json:"days"`
+	BudgetAmount      *float64      `json:"budgetAmount,omitempty"`
+	BudgetCurrency    string        `json:"budgetCurrency"`
+	Travelers         int32         `json:"travelers"`
+	Interests         []string      `json:"interests"`
+	Pace              string        `json:"pace"`
+	Status            entity.Status `json:"status"`
+	Itinerary         any           `json:"itinerary,omitempty"`
+	ItineraryRevision int           `json:"itineraryRevision"`
+	Access            *TripAccess   `json:"access,omitempty"`
+	CreatedAt         time.Time     `json:"createdAt"`
+	UpdatedAt         time.Time     `json:"updatedAt"`
 }
 
 type TripAccess struct {
@@ -48,14 +49,15 @@ type ListTrips struct {
 }
 
 type SharedTripSummary struct {
-	ID          uuid.UUID               `json:"id"`
-	Destination string                  `json:"destination"`
-	StartDate   *string                 `json:"startDate,omitempty"`
-	Days        int32                   `json:"days"`
-	Role        entity.CollaboratorRole `json:"role"`
-	OwnerUserID *uuid.UUID              `json:"ownerUserId,omitempty"`
-	Status      entity.Status           `json:"status"`
-	UpdatedAt   time.Time               `json:"updatedAt"`
+	ID                uuid.UUID               `json:"id"`
+	Destination       string                  `json:"destination"`
+	StartDate         *string                 `json:"startDate,omitempty"`
+	Days              int32                   `json:"days"`
+	Role              entity.CollaboratorRole `json:"role"`
+	OwnerUserID       *uuid.UUID              `json:"ownerUserId,omitempty"`
+	Status            entity.Status           `json:"status"`
+	ItineraryRevision int                     `json:"itineraryRevision"`
+	UpdatedAt         time.Time               `json:"updatedAt"`
 }
 
 type TripCollaborator struct {
@@ -173,13 +175,14 @@ func NewSharedTrips(shared []entity.SharedTrip) []SharedTripSummary {
 
 func NewSharedTripSummary(shared *entity.SharedTrip) SharedTripSummary {
 	resp := SharedTripSummary{
-		ID:          shared.Trip.ID,
-		Destination: shared.Trip.Destination,
-		Days:        shared.Trip.Days,
-		Role:        shared.Collaborator.Role,
-		OwnerUserID: shared.Trip.UserID,
-		Status:      shared.Trip.Status,
-		UpdatedAt:   shared.Trip.UpdatedAt,
+		ID:                shared.Trip.ID,
+		Destination:       shared.Trip.Destination,
+		Days:              shared.Trip.Days,
+		Role:              shared.Collaborator.Role,
+		OwnerUserID:       shared.Trip.UserID,
+		Status:            shared.Trip.Status,
+		ItineraryRevision: shared.Trip.ItineraryRevision,
+		UpdatedAt:         shared.Trip.UpdatedAt,
 	}
 	if shared.Trip.StartDate != nil {
 		s := shared.Trip.StartDate.Format("2006-01-02")
@@ -326,18 +329,19 @@ func NewPublicTrip(t *entity.Trip, sharedAt time.Time) PublicTrip {
 // NewTrip maps a domain Trip to its API representation.
 func NewTrip(t *entity.Trip) Trip {
 	resp := Trip{
-		ID:             t.ID,
-		UserID:         t.UserID,
-		Destination:    t.Destination,
-		Days:           t.Days,
-		BudgetAmount:   t.BudgetAmount,
-		BudgetCurrency: t.BudgetCurrency,
-		Travelers:      t.Travelers,
-		Interests:      t.Interests,
-		Pace:           t.Pace,
-		Status:         t.Status,
-		CreatedAt:      t.CreatedAt,
-		UpdatedAt:      t.UpdatedAt,
+		ID:                t.ID,
+		UserID:            t.UserID,
+		Destination:       t.Destination,
+		Days:              t.Days,
+		BudgetAmount:      t.BudgetAmount,
+		BudgetCurrency:    t.BudgetCurrency,
+		Travelers:         t.Travelers,
+		Interests:         t.Interests,
+		Pace:              t.Pace,
+		Status:            t.Status,
+		ItineraryRevision: t.ItineraryRevision,
+		CreatedAt:         t.CreatedAt,
+		UpdatedAt:         t.UpdatedAt,
 	}
 
 	if t.Interests == nil {

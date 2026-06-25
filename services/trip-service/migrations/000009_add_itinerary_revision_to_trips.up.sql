@@ -1,0 +1,2 @@
+ALTER TABLE trips
+    ADD COLUMN IF NOT EXISTS itinerary_revision INT NOT NULL DEFAULT 0;

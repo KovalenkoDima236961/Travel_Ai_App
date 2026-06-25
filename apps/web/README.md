@@ -9,6 +9,15 @@ public read-only share link for a trip, set expiration/password controls, and
 disable that link later. Owners can also invite registered users to collaborate
 on private trips as viewers or editors.
 
+The Web App prevents stale itinerary overwrites with Trip Service
+`itineraryRevision` values. Manual edit mode captures the revision when editing
+starts and sends it as `expectedItineraryRevision` on save. If Trip Service
+returns `409 itinerary_conflict`, the page shows a conflict panel with
+`Reload latest` and `Cancel my changes` actions instead of retrying or forcing an
+overwrite. Generate, regenerate, restore, place review, and route optimization
+actions send the latest displayed revision; on conflict they show a readable
+message and refetch the trip.
+
 ## Source Layout
 
 Application code lives under `src/`:
@@ -156,7 +165,7 @@ Viewer UI:
   restore, public share, and collaborator management.
 
 Current v1 limitations: registered users only, advisory presence only, no
-real-time itinerary sync, and no conflict resolution beyond last write wins.
+real-time itinerary sync, no automatic merge, no diff viewer, and no locking.
 
 ## Real-time Trip Presence
 

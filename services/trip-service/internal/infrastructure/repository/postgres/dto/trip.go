@@ -22,7 +22,7 @@ import (
 // Columns is the canonical column order used by all SELECT/RETURNING statements
 // and the Scan helper.
 const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
-	"budget_currency, travelers, interests, pace, status, itinerary, created_at, updated_at"
+	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, created_at, updated_at"
 
 // InsertColumns returns the columns set on INSERT (DB-defaulted columns omitted),
 // in the same order as InsertValues.
@@ -65,13 +65,14 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 		interestsRaw         []byte
 		pace, status         string
 		itineraryRaw         []byte
+		itineraryRevision    int32
 		createdAt, updatedAt pgtype.Timestamp
 	)
 
 	err := row.Scan(
 		&id, &userID, &destination, &startDate, &days, &budgetAmount,
 		&budgetCurrency, &travelers, &interestsRaw, &pace, &status,
-		&itineraryRaw, &createdAt, &updatedAt,
+		&itineraryRaw, &itineraryRevision, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if postgres.NoRowsFound(err) {
@@ -86,19 +87,20 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 	}
 
 	t := &entity.Trip{
-		ID:             uuid.UUID(id.Bytes),
-		UserID:         fromPgUUID(userID),
-		Destination:    destination,
-		StartDate:      fromPgDate(startDate),
-		Days:           days,
-		BudgetAmount:   fromPgNumeric(budgetAmount),
-		BudgetCurrency: budgetCurrency.String,
-		Travelers:      travelers.Int32,
-		Interests:      interests,
-		Pace:           pace,
-		Status:         entity.Status(status),
-		CreatedAt:      createdAt.Time,
-		UpdatedAt:      updatedAt.Time,
+		ID:                uuid.UUID(id.Bytes),
+		UserID:            fromPgUUID(userID),
+		Destination:       destination,
+		StartDate:         fromPgDate(startDate),
+		Days:              days,
+		BudgetAmount:      fromPgNumeric(budgetAmount),
+		BudgetCurrency:    budgetCurrency.String,
+		Travelers:         travelers.Int32,
+		Interests:         interests,
+		Pace:              pace,
+		Status:            entity.Status(status),
+		ItineraryRevision: int(itineraryRevision),
+		CreatedAt:         createdAt.Time,
+		UpdatedAt:         updatedAt.Time,
 	}
 	if len(itineraryRaw) > 0 {
 		t.Itinerary = json.RawMessage(itineraryRaw)
