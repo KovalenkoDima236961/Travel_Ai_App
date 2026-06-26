@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	maxWeatherDestinationLength = 100
+	maxWeatherDestinationLength = 200
 	minForecastDays             = 1
 	maxForecastDays             = 30
 )
@@ -46,12 +46,14 @@ func (h *WeatherHandler) Forecast(w http.ResponseWriter, r *http.Request) {
 
 	forecast, err := h.svc.GetForecast(r.Context(), req)
 	if err != nil {
+		// Validation already passed, so any error here is an upstream provider
+		// failure. Return a safe, generic provider-unavailable response.
 		h.log.Warn("weather forecast failed",
 			zap.String("destination", req.Destination),
 			zap.Int("days", req.Days),
 			zap.Error(err),
 		)
-		writeError(w, http.StatusInternalServerError, "weather forecast failed")
+		writeError(w, http.StatusBadGateway, "weather_provider_unavailable")
 		return
 	}
 
@@ -67,7 +69,7 @@ func parseWeatherForecastRequest(w http.ResponseWriter, r *http.Request) (entity
 		return entity.WeatherForecastRequest{}, false
 	}
 	if len(destination) > maxWeatherDestinationLength {
-		writeError(w, http.StatusBadRequest, "destination must be at most 100 characters")
+		writeError(w, http.StatusBadRequest, "destination must be at most 200 characters")
 		return entity.WeatherForecastRequest{}, false
 	}
 

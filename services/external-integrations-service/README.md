@@ -72,8 +72,24 @@ curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
   is disabled
 - `FOURSQUARE_BASE_URL` defaults to `https://api.foursquare.com/v3`
 - `FOURSQUARE_TIMEOUT_SECONDS` defaults to `8`
-- `ROUTE_PROVIDER` defaults to `mock`
-- `WEATHER_PROVIDER` defaults to `mock`
+- `ROUTE_PROVIDER` defaults to `mock` (`mock` | `ors`)
+- `ROUTE_PROVIDER_FALLBACK_TO_MOCK` defaults to `true`
+- `ROUTE_PROVIDER_TIMEOUT_SECONDS` defaults to `8`
+- `ORS_API_KEY` is required when `ROUTE_PROVIDER=ors` and fallback is disabled
+- `ORS_BASE_URL` defaults to `https://api.openrouteservice.org`
+- `ORS_PROFILE_WALKING` / `ORS_PROFILE_DRIVING` / `ORS_PROFILE_CYCLING` default to
+  `foot-walking` / `driving-car` / `cycling-regular`
+- `ROUTE_CACHE_ENABLED` defaults to `true`; `ROUTE_CACHE_TTL_SECONDS` defaults to
+  `21600` (6 hours)
+- `WEATHER_PROVIDER` defaults to `mock` (`mock` | `openweathermap`)
+- `WEATHER_PROVIDER_FALLBACK_TO_MOCK` defaults to `true`
+- `WEATHER_PROVIDER_TIMEOUT_SECONDS` defaults to `8`
+- `OPENWEATHER_API_KEY` is required when `WEATHER_PROVIDER=openweathermap` and
+  fallback is disabled
+- `OPENWEATHER_BASE_URL` defaults to `https://api.openweathermap.org`
+- `OPENWEATHER_UNITS` defaults to `metric`
+- `WEATHER_CACHE_ENABLED` defaults to `true`; `WEATHER_CACHE_TTL_SECONDS` defaults
+  to `3600` (1 hour)
 - `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:3000`
 - `CORS_ALLOWED_METHODS` defaults to `GET,POST,DELETE,OPTIONS`
 - `CORS_ALLOWED_HEADERS` defaults to `Content-Type,Authorization`
@@ -251,9 +267,12 @@ curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
 ## Routing API v1
 
 `POST /routes/estimate` returns an approximate travel-time/distance estimate for
-an ordered list of stops. v1 ships only a deterministic `mock` provider behind a
-`RouteProvider` port, so real providers (OSRM, Mapbox, Google) can be added later
-without changing the API.
+an ordered list of stops. The endpoint is provider-agnostic: a `mock` provider
+(default and fallback) and a real `ors` ([OpenRouteService](https://openrouteservice.org))
+provider sit behind a `RouteProvider` port, so the request/response contract is
+identical regardless of which provider answers. The configured provider is never
+exposed to the Web App beyond the `provider`/`fallbackUsed` fields in the
+response, and API keys never leave the service.
 
 Request:
 
@@ -288,36 +307,66 @@ Response:
 }
 ```
 
-How the mock provider estimates each consecutive stop pair:
+How the **mock** provider estimates each consecutive stop pair:
 
-- **Supported mode:** `walking` only.
 - **Provider:** `mock`.
 - **Distance:** Haversine straight-line distance × a `1.25` route factor, rounded
   to 2 decimals.
-- **Walking speed:** flat `5 km/h`; `durationMinutes = round(distanceKm / 5 * 60)`.
+- **Speed:** flat per-mode pace — walking `5 km/h`, cycling `15 km/h`, driving
+  `40 km/h`; `durationMinutes = round(distanceKm / speed * 60)`.
 - **Totals:** `distanceKm` and `durationMinutes` are the sum of the segment
   values, so the total always equals the sum of the segments the caller sees.
 
+The **ors** provider calls the OpenRouteService Directions v2 API:
+
+- **Modes/profiles:** `walking → foot-walking`, `driving → driving-car`,
+  `cycling → cycling-regular` (profiles are configurable).
+- Coordinates are sent as `[longitude, latitude]` pairs (the order ORS requires);
+  the API key is sent in the `Authorization` header and is never logged.
+- Distance/duration come from the per-leg ORS `segments`; `routeGeometry` carries
+  the encoded ORS polyline when available.
+- HTTP failures are classified (401/403 → auth, 429 → rate limit, 5xx →
+  unavailable, malformed body → bad response) and never surfaced verbatim.
+
+**Provider selection** (`ROUTE_PROVIDER`):
+
+- `mock` (default) → mock provider.
+- `ors` → OpenRouteService, with mock as the fail-open fallback when
+  `ROUTE_PROVIDER_FALLBACK_TO_MOCK=true`.
+- Any other value fails fast at startup.
+- If `ROUTE_PROVIDER=ors` but `ORS_API_KEY` is missing: fall back to mock when
+  fallback is enabled, otherwise fail startup with a clear config error.
+
+**Fallback:** when the real provider fails and fallback is enabled, the mock
+provider answers and the response reports `"provider": "mock"` with
+`"fallbackUsed": true`. When fallback is disabled, the endpoint returns
+`502 {"error": "route_provider_unavailable"}`.
+
+**Accepted modes** depend on the active provider: `mock` accepts `walking` only;
+`ors` accepts `walking`, `driving`, and `cycling`.
+
 Validation (returns `400` with `{"error": "..."}`):
 
-- `mode` is required and must be `walking`.
+- `mode` is required and must be supported by the active provider.
 - `stops` is required, with a minimum of 2 and a maximum of 25 stops.
 - each stop requires a `name` (≤ 200 chars) and valid coordinates
   (`latitude` ∈ [-90, 90], `longitude` ∈ [-180, 180]).
 
 Limitations:
 
-- Not real routing — straight-line distance scaled by a constant factor.
-- No traffic, no elevation, no turn-by-turn geometry, no route polyline.
-- No public-transport, driving, or cycling modes yet.
+- The mock provider is not real routing — straight-line distance scaled by a
+  constant factor, no traffic or elevation.
+- ORS estimates depend on the configured profile; no Google Maps provider yet.
 - The Web App uses these estimates read-only and falls back to its own Haversine
   straight-line estimate when the service is unavailable.
 
 ## Weather API v1
 
-`GET /weather/forecast` returns deterministic mock daily forecasts for a
-destination and date range. It is unauthenticated in v1 and does not call real
-weather APIs.
+`GET /weather/forecast` returns daily forecasts for a destination and date range.
+It is unauthenticated in v1. A `mock` provider (default and fallback) and a real
+`openweathermap` ([OpenWeatherMap](https://openweathermap.org)) provider sit
+behind a `WeatherProvider` port; the response contract is identical regardless of
+which provider answers, and API keys never leave the service.
 
 Request:
 
@@ -350,7 +399,7 @@ Response:
 
 Validation returns `400` with `{"error":"..."}`:
 
-- `destination` is required and must be at most 100 characters.
+- `destination` is required and must be at most 200 characters.
 - `startDate` is required in `YYYY-MM-DD` format.
 - `days` is required and must be between 1 and 30.
 
@@ -362,6 +411,29 @@ Mock behavior:
 - Rome in summer trends hotter and sunnier; Paris is milder with more rain;
   Vienna and Bratislava use moderate seasonal patterns.
 
+The **openweathermap** provider:
+
+- Geocodes the destination via the Geocoding API, then fetches the 5 day / 3 hour
+  forecast and groups the 3-hour entries by **local** date (using the city's UTC
+  offset).
+- Per day: `temperatureMinC`/`temperatureMaxC` are the min/max across the day,
+  `precipitationChance` is the max probability (`pop`), `windSpeedKph` is the max
+  wind, and `condition`/`summary` come from the dominant condition. Temperatures
+  and wind are normalized to Celsius / km/h regardless of `OPENWEATHER_UNITS`.
+- **Coverage is all-or-nothing:** if any requested date is outside the provider's
+  window (e.g. a trip more than ~5 days out), the provider reports an error and
+  the mock fallback fills the whole forecast, so the response is always exactly
+  `days` long with a single, honest `provider` label.
+- HTTP failures are classified (401/403, 429, 5xx, malformed body, unknown
+  destination) and never surfaced verbatim. The API key is sent as the `appid`
+  query parameter and is never logged.
+
+**Provider selection** (`WEATHER_PROVIDER`): `mock` (default) or `openweathermap`,
+with the same opt-in / missing-key / fail-fast semantics as routing. When the
+real provider fails and fallback is enabled, the response reports
+`"provider": "mock"` with `"fallbackUsed": true`; when fallback is disabled, the
+endpoint returns `502 {"error": "weather_provider_unavailable"}`.
+
 Warnings:
 
 - `temperatureMaxC >= 32`: `High heat: avoid long outdoor walks at midday`
@@ -371,18 +443,31 @@ Warnings:
 
 Limitations:
 
-- Mock data only.
-- No hourly forecast.
-- No real provider.
-- No geocoding.
-- No weather caching.
+- In-memory cache only (no Redis); cleared on restart.
+- OpenWeatherMap free tier covers ~5 days; out-of-range dates use the mock
+  fallback.
+- Destination geocoding may be approximate.
+- Provider rate limits apply.
+
+## Provider Caching
+
+Route and weather responses are cached in a small, process-local TTL cache to cut
+repeated upstream calls:
+
+- **In-memory only** — concurrency-safe, no Redis, no database; cleared on restart.
+- **Route cache key:** `route:<provider>:<mode>:<lat,lng|...>` with coordinates
+  rounded to 5 decimals (`ROUTE_CACHE_TTL_SECONDS`, default 6h).
+- **Weather cache key:** `weather:<provider>:<destination>:<startDate>:<days>:<units>`
+  (`WEATHER_CACHE_TTL_SECONDS`, default 1h). A weather cache hit skips both the
+  geocoding and forecast upstream calls.
+- Only successful, non-fallback results are cached; provider errors and fallback
+  results are never cached, so a transient outage is retried rather than pinned.
+- Each lookup logs `cacheHit`, `provider`, and the endpoint type.
 
 ## Limitations
 
-- Mock data only.
-- No Google Places, Mapbox, or Foursquare provider is enabled yet.
-- No full map view.
-- No opening hours.
-- No real routing — `POST /routes/estimate` returns approximate mock walking
-  estimates (Haversine × 1.25), not turn-by-turn directions.
-- No real weather provider, hourly weather, geocoding, or weather caching yet.
+- In-memory cache only (no Redis); provider rate limits still apply.
+- ORS route estimates depend on the configured profile; no Google Maps yet.
+- OpenWeatherMap free tier covers ~5 days; out-of-range trip dates use the mock
+  fallback, and destination geocoding may be approximate.
+- The mock providers remain the default and the fail-open fallback.

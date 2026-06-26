@@ -143,7 +143,15 @@ Google Calendar, sync/update itinerary events using the latest
 see a disabled message, and public share pages never render calendar sync.
 If External Integrations Service is configured with `PLACE_PROVIDER=foursquare`,
 the browser still calls the same `/places/search` and `/places/{placeId}`
-endpoints and receives normalized `Place` objects.
+endpoints and receives normalized `Place` objects. The same applies to routing
+and weather: the route/weather provider can be switched server-side
+(`ROUTE_PROVIDER=ors`, `WEATHER_PROVIDER=openweathermap`) without any frontend
+change — the Web App keeps calling `POST /routes/estimate` and
+`GET /weather/forecast` and receives the same canonical response shape. Real
+provider keys stay server-side; the browser never calls OpenRouteService or
+OpenWeatherMap directly. Responses may include an optional `fallbackUsed` flag
+and a `provider` label (`mock`, `ors`, or `openweathermap`); the UI treats these
+as advisory developer hints.
 
 Automatic place enrichment after AI generation is owned by Trip Service. The Web
 App does not call enrichment directly; it renders returned `place` metadata and

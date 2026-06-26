@@ -223,13 +223,16 @@ curl -X POST "http://localhost:8084/routes/estimate" \
 curl "http://localhost:8084/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
 ```
 
-`POST /routes/estimate` returns approximate mock walking route estimates
-(Haversine × 1.25 at 5 km/h). Because the Web App calls it from the browser, the
-service's CORS allows `POST` and calendar disconnect uses `DELETE`
-(`CORS_ALLOWED_METHODS=GET,POST,DELETE,OPTIONS` by
-default). Weather forecast calls are read-only `GET` requests. Future provider
-candidates include Google Places, Mapbox, OSRM, Google Maps routing,
-Open-Meteo, and real opening-hours providers.
+`POST /routes/estimate` and `GET /weather/forecast` support real providers behind
+the mock default: routing via OpenRouteService (`ROUTE_PROVIDER=ors`) and weather
+via OpenWeatherMap (`WEATHER_PROVIDER=openweathermap`). The endpoint contracts are
+unchanged, and the mock providers remain the default and the fail-open fallback —
+see [Route Provider](#route-provider) and [Weather Provider](#weather-provider)
+below. Because the Web App calls these from the browser, the service's CORS allows
+`POST` and calendar disconnect uses `DELETE`
+(`CORS_ALLOWED_METHODS=GET,POST,DELETE,OPTIONS` by default). Provider API keys
+stay server-side and are never exposed to the Web App. No Google Maps routing
+provider is enabled yet.
 
 Calendar Sync v1 endpoints are also served by External Integrations Service.
 The local mock provider simulates Google OAuth and event operations without real
@@ -268,6 +271,39 @@ Troubleshooting:
   results.
 - Real provider results may omit rating, website, coordinates, or opening hours;
   those fields are optional in the Web App.
+
+### Route Provider
+
+Keep the mock default (no API key required), or enable OpenRouteService:
+
+1. Set `ROUTE_PROVIDER=ors` in `infra/.env`.
+2. Set `ORS_API_KEY=...` (free key from [openrouteservice.org](https://openrouteservice.org)).
+   Never commit the key.
+3. Optionally keep `ROUTE_PROVIDER_FALLBACK_TO_MOCK=true` (default) for local
+   fallback, and tune `ROUTE_PROVIDER_TIMEOUT_SECONDS` / `ROUTE_CACHE_*`.
+4. Restart External Integrations Service (or the stack) to pick up the change.
+
+With ORS enabled, `walking`, `driving`, and `cycling` modes are accepted. On
+provider failure the mock fallback answers with `fallbackUsed=true`; with fallback
+disabled the endpoint returns `502 {"error":"route_provider_unavailable"}`.
+
+### Weather Provider
+
+Keep the mock default, or enable OpenWeatherMap:
+
+1. Set `WEATHER_PROVIDER=openweathermap` in `infra/.env`.
+2. Set `OPENWEATHER_API_KEY=...` (free key from
+   [openweathermap.org](https://openweathermap.org)). Never commit the key.
+3. Optionally keep `WEATHER_PROVIDER_FALLBACK_TO_MOCK=true` (default) and tune
+   `OPENWEATHER_UNITS` / `WEATHER_PROVIDER_TIMEOUT_SECONDS` / `WEATHER_CACHE_*`.
+4. Restart External Integrations Service (or the stack).
+
+The free OpenWeatherMap tier covers ~5 days; trips further out automatically use
+the mock fallback. On provider failure with fallback disabled the endpoint returns
+`502 {"error":"weather_provider_unavailable"}`.
+
+Set API keys in `infra/.env` (git-ignored), never in `infra/.env.example`,
+`docker-compose.yml`, or any committed file.
 
 Trip Service requires `Authorization: Bearer <accessToken>` on `/trips` routes
 by default. To temporarily disable that for local debugging, set

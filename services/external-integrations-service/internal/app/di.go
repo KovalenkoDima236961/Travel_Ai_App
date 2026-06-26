@@ -60,7 +60,7 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 	routesSvc := appservice.NewRoutesService(routeProvider, log)
 	weatherSvc := appservice.NewWeatherService(weatherProvider, log)
 	placesHandler := handler.NewPlacesHandler(svc, log, cfg.PlaceProvider.Provider)
-	routesHandler := handler.NewRoutesHandler(routesSvc, log)
+	routesHandler := handler.NewRoutesHandler(routesSvc, log, cfg.RouteProvider.Provider)
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, log)
 	cipher, err := tokencrypto.NewStringCipher(cfg.Calendar.EncryptionKey)
 	if err != nil {

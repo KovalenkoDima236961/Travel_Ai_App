@@ -24,10 +24,18 @@ type RouteSegment struct {
 
 // RouteEstimate is the canonical route-estimation result returned by provider
 // adapters and exposed by the HTTP API. Totals are the sum of the segments.
+//
+// RouteGeometry and FallbackUsed are optional and omitted when empty, so the
+// response shape is unchanged for the default mock provider and for existing
+// clients. RouteGeometry carries the provider-specific encoded path (e.g. the
+// OpenRouteService polyline) when available; FallbackUsed is true when a real
+// provider failed and the mock provider answered instead.
 type RouteEstimate struct {
 	Mode            string         `json:"mode"`
 	Provider        string         `json:"provider"`
 	DistanceKm      float64        `json:"distanceKm"`
 	DurationMinutes int            `json:"durationMinutes"`
 	Segments        []RouteSegment `json:"segments"`
+	RouteGeometry   any            `json:"routeGeometry,omitempty"`
+	FallbackUsed    bool           `json:"fallbackUsed,omitempty"`
 }

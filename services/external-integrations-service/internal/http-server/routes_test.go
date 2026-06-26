@@ -173,7 +173,7 @@ func newTestRouter() http.Handler {
 	svc := appservice.New(placeprovider.NewMockPlaceProvider(), zap.NewNop())
 	placesHandler := handler.NewPlacesHandler(svc, zap.NewNop(), cfg.PlaceProvider.Provider)
 	routesSvc := appservice.NewRoutesService(routeprovider.NewMockRouteProvider(), zap.NewNop())
-	routesHandler := handler.NewRoutesHandler(routesSvc, zap.NewNop())
+	routesHandler := handler.NewRoutesHandler(routesSvc, zap.NewNop(), cfg.RouteProvider.Provider)
 	weatherSvc := appservice.NewWeatherService(weatherprovider.NewMockWeatherProvider(), zap.NewNop())
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, zap.NewNop())
 	return NewRouter(

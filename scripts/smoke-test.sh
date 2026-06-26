@@ -423,6 +423,33 @@ if [[ "${WEATHER_PROVIDER_NAME}" != "mock" || "${WEATHER_DAY_COUNT}" -ne 3 || -z
   exit 1
 fi
 
+# Optional real-provider checks. These only run when the operator has opted into
+# a real provider AND supplied an API key in the shell environment. Missing keys
+# must never fail the default mock smoke test.
+if [[ "${ROUTE_PROVIDER:-mock}" == "ors" && -n "${ORS_API_KEY:-}" ]]; then
+  echo "Checking real ORS route provider (real result or mock fallback)..."
+  request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" "${ROUTE_PAYLOAD}"
+  assert_2xx "ORS route estimate"
+  if ! jq -e '(.provider == "ors") or (.provider == "mock" and .fallbackUsed == true)' >/dev/null <<<"${LAST_BODY}"; then
+    echo "ORS route estimate did not return a real or fallback provider result." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  echo "ORS route estimate reported provider '$(jq -r '.provider' <<<"${LAST_BODY}")'."
+fi
+
+if [[ "${WEATHER_PROVIDER:-mock}" == "openweathermap" && -n "${OPENWEATHER_API_KEY:-}" ]]; then
+  echo "Checking real OpenWeather provider (real result or mock fallback)..."
+  request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
+  assert_2xx "OpenWeather forecast"
+  if ! jq -e '(.provider == "openweathermap") or (.provider == "mock" and .fallbackUsed == true)' >/dev/null <<<"${LAST_BODY}"; then
+    echo "OpenWeather forecast did not return a real or fallback provider result." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  echo "OpenWeather forecast reported provider '$(jq -r '.provider' <<<"${LAST_BODY}")'."
+fi
+
 echo "Web App URL: ${WEB_APP_URL}"
 if request GET "${WEB_APP_URL}"; then
   if [[ "${LAST_STATUS}" =~ ^2 ]]; then

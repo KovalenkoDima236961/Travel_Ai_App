@@ -23,8 +23,13 @@ type WeatherDay struct {
 }
 
 // WeatherForecast is the response returned by the weather API.
+//
+// FallbackUsed is optional and omitted when empty, keeping the response shape
+// unchanged for the default mock provider and existing clients. It is true when
+// a real provider failed and the mock provider answered instead.
 type WeatherForecast struct {
-	Destination string       `json:"destination"`
-	Provider    string       `json:"provider"`
-	Days        []WeatherDay `json:"days"`
+	Destination  string       `json:"destination"`
+	Provider     string       `json:"provider"`
+	Days         []WeatherDay `json:"days"`
+	FallbackUsed bool         `json:"fallbackUsed,omitempty"`
 }

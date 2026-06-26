@@ -407,6 +407,36 @@ This verifies the service-backed route estimate and its straight-line fallback.
     `docker compose -f infra/docker-compose.yml start external-integrations-service`,
     refresh, and confirm the route estimate returns.
 
+## Real Routing + Weather Providers
+
+This verifies real provider opt-in, fallback-to-mock, and the safe error path. The
+Web App is not changed — it keeps calling `POST /routes/estimate` and
+`GET /weather/forecast`. Set keys only in `infra/.env` (git-ignored); never commit
+them.
+
+1. Start the stack with the defaults (`ROUTE_PROVIDER=mock`,
+   `WEATHER_PROVIDER=mock`).
+2. Open a trip that has places with coordinates.
+3. Confirm route estimates and the weather context render with `mock` provider
+   labels.
+4. Set `ROUTE_PROVIDER=ors` and `ORS_API_KEY=<your key>` in `infra/.env`.
+5. Restart External Integrations Service:
+   `docker compose -f infra/docker-compose.yml up -d --build external-integrations-service`.
+6. Refresh the trip and confirm route estimates still appear (the response
+   `provider` is now `ors`, or `mock` with `fallbackUsed` when ORS is unreachable).
+7. Set `WEATHER_PROVIDER=openweathermap` and `OPENWEATHER_API_KEY=<your key>`,
+   restart the service, and confirm the weather forecast still appears for a
+   near-term trip date.
+8. Temporarily break a key (e.g. set `ORS_API_KEY=invalid`) with
+   `ROUTE_PROVIDER_FALLBACK_TO_MOCK=true`, restart, and confirm the app still
+   works using the mock fallback (route estimates still render).
+9. Set `ROUTE_PROVIDER_FALLBACK_TO_MOCK=false`, keep the invalid key, restart, and
+   confirm the distance panel surfaces the route service as unavailable and the
+   page does not crash (the endpoint returns
+   `502 {"error":"route_provider_unavailable"}`).
+10. Restore `ROUTE_PROVIDER=mock` / `WEATHER_PROVIDER=mock` (or valid keys with
+    fallback enabled) and confirm normal behavior returns.
+
 ## AI Quality Feedback Loop
 
 1. Log in.

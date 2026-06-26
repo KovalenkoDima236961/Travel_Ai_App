@@ -12,12 +12,14 @@ import (
 )
 
 const (
-	PlaceProviderMock       = "mock"
-	PlaceProviderFoursquare = "foursquare"
-	RouteProviderMock       = "mock"
-	WeatherProviderMock     = "mock"
-	CalendarProviderGoogle  = "google"
-	CalendarProviderMock    = "mock"
+	PlaceProviderMock          = "mock"
+	PlaceProviderFoursquare    = "foursquare"
+	RouteProviderMock          = "mock"
+	RouteProviderORS           = "ors"
+	WeatherProviderMock        = "mock"
+	WeatherProviderOpenWeather = "openweathermap"
+	CalendarProviderGoogle     = "google"
+	CalendarProviderMock       = "mock"
 
 	DefaultDevelopmentJWTSecret     = "change-me-in-development"
 	DefaultDevelopmentInternalToken = "dev-internal-service-token"
@@ -74,21 +76,39 @@ type PlaceProviderConfig struct {
 	MapboxAPIKey             string `yaml:"mapbox_api_key" env:"MAPBOX_API_KEY"`
 }
 
-// RouteProviderConfig selects the route-estimation provider adapter. v1 ships
-// only the deterministic mock provider; the remaining fields document the inputs
-// future real providers (OSRM, Mapbox, Google) will need but are unused today.
+// RouteProviderConfig selects the route-estimation provider adapter. The mock
+// provider remains the default and fallback; the ORS fields configure the real
+// OpenRouteService provider, which is opt-in via ROUTE_PROVIDER=ors.
 type RouteProviderConfig struct {
 	Provider          string `yaml:"provider" env:"ROUTE_PROVIDER" env-default:"mock"`
+	FallbackToMock    bool   `yaml:"fallback_to_mock" env:"ROUTE_PROVIDER_FALLBACK_TO_MOCK" env-default:"true"`
+	TimeoutSeconds    int    `yaml:"timeout_seconds" env:"ROUTE_PROVIDER_TIMEOUT_SECONDS" env-default:"8"`
+	ORSAPIKey         string `yaml:"ors_api_key" env:"ORS_API_KEY"`
+	ORSBaseURL        string `yaml:"ors_base_url" env:"ORS_BASE_URL" env-default:"https://api.openrouteservice.org"`
+	ORSProfileWalking string `yaml:"ors_profile_walking" env:"ORS_PROFILE_WALKING" env-default:"foot-walking"`
+	ORSProfileDriving string `yaml:"ors_profile_driving" env:"ORS_PROFILE_DRIVING" env-default:"driving-car"`
+	ORSProfileCycling string `yaml:"ors_profile_cycling" env:"ORS_PROFILE_CYCLING" env-default:"cycling-regular"`
+	CacheEnabled      bool   `yaml:"cache_enabled" env:"ROUTE_CACHE_ENABLED" env-default:"true"`
+	CacheTTLSeconds   int    `yaml:"cache_ttl_seconds" env:"ROUTE_CACHE_TTL_SECONDS" env-default:"21600"`
+	// Documented for future real providers; unused in v1.
 	OSRMBaseURL       string `yaml:"osrm_base_url" env:"OSRM_BASE_URL"`
 	MapboxAccessToken string `yaml:"mapbox_access_token" env:"MAPBOX_ACCESS_TOKEN"`
 	GoogleMapsAPIKey  string `yaml:"google_maps_api_key" env:"GOOGLE_MAPS_API_KEY"`
 }
 
-// WeatherProviderConfig selects the weather provider adapter. v1 ships only
-// deterministic mock forecasts; the remaining fields document future real
-// provider inputs and are unused today.
+// WeatherProviderConfig selects the weather provider adapter. The mock provider
+// remains the default and fallback; the OpenWeather fields configure the real
+// OpenWeatherMap provider, which is opt-in via WEATHER_PROVIDER=openweathermap.
 type WeatherProviderConfig struct {
-	Provider         string `yaml:"provider" env:"WEATHER_PROVIDER" env-default:"mock"`
+	Provider           string `yaml:"provider" env:"WEATHER_PROVIDER" env-default:"mock"`
+	FallbackToMock     bool   `yaml:"fallback_to_mock" env:"WEATHER_PROVIDER_FALLBACK_TO_MOCK" env-default:"true"`
+	TimeoutSeconds     int    `yaml:"timeout_seconds" env:"WEATHER_PROVIDER_TIMEOUT_SECONDS" env-default:"8"`
+	OpenWeatherAPIKey  string `yaml:"openweather_api_key" env:"OPENWEATHER_API_KEY"`
+	OpenWeatherBaseURL string `yaml:"openweather_base_url" env:"OPENWEATHER_BASE_URL" env-default:"https://api.openweathermap.org"`
+	OpenWeatherUnits   string `yaml:"openweather_units" env:"OPENWEATHER_UNITS" env-default:"metric"`
+	CacheEnabled       bool   `yaml:"cache_enabled" env:"WEATHER_CACHE_ENABLED" env-default:"true"`
+	CacheTTLSeconds    int    `yaml:"cache_ttl_seconds" env:"WEATHER_CACHE_TTL_SECONDS" env-default:"3600"`
+	// Documented for future real providers; unused in v1.
 	OpenMeteoBaseURL string `yaml:"open_meteo_base_url" env:"OPEN_METEO_BASE_URL"`
 	WeatherAPIKey    string `yaml:"weather_api_key" env:"WEATHER_API_KEY"`
 }
@@ -182,6 +202,29 @@ func Load(path string) (*Config, error) {
 		cfg.RouteProvider.Provider = RouteProviderMock
 	}
 
+	cfg.RouteProvider.ORSAPIKey = strings.TrimSpace(cfg.RouteProvider.ORSAPIKey)
+	cfg.RouteProvider.ORSBaseURL = strings.TrimRight(strings.TrimSpace(cfg.RouteProvider.ORSBaseURL), "/")
+	if cfg.RouteProvider.ORSBaseURL == "" {
+		cfg.RouteProvider.ORSBaseURL = "https://api.openrouteservice.org"
+	}
+	cfg.RouteProvider.ORSProfileWalking = strings.TrimSpace(cfg.RouteProvider.ORSProfileWalking)
+	if cfg.RouteProvider.ORSProfileWalking == "" {
+		cfg.RouteProvider.ORSProfileWalking = "foot-walking"
+	}
+	cfg.RouteProvider.ORSProfileDriving = strings.TrimSpace(cfg.RouteProvider.ORSProfileDriving)
+	if cfg.RouteProvider.ORSProfileDriving == "" {
+		cfg.RouteProvider.ORSProfileDriving = "driving-car"
+	}
+	cfg.RouteProvider.ORSProfileCycling = strings.TrimSpace(cfg.RouteProvider.ORSProfileCycling)
+	if cfg.RouteProvider.ORSProfileCycling == "" {
+		cfg.RouteProvider.ORSProfileCycling = "cycling-regular"
+	}
+	if cfg.RouteProvider.TimeoutSeconds <= 0 {
+		cfg.RouteProvider.TimeoutSeconds = 8
+	}
+	if cfg.RouteProvider.CacheTTLSeconds <= 0 {
+		cfg.RouteProvider.CacheTTLSeconds = 21600
+	}
 	cfg.RouteProvider.OSRMBaseURL = strings.TrimSpace(cfg.RouteProvider.OSRMBaseURL)
 	cfg.RouteProvider.MapboxAccessToken = strings.TrimSpace(cfg.RouteProvider.MapboxAccessToken)
 	cfg.RouteProvider.GoogleMapsAPIKey = strings.TrimSpace(cfg.RouteProvider.GoogleMapsAPIKey)
@@ -189,6 +232,21 @@ func Load(path string) (*Config, error) {
 	cfg.WeatherProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.WeatherProvider.Provider))
 	if cfg.WeatherProvider.Provider == "" {
 		cfg.WeatherProvider.Provider = WeatherProviderMock
+	}
+	cfg.WeatherProvider.OpenWeatherAPIKey = strings.TrimSpace(cfg.WeatherProvider.OpenWeatherAPIKey)
+	cfg.WeatherProvider.OpenWeatherBaseURL = strings.TrimRight(strings.TrimSpace(cfg.WeatherProvider.OpenWeatherBaseURL), "/")
+	if cfg.WeatherProvider.OpenWeatherBaseURL == "" {
+		cfg.WeatherProvider.OpenWeatherBaseURL = "https://api.openweathermap.org"
+	}
+	cfg.WeatherProvider.OpenWeatherUnits = strings.ToLower(strings.TrimSpace(cfg.WeatherProvider.OpenWeatherUnits))
+	if cfg.WeatherProvider.OpenWeatherUnits == "" {
+		cfg.WeatherProvider.OpenWeatherUnits = "metric"
+	}
+	if cfg.WeatherProvider.TimeoutSeconds <= 0 {
+		cfg.WeatherProvider.TimeoutSeconds = 8
+	}
+	if cfg.WeatherProvider.CacheTTLSeconds <= 0 {
+		cfg.WeatherProvider.CacheTTLSeconds = 3600
 	}
 	cfg.WeatherProvider.OpenMeteoBaseURL = strings.TrimSpace(cfg.WeatherProvider.OpenMeteoBaseURL)
 	cfg.WeatherProvider.WeatherAPIKey = strings.TrimSpace(cfg.WeatherProvider.WeatherAPIKey)

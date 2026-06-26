@@ -27,9 +27,12 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	// The mock providers have no external dependency, so readiness is static.
 	// When a future route provider needs a backing service (e.g. OSRM), add its
 	// health probe here.
+	// Providers are mock-by-default and degrade to mock on failure, so readiness
+	// is intentionally independent of external provider availability.
 	checks := map[string]string{
-		"place_provider": "ok",
-		"route_provider": "ok",
+		"place_provider":   "ok",
+		"route_provider":   "ok",
+		"weather_provider": "ok",
 	}
 
 	h.log.Info(

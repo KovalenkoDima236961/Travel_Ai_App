@@ -39,16 +39,32 @@ place_provider:
   mapbox_api_key: ""
 
 route_provider:
-  # v1 supports only the deterministic mock provider.
+  # mock (default and fallback) | ors (OpenRouteService).
   provider: mock
+  fallback_to_mock: true
+  timeout_seconds: 8
+  ors_api_key: ""
+  ors_base_url: "https://api.openrouteservice.org"
+  ors_profile_walking: "foot-walking"
+  ors_profile_driving: "driving-car"
+  ors_profile_cycling: "cycling-regular"
+  cache_enabled: true
+  cache_ttl_seconds: 21600
   # Documented for future real providers; unused in v1.
   osrm_base_url: ""
   mapbox_access_token: ""
   google_maps_api_key: ""
 
 weather_provider:
-  # v1 supports only the deterministic mock provider.
+  # mock (default and fallback) | openweathermap (OpenWeatherMap).
   provider: mock
+  fallback_to_mock: true
+  timeout_seconds: 8
+  openweather_api_key: ""
+  openweather_base_url: "https://api.openweathermap.org"
+  openweather_units: "metric"
+  cache_enabled: true
+  cache_ttl_seconds: 3600
   # Documented for future real providers; unused in v1.
   open_meteo_base_url: ""
   weather_api_key: ""

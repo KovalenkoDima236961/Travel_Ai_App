@@ -16,13 +16,18 @@ const (
 	// fallback so server and client estimates stay comparable.
 	earthRadiusKm = 6371.0
 
-	// walkingSpeedKmPerHour is the flat pace assumed for walking estimates.
+	// Per-mode flat pace assumptions for duration estimates. These are rough
+	// constants, not real routing: they keep mock estimates plausible and, just
+	// as importantly, keep the mock usable as a fallback for the driving and
+	// cycling modes a real provider (ORS) supports.
 	walkingSpeedKmPerHour = 5.0
+	cyclingSpeedKmPerHour = 15.0
+	drivingSpeedKmPerHour = 40.0
 
-	// walkingRouteFactor inflates straight-line Haversine distance to roughly
-	// approximate a real walking route. This is deliberately a rough constant;
-	// it is not real routing.
-	walkingRouteFactor = 1.25
+	// routeDistanceFactor inflates straight-line Haversine distance to roughly
+	// approximate a real route. This is deliberately a rough constant; it is not
+	// real routing.
+	routeDistanceFactor = 1.25
 )
 
 // MockRouteProvider produces deterministic route estimates from Haversine
@@ -48,8 +53,8 @@ func (p *MockRouteProvider) EstimateRoute(_ context.Context, req entity.RouteEst
 		from := req.Stops[i-1]
 		to := req.Stops[i]
 
-		distanceKm := round2(haversineDistanceKm(from, to) * walkingRouteFactor)
-		durationMinutes := durationMinutesForDistance(distanceKm)
+		distanceKm := round2(haversineDistanceKm(from, to) * routeDistanceFactor)
+		durationMinutes := durationMinutesForDistance(distanceKm, speedKmPerHourForMode(mode))
 
 		segments = append(segments, entity.RouteSegment{
 			FromName:        from.Name,
@@ -87,13 +92,26 @@ func haversineDistanceKm(a, b entity.RouteStop) float64 {
 	return earthRadiusKm * centralAngle
 }
 
-// durationMinutesForDistance converts a distance into walking minutes at a flat
-// 5 km/h pace, rounded to the nearest whole minute.
-func durationMinutesForDistance(distanceKm float64) int {
-	if distanceKm <= 0 {
+// durationMinutesForDistance converts a distance into minutes at the given flat
+// pace, rounded to the nearest whole minute.
+func durationMinutesForDistance(distanceKm, speedKmPerHour float64) int {
+	if distanceKm <= 0 || speedKmPerHour <= 0 {
 		return 0
 	}
-	return int(math.Round((distanceKm / walkingSpeedKmPerHour) * 60))
+	return int(math.Round((distanceKm / speedKmPerHour) * 60))
+}
+
+// speedKmPerHourForMode returns the flat pace for a travel mode. Walking is the
+// default so unknown modes behave exactly as before.
+func speedKmPerHourForMode(mode string) float64 {
+	switch mode {
+	case "driving":
+		return drivingSpeedKmPerHour
+	case "cycling":
+		return cyclingSpeedKmPerHour
+	default:
+		return walkingSpeedKmPerHour
+	}
 }
 
 func toRadians(degrees float64) float64 {

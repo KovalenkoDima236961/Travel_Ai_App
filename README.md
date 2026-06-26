@@ -114,16 +114,21 @@ External Integrations Service v1 lives in
 `services/external-integrations-service` and owns place search/details, route
 estimation, and weather forecast provider boundaries. Place search/details use
 the deterministic mock provider by default and can optionally use Foursquare via
-`PLACE_PROVIDER=foursquare`; mock remains the local no-key default. The Web App
-calls this service when attaching optional place metadata to itinerary items,
-estimating per-day walking routes via `POST /routes/estimate` (mock provider:
-Haversine × 1.25 at 5 km/h), and showing mock trip weather via
-`GET /weather/forecast`. Route and weather data are read-only and approximate;
-attached places can also carry optional local `openingHours` intervals
-(`dayOfWeek` 1 Monday through 7 Sunday, `HH:mm` local time). The Web App shows
-advisory closed-place warnings when hours are available and handles missing real
-provider fields gracefully. No real Google Places provider, real opening-hours
-provider, real weather provider, or real turn-by-turn routing is enabled yet.
+`PLACE_PROVIDER=foursquare`; mock remains the local no-key default. Routing and
+weather likewise support real providers behind clean provider abstractions while
+keeping the `POST /routes/estimate` and `GET /weather/forecast` contracts stable:
+real routing via OpenRouteService (`ROUTE_PROVIDER=ors`) and real weather via
+OpenWeatherMap (`WEATHER_PROVIDER=openweathermap`), each opt-in with mock as the
+default and the fail-open fallback. Results are cached in a small in-memory TTL
+cache, and provider API keys never reach the Web App. The Web App calls this
+service when attaching optional place metadata to itinerary items, estimating
+per-day routes via `POST /routes/estimate`, and showing trip weather via
+`GET /weather/forecast`. Route and weather data are read-only; attached places can
+also carry optional local `openingHours` intervals (`dayOfWeek` 1 Monday through 7
+Sunday, `HH:mm` local time). The Web App shows advisory closed-place warnings when
+hours are available and handles missing real provider fields gracefully. No real
+Google Places provider, real opening-hours provider, or Google Maps routing is
+enabled yet.
 Calendar Sync v1 is implemented inside External Integrations Service rather
 than a separate Calendar Service. Users can connect one Google Calendar account
 through server-side OAuth, tokens are encrypted at rest, and Trip Service can
