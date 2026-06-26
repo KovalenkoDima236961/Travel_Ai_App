@@ -83,6 +83,7 @@ var typeToCategory = map[string]string{
 	notifications.TypeDayRegenerated:         CategoryTripUpdates,
 	notifications.TypeItemRegenerated:        CategoryTripUpdates,
 	notifications.TypeVersionRestored:        CategoryTripUpdates,
+	notifications.TypeGenerationJobFailed:    CategoryTripUpdates,
 }
 
 // CategoryForNotificationType maps a notification type to its preference

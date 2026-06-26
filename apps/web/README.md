@@ -14,9 +14,11 @@ The Web App prevents stale itinerary overwrites with Trip Service
 starts and sends it as `expectedItineraryRevision` on save. If Trip Service
 returns `409 itinerary_conflict`, the page shows a conflict panel with
 `Reload latest` and `Cancel my changes` actions instead of retrying or forcing an
-overwrite. Generate, regenerate, restore, place review, and route optimization
-actions send the latest displayed revision; on conflict they show a readable
-message and refetch the trip.
+overwrite. Generate and regenerate actions create Trip Service background jobs
+with the latest displayed revision and poll job status until completion.
+Restore, place review, and route optimization actions still save directly with
+the latest displayed revision. On conflict, the page shows a readable message
+and refetches the trip.
 
 Before manual itinerary edit mode starts, the page attempts to acquire Trip
 Service's advisory soft edit lock. If another owner/editor currently owns the
@@ -79,10 +81,14 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips?limit=20&offset=0`
 - `GET /trips/shared-with-me`
 - `GET /trips/{id}`
-- `POST /trips/{id}/generate`
+- `POST /trips/{id}/generation-jobs`
+- `GET /trips/{id}/generation-jobs`
+- `GET /trips/{id}/generation-jobs/{jobId}`
+- `POST /trips/{id}/generation-jobs/{jobId}/cancel`
+- `POST /trips/{id}/generate` (legacy synchronous compatibility)
 - `PUT /trips/{id}/itinerary`
-- `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`
-- `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`
+- `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate` (legacy synchronous compatibility)
+- `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate` (legacy synchronous compatibility)
 - `GET /trips/{id}/share`
 - `POST /trips/{id}/share`
 - `PATCH /trips/{id}/share`
@@ -130,6 +136,22 @@ App does not call enrichment directly; it renders returned `place` metadata and
 shows an `Auto-matched place` confidence badge when an item has
 `placeEnrichment.status === "matched"`. Manual place changes/removals in the
 editor clear `placeEnrichment` so stale auto-match labels are not saved.
+
+## Background Generation Jobs
+
+Private trip detail pages start AI generation through
+`POST /trips/{id}/generation-jobs` and poll
+`GET /trips/{id}/generation-jobs/{jobId}` every few seconds while the job is
+`queued` or `running`. The `GenerationJobStatusCard` shows queued/running,
+completed, failed, and cancelled states. Full generation, day regeneration, item
+regeneration, and quality-improvement actions all share this path.
+
+While a job is queued or running, the page disables other AI generation actions
+for the trip. Manual editing remains available; if a user saves while a job is
+running, Trip Service conflict detection may cause the job to fail with
+`itinerary_conflict`. On job completion, the page refetches the trip, version
+history, route estimates, and activity. On conflict failure, it refetches the
+trip and tells the user to reload the latest version before trying again.
 
 ## Place Enrichment Review
 

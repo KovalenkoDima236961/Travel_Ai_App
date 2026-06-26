@@ -17,11 +17,12 @@ const (
 	TypeCommentCreated = "comment_created"
 
 	// Itinerary.
-	TypeItineraryUpdated   = "itinerary_updated"
-	TypeItineraryGenerated = "itinerary_generated"
-	TypeDayRegenerated     = "day_regenerated"
-	TypeItemRegenerated    = "item_regenerated"
-	TypeVersionRestored    = "version_restored"
+	TypeItineraryUpdated    = "itinerary_updated"
+	TypeItineraryGenerated  = "itinerary_generated"
+	TypeDayRegenerated      = "day_regenerated"
+	TypeItemRegenerated     = "item_regenerated"
+	TypeVersionRestored     = "version_restored"
+	TypeGenerationJobFailed = "generation_job_failed"
 )
 
 // Entity type constants describe the kind of object a notification refers to.
@@ -50,6 +51,7 @@ var knownTypes = map[string]struct{}{
 	TypeDayRegenerated:         {},
 	TypeItemRegenerated:        {},
 	TypeVersionRestored:        {},
+	TypeGenerationJobFailed:    {},
 }
 
 // IsKnownType reports whether the notification type is part of the recognised

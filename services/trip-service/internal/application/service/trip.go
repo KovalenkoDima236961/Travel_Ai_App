@@ -33,7 +33,7 @@ const (
 	maxDays                    = 30
 	maxItineraryDays           = 60
 	maxItineraryItemsPerDay    = 30
-	maxInstructionLength       = 500
+	maxInstructionLength       = 2000
 	maxPlaceURLLength          = 2048
 	maxPlaceEnrichmentQuery    = 300
 	maxPlaceEnrichmentProvider = 50
@@ -461,6 +461,17 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 	return updated, nil
 }
 
+func (s *Service) GenerateForActor(
+	ctx context.Context,
+	id, actorUserID uuid.UUID,
+	expectedRevision int,
+) (*entity.Trip, error) {
+	ctx = contextWithActor(ctx, actorUserID)
+	return s.Generate(ctx, id, appdto.GenerateItineraryInput{
+		ExpectedItineraryRevision: &expectedRevision,
+	})
+}
+
 // UpdateItinerary validates and replaces the full itinerary JSON for a trip
 // owned by the authenticated user. It does not call the itinerary generator.
 func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.UpdateItineraryInput) (*entity.Trip, error) {
@@ -667,6 +678,20 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	return updated, nil
 }
 
+func (s *Service) RegenerateDayForActor(
+	ctx context.Context,
+	id, actorUserID uuid.UUID,
+	dayNumber int,
+	instruction string,
+	expectedRevision int,
+) (*entity.Trip, error) {
+	ctx = contextWithActor(ctx, actorUserID)
+	return s.RegenerateDay(ctx, id, dayNumber, appdto.RegenerateItineraryPartInput{
+		Instruction:               instruction,
+		ExpectedItineraryRevision: &expectedRevision,
+	})
+}
+
 // RegenerateItem replaces only one item in one itinerary day. DayNumber is
 // one-based; ItemIndex is zero-based to match the items array index.
 func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, itemIndex int, in appdto.RegenerateItineraryPartInput) (*entity.Trip, error) {
@@ -808,6 +833,20 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		itemNotificationMetadata)
 
 	return updated, nil
+}
+
+func (s *Service) RegenerateItemForActor(
+	ctx context.Context,
+	id, actorUserID uuid.UUID,
+	dayNumber, itemIndex int,
+	instruction string,
+	expectedRevision int,
+) (*entity.Trip, error) {
+	ctx = contextWithActor(ctx, actorUserID)
+	return s.RegenerateItem(ctx, id, dayNumber, itemIndex, appdto.RegenerateItineraryPartInput{
+		Instruction:               instruction,
+		ExpectedItineraryRevision: &expectedRevision,
+	})
 }
 
 func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error) {
@@ -1238,6 +1277,13 @@ func checkCurrentItineraryRevision(expected, current int) error {
 func isItineraryConflict(err error) bool {
 	var conflict *apperrs.ItineraryConflictError
 	return errors.As(err, &conflict)
+}
+
+func contextWithActor(ctx context.Context, actorUserID uuid.UUID) context.Context {
+	if user, ok := auth.UserFromContext(ctx); ok && user.ID == actorUserID {
+		return ctx
+	}
+	return auth.WithUser(ctx, auth.AuthenticatedUser{ID: actorUserID})
 }
 
 func tripOwnerID(t *entity.Trip) (uuid.UUID, error) {

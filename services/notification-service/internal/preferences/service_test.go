@@ -154,6 +154,7 @@ func TestCategoryForNotificationType(t *testing.T) {
 		notifications.TypeDayRegenerated:         CategoryTripUpdates,
 		notifications.TypeItemRegenerated:        CategoryTripUpdates,
 		notifications.TypeVersionRestored:        CategoryTripUpdates,
+		notifications.TypeGenerationJobFailed:    CategoryTripUpdates,
 	}
 
 	for typ, expected := range cases {

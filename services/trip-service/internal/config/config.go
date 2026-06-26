@@ -29,6 +29,7 @@ type Config struct {
 	Notifications      NotificationsConfig      `yaml:"notifications"`
 	Presence           PresenceConfig           `yaml:"presence"`
 	EditLocks          EditLocksConfig          `yaml:"edit_locks"`
+	GenerationJobs     GenerationJobsConfig     `yaml:"generation_jobs"`
 }
 
 // NotificationsConfig controls synchronous in-app notification fan-out to the
@@ -58,6 +59,15 @@ type EditLocksConfig struct {
 	TTLSeconds          int  `yaml:"ttl_seconds" env:"TRIP_EDIT_LOCK_TTL_SECONDS" env-default:"180" validate:"min=1"`
 	RenewSeconds        int  `yaml:"renew_seconds" env:"TRIP_EDIT_LOCK_RENEW_SECONDS" env-default:"45" validate:"min=1"`
 	StaleCleanupSeconds int  `yaml:"stale_cleanup_seconds" env:"TRIP_EDIT_LOCK_STALE_CLEANUP_SECONDS" env-default:"30" validate:"min=1"`
+}
+
+type GenerationJobsConfig struct {
+	Enabled                   bool `yaml:"enabled" env:"GENERATION_JOBS_ENABLED" env-default:"true"`
+	WorkerEnabled             bool `yaml:"worker_enabled" env:"GENERATION_JOB_WORKER_ENABLED" env-default:"true"`
+	WorkerPollIntervalSeconds int  `yaml:"worker_poll_interval_seconds" env:"GENERATION_JOB_WORKER_POLL_INTERVAL_SECONDS" env-default:"2" validate:"min=1"`
+	WorkerMaxConcurrent       int  `yaml:"worker_max_concurrent" env:"GENERATION_JOB_WORKER_MAX_CONCURRENT" env-default:"1" validate:"min=1"`
+	MaxRunningSeconds         int  `yaml:"max_running_seconds" env:"GENERATION_JOB_MAX_RUNNING_SECONDS" env-default:"600" validate:"min=1"`
+	FailOpenNotifications     bool `yaml:"fail_open_notifications" env:"GENERATION_JOB_FAIL_OPEN_NOTIFICATIONS" env-default:"true"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -160,6 +170,14 @@ func (c *Config) EditLockRenewalInterval() time.Duration {
 
 func (c *Config) EditLockCleanupInterval() time.Duration {
 	return time.Duration(c.EditLocks.StaleCleanupSeconds) * time.Second
+}
+
+func (c *Config) GenerationJobWorkerPollInterval() time.Duration {
+	return time.Duration(c.GenerationJobs.WorkerPollIntervalSeconds) * time.Second
+}
+
+func (c *Config) GenerationJobMaxRunning() time.Duration {
+	return time.Duration(c.GenerationJobs.MaxRunningSeconds) * time.Second
 }
 
 // MustLoad loads and validates the configuration, panicking on any error.

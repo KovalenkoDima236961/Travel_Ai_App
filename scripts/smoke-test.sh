@@ -165,6 +165,39 @@ assert_status() {
   fi
 }
 
+poll_generation_job() {
+  local label="$1"
+  local trip_id="$2"
+  local job_id="$3"
+  local token="$4"
+  local max_attempts="${5:-60}"
+  local attempt
+  local job_status
+
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${trip_id}/generation-jobs/${job_id}" "${token}"
+    assert_2xx "${label} job poll"
+    job_status="$(jq -r '.job.status // empty' <<<"${LAST_BODY}")"
+    case "${job_status}" in
+      completed|failed|cancelled)
+        return 0
+        ;;
+      queued|running)
+        sleep 2
+        ;;
+      *)
+        echo "${label}: unexpected generation job status '${job_status}'" >&2
+        echo "${LAST_BODY}" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  echo "${label}: generation job did not finish after ${max_attempts} attempts" >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+}
+
 # assert_activity_has fails unless the last activity response (LAST_BODY)
 # contains at least one event of the given type.
 assert_activity_has() {
@@ -604,13 +637,21 @@ if [[ "${PRESENCE_TRIP_ID}" != "${TRIP_ID}" ]]; then
   exit 1
 fi
 
-echo "Generating itinerary with Authorization header..."
-GENERATE_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
-request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${ACCESS_TOKEN}" "${GENERATE_PAYLOAD}"
-assert_2xx "Generate itinerary"
-TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
-if [[ "${TRIP_REVISION}" != "1" ]]; then
-  echo "Expected generated trip itineraryRevision=1, got ${TRIP_REVISION}." >&2
+echo "Queueing full itinerary generation job..."
+GENERATE_JOB_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{jobType:"full_generation",expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generation-jobs" "${ACCESS_TOKEN}" "${GENERATE_JOB_PAYLOAD}"
+assert_status "Create full generation job" "202"
+GENERATION_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+GENERATION_JOB_STATUS="$(jq -r '.job.status // empty' <<<"${LAST_BODY}")"
+if [[ -z "${GENERATION_JOB_ID}" || "${GENERATION_JOB_STATUS}" != "queued" ]]; then
+  echo "Full generation job response did not include a queued job." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+poll_generation_job "Full generation" "${TRIP_ID}" "${GENERATION_JOB_ID}" "${ACCESS_TOKEN}"
+GENERATION_JOB_STATUS="$(jq -r '.job.status // empty' <<<"${LAST_BODY}")"
+if [[ "${GENERATION_JOB_STATUS}" != "completed" ]]; then
+  echo "Full generation job did not complete successfully." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
@@ -625,6 +666,16 @@ TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 if [[ "${STATUS}" != "COMPLETED" ]]; then
   echo "Expected trip status COMPLETED, got ${STATUS}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking stale generation job creation conflict..."
+STALE_GENERATION_JOB_PAYLOAD="$(jq -nc '{jobType:"full_generation",expectedItineraryRevision:0}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generation-jobs" "${ACCESS_TOKEN}" "${STALE_GENERATION_JOB_PAYLOAD}"
+assert_status "Stale full generation job" "409"
+if ! jq -e '.error == "itinerary_conflict"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Stale generation job did not return expected conflict payload." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
@@ -784,6 +835,9 @@ fi
 VIEWER_EDIT_PAYLOAD='{"itinerary":{"days":[{"day":1,"title":"Viewer blocked day","items":[{"time":"10:00","type":"activity","name":"Should fail"}]}]}}'
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_EDIT_PAYLOAD}"
 assert_status "Viewer itinerary edit" "403"
+VIEWER_GENERATION_JOB_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{jobType:"day_regeneration",dayNumber:1,expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generation-jobs" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_GENERATION_JOB_PAYLOAD}"
+assert_status "Viewer generation job create" "403"
 
 echo "Checking viewer can read but cannot acquire edit lock..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}"
@@ -1407,9 +1461,24 @@ if [[ "${CONFLICT_ERROR}" != "itinerary_conflict" || "${CONFLICT_REVISION}" != "
   echo "${LAST_BODY}" >&2
   exit 1
 fi
-DAY_REGEN_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision,instruction:"make day one slower paced"}')"
-request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/days/1/regenerate" "${ACCESS_TOKEN}" "${DAY_REGEN_PAYLOAD}"
-assert_2xx "Current day regeneration"
+DAY_REGEN_JOB_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{jobType:"day_regeneration",dayNumber:1,expectedItineraryRevision:$revision,instruction:"make day one slower paced"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generation-jobs" "${ACCESS_TOKEN}" "${DAY_REGEN_JOB_PAYLOAD}"
+assert_status "Create day regeneration job" "202"
+DAY_REGEN_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${DAY_REGEN_JOB_ID}" ]]; then
+  echo "Day regeneration job response did not include a job id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+poll_generation_job "Day regeneration" "${TRIP_ID}" "${DAY_REGEN_JOB_ID}" "${ACCESS_TOKEN}"
+DAY_REGEN_JOB_STATUS="$(jq -r '.job.status // empty' <<<"${LAST_BODY}")"
+if [[ "${DAY_REGEN_JOB_STATUS}" != "completed" ]]; then
+  echo "Day regeneration job did not complete successfully." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch trip after day regeneration job"
 TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
 echo "Listing trips for current user..."

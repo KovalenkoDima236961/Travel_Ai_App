@@ -10,6 +10,7 @@ import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { EditLockStatus } from "@/components/edit-locks/EditLockStatus";
 import { SoftEditLockWarningDialog } from "@/components/edit-locks/SoftEditLockWarningDialog";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
+import { GenerationJobStatusCard } from "@/components/generation-jobs/GenerationJobStatusCard";
 import { ItemCommentsPanel } from "@/components/comments/ItemCommentsPanel";
 import { TripCommentsSummary } from "@/components/comments/TripCommentsSummary";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -41,6 +42,12 @@ import { Card } from "@/components/ui/Card";
 import { activityKeys } from "@/lib/api/activity";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
 import { isItineraryConflictError } from "@/lib/api/client";
+import {
+  cancelGenerationJob,
+  createGenerationJob,
+  generationJobKeys,
+  listGenerationJobs
+} from "@/lib/api/generation-jobs";
 import { buildCommentCountMap } from "@/lib/comments/comment-counts";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import {
@@ -50,13 +57,12 @@ import {
 } from "@/lib/export/trip-export-adapter";
 import {
   getTrip,
-  regenerateItineraryDay,
-  regenerateItineraryItem,
   tripKeys,
   updateTripItinerary
 } from "@/lib/api/trips";
 import { getMyPreferences, userKeys } from "@/lib/api/user";
 import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
+import { useGenerationJob } from "@/lib/hooks/useGenerationJob";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import { useTripEditLock } from "@/lib/edit-locks/use-trip-edit-lock";
 import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
@@ -69,6 +75,11 @@ import {
 } from "@/lib/utils";
 import type { RouteEstimate } from "@/types/route";
 import type { EditLockView } from "@/types/edit-locks";
+import type {
+  CreateGenerationJobRequest,
+  GenerationJob,
+  GenerationJobType
+} from "@/types/generation-jobs";
 import type { Itinerary, Trip } from "@/types/trip";
 
 export default function TripDetailPage() {
@@ -98,7 +109,7 @@ function TripDetailPageContent() {
   const [itineraryConflictMessage, setItineraryConflictMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
-  const [regeneratingTarget, setRegeneratingTarget] = useState<RegeneratingTarget | null>(null);
+  const [activeGenerationJobId, setActiveGenerationJobId] = useState<string | null>(null);
   const [optimizingDayNumber, setOptimizingDayNumber] = useState<number | null>(null);
   const [lockWarning, setLockWarning] = useState<EditLockView | null>(null);
 
@@ -130,25 +141,16 @@ function TripDetailPageContent() {
     }) => updateTripItinerary(tripId, itinerary, expectedRevision)
   });
 
-  const regenerationMutation = useMutation({
-    mutationFn: (
-      target: RegeneratingTarget & { instruction?: string; expectedRevision: number }
-    ) => {
-      if (target.type === "day") {
-        return regenerateItineraryDay(
-          tripId,
-          target.dayNumber,
-          target.instruction,
-          target.expectedRevision
-        );
-      }
-      return regenerateItineraryItem(
-        tripId,
-        target.dayNumber,
-        target.itemIndex,
-        target.instruction,
-        target.expectedRevision
-      );
+  const createGenerationJobMutation = useMutation({
+    mutationFn: (input: CreateGenerationJobRequest) => createGenerationJob(tripId, input)
+  });
+
+  const cancelGenerationJobMutation = useMutation({
+    mutationFn: (jobId: string) => cancelGenerationJob(tripId, jobId),
+    onSuccess: async (job) => {
+      setActiveGenerationJobId(job.id);
+      queryClient.setQueryData(generationJobKeys.detail(tripId, job.id), job);
+      await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
     }
   });
 
@@ -191,6 +193,35 @@ function TripDetailPageContent() {
   // private trip (owner/editor/viewer) may read and add comments. Counts power
   // the per-item badges. The public share page never mounts this page.
   const tripAccess = tripQuery.data?.access;
+  const generationJobsQuery = useQuery({
+    queryKey: generationJobKeys.list(tripId),
+    queryFn: () => listGenerationJobs(tripId),
+    enabled: Boolean(tripId) && Boolean(tripAccess),
+    refetchInterval: (query) => (findActiveGenerationJob(query.state.data ?? []) ? 3000 : false)
+  });
+  const latestActiveGenerationJob = findActiveGenerationJob(generationJobsQuery.data ?? []);
+  const generationJobPoll = useGenerationJob({
+    tripId,
+    jobId: activeGenerationJobId ?? latestActiveGenerationJob?.id,
+    enabled: Boolean(tripId) && Boolean(activeGenerationJobId ?? latestActiveGenerationJob?.id),
+    onCompleted: (job) => {
+      void handleGenerationJobCompleted(job);
+    },
+    onFailed: (job) => {
+      void handleGenerationJobFailed(job);
+    },
+    onCancelled: (job) => {
+      void handleGenerationJobCancelled(job);
+    }
+  });
+  const activeGenerationJob = generationJobPoll.data ?? latestActiveGenerationJob ?? null;
+  const hasActiveGenerationJob = Boolean(
+    activeGenerationJob && isActiveGenerationJob(activeGenerationJob)
+  );
+  const activeRegeneratingTarget =
+    activeGenerationJob && isActiveGenerationJob(activeGenerationJob)
+      ? targetFromGenerationJob(activeGenerationJob)
+      : null;
   const canComment =
     !tripAccess ||
     tripAccess.role === "owner" ||
@@ -266,6 +297,15 @@ function TripDetailPageContent() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isEditing, presenceEnabled, setPresenceState]);
+
+  useEffect(() => {
+    if (!latestActiveGenerationJob) {
+      return;
+    }
+    if (!activeGenerationJob || !isActiveGenerationJob(activeGenerationJob)) {
+      setActiveGenerationJobId(latestActiveGenerationJob.id);
+    }
+  }, [activeGenerationJob, latestActiveGenerationJob]);
 
   const commentCounts = commentCountsQuery.data ?? [];
   const commentCountMap = useMemo(
@@ -444,39 +484,50 @@ function TripDetailPageContent() {
   }
 
   async function regenerateDay(dayNumber: number, instruction?: string) {
-    const target: RegeneratingTarget = { type: "day", dayNumber };
-    await regenerateItineraryPart(target, instruction, `Day ${dayNumber} regenerated.`);
+    await createRegenerationJob("day_regeneration", { type: "day", dayNumber }, instruction);
   }
 
   async function regenerateItem(dayNumber: number, itemIndex: number, instruction?: string) {
-    const target: RegeneratingTarget = { type: "item", dayNumber, itemIndex };
-    await regenerateItineraryPart(
-      target,
-      instruction,
-      `Day ${dayNumber} item ${itemIndex + 1} regenerated.`
+    await createRegenerationJob(
+      "item_regeneration",
+      { type: "item", dayNumber, itemIndex },
+      instruction
     );
   }
 
-  async function regenerateItineraryPart(
+  async function improveDay(dayNumber: number, instruction: string) {
+    await createRegenerationJob("quality_improvement_day", { type: "day", dayNumber }, instruction);
+  }
+
+  async function improveItem(dayNumber: number, itemIndex: number, instruction: string) {
+    await createRegenerationJob(
+      "quality_improvement_item",
+      { type: "item", dayNumber, itemIndex },
+      instruction
+    );
+  }
+
+  async function createRegenerationJob(
+    jobType: GenerationJobType,
     target: RegeneratingTarget,
-    instruction: string | undefined,
-    message: string
+    instruction: string | undefined
   ) {
+    if (hasActiveGenerationJob) {
+      return;
+    }
+
     try {
       setRegenerationError(null);
       setSuccessMessage(null);
-      setRegeneratingTarget(target);
-      const updated = await regenerationMutation.mutateAsync({
-        ...target,
+      const job = await createGenerationJobMutation.mutateAsync({
+        jobType,
+        expectedItineraryRevision: trip.itineraryRevision,
         instruction,
-        expectedRevision: trip.itineraryRevision
+        dayNumber: target.dayNumber,
+        ...(target.type === "item" ? { itemIndex: target.itemIndex } : {})
       });
-      queryClient.setQueryData(tripKeys.detail(tripId), updated);
-      await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
-      await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
-      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
-      await tripQuery.refetch();
-      setSuccessMessage(message);
+      handleGenerationJobCreated(job);
+      await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
     } catch (error) {
       if (isItineraryConflictError(error)) {
         setRegenerationError("This itinerary changed. Reload latest version before trying again.");
@@ -486,8 +537,60 @@ function TripDetailPageContent() {
       setRegenerationError(
         error instanceof Error ? error.message : "Could not regenerate itinerary."
       );
-    } finally {
-      setRegeneratingTarget(null);
+    }
+  }
+
+  function handleGenerationJobCreated(job: GenerationJob) {
+    setActiveGenerationJobId(job.id);
+    setSuccessMessage(null);
+    setRegenerationError(null);
+    queryClient.setQueryData(generationJobKeys.detail(tripId, job.id), job);
+  }
+
+  async function handleGenerationJobCompleted(job: GenerationJob) {
+    await refreshTripAfterGenerationJob();
+    setRegenerationError(null);
+    setSuccessMessage(successMessageForGenerationJob(job));
+  }
+
+  async function handleGenerationJobFailed(job: GenerationJob) {
+    await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
+    if (job.errorCode === "itinerary_conflict") {
+      await tripQuery.refetch();
+    }
+    setSuccessMessage(null);
+    setRegenerationError(failureMessageForGenerationJob(job));
+  }
+
+  async function handleGenerationJobCancelled(job: GenerationJob) {
+    await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
+    setSuccessMessage("Generation cancelled.");
+    setRegenerationError(null);
+    setActiveGenerationJobId(job.id);
+  }
+
+  async function refreshTripAfterGenerationJob() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
+      queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
+      queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
+    ]);
+    await tripQuery.refetch();
+  }
+
+  async function cancelActiveGenerationJob() {
+    if (!activeGenerationJob || activeGenerationJob.status !== "queued") {
+      return;
+    }
+    try {
+      await cancelGenerationJobMutation.mutateAsync(activeGenerationJob.id);
+    } catch (error) {
+      setRegenerationError(
+        error instanceof Error ? error.message : "Could not cancel generation job."
+      );
     }
   }
 
@@ -554,7 +657,9 @@ function TripDetailPageContent() {
         </div>
         {canGenerate ? (
           <GenerateItineraryButton
+            disabled={hasActiveGenerationJob}
             itineraryRevision={trip.itineraryRevision}
+            onJobCreated={handleGenerationJobCreated}
             tripId={trip.id}
           />
         ) : null}
@@ -626,6 +731,19 @@ function TripDetailPageContent() {
             </div>
           ) : null}
 
+          {activeGenerationJob ? (
+            <GenerationJobStatusCard
+              canCancel={
+                activeGenerationJob.status === "queued" &&
+                (activeGenerationJob.requestedByUserId === currentUserId ||
+                  access?.role === "owner")
+              }
+              isCancelling={cancelGenerationJobMutation.isPending}
+              job={activeGenerationJob}
+              onCancel={cancelActiveGenerationJob}
+            />
+          ) : null}
+
           {regenerationError ? (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               {regenerationError}
@@ -643,10 +761,10 @@ function TripDetailPageContent() {
               <TripQualityChecks
                 fallbackDistanceSummaries={fallbackDistanceSummaries}
                 isEditing={isEditing}
-                isImproving={regenerationMutation.isPending}
+                isImproving={createGenerationJobMutation.isPending || hasActiveGenerationJob}
                 maxWalkingKmPerDay={maxWalkingKmPerDay}
-                onImproveDay={canMutateTrip ? regenerateDay : undefined}
-                onImproveItem={canMutateTrip ? regenerateItem : undefined}
+                onImproveDay={canMutateTrip ? improveDay : undefined}
+                onImproveItem={canMutateTrip ? improveItem : undefined}
                 routeEstimatesByDay={routeEstimatesByDay}
                 trip={trip}
                 weatherForecast={weatherForecastQuery.data ?? null}
@@ -755,17 +873,17 @@ function TripDetailPageContent() {
                       canComment
                         ? {
                             countByKey: commentCountMap,
-                            disabled: regenerationMutation.isPending,
+                            disabled: createGenerationJobMutation.isPending || hasActiveGenerationJob,
                             onOpenItem: openCommentsForItem
                           }
                         : undefined
                     }
                     currency={trip.budgetCurrency}
-                    disabled={regenerationMutation.isPending}
+                    disabled={createGenerationJobMutation.isPending || hasActiveGenerationJob}
                     itinerary={trip.itinerary}
                     onRegenerateDay={canMutateTrip ? regenerateDay : undefined}
                     onRegenerateItem={canMutateTrip ? regenerateItem : undefined}
-                    regeneratingTarget={regeneratingTarget}
+                    regeneratingTarget={activeRegeneratingTarget}
                     startDate={trip.startDate}
                   />
                   <ItineraryMap itinerary={trip.itinerary} startDate={trip.startDate} />
@@ -855,6 +973,55 @@ function TripDetailPageContent() {
       ) : null}
     </PageContainer>
   );
+}
+
+function findActiveGenerationJob(jobs: GenerationJob[]) {
+  return jobs.find(isActiveGenerationJob) ?? null;
+}
+
+function isActiveGenerationJob(job: GenerationJob) {
+  return job.status === "queued" || job.status === "running";
+}
+
+function targetFromGenerationJob(job: GenerationJob): RegeneratingTarget | null {
+  if (
+    (job.jobType === "item_regeneration" || job.jobType === "quality_improvement_item") &&
+    job.dayNumber != null &&
+    job.itemIndex != null
+  ) {
+    return { type: "item", dayNumber: job.dayNumber, itemIndex: job.itemIndex };
+  }
+  if (
+    (job.jobType === "day_regeneration" || job.jobType === "quality_improvement_day") &&
+    job.dayNumber != null
+  ) {
+    return { type: "day", dayNumber: job.dayNumber };
+  }
+  return null;
+}
+
+function successMessageForGenerationJob(job: GenerationJob) {
+  if (job.jobType === "full_generation") {
+    return "Itinerary generated.";
+  }
+  if (
+    (job.jobType === "item_regeneration" || job.jobType === "quality_improvement_item") &&
+    job.dayNumber != null &&
+    job.itemIndex != null
+  ) {
+    return `Day ${job.dayNumber} item ${job.itemIndex + 1} regenerated.`;
+  }
+  if (job.dayNumber != null) {
+    return `Day ${job.dayNumber} regenerated.`;
+  }
+  return "Itinerary updated.";
+}
+
+function failureMessageForGenerationJob(job: GenerationJob) {
+  if (job.errorCode === "itinerary_conflict") {
+    return "Generation stopped because the itinerary changed while the job was running. Reload latest version and try again.";
+  }
+  return job.errorMessage ?? "Generation failed. The itinerary was not changed.";
 }
 
 type DetailRowProps = {

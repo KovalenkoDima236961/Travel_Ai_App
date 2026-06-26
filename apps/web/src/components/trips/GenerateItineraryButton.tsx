@@ -3,26 +3,36 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { isItineraryConflictError } from "@/lib/api/client";
-import { generateItinerary, tripKeys } from "@/lib/api/trips";
+import { createGenerationJob, generationJobKeys } from "@/lib/api/generation-jobs";
+import { tripKeys } from "@/lib/api/trips";
 import { getErrorMessage } from "@/lib/utils";
+import type { GenerationJob } from "@/types/generation-jobs";
 
 type GenerateItineraryButtonProps = {
   tripId: string;
   itineraryRevision: number;
+  disabled?: boolean;
+  onJobCreated?: (job: GenerationJob) => void;
 };
 
 export function GenerateItineraryButton({
   tripId,
-  itineraryRevision
+  itineraryRevision,
+  disabled = false,
+  onJobCreated
 }: GenerateItineraryButtonProps) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () => generateItinerary(tripId, itineraryRevision),
-    onSuccess: async () => {
+    mutationFn: () =>
+      createGenerationJob(tripId, {
+        jobType: "full_generation",
+        expectedItineraryRevision: itineraryRevision
+      }),
+    onSuccess: async (job) => {
+      onJobCreated?.(job);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
-        queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
+        queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
       ]);
     },
@@ -35,8 +45,8 @@ export function GenerateItineraryButton({
 
   return (
     <div className="flex flex-col items-start gap-2 sm:items-end">
-      <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-        {mutation.isPending ? "Generating..." : "Generate itinerary"}
+      <Button disabled={disabled || mutation.isPending} onClick={() => mutation.mutate()}>
+        {mutation.isPending ? "Queueing..." : "Generate itinerary"}
       </Button>
       <p className="max-w-xs text-left text-xs leading-5 text-slate-500 sm:text-right">
         Your saved travel preferences will be used when generating this itinerary.

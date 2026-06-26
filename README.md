@@ -46,6 +46,15 @@ access. If another editor holds the lock, the Web App warns the user but allows
 `Continue anyway`; `itineraryRevision` conflict detection remains the final
 safety mechanism. Locks are instance-local, expire automatically, and are not
 hard blocking.
+Background Jobs v1 moves slow AI full generation and day/item regeneration to a
+PostgreSQL-backed `trip_generation_jobs` queue processed by an in-process Trip
+Service worker. The Web App creates jobs, shows a status card, polls job state,
+and refetches the trip when the job completes. Jobs check
+`expectedItineraryRevision` when queued and again through the final
+revision-aware save, so newer itinerary edits are not overwritten; stale jobs
+fail visibly with `itinerary_conflict`. There is no RabbitMQ, Kafka, Redis
+queue, separate worker service, distributed locking, or progress streaming in
+v1.
 Activity Feed / Audit Log v1 records important successful actions on a trip
 (creation, generation, edits, regenerations, version restores, comments,
 collaborator changes, and share setting changes) as persistent rows in a

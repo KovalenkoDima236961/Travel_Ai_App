@@ -12,7 +12,8 @@ export type NotificationType =
   | "itinerary_generated"
   | "day_regenerated"
   | "item_regenerated"
-  | "version_restored";
+  | "version_restored"
+  | "generation_job_failed";
 
 export type AppNotification = {
   id: string;

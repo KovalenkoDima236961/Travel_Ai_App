@@ -60,6 +60,10 @@ func (s *Service) GetTripAccess(ctx context.Context, tripID uuid.UUID) (TripAcce
 	return access, err
 }
 
+func (s *Service) GetTripForActor(ctx context.Context, tripID, actorUserID uuid.UUID) (*entity.Trip, TripAccess, error) {
+	return s.requireViewerEditorOrOwner(ctx, tripID, actorUserID)
+}
+
 func (s *Service) tripForAccess(ctx context.Context, tripID, actorUserID uuid.UUID) (*entity.Trip, TripAccess, error) {
 	trip, err := s.repo.GetByID(ctx, tripID)
 	if err != nil {

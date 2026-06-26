@@ -54,6 +54,36 @@ views, and exports do not increment the revision.
 Limitations: v1 does not merge edits, show diffs, lock trips, or provide
 real-time document synchronization.
 
+## Background Jobs v1
+
+AI full generation and day/item regeneration can run through PostgreSQL-backed
+`trip_generation_jobs` rows. The new asynchronous endpoints validate private
+owner/editor access and `expectedItineraryRevision`, insert a queued job, and
+return `202 Accepted` with a `job` payload immediately. The in-process worker
+claims queued jobs with `FOR UPDATE SKIP LOCKED`, runs the existing generation
+service methods, and saves only through the existing revision-aware itinerary
+update path.
+
+Job types are `full_generation`, `day_regeneration`, `item_regeneration`,
+`quality_improvement_day`, and `quality_improvement_item`. Statuses are
+`queued`, `running`, `completed`, `failed`, and `cancelled`. If the itinerary
+changes while a job is queued or running, the job fails with
+`itinerary_conflict` and does not overwrite the newer itinerary. Failed jobs are
+visible through the job API; Trip Service also records a `generation_job_failed`
+activity event and sends a requester-only in-app notification.
+
+The legacy synchronous endpoints remain available for compatibility:
+`POST /trips/{id}/generate`,
+`POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`, and
+`POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`.
+
+Limitations: v1 uses no RabbitMQ/Kafka/Redis queue, no distributed locks, no
+separate worker service, and no progress streaming. Jobs stop when the Trip
+Service process stops; stale running jobs older than
+`GENERATION_JOB_MAX_RUNNING_SECONDS` are marked failed on startup with
+`worker_restarted`. `GENERATION_JOB_WORKER_MAX_CONCURRENT` is documented for
+future use; the v1 worker processes sequentially.
+
 ## Tech stack
 
 | Concern           | Choice                                                        |
@@ -239,6 +269,12 @@ Key environment variables:
 | `TRIP_EDIT_LOCK_TTL_SECONDS` | `180` | Lifetime for one itinerary edit lock after acquire/renew. |
 | `TRIP_EDIT_LOCK_RENEW_SECONDS` | `45` | Recommended frontend renewal interval while the user remains in edit mode. |
 | `TRIP_EDIT_LOCK_STALE_CLEANUP_SECONDS` | `30` | Interval for removing expired in-memory edit locks. |
+| `GENERATION_JOBS_ENABLED` | `true` | Enables generation job endpoints. |
+| `GENERATION_JOB_WORKER_ENABLED` | `true` | Starts the in-process generation job worker. |
+| `GENERATION_JOB_WORKER_POLL_INTERVAL_SECONDS` | `2` | Delay between empty queue polls. |
+| `GENERATION_JOB_WORKER_MAX_CONCURRENT` | `1` | Reserved for future local concurrency; v1 processes sequentially. |
+| `GENERATION_JOB_MAX_RUNNING_SECONDS` | `600` | Per-job timeout and stale-running cutoff on startup. |
+| `GENERATION_JOB_FAIL_OPEN_NOTIFICATIONS` | `true` | Reserved for job notification behavior; notification sends remain best-effort. |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the file form.
 
@@ -628,6 +664,10 @@ make migrate-down    # roll back the last migration
 | GET    | `/trips`                | List authenticated user's trips (paginated, newest first). |
 | GET    | `/trips/{id}`           | Fetch an authenticated user's trip by UUID.  |
 | POST   | `/trips/{id}/generate`  | Generate the itinerary for an authenticated user's trip; status `COMPLETED`. |
+| POST   | `/trips/{id}/generation-jobs` | Queue background full/day/item generation; returns `202` and `job`. |
+| GET    | `/trips/{id}/generation-jobs` | List recent generation jobs for an owner/editor/viewer. |
+| GET    | `/trips/{id}/generation-jobs/{jobId}` | Fetch one generation job for a private trip. |
+| POST   | `/trips/{id}/generation-jobs/{jobId}/cancel` | Cancel a queued job owned by the requester or any queued job as owner. |
 | PUT    | `/trips/{id}/itinerary` | Replace the full itinerary JSON for an authenticated user's trip; status `COMPLETED`. |
 | POST   | `/trips/{id}/itinerary/days/{dayNumber}/regenerate` | Regenerate one itinerary day with AI and preserve all other days. |
 | POST   | `/trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate` | Regenerate one itinerary item with AI and preserve all other items. |

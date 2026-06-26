@@ -14,6 +14,7 @@ const (
 	TypeDayRegenerated         = "day_regenerated"
 	TypeItemRegenerated        = "item_regenerated"
 	TypeVersionRestored        = "version_restored"
+	TypeGenerationJobFailed    = "generation_job_failed"
 )
 
 // Entity type constants describe the kind of object a notification refers to.

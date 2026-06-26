@@ -7,11 +7,12 @@ const (
 	EventTripCreated = "trip_created"
 
 	// Itinerary.
-	EventItineraryGenerated = "itinerary_generated"
-	EventItineraryUpdated   = "itinerary_updated"
-	EventDayRegenerated     = "day_regenerated"
-	EventItemRegenerated    = "item_regenerated"
-	EventVersionRestored    = "version_restored"
+	EventItineraryGenerated  = "itinerary_generated"
+	EventItineraryUpdated    = "itinerary_updated"
+	EventDayRegenerated      = "day_regenerated"
+	EventItemRegenerated     = "item_regenerated"
+	EventVersionRestored     = "version_restored"
+	EventGenerationJobFailed = "generation_job_failed"
 
 	// Comments.
 	EventCommentCreated = "comment_created"
@@ -55,6 +56,7 @@ var knownEventTypes = map[string]struct{}{
 	EventDayRegenerated:          {},
 	EventItemRegenerated:         {},
 	EventVersionRestored:         {},
+	EventGenerationJobFailed:     {},
 	EventCommentCreated:          {},
 	EventCommentUpdated:          {},
 	EventCommentDeleted:          {},

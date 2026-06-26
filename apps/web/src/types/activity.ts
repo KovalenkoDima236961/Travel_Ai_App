@@ -5,6 +5,7 @@ export type TripActivityEventType =
   | "day_regenerated"
   | "item_regenerated"
   | "version_restored"
+  | "generation_job_failed"
   | "comment_created"
   | "comment_updated"
   | "comment_deleted"

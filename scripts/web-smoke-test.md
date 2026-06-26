@@ -55,13 +55,14 @@ http://localhost:3000
 11. Confirm it shows `Provider: mock`, `Mock forecast for local development`,
     forecast days, temperatures, rain chance, wind speed, and any warning badges.
 12. Click `Generate itinerary`.
-13. Wait for completion.
-14. Confirm the itinerary appears.
-15. If any generated items show `Auto-matched place`, confirm they also show a
+13. Confirm a generation status card appears quickly and the page remains responsive.
+14. Wait for the card to show completion.
+15. Confirm the itinerary appears.
+16. If any generated items show `Auto-matched place`, confirm they also show a
     place address/provider and, when confidence is present, a percentage.
-16. If at least two generated auto-matched places have coordinates, confirm map
+17. If at least two generated auto-matched places have coordinates, confirm map
     markers and distance estimates appear before any manual place attachment.
-17. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+18. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
 18. Open `Version History`.
 19. Confirm a `Generated` version exists.
 20. Click `Edit itinerary`.

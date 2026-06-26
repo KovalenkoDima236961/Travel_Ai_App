@@ -45,6 +45,12 @@ Trip Service can also call External Integrations Service for mock weather
 forecasts before full or partial itinerary generation. `WEATHER_CONTEXT_ENABLED=true`
 enables this path and `WEATHER_CONTEXT_FAIL_OPEN=true` lets generation continue
 without weather if the service is unavailable.
+Background Jobs v1 for AI generation/regeneration is enabled by default with
+`GENERATION_JOBS_ENABLED=true` and
+`GENERATION_JOB_WORKER_ENABLED=true`. The worker is in-process, polls Postgres
+every `GENERATION_JOB_WORKER_POLL_INTERVAL_SECONDS=2`, processes sequentially
+for local Ollama safety, and marks old running jobs failed after
+`GENERATION_JOB_MAX_RUNNING_SECONDS=600` on startup.
 Trip Service also uses External Integrations Service for AI Place Enrichment v1
 after generated itinerary payloads. `PLACE_ENRICHMENT_ENABLED=true` enables the
 path, `PLACE_ENRICHMENT_FAIL_OPEN=true` keeps generation successful when place

@@ -63,6 +63,13 @@ function titleFor(
     }
     case "version_restored":
       return { title: `${actor} restored an itinerary version` };
+    case "generation_job_failed": {
+      const code = asString(metadata.errorCode);
+      return {
+        title: `${actor} had a generation job fail`,
+        description: code ? `Reason: ${code}` : undefined
+      };
+    }
     case "comment_created":
       return { title: `${actor} commented on ${itemTarget(metadata)}` };
     case "comment_updated":

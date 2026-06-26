@@ -12,6 +12,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
@@ -159,6 +160,20 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		))
 	}
 	svc := service.New(repo, gen, log, opts...)
+	generationJobsCfg := generationjobs.NormalizeConfig(generationjobs.Config{
+		Enabled:               cfg.GenerationJobs.Enabled,
+		WorkerEnabled:         cfg.GenerationJobs.WorkerEnabled,
+		PollInterval:          cfg.GenerationJobWorkerPollInterval(),
+		MaxConcurrent:         cfg.GenerationJobs.WorkerMaxConcurrent,
+		MaxRunning:            cfg.GenerationJobMaxRunning(),
+		FailOpenNotifications: cfg.GenerationJobs.FailOpenNotifications,
+	})
+	generationJobSvc := generationjobs.NewService(repo, svc, generationJobsCfg)
+	generationJobWorker := generationjobs.NewWorker(repo, svc, generationJobsCfg, log)
+	closer.Add(
+		"generation-job-worker",
+		generationJobWorker.Start(context.Background()),
+	)
 	presenceCfg := presence.Normalize(presence.Config{
 		Enabled:                      cfg.Presence.Enabled,
 		HeartbeatInterval:            cfg.PresenceHeartbeatInterval(),
@@ -180,7 +195,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 
 	tripHandler := handler.New(svc, validator, log).
 		EnablePresence(presenceManager, presenceCfg).
-		EnableEditLocks(editLockManager, editLocksCfg)
+		EnableEditLocks(editLockManager, editLocksCfg).
+		EnableGenerationJobs(generationJobSvc)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,
 		cfg.ItineraryGenerator.Mode,

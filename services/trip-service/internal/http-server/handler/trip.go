@@ -17,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
@@ -25,13 +26,14 @@ import (
 
 // Handler wires the trip use case to HTTP.
 type Handler struct {
-	svc         *service.Service
-	validator   validation.Validator
-	log         *zap.Logger
-	presence    presence.Manager
-	presenceCfg presence.Config
-	editLocks   editlocks.Manager
-	editLockCfg editlocks.Config
+	svc            *service.Service
+	validator      validation.Validator
+	log            *zap.Logger
+	presence       presence.Manager
+	presenceCfg    presence.Config
+	editLocks      editlocks.Manager
+	editLockCfg    editlocks.Config
+	generationJobs *generationjobs.Service
 }
 
 // New constructs the trip HTTP handler.
@@ -50,6 +52,11 @@ func (h *Handler) EnablePresence(manager presence.Manager, cfg presence.Config) 
 func (h *Handler) EnableEditLocks(manager editlocks.Manager, cfg editlocks.Config) *Handler {
 	h.editLocks = manager
 	h.editLockCfg = editlocks.Normalize(cfg)
+	return h
+}
+
+func (h *Handler) EnableGenerationJobs(svc *generationjobs.Service) *Handler {
+	h.generationJobs = svc
 	return h
 }
 
@@ -78,6 +85,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/collaborators/{collaboratorId}/accept", h.AcceptTripCollaborator)
 		r.Post("/{id}/collaborators/{collaboratorId}/decline", h.DeclineTripCollaborator)
 		r.Post("/{id}/generate", h.Generate)
+		r.Post("/{id}/generation-jobs", h.CreateGenerationJob)
+		r.Get("/{id}/generation-jobs", h.ListGenerationJobs)
+		r.Get("/{id}/generation-jobs/{jobId}", h.GetGenerationJob)
+		r.Post("/{id}/generation-jobs/{jobId}/cancel", h.CancelGenerationJob)
 		r.Put("/{id}/itinerary", h.UpdateItinerary)
 		r.Get("/{id}/itinerary/versions", h.ListItineraryVersions)
 		r.Get("/{id}/itinerary/versions/{versionId}", h.GetItineraryVersion)
@@ -442,6 +453,97 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response.NewTrip(t))
 }
 
+func (h *Handler) CreateGenerationJob(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	if h.generationJobs == nil {
+		writeError(w, http.StatusServiceUnavailable, "generation jobs are not configured")
+		return
+	}
+
+	var req generationjobs.CreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	job, err := h.generationJobs.Create(r.Context(), id, req)
+	if err != nil {
+		h.writeGenerationJobError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, generationjobs.NewJobEnvelope(job))
+}
+
+func (h *Handler) GetGenerationJob(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	jobID, ok := parseUUIDParam(w, r, "jobId", "invalid generation job id")
+	if !ok {
+		return
+	}
+	if h.generationJobs == nil {
+		writeError(w, http.StatusServiceUnavailable, "generation jobs are not configured")
+		return
+	}
+
+	job, err := h.generationJobs.Get(r.Context(), id, jobID)
+	if err != nil {
+		h.writeGenerationJobError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, generationjobs.NewJobEnvelope(job))
+}
+
+func (h *Handler) ListGenerationJobs(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseQueryInt(w, r, "limit")
+	if !ok {
+		return
+	}
+	if h.generationJobs == nil {
+		writeError(w, http.StatusServiceUnavailable, "generation jobs are not configured")
+		return
+	}
+
+	jobs, appliedLimit, err := h.generationJobs.List(r.Context(), id, limit)
+	if err != nil {
+		h.writeGenerationJobError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, generationjobs.NewListResponse(jobs, appliedLimit))
+}
+
+func (h *Handler) CancelGenerationJob(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	jobID, ok := parseUUIDParam(w, r, "jobId", "invalid generation job id")
+	if !ok {
+		return
+	}
+	if h.generationJobs == nil {
+		writeError(w, http.StatusServiceUnavailable, "generation jobs are not configured")
+		return
+	}
+
+	job, err := h.generationJobs.Cancel(r.Context(), id, jobID)
+	if err != nil {
+		h.writeGenerationJobError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, generationjobs.NewJobEnvelope(job))
+}
+
 // UpdateItinerary handles PUT /trips/{id}/itinerary.
 func (h *Handler) UpdateItinerary(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.parseID(w, r)
@@ -689,6 +791,20 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	default:
 		h.log.Error("unhandled service error", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "internal server error")
+	}
+}
+
+func (h *Handler) writeGenerationJobError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, generationjobs.ErrDisabled):
+		writeError(w, http.StatusServiceUnavailable, "generation jobs are disabled")
+	case errors.Is(err, generationjobs.ErrNotCancellable):
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":   "generation_job_not_cancellable",
+			"message": "Only queued generation jobs can be cancelled.",
+		})
+	default:
+		h.writeServiceError(w, err)
 	}
 }
 
