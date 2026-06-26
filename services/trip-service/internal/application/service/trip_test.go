@@ -72,6 +72,8 @@ type mockRepo struct {
 	collaboratorByUserErr error
 
 	listCollaborators []entity.TripCollaborator
+
+	calendarSyncs []entity.TripCalendarSync
 }
 
 func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -460,6 +462,96 @@ func (m *mockRepo) CountItineraryCommentsByTripGrouped(_ context.Context, tripID
 		out = append(out, entity.ItineraryCommentCount{DayNumber: k.day, ItemIndex: k.item, Count: counts[k]})
 	}
 	return out, nil
+}
+
+func (m *mockRepo) UpsertTripCalendarSync(_ context.Context, sync *entity.TripCalendarSync) (*entity.TripCalendarSync, error) {
+	out := *sync
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now()
+	out.LastSyncedAt = now
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	out.Status = "active"
+	for i := range m.calendarSyncs {
+		existing := &m.calendarSyncs[i]
+		if existing.TripID == out.TripID &&
+			existing.UserID == out.UserID &&
+			existing.Provider == out.Provider &&
+			existing.SyncKey == out.SyncKey {
+			m.calendarSyncs[i] = out
+			return &out, nil
+		}
+	}
+	m.calendarSyncs = append(m.calendarSyncs, out)
+	return &out, nil
+}
+
+func (m *mockRepo) ListTripCalendarSyncsByTripUserProvider(_ context.Context, tripID, userID uuid.UUID, provider string) ([]entity.TripCalendarSync, error) {
+	out := make([]entity.TripCalendarSync, 0)
+	for _, sync := range m.calendarSyncs {
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.Status == "active" && sync.DeletedAt == nil {
+			out = append(out, sync)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) GetTripCalendarSyncStatus(_ context.Context, tripID, userID uuid.UUID, provider string) (int, *time.Time, int, error) {
+	var count int
+	var last *time.Time
+	var revision int
+	for _, sync := range m.calendarSyncs {
+		if sync.TripID != tripID || sync.UserID != userID || sync.Provider != provider || sync.Status != "active" || sync.DeletedAt != nil {
+			continue
+		}
+		count++
+		if last == nil || sync.LastSyncedAt.After(*last) {
+			v := sync.LastSyncedAt
+			last = &v
+		}
+		if sync.ItineraryRevision > revision {
+			revision = sync.ItineraryRevision
+		}
+	}
+	return count, last, revision, nil
+}
+
+func (m *mockRepo) GetActiveTripCalendarSyncByKey(_ context.Context, tripID, userID uuid.UUID, provider, syncKey string) (*entity.TripCalendarSync, error) {
+	for _, sync := range m.calendarSyncs {
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.SyncKey == syncKey && sync.Status == "active" && sync.DeletedAt == nil {
+			out := sync
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) MarkTripCalendarSyncDeleted(_ context.Context, tripID, userID uuid.UUID, provider, syncKey string) error {
+	now := time.Now()
+	for i := range m.calendarSyncs {
+		sync := &m.calendarSyncs[i]
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.SyncKey == syncKey {
+			sync.Status = "deleted"
+			sync.DeletedAt = &now
+			sync.UpdatedAt = now
+		}
+	}
+	return nil
+}
+
+func (m *mockRepo) MarkAllTripCalendarSyncsDeleted(_ context.Context, tripID, userID uuid.UUID, provider string) error {
+	now := time.Now()
+	for i := range m.calendarSyncs {
+		sync := &m.calendarSyncs[i]
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.Status == "active" {
+			sync.Status = "deleted"
+			sync.DeletedAt = &now
+			sync.UpdatedAt = now
+		}
+	}
+	return nil
 }
 
 func countTripVersions(versions []entity.ItineraryVersion, tripID uuid.UUID) int {

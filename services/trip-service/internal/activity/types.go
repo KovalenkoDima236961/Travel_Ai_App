@@ -33,6 +33,10 @@ const (
 	EventSharePasswordEnabled   = "share_password_enabled"
 	EventSharePasswordDisabled  = "share_password_disabled"
 	EventShareExpirationUpdated = "share_expiration_updated"
+
+	// Calendar sync.
+	EventCalendarSynced      = "calendar_synced"
+	EventCalendarSyncRemoved = "calendar_sync_removed"
 )
 
 // Entity type constants describe the kind of object an event refers to.
@@ -45,6 +49,7 @@ const (
 	EntityComment          = "comment"
 	EntityCollaborator     = "collaborator"
 	EntityShare            = "share"
+	EntityCalendarSync     = "calendar_sync"
 )
 
 // knownEventTypes is the set of event types this version recognises. Recording
@@ -71,6 +76,8 @@ var knownEventTypes = map[string]struct{}{
 	EventSharePasswordEnabled:    {},
 	EventSharePasswordDisabled:   {},
 	EventShareExpirationUpdated:  {},
+	EventCalendarSynced:          {},
+	EventCalendarSyncRemoved:     {},
 }
 
 // IsKnownEventType reports whether the event type is part of the recognised

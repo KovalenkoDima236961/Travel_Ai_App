@@ -1516,6 +1516,7 @@ type routeTestRepo struct {
 	created           *entity.Trip
 	comments          []entity.ItineraryComment
 	activityEvents    []entity.TripActivityEvent
+	calendarSyncs     []entity.TripCalendarSync
 }
 
 func (r *routeTestRepo) CreateTripActivityEvent(_ context.Context, event *entity.TripActivityEvent) (*entity.TripActivityEvent, error) {
@@ -1992,6 +1993,96 @@ func (r *routeTestRepo) CountItineraryCommentsByTripGrouped(_ context.Context, t
 		out = append(out, entity.ItineraryCommentCount{DayNumber: k.day, ItemIndex: k.item, Count: counts[k]})
 	}
 	return out, nil
+}
+
+func (r *routeTestRepo) UpsertTripCalendarSync(_ context.Context, sync *entity.TripCalendarSync) (*entity.TripCalendarSync, error) {
+	out := *sync
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now().UTC()
+	out.Status = "active"
+	out.LastSyncedAt = now
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	for i := range r.calendarSyncs {
+		existing := &r.calendarSyncs[i]
+		if existing.TripID == out.TripID &&
+			existing.UserID == out.UserID &&
+			existing.Provider == out.Provider &&
+			existing.SyncKey == out.SyncKey {
+			r.calendarSyncs[i] = out
+			return &out, nil
+		}
+	}
+	r.calendarSyncs = append(r.calendarSyncs, out)
+	return &out, nil
+}
+
+func (r *routeTestRepo) ListTripCalendarSyncsByTripUserProvider(_ context.Context, tripID, userID uuid.UUID, provider string) ([]entity.TripCalendarSync, error) {
+	out := make([]entity.TripCalendarSync, 0)
+	for _, sync := range r.calendarSyncs {
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.Status == "active" && sync.DeletedAt == nil {
+			out = append(out, sync)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) GetTripCalendarSyncStatus(_ context.Context, tripID, userID uuid.UUID, provider string) (int, *time.Time, int, error) {
+	var count int
+	var last *time.Time
+	var revision int
+	for _, sync := range r.calendarSyncs {
+		if sync.TripID != tripID || sync.UserID != userID || sync.Provider != provider || sync.Status != "active" || sync.DeletedAt != nil {
+			continue
+		}
+		count++
+		if last == nil || sync.LastSyncedAt.After(*last) {
+			v := sync.LastSyncedAt
+			last = &v
+		}
+		if sync.ItineraryRevision > revision {
+			revision = sync.ItineraryRevision
+		}
+	}
+	return count, last, revision, nil
+}
+
+func (r *routeTestRepo) GetActiveTripCalendarSyncByKey(_ context.Context, tripID, userID uuid.UUID, provider, syncKey string) (*entity.TripCalendarSync, error) {
+	for _, sync := range r.calendarSyncs {
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.SyncKey == syncKey && sync.Status == "active" && sync.DeletedAt == nil {
+			out := sync
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) MarkTripCalendarSyncDeleted(_ context.Context, tripID, userID uuid.UUID, provider, syncKey string) error {
+	now := time.Now().UTC()
+	for i := range r.calendarSyncs {
+		sync := &r.calendarSyncs[i]
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.SyncKey == syncKey {
+			sync.Status = "deleted"
+			sync.DeletedAt = &now
+			sync.UpdatedAt = now
+		}
+	}
+	return nil
+}
+
+func (r *routeTestRepo) MarkAllTripCalendarSyncsDeleted(_ context.Context, tripID, userID uuid.UUID, provider string) error {
+	now := time.Now().UTC()
+	for i := range r.calendarSyncs {
+		sync := &r.calendarSyncs[i]
+		if sync.TripID == tripID && sync.UserID == userID && sync.Provider == provider && sync.Status == "active" {
+			sync.Status = "deleted"
+			sync.DeletedAt = &now
+			sync.UpdatedAt = now
+		}
+	}
+	return nil
 }
 
 func routeTestNextVersionNumber(versions []entity.ItineraryVersion, tripID uuid.UUID) int {

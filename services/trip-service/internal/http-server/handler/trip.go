@@ -78,6 +78,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/edit-lock", h.GetEditLock)
 		r.Post("/{id}/edit-lock", h.AcquireEditLock)
 		r.Delete("/{id}/edit-lock", h.ReleaseEditLock)
+		r.Get("/{id}/calendar-sync/google/status", h.GetGoogleCalendarSyncStatus)
+		r.Post("/{id}/calendar-sync/google/sync", h.SyncGoogleCalendar)
+		r.Delete("/{id}/calendar-sync/google", h.RemoveGoogleCalendarSync)
 		r.Post("/{id}/collaborators", h.InviteTripCollaborator)
 		r.Get("/{id}/collaborators", h.ListTripCollaborators)
 		r.Patch("/{id}/collaborators/{collaboratorId}", h.UpdateTripCollaborator)
@@ -102,6 +105,52 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Delete("/{id}/comments/{commentId}", h.DeleteComment)
 		r.Get("/{id}/activity", h.ListActivity)
 	})
+}
+
+func (h *Handler) GetGoogleCalendarSyncStatus(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	status, err := h.svc.GetGoogleCalendarSyncStatus(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (h *Handler) SyncGoogleCalendar(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		ExpectedItineraryRevision *int `json:"expectedItineraryRevision"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.SyncTripToGoogleCalendar(r.Context(), id, req.ExpectedItineraryRevision)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) RemoveGoogleCalendarSync(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	result, err := h.svc.RemoveTripGoogleCalendarSync(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 // RegisterPublicRoutes mounts unauthenticated read-only public routes.

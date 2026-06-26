@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/ilyakaznacheev/cleanenv"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/storage/postgres"
 )
 
 const (
@@ -14,6 +16,11 @@ const (
 	PlaceProviderFoursquare = "foursquare"
 	RouteProviderMock       = "mock"
 	WeatherProviderMock     = "mock"
+	CalendarProviderGoogle  = "google"
+	CalendarProviderMock    = "mock"
+
+	DefaultDevelopmentJWTSecret     = "change-me-in-development"
+	DefaultDevelopmentInternalToken = "dev-internal-service-token"
 )
 
 // Config is the root application configuration. It is loaded from a YAML file
@@ -21,10 +28,14 @@ const (
 type Config struct {
 	Env             string                `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production test"`
 	HTTPServer      HTTPServer            `yaml:"http_server" validate:"required"`
+	Postgres        postgres.Config       `yaml:"postgres" validate:"required"`
+	Auth            AuthConfig            `yaml:"auth" validate:"required"`
+	Internal        InternalConfig        `yaml:"internal" validate:"required"`
 	CORS            CORSConfig            `yaml:"cors" validate:"required"`
 	PlaceProvider   PlaceProviderConfig   `yaml:"place_provider" validate:"required"`
 	RouteProvider   RouteProviderConfig   `yaml:"route_provider" validate:"required"`
 	WeatherProvider WeatherProviderConfig `yaml:"weather_provider" validate:"required"`
+	Calendar        CalendarConfig        `yaml:"calendar" validate:"required"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -39,8 +50,17 @@ type HTTPServer struct {
 // CORSConfig controls browser access to External Integrations Service.
 type CORSConfig struct {
 	AllowedOrigins string `yaml:"allowed_origins" env:"CORS_ALLOWED_ORIGINS" env-default:"http://localhost:3000"`
-	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,OPTIONS"`
+	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,DELETE,OPTIONS"`
 	AllowedHeaders string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
+}
+
+type AuthConfig struct {
+	JWTAccessSecret string `yaml:"jwt_access_secret" env:"JWT_ACCESS_SECRET" env-default:"change-me-in-development"`
+	HeaderName      string `yaml:"header_name" env:"AUTH_HEADER_NAME" env-default:"Authorization" validate:"required"`
+}
+
+type InternalConfig struct {
+	ServiceToken string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
 }
 
 // PlaceProviderConfig selects the place provider adapter.
@@ -73,6 +93,42 @@ type WeatherProviderConfig struct {
 	WeatherAPIKey    string `yaml:"weather_api_key" env:"WEATHER_API_KEY"`
 }
 
+type CalendarConfig struct {
+	Enabled            bool   `yaml:"enabled" env:"GOOGLE_CALENDAR_ENABLED" env-default:"true"`
+	Provider           string `yaml:"provider" env:"CALENDAR_PROVIDER" env-default:"mock"`
+	GoogleClientID     string `yaml:"google_client_id" env:"GOOGLE_OAUTH_CLIENT_ID"`
+	GoogleClientSecret string `yaml:"google_client_secret" env:"GOOGLE_OAUTH_CLIENT_SECRET"`
+	GoogleRedirectURL  string `yaml:"google_redirect_url" env:"GOOGLE_OAUTH_REDIRECT_URL" env-default:"http://localhost:8084/calendar/google/callback"`
+	GoogleScopes       string `yaml:"google_scopes" env:"GOOGLE_CALENDAR_SCOPES" env-default:"https://www.googleapis.com/auth/calendar.events"`
+	EncryptionKey      string `yaml:"encryption_key" env:"CALENDAR_TOKEN_ENCRYPTION_KEY" env-default:"dev-calendar-token-key-32-bytes!"`
+	OAuthStateTTL      int    `yaml:"oauth_state_ttl_seconds" env:"CALENDAR_OAUTH_STATE_TTL_SECONDS" env-default:"600" validate:"min=60"`
+	PublicWebBaseURL   string `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
+	DefaultTimeZone    string `yaml:"default_time_zone" env:"DEFAULT_CALENDAR_TIMEZONE" env-default:"Europe/Bratislava"`
+	GoogleAuthURL      string `yaml:"google_auth_url" env:"GOOGLE_OAUTH_AUTH_URL" env-default:"https://accounts.google.com/o/oauth2/v2/auth"`
+	GoogleTokenURL     string `yaml:"google_token_url" env:"GOOGLE_OAUTH_TOKEN_URL" env-default:"https://oauth2.googleapis.com/token"`
+	GoogleUserInfoURL  string `yaml:"google_user_info_url" env:"GOOGLE_USERINFO_URL" env-default:"https://www.googleapis.com/oauth2/v2/userinfo"`
+	GoogleCalendarAPI  string `yaml:"google_calendar_api" env:"GOOGLE_CALENDAR_API_URL" env-default:"https://www.googleapis.com/calendar/v3"`
+	MockAccountEmail   string `yaml:"mock_account_email" env:"MOCK_GOOGLE_ACCOUNT_EMAIL" env-default:"mock-calendar@example.local"`
+	MockEventLinkBase  string `yaml:"mock_event_link_base" env:"MOCK_GOOGLE_EVENT_LINK_BASE" env-default:"http://localhost:3000/mock-calendar/events"`
+}
+
+func (c CalendarConfig) StateTTL() time.Duration {
+	return time.Duration(c.OAuthStateTTL) * time.Second
+}
+
+func (c CalendarConfig) Scopes() []string {
+	parts := strings.Split(c.GoogleScopes, ",")
+	scopes := make([]string, 0, len(parts))
+	for _, part := range parts {
+		for _, field := range strings.Fields(part) {
+			if trimmed := strings.TrimSpace(field); trimmed != "" {
+				scopes = append(scopes, trimmed)
+			}
+		}
+	}
+	return scopes
+}
+
 // MustLoad loads and validates the configuration, panicking on any error.
 func MustLoad(path string) *Config {
 	cfg, err := Load(path)
@@ -100,6 +156,9 @@ func Load(path string) (*Config, error) {
 	v := validator.New()
 	if err := v.Struct(cfg); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+	if err := cfg.validateSecrets(); err != nil {
+		return nil, err
 	}
 
 	cfg.PlaceProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.PlaceProvider.Provider))
@@ -133,6 +192,36 @@ func Load(path string) (*Config, error) {
 	}
 	cfg.WeatherProvider.OpenMeteoBaseURL = strings.TrimSpace(cfg.WeatherProvider.OpenMeteoBaseURL)
 	cfg.WeatherProvider.WeatherAPIKey = strings.TrimSpace(cfg.WeatherProvider.WeatherAPIKey)
+	cfg.Calendar.Provider = strings.ToLower(strings.TrimSpace(cfg.Calendar.Provider))
+	if cfg.Calendar.Provider == "" {
+		cfg.Calendar.Provider = CalendarProviderMock
+	}
+	if cfg.Calendar.Provider != CalendarProviderGoogle && cfg.Calendar.Provider != CalendarProviderMock {
+		return nil, fmt.Errorf("CALENDAR_PROVIDER must be google or mock")
+	}
+	cfg.Calendar.GoogleClientID = strings.TrimSpace(cfg.Calendar.GoogleClientID)
+	cfg.Calendar.GoogleClientSecret = strings.TrimSpace(cfg.Calendar.GoogleClientSecret)
+	cfg.Calendar.GoogleRedirectURL = strings.TrimSpace(cfg.Calendar.GoogleRedirectURL)
+	cfg.Calendar.GoogleScopes = strings.TrimSpace(cfg.Calendar.GoogleScopes)
+	cfg.Calendar.PublicWebBaseURL = strings.TrimRight(strings.TrimSpace(cfg.Calendar.PublicWebBaseURL), "/")
+	cfg.Calendar.DefaultTimeZone = strings.TrimSpace(cfg.Calendar.DefaultTimeZone)
+	cfg.Calendar.GoogleAuthURL = strings.TrimSpace(cfg.Calendar.GoogleAuthURL)
+	cfg.Calendar.GoogleTokenURL = strings.TrimSpace(cfg.Calendar.GoogleTokenURL)
+	cfg.Calendar.GoogleUserInfoURL = strings.TrimSpace(cfg.Calendar.GoogleUserInfoURL)
+	cfg.Calendar.GoogleCalendarAPI = strings.TrimRight(strings.TrimSpace(cfg.Calendar.GoogleCalendarAPI), "/")
+	cfg.Calendar.MockAccountEmail = strings.TrimSpace(cfg.Calendar.MockAccountEmail)
+	cfg.Calendar.MockEventLinkBase = strings.TrimRight(strings.TrimSpace(cfg.Calendar.MockEventLinkBase), "/")
+	if cfg.Calendar.Enabled && cfg.Calendar.Provider == CalendarProviderGoogle {
+		if cfg.Calendar.GoogleClientID == "" {
+			return nil, fmt.Errorf("GOOGLE_OAUTH_CLIENT_ID is required when CALENDAR_PROVIDER=google")
+		}
+		if cfg.Calendar.GoogleClientSecret == "" {
+			return nil, fmt.Errorf("GOOGLE_OAUTH_CLIENT_SECRET is required when CALENDAR_PROVIDER=google")
+		}
+	}
+	if cfg.Calendar.Enabled && len(cfg.Calendar.Scopes()) == 0 {
+		return nil, fmt.Errorf("GOOGLE_CALENDAR_SCOPES is required when calendar is enabled")
+	}
 
 	return &cfg, nil
 }
@@ -145,9 +234,40 @@ func (c *Config) applyDefaults() {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
-		c.CORS.AllowedMethods = "GET,POST,OPTIONS"
+		c.CORS.AllowedMethods = "GET,POST,DELETE,OPTIONS"
 	}
 	if strings.TrimSpace(c.CORS.AllowedHeaders) == "" {
 		c.CORS.AllowedHeaders = "Content-Type,Authorization"
 	}
+}
+
+func (c *Config) validateSecrets() error {
+	jwtSecret := strings.TrimSpace(c.Auth.JWTAccessSecret)
+	if jwtSecret == "" {
+		return fmt.Errorf("JWT_ACCESS_SECRET is required")
+	}
+	if c.IsProduction() && jwtSecret == DefaultDevelopmentJWTSecret {
+		return fmt.Errorf("JWT_ACCESS_SECRET must not use the development default in production")
+	}
+	c.Auth.JWTAccessSecret = jwtSecret
+
+	internalToken := strings.TrimSpace(c.Internal.ServiceToken)
+	if internalToken == "" {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN is required")
+	}
+	if c.IsProduction() && internalToken == DefaultDevelopmentInternalToken {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use the development default in production")
+	}
+	c.Internal.ServiceToken = internalToken
+
+	key := strings.TrimSpace(c.Calendar.EncryptionKey)
+	if c.Calendar.Enabled {
+		switch len([]byte(key)) {
+		case 16, 24, 32:
+			c.Calendar.EncryptionKey = key
+		default:
+			return fmt.Errorf("CALENDAR_TOKEN_ENCRYPTION_KEY must be 16, 24, or 32 bytes")
+		}
+	}
+	return nil
 }

@@ -57,6 +57,16 @@ path, `PLACE_ENRICHMENT_FAIL_OPEN=true` keeps generation successful when place
 search is unavailable, and `PLACE_ENRICHMENT_MIN_CONFIDENCE=0.75`,
 `PLACE_ENRICHMENT_MAX_ITEMS=20`, and
 `PLACE_ENRICHMENT_OVERWRITE_EXISTING=false` control matching behavior.
+Calendar Sync v1 is enabled locally with `GOOGLE_CALENDAR_ENABLED=true`,
+`CALENDAR_PROVIDER=mock`, and `CALENDAR_SYNC_ENABLED=true`. External
+Integrations Service stores Google OAuth state and encrypted tokens in the
+`external_integrations_service` database, validates user JWTs with
+`JWT_ACCESS_SECRET`, and protects internal event sync/delete endpoints with
+`INTERNAL_SERVICE_TOKEN`. Trip Service uses the same token when calling
+External Integrations Service. To test real Google OAuth, set
+`CALENDAR_PROVIDER=google`, fill `GOOGLE_OAUTH_CLIENT_ID`,
+`GOOGLE_OAUTH_CLIENT_SECRET`, and keep
+`GOOGLE_CALENDAR_SCOPES=https://www.googleapis.com/auth/calendar.events`.
 Public Trip Sharing v1 is enabled by default with
 `PUBLIC_SHARING_ENABLED=true`, builds owner-facing links from
 `PUBLIC_WEB_BASE_URL=http://localhost:3000`, and creates opaque share tokens
@@ -167,6 +177,8 @@ The `web-app` service receives browser-facing and internal service URLs:
   Next.js proxy calls inside Docker Compose.
 - `NOTIFICATION_SERVICE_INTERNAL_URL=http://notification-service:8086` for the
   server-side Next.js notification proxy inside Docker Compose.
+- `EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL=http://external-integrations-service:8084`
+  for the server-side Next.js external-integrations proxy inside Docker Compose.
 
 Trip Service also receives:
 
@@ -213,10 +225,17 @@ curl "http://localhost:8084/weather/forecast?destination=Rome&startDate=2026-08-
 
 `POST /routes/estimate` returns approximate mock walking route estimates
 (Haversine × 1.25 at 5 km/h). Because the Web App calls it from the browser, the
-service's CORS allows `POST` (`CORS_ALLOWED_METHODS=GET,POST,OPTIONS` by
+service's CORS allows `POST` and calendar disconnect uses `DELETE`
+(`CORS_ALLOWED_METHODS=GET,POST,DELETE,OPTIONS` by
 default). Weather forecast calls are read-only `GET` requests. Future provider
 candidates include Google Places, Mapbox, OSRM, Google Maps routing,
 Open-Meteo, and real opening-hours providers.
+
+Calendar Sync v1 endpoints are also served by External Integrations Service.
+The local mock provider simulates Google OAuth and event operations without real
+credentials. Real Google mode uses authorization code flow, stores encrypted
+tokens, refreshes expired access tokens, and syncs only events created by this
+app on the user's primary calendar.
 
 ### Place Provider
 

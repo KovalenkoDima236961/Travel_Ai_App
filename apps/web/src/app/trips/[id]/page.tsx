@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { CalendarSyncPanel } from "@/components/calendar/CalendarSyncPanel";
 import { EditLockStatus } from "@/components/edit-locks/EditLockStatus";
 import { SoftEditLockWarningDialog } from "@/components/edit-locks/SoftEditLockWarningDialog";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
@@ -362,6 +363,7 @@ function TripDetailPageContent() {
   const canRestoreVersion = access?.canRestoreVersion ?? canMutateTrip;
   const canGenerate = canMutateTrip && (trip.status === "DRAFT" || trip.status === "FAILED");
   const canEditItinerary = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
+  const canSyncCalendar = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const editingRevisionChanged =
     isEditing &&
     baseItineraryRevision != null &&
@@ -711,6 +713,9 @@ function TripDetailPageContent() {
           ) : null}
 
           {canManageShare ? <ShareTripPanel tripId={trip.id} /> : null}
+          {trip.status === "COMPLETED" && trip.itinerary ? (
+            <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />
+          ) : null}
           <CollaboratorsPanel
             canManageCollaborators={canManageCollaborators}
             tripId={trip.id}

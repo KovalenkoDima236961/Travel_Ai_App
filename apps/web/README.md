@@ -55,11 +55,14 @@ NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084
 NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:8086
 TRIP_SERVICE_INTERNAL_URL=http://localhost:8080
 NOTIFICATION_SERVICE_INTERNAL_URL=http://localhost:8086
+EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL=http://localhost:8084
 ```
 
 `NOTIFICATION_SERVICE_INTERNAL_URL` is used by the server-side notification proxy
 route (`app/api/notification-service/[...path]`); in Docker Compose it is the
 internal hostname `http://notification-service:8086`.
+`EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL` is used by the server-side
+external-integrations proxy for authenticated Google Calendar OAuth calls.
 
 ## Backend
 
@@ -108,6 +111,9 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}/edit-lock`
 - `POST /trips/{id}/edit-lock`
 - `DELETE /trips/{id}/edit-lock`
+- `GET /trips/{id}/calendar-sync/google/status`
+- `POST /trips/{id}/calendar-sync/google/sync`
+- `DELETE /trips/{id}/calendar-sync/google`
 - `GET /collaboration/invitations`
 - `GET /trips/{id}/comments` (and `?dayNumber=&itemIndex=` for one item)
 - `GET /trips/{id}/comments/counts`
@@ -125,8 +131,16 @@ route estimates, and weather forecasts:
 - `GET /places/{placeId}`
 - `POST /routes/estimate`
 - `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
+- `GET /calendar/google/status`
+- `POST /calendar/google/connect`
+- `DELETE /calendar/google/disconnect`
 
 The Web App does not call third-party place, route, or weather APIs directly.
+It also does not call Google Calendar directly. The private trip detail page
+renders `CalendarSyncPanel` for completed trips; owners and editors can connect
+Google Calendar, sync/update itinerary events using the latest
+`itineraryRevision`, remove synced events, or disconnect the account. Viewers
+see a disabled message, and public share pages never render calendar sync.
 If External Integrations Service is configured with `PLACE_PROVIDER=foursquare`,
 the browser still calls the same `/places/search` and `/places/{placeId}`
 endpoints and receives normalized `Place` objects.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
@@ -157,6 +158,22 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			notificationClient,
 			cfg.Notifications.Enabled,
 			cfg.Notifications.FailOpen,
+		))
+	}
+	if cfg.CalendarSync.Enabled {
+		calendarClient, err := calendarclient.New(calendarclient.Config{
+			BaseURL:        cfg.CalendarSync.ExternalIntegrationsServiceURL,
+			Token:          cfg.CalendarSync.InternalServiceToken,
+			TimeoutSeconds: cfg.CalendarSync.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init calendar sync client: %w", err)
+		}
+		opts = append(opts, service.WithCalendarSync(
+			calendarClient,
+			cfg.CalendarSync.Enabled,
+			cfg.PublicSharing.PublicWebBaseURL,
+			cfg.CalendarSync.DefaultTimeZone,
 		))
 	}
 	svc := service.New(repo, gen, log, opts...)

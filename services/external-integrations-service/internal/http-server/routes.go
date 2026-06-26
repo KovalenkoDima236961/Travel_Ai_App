@@ -9,8 +9,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
+	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/middleware"
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
@@ -19,8 +21,12 @@ func NewRouter(
 	placesHandler *handler.PlacesHandler,
 	routesHandler *handler.RoutesHandler,
 	weatherHandler *handler.WeatherHandler,
+	calendarHandler *handler.CalendarHandler,
+	internalCalendarHandler *handler.InternalCalendarHandler,
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
+	authCfg config.AuthConfig,
+	internalCfg config.InternalConfig,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -37,6 +43,29 @@ func NewRouter(
 	placesHandler.RegisterRoutes(r)
 	routesHandler.RegisterRoutes(r)
 	weatherHandler.RegisterRoutes(r)
+	if calendarHandler != nil {
+		r.Get("/calendar/google/callback", calendarHandler.Callback)
+	}
+
+	if calendarHandler != nil {
+		r.Group(func(r chi.Router) {
+			r.Use(auth.Middleware(auth.MiddlewareConfig{
+				JWTAccessSecret: authCfg.JWTAccessSecret,
+				HeaderName:      authCfg.HeaderName,
+			}))
+			r.Get("/calendar/google/status", calendarHandler.Status)
+			r.Post("/calendar/google/connect", calendarHandler.Connect)
+			r.Delete("/calendar/google/disconnect", calendarHandler.Disconnect)
+		})
+	}
+
+	if internalCalendarHandler != nil {
+		r.Group(func(r chi.Router) {
+			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+			r.Post("/internal/calendar/google/events/sync", internalCalendarHandler.SyncGoogleEvents)
+			r.Post("/internal/calendar/google/events/delete", internalCalendarHandler.DeleteGoogleEvents)
+		})
+	}
 
 	return r
 }

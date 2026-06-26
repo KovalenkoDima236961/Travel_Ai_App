@@ -74,6 +74,24 @@ export function getExternalIntegrationsServiceUrl() {
   return DEFAULT_EXTERNAL_INTEGRATIONS_SERVICE_URL;
 }
 
+export function getExternalIntegrationsServiceInternalUrl() {
+  const value = process.env.EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL?.trim();
+
+  if (value) {
+    return value.replace(/\/+$/, "");
+  }
+
+  return getExternalIntegrationsServiceUrl();
+}
+
+export function getExternalIntegrationsApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return "/api/external-integrations-service";
+  }
+
+  return getExternalIntegrationsServiceInternalUrl();
+}
+
 export function getNotificationServiceUrl() {
   const value = process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL?.trim();
 

@@ -30,6 +30,7 @@ type Config struct {
 	Presence           PresenceConfig           `yaml:"presence"`
 	EditLocks          EditLocksConfig          `yaml:"edit_locks"`
 	GenerationJobs     GenerationJobsConfig     `yaml:"generation_jobs"`
+	CalendarSync       CalendarSyncConfig       `yaml:"calendar_sync"`
 }
 
 // NotificationsConfig controls synchronous in-app notification fan-out to the
@@ -68,6 +69,14 @@ type GenerationJobsConfig struct {
 	WorkerMaxConcurrent       int  `yaml:"worker_max_concurrent" env:"GENERATION_JOB_WORKER_MAX_CONCURRENT" env-default:"1" validate:"min=1"`
 	MaxRunningSeconds         int  `yaml:"max_running_seconds" env:"GENERATION_JOB_MAX_RUNNING_SECONDS" env-default:"600" validate:"min=1"`
 	FailOpenNotifications     bool `yaml:"fail_open_notifications" env:"GENERATION_JOB_FAIL_OPEN_NOTIFICATIONS" env-default:"true"`
+}
+
+type CalendarSyncConfig struct {
+	Enabled                        bool   `yaml:"enabled" env:"CALENDAR_SYNC_ENABLED" env-default:"true"`
+	ExternalIntegrationsServiceURL string `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
+	InternalServiceToken           string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	TimeoutSeconds                 int    `yaml:"timeout_seconds" env:"CALENDAR_SYNC_TIMEOUT_SECONDS" env-default:"30" validate:"min=1"`
+	DefaultTimeZone                string `yaml:"default_time_zone" env:"DEFAULT_CALENDAR_TIMEZONE" env-default:"Europe/Bratislava"`
 }
 
 // HTTPServer holds the HTTP listener configuration.

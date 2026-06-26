@@ -89,3 +89,10 @@ generation_jobs:
   worker_max_concurrent: 1
   max_running_seconds: 600
   fail_open_notifications: true
+
+calendar_sync:
+  enabled: true
+  external_integrations_service_url: http://external-integrations-service:8084
+  internal_service_token: dev-internal-service-token
+  timeout_seconds: 30
+  default_time_zone: Europe/Bratislava

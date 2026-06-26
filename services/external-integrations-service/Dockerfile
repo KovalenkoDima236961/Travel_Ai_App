@@ -17,6 +17,7 @@ RUN apk add --no-cache ca-certificates wget && adduser -D -u 10001 appuser
 WORKDIR /app
 
 COPY --from=builder /out/external-integrations-service /usr/local/bin/external-integrations-service
+COPY --from=builder /app/migrations /app/migrations
 
 USER appuser
 EXPOSE 8084

@@ -5,6 +5,8 @@ travel app. v1 exposes place search/details, route estimates, and weather
 forecasts through stable application APIs so the Web App can use
 integration-shaped data without calling third-party APIs directly. Mock providers
 remain the local default; place search/details can optionally use Foursquare.
+Calendar Sync v1 also lives here: the service owns Google OAuth, encrypted token
+storage, and Google Calendar event create/update/delete calls for Trip Service.
 
 ## Tech Stack
 
@@ -13,7 +15,7 @@ remain the local default; place search/details can optionally use Foursquare.
 - Uber Zap
 - cleanenv config
 - Docker
-- No database in v1
+- PostgreSQL for calendar OAuth state and token storage
 
 The service uses the same explicit composition-root pattern as Auth Service,
 Trip Service, and User Service. There is no DI framework in this service.
@@ -47,6 +49,12 @@ external-integrations-service/
 - `GET /places/{placeId}`
 - `POST /routes/estimate`
 - `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
+- `GET /calendar/google/status`
+- `POST /calendar/google/connect`
+- `GET /calendar/google/callback`
+- `DELETE /calendar/google/disconnect`
+- `POST /internal/calendar/google/events/sync`
+- `POST /internal/calendar/google/events/delete`
 
 Example:
 
@@ -67,8 +75,24 @@ curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
 - `ROUTE_PROVIDER` defaults to `mock`
 - `WEATHER_PROVIDER` defaults to `mock`
 - `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:3000`
-- `CORS_ALLOWED_METHODS` defaults to `GET,POST,OPTIONS`
+- `CORS_ALLOWED_METHODS` defaults to `GET,POST,DELETE,OPTIONS`
 - `CORS_ALLOWED_HEADERS` defaults to `Content-Type,Authorization`
+- `POSTGRES_*` configures the service database for calendar connections and
+  OAuth state rows.
+- `JWT_ACCESS_SECRET` validates user JWTs on calendar OAuth endpoints.
+- `INTERNAL_SERVICE_TOKEN` protects internal calendar event endpoints.
+- `GOOGLE_CALENDAR_ENABLED` enables Calendar Sync v1.
+- `CALENDAR_PROVIDER=mock|google`; `mock` is the local default, while `google`
+  uses the real Google OAuth and Calendar APIs.
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
+  `GOOGLE_OAUTH_REDIRECT_URL` are required for `CALENDAR_PROVIDER=google`.
+- `GOOGLE_CALENDAR_SCOPES` defaults to
+  `https://www.googleapis.com/auth/calendar.events`.
+- `CALENDAR_TOKEN_ENCRYPTION_KEY` must be 16, 24, or 32 bytes and is used with
+  AES-GCM. Do not use the dev value outside local development.
+- `CALENDAR_OAUTH_STATE_TTL_SECONDS` defaults to `600`.
+- `PUBLIC_WEB_BASE_URL` restricts OAuth callback redirects to the Web App.
+- `DEFAULT_CALENDAR_TIMEZONE` defaults to `Europe/Bratislava`.
 
 Documented for future providers, but unused in v1:
 
@@ -82,6 +106,32 @@ Documented for future providers, but unused in v1:
 
 Unsupported `PLACE_PROVIDER`, `ROUTE_PROVIDER`, or `WEATHER_PROVIDER` values
 fail startup with a clear error. Providers are selected independently.
+
+## Google Calendar Sync v1
+
+User-facing OAuth endpoints require a valid Auth Service JWT, except
+`GET /calendar/google/callback` because Google redirects the browser there with
+`code` and `state`. The callback validates a single-use, expiring state row,
+exchanges the authorization code server-side, fetches account email when
+available, encrypts tokens at rest, and redirects only to URLs under
+`PUBLIC_WEB_BASE_URL`.
+
+Trip Service calls internal endpoints with `X-Internal-Service-Token`:
+
+- `POST /internal/calendar/google/events/sync` creates or updates events in the
+  user's primary Google calendar.
+- `POST /internal/calendar/google/events/delete` removes events previously
+  created by this app.
+
+The real provider requests the least-privilege
+`https://www.googleapis.com/auth/calendar.events` scope. Tokens, OAuth codes,
+client secrets, and encryption keys must not be logged. The mock provider keeps
+the same `/calendar/google/*` API but simulates OAuth and event operations for
+local smoke tests.
+
+Limitations: Google only, one connected account per user, primary calendar only,
+one-way app-to-calendar sync, no watch/webhook subscriptions, no recurring
+events, no Apple/Outlook integration, and no reminder customization.
 
 Run locally with environment config:
 

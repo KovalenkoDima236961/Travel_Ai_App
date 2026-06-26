@@ -687,6 +687,61 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
 
+if [[ "${CALENDAR_PROVIDER:-mock}" == "mock" ]]; then
+  echo "Checking mock Google Calendar connection and sync..."
+  request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/calendar/google/status" "${ACCESS_TOKEN}"
+  assert_2xx "Initial Google Calendar status"
+  if ! jq -e '.connected == false and .provider == "google"' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Expected initial Google Calendar status to be disconnected." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  CONNECT_PAYLOAD="$(jq -nc --arg returnUrl "${WEB_APP_URL}/trips/${TRIP_ID}" '{returnUrl:$returnUrl}')"
+  request_with_bearer POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/calendar/google/connect" "${ACCESS_TOKEN}" "${CONNECT_PAYLOAD}"
+  assert_2xx "Start Google Calendar mock connect"
+  CALENDAR_AUTH_URL="$(jq -r '.authUrl // empty' <<<"${LAST_BODY}")"
+  if [[ -z "${CALENDAR_AUTH_URL}" ]]; then
+    echo "Calendar connect did not return authUrl." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  request GET "${CALENDAR_AUTH_URL}"
+  assert_status "Mock Google Calendar callback redirect" "302"
+
+  request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/calendar/google/status" "${ACCESS_TOKEN}"
+  assert_2xx "Connected Google Calendar status"
+  if ! jq -e '.connected == true and .providerAccountEmail != null' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Expected connected Google Calendar status with account email." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  SYNC_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+  request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/calendar-sync/google/sync" "${ACCESS_TOKEN}" "${SYNC_PAYLOAD}"
+  assert_2xx "Sync trip to Google Calendar"
+  CALENDAR_SYNC_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
+  if [[ "${CALENDAR_SYNC_STATUS}" != "synced" && "${CALENDAR_SYNC_STATUS}" != "no_timed_items" ]]; then
+    echo "Unexpected calendar sync status." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/calendar-sync/google/status" "${ACCESS_TOKEN}"
+  assert_2xx "Trip Google Calendar sync status"
+  if ! jq -e '.connected == true and .provider == "google"' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Expected Trip Service calendar sync status to include connected Google account." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/calendar-sync/google/sync" "${ACCESS_TOKEN}" "${SYNC_PAYLOAD}"
+  assert_2xx "Update trip Google Calendar sync"
+
+  request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/calendar-sync/google" "${ACCESS_TOKEN}"
+  assert_2xx "Remove trip Google Calendar sync"
+fi
+
 echo "Inviting collaborator as viewer..."
 INVITE_PAYLOAD="$(jq -nc --arg email "${COLLAB_EMAIL}" '{email:$email,role:"viewer"}')"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators" "${ACCESS_TOKEN}" "${INVITE_PAYLOAD}"
@@ -838,6 +893,9 @@ assert_status "Viewer itinerary edit" "403"
 VIEWER_GENERATION_JOB_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{jobType:"day_regeneration",dayNumber:1,expectedItineraryRevision:$revision}')"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generation-jobs" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_GENERATION_JOB_PAYLOAD}"
 assert_status "Viewer generation job create" "403"
+VIEWER_CALENDAR_SYNC_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/calendar-sync/google/sync" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_CALENDAR_SYNC_PAYLOAD}"
+assert_status "Viewer calendar sync" "403"
 
 echo "Checking viewer can read but cannot acquire edit lock..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}"
@@ -1603,5 +1661,5 @@ OTHER_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${OTHER_REFRESH_TOKEN}" '{ref
 request POST "${AUTH_SERVICE_URL}/auth/logout" "${OTHER_LOGOUT_PAYLOAD}"
 assert_2xx "Logout second user"
 
-echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), revision conflicts were rejected, version restore worked, the activity feed recorded major actions with access enforced, and owner isolation was enforced."
+echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), revision conflicts were rejected, version restore worked, calendar sync was exercised when using the mock provider, the activity feed recorded major actions with access enforced, and owner isolation was enforced."
 echo "Open ${WEB_APP_URL}/login to run the manual browser flow."

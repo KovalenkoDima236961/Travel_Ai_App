@@ -124,6 +124,14 @@ attached places can also carry optional local `openingHours` intervals
 advisory closed-place warnings when hours are available and handles missing real
 provider fields gracefully. No real Google Places provider, real opening-hours
 provider, real weather provider, or real turn-by-turn routing is enabled yet.
+Calendar Sync v1 is implemented inside External Integrations Service rather
+than a separate Calendar Service. Users can connect one Google Calendar account
+through server-side OAuth, tokens are encrypted at rest, and Trip Service can
+one-way sync timed itinerary items as Google Calendar events. Sync is per user
+and per private trip; owners and editors can sync their own calendars, viewers
+and public share viewers cannot. v1 uses the primary calendar only, the
+`calendar.events` scope, and no two-way sync, webhooks, recurring events, or
+Apple/Outlook providers.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token

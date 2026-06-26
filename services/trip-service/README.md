@@ -54,6 +54,34 @@ views, and exports do not increment the revision.
 Limitations: v1 does not merge edits, show diffs, lock trips, or provide
 real-time document synchronization.
 
+## Calendar Sync v1
+
+Trip Service owns per-trip/user event mappings in `trip_calendar_syncs` and
+delegates provider calls to External Integrations Service. Calendar sync is a
+personal integration: owners and accepted editors may sync their own Google
+Calendar; accepted viewers and public share viewers cannot sync. If an owner
+and editor both sync the same trip, each user gets separate Google events and
+separate sync rows.
+
+Endpoints:
+
+- `GET /trips/{id}/calendar-sync/google/status`
+- `POST /trips/{id}/calendar-sync/google/sync`
+- `DELETE /trips/{id}/calendar-sync/google`
+
+Sync requests must include `expectedItineraryRevision`. A stale value returns
+HTTP `409` with `error: "itinerary_conflict"` and does not mutate the itinerary
+or calendar mapping rows. Sync creates events for timed itinerary items only,
+updates existing mapped events by `sync_key = day-{dayNumber}-item-{itemIndex}`,
+and deletes mapped events for items that are no longer timed/present. Event
+descriptions include item notes, map URL, estimated cost, and the app trip URL;
+they do not include comments, private preferences, version history, tokens, or
+place-enrichment debug metadata.
+
+Limitations: Google only, primary calendar only, one-way sync, no background
+queue, and heavy itinerary reordering may update events according to the current
+day/item index mapping.
+
 ## Background Jobs v1
 
 AI full generation and day/item regeneration can run through PostgreSQL-backed

@@ -176,7 +176,18 @@ func newTestRouter() http.Handler {
 	routesHandler := handler.NewRoutesHandler(routesSvc, zap.NewNop())
 	weatherSvc := appservice.NewWeatherService(weatherprovider.NewMockWeatherProvider(), zap.NewNop())
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, zap.NewNop())
-	return NewRouter(zap.NewNop(), placesHandler, routesHandler, weatherHandler, NewReadinessHandler(zap.NewNop()), cfg.CORS)
+	return NewRouter(
+		zap.NewNop(),
+		placesHandler,
+		routesHandler,
+		weatherHandler,
+		nil,
+		nil,
+		NewReadinessHandler(zap.NewNop()),
+		cfg.CORS,
+		cfg.Auth,
+		cfg.Internal,
+	)
 }
 
 func testConfig() *config.Config {
@@ -190,7 +201,7 @@ func testConfig() *config.Config {
 		WeatherProvider: config.WeatherProviderConfig{Provider: "mock"},
 		CORS: config.CORSConfig{
 			AllowedOrigins: "http://localhost:3000",
-			AllowedMethods: "GET,POST,OPTIONS",
+			AllowedMethods: "GET,POST,DELETE,OPTIONS",
 			AllowedHeaders: "Content-Type,Authorization",
 		},
 	}

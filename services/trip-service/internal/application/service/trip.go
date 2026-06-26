@@ -16,6 +16,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
@@ -108,6 +109,12 @@ type tripRepository interface {
 	UpdateItineraryCommentBody(ctx context.Context, tripID, commentID uuid.UUID, body string) (*entity.ItineraryComment, error)
 	SoftDeleteItineraryComment(ctx context.Context, tripID, commentID uuid.UUID) (*entity.ItineraryComment, error)
 	CountItineraryCommentsByTripGrouped(ctx context.Context, tripID uuid.UUID) ([]entity.ItineraryCommentCount, error)
+	UpsertTripCalendarSync(ctx context.Context, sync *entity.TripCalendarSync) (*entity.TripCalendarSync, error)
+	ListTripCalendarSyncsByTripUserProvider(ctx context.Context, tripID, userID uuid.UUID, provider string) ([]entity.TripCalendarSync, error)
+	GetTripCalendarSyncStatus(ctx context.Context, tripID, userID uuid.UUID, provider string) (int, *time.Time, int, error)
+	GetActiveTripCalendarSyncByKey(ctx context.Context, tripID, userID uuid.UUID, provider, syncKey string) (*entity.TripCalendarSync, error)
+	MarkTripCalendarSyncDeleted(ctx context.Context, tripID, userID uuid.UUID, provider, syncKey string) error
+	MarkAllTripCalendarSyncsDeleted(ctx context.Context, tripID, userID uuid.UUID, provider string) error
 }
 
 type userContextProvider interface {
@@ -124,6 +131,12 @@ type placeEnrichmentProvider interface {
 
 type userLookupProvider interface {
 	LookupByEmail(ctx context.Context, email string) (*appdto.UserLookupResult, error)
+}
+
+type calendarSyncProvider interface {
+	GetGoogleCalendarStatus(ctx context.Context, accessToken string) (*calendarclient.ConnectionStatus, error)
+	SyncGoogleCalendarEvents(ctx context.Context, input calendarclient.SyncRequest) (*calendarclient.SyncResult, error)
+	DeleteGoogleCalendarEvents(ctx context.Context, input calendarclient.DeleteRequest) (*calendarclient.DeleteResult, error)
 }
 
 // Option customizes Service dependencies that are not required for the core
@@ -166,6 +179,15 @@ func WithUserLookup(provider userLookupProvider) Option {
 	}
 }
 
+func WithCalendarSync(provider calendarSyncProvider, enabled bool, publicWebBaseURL, defaultTimeZone string) Option {
+	return func(s *Service) {
+		s.calendarSyncProvider = provider
+		s.calendarSyncEnabled = enabled
+		s.calendarSyncPublicWebBaseURL = strings.TrimRight(strings.TrimSpace(publicWebBaseURL), "/")
+		s.calendarSyncDefaultTimeZone = strings.TrimSpace(defaultTimeZone)
+	}
+}
+
 // WithPublicSharing configures owner-managed public read-only trip links.
 func WithPublicSharing(
 	enabled bool,
@@ -190,27 +212,31 @@ func WithPublicSharing(
 // Service holds the trip business logic. It depends on the repository and
 // generator ports and a logger.
 type Service struct {
-	repo                    tripRepository
-	generator               application.ItineraryGenerator
-	userContextProvider     userContextProvider
-	userContextEnabled      bool
-	userContextFailOpen     bool
-	weatherContextProvider  weatherContextProvider
-	weatherContextEnabled   bool
-	weatherContextFailOpen  bool
-	placeEnrichmentProvider placeEnrichmentProvider
-	placeEnrichmentEnabled  bool
-	placeEnrichmentFailOpen bool
-	userLookupProvider      userLookupProvider
-	activity                activityService
-	notifier                notifier
-	notificationsEnabled    bool
-	notificationsFailOpen   bool
-	publicSharingEnabled    bool
-	publicWebBaseURL        string
-	shareTokenBytes         int
-	publicShareTokens       *sharing.PublicShareTokenManager
-	log                     *zap.Logger
+	repo                         tripRepository
+	generator                    application.ItineraryGenerator
+	userContextProvider          userContextProvider
+	userContextEnabled           bool
+	userContextFailOpen          bool
+	weatherContextProvider       weatherContextProvider
+	weatherContextEnabled        bool
+	weatherContextFailOpen       bool
+	placeEnrichmentProvider      placeEnrichmentProvider
+	placeEnrichmentEnabled       bool
+	placeEnrichmentFailOpen      bool
+	userLookupProvider           userLookupProvider
+	calendarSyncProvider         calendarSyncProvider
+	calendarSyncEnabled          bool
+	calendarSyncPublicWebBaseURL string
+	calendarSyncDefaultTimeZone  string
+	activity                     activityService
+	notifier                     notifier
+	notificationsEnabled         bool
+	notificationsFailOpen        bool
+	publicSharingEnabled         bool
+	publicWebBaseURL             string
+	shareTokenBytes              int
+	publicShareTokens            *sharing.PublicShareTokenManager
+	log                          *zap.Logger
 }
 
 // New constructs the trip service.

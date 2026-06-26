@@ -155,6 +155,34 @@ http://localhost:3000
 29. Log in as collaborator again and confirm the trip no longer opens and no
     longer appears under `Shared with me`.
 
+## Google Calendar Sync
+
+1. Start the full stack with `CALENDAR_PROVIDER=mock` for local testing, or set
+   real Google OAuth credentials with `CALENDAR_PROVIDER=google`.
+2. Log in as an owner and open a completed private trip with timed itinerary
+   items.
+3. Confirm the `Calendar sync` panel appears.
+4. Click `Connect Google Calendar`.
+5. Complete OAuth. With the mock provider this redirects immediately; with real
+   Google, grant the `calendar.events` scope.
+6. Confirm you return to the trip detail page with a connected account shown.
+7. Click `Sync itinerary`.
+8. Confirm the panel shows a sync summary and the sync status is no longer
+   `Not synced`.
+9. If using real Google, confirm events appear on the primary Google Calendar.
+10. Modify the itinerary and save it.
+11. Confirm the calendar sync panel reports the synced events are out of date.
+12. Click `Update synced events`.
+13. If using real Google, confirm the existing Google events update rather than
+    duplicating.
+14. Click `Remove synced events` and confirm.
+15. If using real Google, confirm the events created by this app are removed.
+16. Confirm PDF and `.ics` export still work.
+17. Invite a collaborator as `viewer`, accept the invite, and confirm the viewer
+    does not see sync actions.
+18. Open the public `/share/{shareToken}` page and confirm calendar sync is not
+    shown.
+
 ## Itinerary Comments
 
 1. Log in as the owner and open a completed trip with an itinerary.
@@ -490,9 +518,10 @@ at once: the trip **owner** and a **second user** (collaborator).
   `docker compose -f infra/docker-compose.yml logs external-integrations-service`.
   The Distance estimate panel falls back to straight-line estimates and does not
   crash the page.
-- Route estimate CORS error in browser console: confirm the External
-  Integrations Service allows `POST` (default `CORS_ALLOWED_METHODS=GET,POST,OPTIONS`),
-  then rebuild/restart `external-integrations-service`.
+- External Integrations CORS error in browser console: confirm the External
+  Integrations Service allows the web methods it needs (default
+  `CORS_ALLOWED_METHODS=GET,POST,DELETE,OPTIONS`), then rebuild/restart
+  `external-integrations-service`.
 - AI Planning Service offline: check
   `docker compose -f infra/docker-compose.yml logs ai-planning-service`.
 - Ollama model not pulled: run

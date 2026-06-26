@@ -7,9 +7,26 @@ http_server:
   idle_timeout: 60s
   shutdown_timeout: 15s
 
+postgres:
+  database: external_integrations_service
+  username: postgres
+  password: postgres
+  host: localhost
+  port: 5432
+  min-conns: 2
+  max-conns: 10
+  mig-path: ./migrations
+
+auth:
+  jwt_access_secret: change-me-in-development
+  header_name: Authorization
+
+internal:
+  service_token: dev-internal-service-token
+
 cors:
   allowed_origins: "http://localhost:3000"
-  allowed_methods: "GET,POST,OPTIONS"
+  allowed_methods: "GET,POST,DELETE,OPTIONS"
   allowed_headers: "Content-Type,Authorization"
 
 place_provider:
@@ -35,3 +52,21 @@ weather_provider:
   # Documented for future real providers; unused in v1.
   open_meteo_base_url: ""
   weather_api_key: ""
+
+calendar:
+  enabled: true
+  provider: mock
+  google_client_id: ""
+  google_client_secret: ""
+  google_redirect_url: "http://localhost:8084/calendar/google/callback"
+  google_scopes: "https://www.googleapis.com/auth/calendar.events"
+  encryption_key: "dev-calendar-token-key-32-bytes!"
+  oauth_state_ttl_seconds: 600
+  public_web_base_url: "http://localhost:3000"
+  default_time_zone: "Europe/Bratislava"
+  google_auth_url: "https://accounts.google.com/o/oauth2/v2/auth"
+  google_token_url: "https://oauth2.googleapis.com/token"
+  google_user_info_url: "https://www.googleapis.com/oauth2/v2/userinfo"
+  google_calendar_api: "https://www.googleapis.com/calendar/v3"
+  mock_account_email: "mock-calendar@example.local"
+  mock_event_link_base: "http://localhost:3000/mock-calendar/events"
