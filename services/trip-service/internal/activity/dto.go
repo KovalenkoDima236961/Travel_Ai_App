@@ -56,6 +56,36 @@ type ListActivityResult struct {
 	NextCursor string
 }
 
+// EventDTO is the public JSON shape used by GET /trips/{id}/activity and by
+// activity.created stream events. Keep this shape stable across both paths.
+type EventDTO struct {
+	ID          uuid.UUID      `json:"id"`
+	TripID      uuid.UUID      `json:"tripId"`
+	ActorUserID *uuid.UUID     `json:"actorUserId"`
+	EventType   string         `json:"eventType"`
+	EntityType  *string        `json:"entityType"`
+	EntityID    *uuid.UUID     `json:"entityId"`
+	Metadata    map[string]any `json:"metadata"`
+	CreatedAt   time.Time      `json:"createdAt"`
+}
+
+func NewEventDTO(e entity.TripActivityEvent) EventDTO {
+	metadata := e.Metadata
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	return EventDTO{
+		ID:          e.ID,
+		TripID:      e.TripID,
+		ActorUserID: e.ActorUserID,
+		EventType:   e.EventType,
+		EntityType:  e.EntityType,
+		EntityID:    e.EntityID,
+		Metadata:    metadata,
+		CreatedAt:   e.CreatedAt,
+	}
+}
+
 // cursor is the decoded form of the opaque pagination cursor.
 type cursor struct {
 	CreatedAt time.Time `json:"createdAt"`

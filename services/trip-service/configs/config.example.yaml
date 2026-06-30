@@ -76,6 +76,13 @@ presence:
   max_connections_per_user_per_trip: 5
   send_full_snapshot: true
 
+activity_stream:
+  enabled: true
+  heartbeat_seconds: 25
+  write_timeout_seconds: 10
+  max_connections_per_user_per_trip: 5
+  client_buffer_size: 20
+
 edit_locks:
   enabled: true
   ttl_seconds: 180

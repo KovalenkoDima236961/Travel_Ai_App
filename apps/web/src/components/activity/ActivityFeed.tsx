@@ -20,7 +20,8 @@ type ActivityFeedProps = {
  * Recent activity panel for a private trip. Owners and accepted collaborators
  * see a chronological, newest-first feed grouped by day, with cursor-based
  * "Load more" paging. It is never rendered on the public share page and renders
- * nothing when the viewer lacks access. There are no real-time updates in v1.
+ * nothing when the viewer lacks access. Private trip pages invalidate this
+ * query from the activity SSE stream when new events arrive.
  */
 export function ActivityFeed({ tripId, currentUserId, canViewActivity }: ActivityFeedProps) {
   const enabled = canViewActivity && Boolean(tripId);

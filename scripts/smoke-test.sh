@@ -210,6 +210,25 @@ assert_activity_has() {
   fi
 }
 
+assert_activity_stream_opens() {
+  local label="$1"
+  local token="$2"
+  local response_file
+  local status
+  response_file="$(mktemp)"
+  status="$(
+    curl -s --max-time 2 -o "${response_file}" -w "%{http_code}" \
+      -H "Accept: text/event-stream" \
+      -H "Authorization: Bearer ${token}" \
+      "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream" || true
+  )"
+  rm -f "${response_file}"
+  if [[ "${status}" != "200" ]]; then
+    echo "${label}: expected activity stream HTTP 200, got HTTP ${status}" >&2
+    exit 1
+  fi
+}
+
 # fetch_notifications loads a user's notifications into LAST_BODY. Trip Service
 # creates notifications synchronously, but a tiny retry guards against scheduling
 # jitter between the action returning and the row being visible.
@@ -941,6 +960,8 @@ assert_status "Pending collaborator comment access" "404"
 echo "Confirming pending collaborator cannot fetch activity..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Pending collaborator activity access" "404"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Pending collaborator activity stream access" "404"
 
 echo "Confirming pending collaborator cannot update presence..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${COLLAB_ACCESS_TOKEN}" '{"state":"viewing"}'
@@ -1115,6 +1136,8 @@ fi
 echo "Confirming an accepted viewer collaborator can fetch activity..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Accepted collaborator fetch activity"
+echo "Confirming an accepted viewer collaborator can open the activity stream..."
+assert_activity_stream_opens "Accepted collaborator activity stream" "${COLLAB_ACCESS_TOKEN}"
 
 echo "Disabling collaborator in-app comment notifications..."
 DISABLE_COLLAB_COMMENT_PREF='{"items":[{"channel":"in_app","category":"comments","enabled":false}]}'
@@ -1360,6 +1383,8 @@ assert_status "Removed collaborator comment access" "404"
 echo "Confirming removed collaborator cannot fetch activity..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Removed collaborator activity access" "404"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Removed collaborator activity stream access" "404"
 
 echo "Confirming removed collaborator cannot update presence..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${COLLAB_ACCESS_TOKEN}" '{"state":"viewing"}'
@@ -1433,6 +1458,10 @@ PUBLIC_TRIP_BODY="${LAST_BODY}"
 echo "Confirming public share token cannot access edit locks..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_status "Public share edit lock access" "401"
+
+echo "Confirming public share token cannot open the private activity stream..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share activity stream access" "401"
 
 PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${PUBLIC_TRIP_BODY}")"
 PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${PUBLIC_TRIP_BODY}")"
@@ -1790,6 +1819,8 @@ assert_status "Second user create comment on first user's trip" "404"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's activity" "404"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user open first user's activity stream" "404"
 
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${OTHER_ACCESS_TOKEN}" '{"state":"viewing"}'
 assert_status "Second user update first user's presence" "404"
@@ -1848,10 +1879,17 @@ echo "Activity cursor pagination returned each event once and reached trip_creat
 echo "Confirming unauthenticated activity access is rejected..."
 request GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity"
 assert_status "Unauthenticated activity access" "401"
+request GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream"
+assert_status "Unauthenticated activity stream access" "401"
+
+echo "Confirming owner can open the activity stream..."
+assert_activity_stream_opens "Owner activity stream" "${ACCESS_TOKEN}"
 
 echo "Confirming the public share has no activity endpoint..."
 request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/activity"
 assert_status "Public share activity endpoint absent" "404"
+request GET "${TRIP_SERVICE_URL}/public/trips/${SHARE_TOKEN}/activity/stream"
+assert_status "Public share activity stream endpoint absent" "404"
 
 echo "Logging out smoke test users..."
 LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${REFRESH_TOKEN}" '{refreshToken:$refreshToken}')"

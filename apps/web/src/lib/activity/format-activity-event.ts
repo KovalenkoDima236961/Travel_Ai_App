@@ -50,6 +50,8 @@ function titleFor(
   switch (event.eventType) {
     case "trip_created":
       return { title: `${actor} created the trip` };
+    case "trip_budget_updated":
+      return { title: `${actor} updated the trip budget` };
     case "itinerary_generated":
       return { title: `${actor} generated the itinerary` };
     case "itinerary_updated":
@@ -102,12 +104,22 @@ function titleFor(
       return { title: `${actor} updated share settings` };
     case "share_disabled":
       return { title: `${actor} disabled the share link` };
+    case "share_password_enabled":
+      return { title: `${actor} enabled share password protection` };
+    case "share_password_disabled":
+      return { title: `${actor} disabled share password protection` };
+    case "share_expiration_updated":
+      return { title: `${actor} updated share expiration` };
     case "accommodation_added":
       return { title: `${actor} added ${accommodationLabel(metadata)}` };
     case "accommodation_updated":
       return { title: `${actor} updated ${accommodationLabel(metadata)}` };
     case "accommodation_removed":
       return { title: `${actor} removed ${accommodationLabel(metadata)}` };
+    case "calendar_synced":
+      return { title: `${actor} synced the trip calendar` };
+    case "calendar_sync_removed":
+      return { title: `${actor} removed calendar sync` };
     default:
       return { title: "Activity recorded" };
   }

@@ -473,6 +473,11 @@ Key environment variables:
 | `TRIP_PRESENCE_STALE_AFTER_SECONDS` | `60` | In-memory sessions older than this are removed by cleanup. |
 | `TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP` | `5` | Active presence streams allowed per user per trip on this instance. |
 | `TRIP_PRESENCE_SEND_FULL_SNAPSHOT` | `true` | Sends full `presence.snapshot` payloads for v1 clients. |
+| `TRIP_ACTIVITY_STREAM_ENABLED` | `true` | Enables private-trip activity SSE streams. |
+| `TRIP_ACTIVITY_STREAM_HEARTBEAT_SECONDS` | `25` | Heartbeat interval for activity SSE connections. |
+| `TRIP_ACTIVITY_STREAM_WRITE_TIMEOUT_SECONDS` | `10` | Per-event SSE write deadline. |
+| `TRIP_ACTIVITY_STREAM_MAX_CONNECTIONS_PER_USER_PER_TRIP` | `5` | Active activity streams allowed per user per trip on this instance. |
+| `TRIP_ACTIVITY_STREAM_CLIENT_BUFFER_SIZE` | `20` | Buffered events per connected activity stream client before best-effort drops. |
 | `TRIP_EDIT_LOCKS_ENABLED` | `true` | Enables advisory in-memory itinerary edit locks. When disabled, acquire returns success with `disabled:true`. |
 | `TRIP_EDIT_LOCK_TTL_SECONDS` | `180` | Lifetime for one itinerary edit lock after acquire/renew. |
 | `TRIP_EDIT_LOCK_RENEW_SECONDS` | `45` | Recommended frontend renewal interval while the user remains in edit mode. |
@@ -728,14 +733,19 @@ Storage and model:
   insert failure is logged and swallowed, so e.g. a comment is still created
   even if its activity event cannot be written. Old trips work without events.
 
-Event types: `trip_created`; `itinerary_generated`, `itinerary_updated`,
-`day_regenerated`, `item_regenerated`, `version_restored`; `comment_created`,
+Event types: `trip_created`, `trip_budget_updated`; `itinerary_generated`,
+`itinerary_updated`, `day_regenerated`, `item_regenerated`,
+`version_restored`, `generation_job_failed`; `comment_created`,
 `comment_updated`, `comment_deleted`; `collaborator_invited`,
 `collaborator_accepted`, `collaborator_declined`, `collaborator_role_changed`,
-`collaborator_removed`; `share_created`, `share_updated`, `share_disabled`.
-Entity types: `trip`, `itinerary`, `itinerary_day`, `itinerary_item`,
-`itinerary_version`, `comment`, `collaborator`, `share`. Constants live in
-`internal/activity/types.go` — no scattered string literals.
+`collaborator_removed`; `share_created`, `share_updated`, `share_disabled`,
+`share_password_enabled`, `share_password_disabled`,
+`share_expiration_updated`; `accommodation_added`, `accommodation_updated`,
+`accommodation_removed`; `calendar_synced`, `calendar_sync_removed`. Entity
+types: `trip`, `accommodation`, `itinerary`, `itinerary_day`,
+`itinerary_item`, `itinerary_version`, `comment`, `collaborator`, `share`,
+`calendar_sync`. Constants live in `internal/activity/types.go` — no scattered
+string literals.
 
 Metadata safety rules — metadata is kept small and sanitized (nil values
 dropped, string values truncated, key count capped). It **never** stores:
@@ -757,12 +767,25 @@ Protected endpoint:
   `(created_at DESC, id DESC)`; the response includes `nextCursor` when more
   (older) events exist. An invalid cursor is a `400`. Response shape:
   `{"items":[{"id","tripId","actorUserId","eventType","entityType","entityId","metadata","createdAt"}],"nextCursor":"..."}`.
+- `GET /trips/{id}/activity/stream` — authenticated Server-Sent Events stream
+  for private trip owners and accepted editor/viewer collaborators. Public share
+  viewers, pending collaborators, removed collaborators, and non-collaborators
+  cannot connect. Event names:
+  - `activity.created`: `{"event":{...}}` where `event` is the same DTO returned
+    by `GET /activity`.
+  - `activity.heartbeat`: `{"ts":"2026-06-30T12:00:00Z"}`.
 
-Limitations: no real-time updates, no filtering/search, and actor display names
-are generic ("You" for the requester, "Collaborator" otherwise — no batch user
-lookup in v1). Activity recording failure does not fail the originating action.
-In-app notifications for these events are delivered separately by the
-Notification Service (see below).
+Activity streaming is in-memory and best-effort. There is no replay,
+`Last-Event-ID`, cross-instance delivery, offline delivery, or Redis/Kafka/RabbitMQ
+fan-out. Slow clients get dropped events once their per-client buffer is full;
+the originating action remains successful because the persistent activity table
+is the source of truth. If `TRIP_ACTIVITY_STREAM_ENABLED=false`, the stream route
+returns `503` with `activity_stream_disabled`.
+
+Limitations: no filtering/search, and actor display names are generic ("You" for
+the requester, "Collaborator" otherwise — no batch user lookup in v1). Activity
+recording failure does not fail the originating action. In-app notifications for
+these events are delivered separately by the Notification Service (see below).
 
 ## Notifications integration v1
 

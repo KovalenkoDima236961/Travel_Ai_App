@@ -28,6 +28,7 @@ type Config struct {
 	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
 	Notifications      NotificationsConfig      `yaml:"notifications"`
 	Presence           PresenceConfig           `yaml:"presence"`
+	ActivityStream     ActivityStreamConfig     `yaml:"activity_stream"`
 	EditLocks          EditLocksConfig          `yaml:"edit_locks"`
 	GenerationJobs     GenerationJobsConfig     `yaml:"generation_jobs"`
 	CalendarSync       CalendarSyncConfig       `yaml:"calendar_sync"`
@@ -52,6 +53,15 @@ type PresenceConfig struct {
 	StaleAfterSeconds            int  `yaml:"stale_after_seconds" env:"TRIP_PRESENCE_STALE_AFTER_SECONDS" env-default:"60" validate:"min=1"`
 	MaxConnectionsPerUserPerTrip int  `yaml:"max_connections_per_user_per_trip" env:"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP" env-default:"5" validate:"min=1"`
 	SendFullSnapshot             bool `yaml:"send_full_snapshot" env:"TRIP_PRESENCE_SEND_FULL_SNAPSHOT" env-default:"true"`
+}
+
+// ActivityStreamConfig controls instance-local real-time activity fan-out.
+type ActivityStreamConfig struct {
+	Enabled                      bool `yaml:"enabled" env:"TRIP_ACTIVITY_STREAM_ENABLED" env-default:"true"`
+	HeartbeatSeconds             int  `yaml:"heartbeat_seconds" env:"TRIP_ACTIVITY_STREAM_HEARTBEAT_SECONDS" env-default:"25" validate:"min=1"`
+	WriteTimeoutSeconds          int  `yaml:"write_timeout_seconds" env:"TRIP_ACTIVITY_STREAM_WRITE_TIMEOUT_SECONDS" env-default:"10" validate:"min=1"`
+	MaxConnectionsPerUserPerTrip int  `yaml:"max_connections_per_user_per_trip" env:"TRIP_ACTIVITY_STREAM_MAX_CONNECTIONS_PER_USER_PER_TRIP" env-default:"5" validate:"min=1"`
+	ClientBufferSize             int  `yaml:"client_buffer_size" env:"TRIP_ACTIVITY_STREAM_CLIENT_BUFFER_SIZE" env-default:"20" validate:"min=1"`
 }
 
 // EditLocksConfig controls instance-local advisory itinerary edit locks.
@@ -167,6 +177,14 @@ func (c *Config) PresenceHeartbeatInterval() time.Duration {
 // PresenceStaleAfter returns the configured stale-session threshold.
 func (c *Config) PresenceStaleAfter() time.Duration {
 	return time.Duration(c.Presence.StaleAfterSeconds) * time.Second
+}
+
+func (c *Config) ActivityStreamHeartbeatInterval() time.Duration {
+	return time.Duration(c.ActivityStream.HeartbeatSeconds) * time.Second
+}
+
+func (c *Config) ActivityStreamWriteTimeout() time.Duration {
+	return time.Duration(c.ActivityStream.WriteTimeoutSeconds) * time.Second
 }
 
 func (c *Config) EditLockTTL() time.Duration {

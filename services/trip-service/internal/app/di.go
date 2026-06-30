@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
@@ -113,7 +114,15 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("init user lookup client: %w", err)
 	}
-	activitySvc := activity.New(repo, log)
+	activityStreamCfg := activitystream.Normalize(activitystream.Config{
+		Enabled:                      cfg.ActivityStream.Enabled,
+		HeartbeatInterval:            cfg.ActivityStreamHeartbeatInterval(),
+		WriteTimeout:                 cfg.ActivityStreamWriteTimeout(),
+		MaxConnectionsPerUserPerTrip: cfg.ActivityStream.MaxConnectionsPerUserPerTrip,
+		ClientBufferSize:             cfg.ActivityStream.ClientBufferSize,
+	})
+	activityStreamManager := activitystream.NewManager(activityStreamCfg, log)
+	activitySvc := activity.New(repo, log, activity.WithPublisher(activityStreamManager))
 
 	var notificationClient *notifications.Client
 	if cfg.Notifications.Enabled {
@@ -212,6 +221,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 
 	tripHandler := handler.New(svc, validator, log).
 		EnablePresence(presenceManager, presenceCfg).
+		EnableActivityStream(activityStreamManager, activityStreamCfg).
 		EnableEditLocks(editLockManager, editLocksCfg).
 		EnableGenerationJobs(generationJobSvc)
 	readinessHandler := httpserver.NewReadinessHandler(

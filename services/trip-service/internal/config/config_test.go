@@ -46,6 +46,11 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"TRIP_PRESENCE_STALE_AFTER_SECONDS",
 		"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP",
 		"TRIP_PRESENCE_SEND_FULL_SNAPSHOT",
+		"TRIP_ACTIVITY_STREAM_ENABLED",
+		"TRIP_ACTIVITY_STREAM_HEARTBEAT_SECONDS",
+		"TRIP_ACTIVITY_STREAM_WRITE_TIMEOUT_SECONDS",
+		"TRIP_ACTIVITY_STREAM_MAX_CONNECTIONS_PER_USER_PER_TRIP",
+		"TRIP_ACTIVITY_STREAM_CLIENT_BUFFER_SIZE",
 		"TRIP_EDIT_LOCKS_ENABLED",
 		"TRIP_EDIT_LOCK_TTL_SECONDS",
 		"TRIP_EDIT_LOCK_RENEW_SECONDS",
@@ -164,6 +169,21 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if !cfg.Presence.SendFullSnapshot {
 		t.Fatal("expected trip presence full snapshots by default")
 	}
+	if !cfg.ActivityStream.Enabled {
+		t.Fatal("expected trip activity stream to be enabled by default")
+	}
+	if cfg.ActivityStream.HeartbeatSeconds != 25 {
+		t.Fatalf("expected trip activity stream heartbeat 25s, got %d", cfg.ActivityStream.HeartbeatSeconds)
+	}
+	if cfg.ActivityStream.WriteTimeoutSeconds != 10 {
+		t.Fatalf("expected trip activity stream write timeout 10s, got %d", cfg.ActivityStream.WriteTimeoutSeconds)
+	}
+	if cfg.ActivityStream.MaxConnectionsPerUserPerTrip != 5 {
+		t.Fatalf("expected trip activity stream max connections 5, got %d", cfg.ActivityStream.MaxConnectionsPerUserPerTrip)
+	}
+	if cfg.ActivityStream.ClientBufferSize != 20 {
+		t.Fatalf("expected trip activity stream client buffer 20, got %d", cfg.ActivityStream.ClientBufferSize)
+	}
 	if !cfg.EditLocks.Enabled {
 		t.Fatal("expected trip edit locks to be enabled by default")
 	}
@@ -215,6 +235,11 @@ func TestLoadReadsCORSOverrides(t *testing.T) {
 		"TRIP_PRESENCE_STALE_AFTER_SECONDS",
 		"TRIP_PRESENCE_MAX_CONNECTIONS_PER_USER_PER_TRIP",
 		"TRIP_PRESENCE_SEND_FULL_SNAPSHOT",
+		"TRIP_ACTIVITY_STREAM_ENABLED",
+		"TRIP_ACTIVITY_STREAM_HEARTBEAT_SECONDS",
+		"TRIP_ACTIVITY_STREAM_WRITE_TIMEOUT_SECONDS",
+		"TRIP_ACTIVITY_STREAM_MAX_CONNECTIONS_PER_USER_PER_TRIP",
+		"TRIP_ACTIVITY_STREAM_CLIENT_BUFFER_SIZE",
 		"TRIP_EDIT_LOCKS_ENABLED",
 		"TRIP_EDIT_LOCK_TTL_SECONDS",
 		"TRIP_EDIT_LOCK_RENEW_SECONDS",

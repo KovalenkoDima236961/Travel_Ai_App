@@ -78,6 +78,34 @@ describe("parseSSEBuffer", () => {
     });
   });
 
+  it("parses activity created events", () => {
+    const result = parseSSEBuffer(
+      'event: activity.created\ndata: {"event":{"id":"e1","tripId":"t1","actorUserId":"u1","eventType":"comment_created","entityType":"comment","entityId":"c1","metadata":{},"createdAt":"2026-06-30T12:00:00Z"}}\n\n'
+    );
+
+    expect(result.events[0]).toMatchObject({
+      event: "activity.created",
+      data: {
+        event: expect.objectContaining({
+          id: "e1",
+          tripId: "t1",
+          eventType: "comment_created"
+        })
+      }
+    });
+  });
+
+  it("parses split activity chunks", () => {
+    const first = parseSSEChunk("", 'event: activity.created\ndata: {"event":{"id":"e1"');
+    expect(first.events).toHaveLength(0);
+
+    const second = parseSSEChunk(first.remainder, ',"tripId":"t1","metadata":{}}}\n\n');
+    expect(second.events[0]).toMatchObject({
+      event: "activity.created",
+      data: { event: expect.objectContaining({ id: "e1", tripId: "t1" }) }
+    });
+  });
+
   it("keeps unknown events for the caller to ignore", () => {
     const result = parseSSEBuffer('event: something.new\ndata: {"ok":true}\n\n');
     expect(result.events[0]).toMatchObject({

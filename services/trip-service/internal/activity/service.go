@@ -24,12 +24,17 @@ type Repository interface {
 	) ([]entity.TripActivityEvent, error)
 }
 
+type Publisher interface {
+	Publish(ctx context.Context, tripID uuid.UUID, event EventDTO)
+}
+
 // Service records and lists trip activity events. It performs no permission
 // checks itself — the trip use case enforces who may read activity before
 // calling List, and only records events after an action has already succeeded.
 type Service struct {
-	repo Repository
-	log  *zap.Logger
+	repo      Repository
+	log       *zap.Logger
+	publisher Publisher
 }
 
 // Record persists one activity event. It validates the event type, sanitizes
@@ -60,8 +65,12 @@ func (s *Service) Record(ctx context.Context, in RecordActivityInput) error {
 		Metadata:    sanitizeMetadata(in.Metadata),
 	}
 
-	if _, err := s.repo.CreateTripActivityEvent(ctx, event); err != nil {
+	stored, err := s.repo.CreateTripActivityEvent(ctx, event)
+	if err != nil {
 		return fmt.Errorf("create trip activity event: %w", err)
+	}
+	if s.publisher != nil {
+		s.publisher.Publish(ctx, stored.TripID, NewEventDTO(*stored))
 	}
 	return nil
 }

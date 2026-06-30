@@ -1,5 +1,6 @@
 export type TripActivityEventType =
   | "trip_created"
+  | "trip_budget_updated"
   | "itinerary_generated"
   | "itinerary_updated"
   | "day_regenerated"
@@ -17,9 +18,14 @@ export type TripActivityEventType =
   | "share_created"
   | "share_updated"
   | "share_disabled"
+  | "share_password_enabled"
+  | "share_password_disabled"
+  | "share_expiration_updated"
   | "accommodation_added"
   | "accommodation_updated"
-  | "accommodation_removed";
+  | "accommodation_removed"
+  | "calendar_synced"
+  | "calendar_sync_removed";
 
 export type TripActivityEntityType =
   | "trip"
@@ -30,7 +36,8 @@ export type TripActivityEntityType =
   | "comment"
   | "collaborator"
   | "share"
-  | "accommodation";
+  | "accommodation"
+  | "calendar_sync";
 
 export type TripActivityEvent = {
   id: string;
@@ -48,4 +55,8 @@ export type TripActivityEvent = {
 export type TripActivityResponse = {
   items: TripActivityEvent[];
   nextCursor?: string | null;
+};
+
+export type ActivityStreamMessage = {
+  event: TripActivityEvent;
 };

@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
+var errBoom = errors.New("boom")
+
 type fakeRepo struct {
 	created    []*entity.TripActivityEvent
 	listResult []entity.TripActivityEvent
@@ -21,6 +24,14 @@ type fakeRepo struct {
 	gotLimit           int
 	gotCursorCreatedAt *time.Time
 	gotCursorID        *uuid.UUID
+}
+
+type fakePublisher struct {
+	events []EventDTO
+}
+
+func (f *fakePublisher) Publish(_ context.Context, _ uuid.UUID, event EventDTO) {
+	f.events = append(f.events, event)
 }
 
 func (f *fakeRepo) CreateTripActivityEvent(_ context.Context, event *entity.TripActivityEvent) (*entity.TripActivityEvent, error) {
@@ -91,6 +102,48 @@ func TestRecord_StoresSanitizedEvent(t *testing.T) {
 	name, _ := stored.Metadata["itemName"].(string)
 	if len(name) != maxMetadataStringLen {
 		t.Fatalf("expected itemName truncated to %d, got %d", maxMetadataStringLen, len(name))
+	}
+}
+
+func TestRecord_PublishesAfterSuccessfulCreate(t *testing.T) {
+	repo := &fakeRepo{}
+	publisher := &fakePublisher{}
+	svc := New(repo, zap.NewNop(), WithPublisher(publisher))
+	tripID := uuid.New()
+
+	if err := svc.Record(context.Background(), RecordActivityInput{
+		TripID:    tripID,
+		EventType: EventCommentCreated,
+		Metadata:  map[string]any{"itemName": "Lunch"},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(publisher.events) != 1 {
+		t.Fatalf("expected one published event, got %d", len(publisher.events))
+	}
+	got := publisher.events[0]
+	if got.TripID != tripID || got.EventType != EventCommentCreated {
+		t.Fatalf("unexpected published event: %+v", got)
+	}
+	if got.CreatedAt.IsZero() {
+		t.Fatal("expected published event to include stored createdAt")
+	}
+}
+
+func TestRecord_DoesNotPublishWhenCreateFails(t *testing.T) {
+	repo := &fakeRepo{createErr: errBoom}
+	publisher := &fakePublisher{}
+	svc := New(repo, zap.NewNop(), WithPublisher(publisher))
+
+	if err := svc.Record(context.Background(), RecordActivityInput{
+		TripID:    uuid.New(),
+		EventType: EventCommentCreated,
+	}); err == nil {
+		t.Fatal("expected create error")
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("expected no published events, got %+v", publisher.events)
 	}
 }
 

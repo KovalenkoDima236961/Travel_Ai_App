@@ -65,7 +65,11 @@ route, so public share viewers never see activity. Events are recorded only
 after an action succeeds, recording failures never fail the action, and metadata
 is small and sanitized (no secrets, passwords, tokens, comment bodies, or full
 itinerary JSON). The web app shows a `Recent activity` panel on private trip
-detail pages. No real-time updates or filtering in v1.
+detail pages. Real-time Activity Feed v1 adds an authenticated, fetch-based SSE
+stream at `GET /trips/{id}/activity/stream`; connected private collaborators
+receive best-effort `activity.created` events and the web app refetches the feed
+live. The persistent activity endpoint remains the source of truth; the stream
+is in-memory only, has no replay, and is never available to public share viewers.
 Notification Service v1 lives in `services/notification-service` and owns
 private, per-user in-app notifications in its own database. After a successful
 collaboration/comment/itinerary action, Trip Service calls the Notification

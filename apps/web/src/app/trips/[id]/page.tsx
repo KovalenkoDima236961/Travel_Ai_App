@@ -43,6 +43,7 @@ import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { activityKeys } from "@/lib/api/activity";
+import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
 import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
 import { isItineraryConflictError } from "@/lib/api/client";
@@ -267,6 +268,13 @@ function TripDetailPageContent() {
   const presenceStream = useTripPresenceStream({
     tripId,
     enabled: presenceEnabled
+  });
+  useTripActivityStream({
+    tripId,
+    enabled: presenceEnabled,
+    onActivityCreated: () => {
+      void queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
+    }
   });
   const setPresenceState = useTripPresenceState(tripId, presenceEnabled);
   const editLocksEnabled =

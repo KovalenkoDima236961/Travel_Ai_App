@@ -524,9 +524,8 @@ them.
 
 The activity feed records important successful actions on a private trip and is
 visible only to the owner and accepted collaborators. It never appears on the
-public share page. There are no real-time updates: the feed refreshes when its
-React Query data is invalidated (after comment/collaborator/share/itinerary
-actions) or on page reload.
+public share page. Private trip detail pages also open a fetch-based SSE stream
+so newly persisted activity can refetch into the feed without a page refresh.
 
 1. Log in as the trip owner.
 2. Create a trip (e.g. destination `Rome`, `days=3`) and open its detail page.
@@ -548,10 +547,17 @@ actions) or on page reload.
    and open the shared trip.
 10. Confirm the `Recent activity` panel is visible and the owner's actions show
     as `Collaborator` (not `You`); the collaborator's own actions show as `You`.
-11. Open the public share link (`/share/<shareToken>`) in a separate
+11. Keep the owner trip page open in browser A and the collaborator private trip
+    page open in browser B. Add a comment in browser A and confirm browser B's
+    `Recent activity` panel updates without refresh.
+12. Update the trip budget or accommodation in browser B and confirm browser A's
+    activity feed updates without refresh.
+13. Trigger generation job completion or failure if practical and confirm the
+    corresponding activity appears live.
+14. Open the public share link (`/share/<shareToken>`) in a separate
     session/browser.
-12. Confirm there is no activity panel on the public page and no activity is
-    exposed.
+15. Confirm there is no activity panel on the public page and no live private
+    activity stream data is exposed.
 
 ## Notifications (Notification Service)
 

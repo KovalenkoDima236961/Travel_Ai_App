@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
@@ -26,14 +27,16 @@ import (
 
 // Handler wires the trip use case to HTTP.
 type Handler struct {
-	svc            *service.Service
-	validator      validation.Validator
-	log            *zap.Logger
-	presence       presence.Manager
-	presenceCfg    presence.Config
-	editLocks      editlocks.Manager
-	editLockCfg    editlocks.Config
-	generationJobs *generationjobs.Service
+	svc               *service.Service
+	validator         validation.Validator
+	log               *zap.Logger
+	presence          presence.Manager
+	presenceCfg       presence.Config
+	activityStream    activitystream.Manager
+	activityStreamCfg activitystream.Config
+	editLocks         editlocks.Manager
+	editLockCfg       editlocks.Config
+	generationJobs    *generationjobs.Service
 }
 
 // New constructs the trip HTTP handler.
@@ -45,6 +48,13 @@ func New(svc *service.Service, validator validation.Validator, log *zap.Logger) 
 func (h *Handler) EnablePresence(manager presence.Manager, cfg presence.Config) *Handler {
 	h.presence = manager
 	h.presenceCfg = presence.Normalize(cfg)
+	return h
+}
+
+// EnableActivityStream wires optional trip activity SSE endpoints onto the handler.
+func (h *Handler) EnableActivityStream(manager activitystream.Manager, cfg activitystream.Config) *Handler {
+	h.activityStream = manager
+	h.activityStreamCfg = activitystream.Normalize(cfg)
 	return h
 }
 
@@ -109,6 +119,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Patch("/{id}/comments/{commentId}", h.UpdateComment)
 		r.Delete("/{id}/comments/{commentId}", h.DeleteComment)
 		r.Get("/{id}/activity", h.ListActivity)
+		r.Get("/{id}/activity/stream", h.StreamActivity)
 	})
 }
 

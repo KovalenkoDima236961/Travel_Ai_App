@@ -335,13 +335,18 @@ setting changes.
 - The panel is shown only to the owner and accepted collaborators (same access
   rule as comments) and renders nothing otherwise. It is never mounted on the
   public `/share/{shareToken}` page and makes no activity requests there.
-- There are no real-time updates. After comment, collaborator, share, itinerary
-  edit/regenerate, and version-restore actions the page invalidates the activity
-  query (`activityKeys`) so the feed refreshes; otherwise it updates on reload.
+- Private trip detail pages open a fetch-based SSE stream with
+  `GET /trips/{id}/activity/stream` (`lib/activity/use-trip-activity-stream.ts`).
+  Native `EventSource` is not used because the Auth Service JWT must be sent in
+  the `Authorization` header, never in the query string.
+- On `activity.created`, the page invalidates the activity query (`activityKeys`)
+  and refetches `GET /activity`, preserving actor labels and formatting. If the
+  stream is unavailable or reconnecting, the normal query and mutation-triggered
+  invalidations still work.
 
-Limitations: no real-time updates, no filtering/search, and generic actor
-labels. In-app notifications for these events are surfaced separately by the
-notification bell (see below).
+Limitations: no filtering/search, generic actor labels, and best-effort
+single-instance streaming only. In-app notifications for these events are
+surfaced separately by the notification bell (see below).
 
 ## Notifications
 
