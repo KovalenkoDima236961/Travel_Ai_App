@@ -43,6 +43,7 @@ type aiPlanningGenerateRequest struct {
 	UserProfile     *usercontext.UserProfile        `json:"userProfile,omitempty"`
 	UserPreferences *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
 	WeatherForecast *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
+	Accommodation   *aggregate.Accommodation        `json:"accommodation,omitempty"`
 }
 
 type aiPlanningTripRequest struct {
@@ -65,6 +66,7 @@ type aiPlanningRegenerateDayRequest struct {
 	UserProfile      *usercontext.UserProfile        `json:"userProfile,omitempty"`
 	UserPreferences  *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
 	WeatherForecast  *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
+	Accommodation    *aggregate.Accommodation        `json:"accommodation,omitempty"`
 }
 
 type aiPlanningRegenerateItemRequest struct {
@@ -76,6 +78,7 @@ type aiPlanningRegenerateItemRequest struct {
 	UserProfile      *usercontext.UserProfile        `json:"userProfile,omitempty"`
 	UserPreferences  *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
 	WeatherForecast  *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
+	Accommodation    *aggregate.Accommodation        `json:"accommodation,omitempty"`
 }
 
 type aiPlanningRegenerateDayResponse struct {
@@ -198,6 +201,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input appli
 		UserProfile:      input.UserProfile,
 		UserPreferences:  input.UserPreferences,
 		WeatherForecast:  input.WeatherForecast,
+		Accommodation:    trip.Accommodation,
 	}
 
 	var result aiPlanningRegenerateDayResponse
@@ -219,6 +223,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input appl
 		UserProfile:      input.UserProfile,
 		UserPreferences:  input.UserPreferences,
 		WeatherForecast:  input.WeatherForecast,
+		Accommodation:    trip.Accommodation,
 	}
 
 	var result aiPlanningRegenerateItemResponse
@@ -259,6 +264,7 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		UserProfile:     input.UserProfile,
 		UserPreferences: input.UserPreferences,
 		WeatherForecast: input.WeatherForecast,
+		Accommodation:   trip.Accommodation,
 	}
 }
 

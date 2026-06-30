@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
@@ -22,7 +23,7 @@ import (
 // Columns is the canonical column order used by all SELECT/RETURNING statements
 // and the Scan helper.
 const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
-	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, created_at, updated_at"
+	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, created_at, updated_at"
 
 // InsertColumns returns the columns set on INSERT (DB-defaulted columns omitted),
 // in the same order as InsertValues.
@@ -76,6 +77,7 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 		interestsRaw         []byte
 		pace, status         string
 		itineraryRaw         []byte
+		accommodationRaw     []byte
 		itineraryRevision    int32
 		createdAt, updatedAt pgtype.Timestamp
 	)
@@ -83,7 +85,7 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 	err := row.Scan(
 		&id, &userID, &destination, &startDate, &days, &budgetAmount,
 		&budgetCurrency, &travelers, &interestsRaw, &pace, &status,
-		&itineraryRaw, &itineraryRevision, &createdAt, &updatedAt,
+		&itineraryRaw, &itineraryRevision, &accommodationRaw, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if postgres.NoRowsFound(err) {
@@ -116,6 +118,13 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 	if len(itineraryRaw) > 0 {
 		t.Itinerary = json.RawMessage(itineraryRaw)
 	}
+	if len(accommodationRaw) > 0 {
+		accommodation, err := unmarshalAccommodation(accommodationRaw)
+		if err != nil {
+			return nil, err
+		}
+		t.Accommodation = accommodation
+	}
 
 	return t, nil
 }
@@ -142,6 +151,14 @@ func unmarshalInterests(raw []byte) ([]string, error) {
 		return nil, fmt.Errorf("unmarshal interests: %w", err)
 	}
 	return interests, nil
+}
+
+func unmarshalAccommodation(raw []byte) (*aggregate.Accommodation, error) {
+	var accommodation aggregate.Accommodation
+	if err := json.Unmarshal(raw, &accommodation); err != nil {
+		return nil, fmt.Errorf("unmarshal accommodation: %w", err)
+	}
+	return &accommodation, nil
 }
 
 func toPgUUID(id uuid.UUID) pgtype.UUID {

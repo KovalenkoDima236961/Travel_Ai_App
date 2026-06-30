@@ -16,7 +16,10 @@ export type TripActivityEventType =
   | "collaborator_removed"
   | "share_created"
   | "share_updated"
-  | "share_disabled";
+  | "share_disabled"
+  | "accommodation_added"
+  | "accommodation_updated"
+  | "accommodation_removed";
 
 export type TripActivityEntityType =
   | "trip"
@@ -26,7 +29,8 @@ export type TripActivityEntityType =
   | "itinerary_version"
   | "comment"
   | "collaborator"
-  | "share";
+  | "share"
+  | "accommodation";
 
 export type TripActivityEvent = {
   id: string;

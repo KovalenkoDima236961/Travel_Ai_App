@@ -140,6 +140,40 @@ http://localhost:3000
     window, and confirm the private trip budget is **not** shown (item cost
     badges may still appear).
 
+## Accommodation Planning
+
+1. Open a private trip as owner or editor.
+2. Confirm the sidebar shows the `Accommodation` panel with `No accommodation added yet.`
+3. Click `Add stay`.
+4. Enter:
+   - name: `Hotel Roma`
+   - type: `hotel`
+   - address: `Via Roma 10`
+   - check-in/check-out dates matching the trip
+   - estimated stay cost: `120 EUR`
+   - notes: `Near Termini`
+5. Save and confirm the panel shows the stay details and estimated cost.
+6. Click `Edit`, then `Attach place`.
+7. Search for `Hotel Roma` or `hotel Rome`, select a result, and confirm the
+   name/address/place fields update.
+8. Save and confirm the Map View includes an accommodation marker labelled
+   `Accommodation`.
+9. Confirm the `Distance estimate` panel shows `Includes stay`, and segment
+   details include accommodation-to-first-stop and last-stop-to-accommodation
+   legs when itinerary items have coordinates.
+10. Confirm the `Budget` panel estimated total increases by the accommodation
+    cost and includes an `accommodation` category row.
+11. Generate or regenerate a day and confirm the new plan is practical around
+    the stay location.
+12. Export a private PDF and confirm it includes an `Accommodation` section.
+13. Create/open a public share link and confirm no separate accommodation panel
+    or structured accommodation section is shown.
+14. Log in as an accepted viewer collaborator and confirm the viewer can see the
+    accommodation but cannot edit or remove it.
+15. As owner/editor, remove the accommodation and confirm the panel returns to
+    `No accommodation added yet.` and the budget total no longer includes the
+    stay cost.
+
 ## Collaborative Planning
 
 1. Create two registered accounts: an owner and a collaborator.

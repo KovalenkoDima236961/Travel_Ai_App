@@ -1,4 +1,5 @@
 import { isValidCoordinate } from "@/lib/itinerary/map-utils";
+import type { TripAccommodation } from "@/types/accommodation";
 import type { Itinerary, ItineraryItem } from "@/types/trip";
 
 export type Coordinate = {
@@ -23,7 +24,14 @@ export type DayDistanceSummary = {
   estimatedWalkingMinutes: number;
   exceedsPreference: boolean;
   maxWalkingKmPerDay?: number | null;
+  usesAccommodationAnchor: boolean;
   segments: DistanceSegment[];
+};
+
+type DistanceRoutePoint = {
+  name: string;
+  time?: string;
+  coordinate: Coordinate;
 };
 
 const EARTH_RADIUS_KM = 6371;
@@ -88,6 +96,23 @@ function getStopLabel(item: ItineraryItem): string {
   return item.place?.name?.trim() || "Unnamed stop";
 }
 
+function getAccommodationStop(
+  accommodation?: TripAccommodation | null
+): DistanceRoutePoint | null {
+  const place = accommodation?.place;
+  if (!place || !isValidCoordinate(place.latitude, place.longitude)) {
+    return null;
+  }
+  return {
+    name: accommodation.name?.trim() || place.name?.trim() || "Accommodation",
+    time: undefined,
+    coordinate: {
+      latitude: place.latitude as number,
+      longitude: place.longitude as number
+    }
+  };
+}
+
 /**
  * Per-day distance summaries built from itinerary items that have valid place
  * coordinates. Returns one entry per day (preserving day numbers), with zeros
@@ -95,9 +120,11 @@ function getStopLabel(item: ItineraryItem): string {
  */
 export function getDayDistanceSummaries(
   itinerary: Itinerary,
-  maxWalkingKmPerDay?: number | null
+  maxWalkingKmPerDay?: number | null,
+  accommodation?: TripAccommodation | null
 ): DayDistanceSummary[] {
   const hasPreference = typeof maxWalkingKmPerDay === "number" && maxWalkingKmPerDay > 0;
+  const accommodationStop = getAccommodationStop(accommodation);
 
   return (itinerary.days ?? []).map((day, dayIndex) => {
     const dayNumber = day.day || dayIndex + 1;
@@ -110,20 +137,31 @@ export function getDayDistanceSummaries(
       return [{ item, coordinate }];
     });
 
+    const routeStops = mappedStops.map((stop) => ({
+      name: getStopLabel(stop.item),
+      time: stop.item.time || undefined,
+      coordinate: stop.coordinate
+    }));
+    const usesAccommodationAnchor = Boolean(accommodationStop && routeStops.length > 0);
+    const routePoints =
+      accommodationStop && routeStops.length > 0
+        ? [accommodationStop, ...routeStops, accommodationStop]
+        : routeStops;
+
     const segments: DistanceSegment[] = [];
     let straightLineDistanceKm = 0;
 
-    for (let index = 1; index < mappedStops.length; index += 1) {
-      const previous = mappedStops[index - 1];
-      const current = mappedStops[index];
+    for (let index = 1; index < routePoints.length; index += 1) {
+      const previous = routePoints[index - 1];
+      const current = routePoints[index];
       const distanceKm = haversineDistanceKm(previous.coordinate, current.coordinate);
 
       straightLineDistanceKm += distanceKm;
       segments.push({
-        fromName: getStopLabel(previous.item),
-        toName: getStopLabel(current.item),
-        fromTime: previous.item.time || undefined,
-        toTime: current.item.time || undefined,
+        fromName: previous.name,
+        toName: current.name,
+        fromTime: previous.time,
+        toTime: current.time,
         distanceKm,
         estimatedWalkingMinutes: estimateWalkingMinutes(distanceKm)
       });
@@ -140,6 +178,7 @@ export function getDayDistanceSummaries(
         ? straightLineDistanceKm > (maxWalkingKmPerDay as number)
         : false,
       maxWalkingKmPerDay: hasPreference ? maxWalkingKmPerDay : null,
+      usesAccommodationAnchor,
       segments
     };
   });

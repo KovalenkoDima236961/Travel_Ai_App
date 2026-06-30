@@ -138,6 +138,21 @@ describe("getDayDistanceSummaries", () => {
     expect(getDayDistanceSummaries(itinerary, 0)[0].exceedsPreference).toBe(false);
     expect(getDayDistanceSummaries(itinerary, 0)[0].maxWalkingKmPerDay).toBeNull();
   });
+
+  it("includes accommodation start and end segments when accommodation has coordinates", () => {
+    const anchored = getDayDistanceSummaries(itinerary, 8, {
+      name: "Hotel Roma",
+      type: "hotel",
+      place: place("Hotel Roma", treviFountain)
+    });
+
+    expect(anchored[1].mappedStops).toBe(1);
+    expect(anchored[1].usesAccommodationAnchor).toBe(true);
+    expect(anchored[1].segments.map((segment) => [segment.fromName, segment.toName])).toEqual([
+      ["Hotel Roma", "Colosseum again"],
+      ["Colosseum again", "Hotel Roma"]
+    ]);
+  });
 });
 
 describe("getTripDistanceTotal", () => {

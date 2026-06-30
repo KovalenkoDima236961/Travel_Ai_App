@@ -40,14 +40,18 @@ export function ItineraryLeafletMap({
       />
       {markers.map((marker) => (
         <Marker
-          icon={createMarkerIcon(`${marker.dayNumber}.${marker.itemIndex + 1}`)}
+          icon={createMarkerIcon(
+            marker.kind === "accommodation" ? "A" : `${marker.dayNumber}.${marker.itemIndex + 1}`
+          )}
           key={marker.id}
           position={[marker.latitude, marker.longitude]}
         >
           <Popup>
             <div className="min-w-52 text-sm text-slate-700">
               <p className="text-xs font-semibold uppercase text-slate-500">
-                Day {marker.dayNumber} - {marker.time}
+                {marker.kind === "accommodation"
+                  ? "Accommodation"
+                  : `Day ${marker.dayNumber} - ${marker.time}`}
               </p>
               <h3 className="mt-1 text-base font-semibold text-slate-950">
                 {marker.itemName}
@@ -101,6 +105,9 @@ function MapOpeningHoursStatus({
   marker: MapItineraryMarker;
   startDate?: string | null;
 }) {
+  if (marker.kind === "accommodation") {
+    return null;
+  }
   if (!marker.place.openingHours || marker.place.openingHours.length === 0) {
     return null;
   }

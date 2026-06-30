@@ -151,6 +151,17 @@ trip/day, expensive items, missing estimates). AI generation/regeneration
 includes approximate costs in the trip/preferred currency. v1 uses one currency
 per trip with no conversion, no real ticket-price/booking provider, and never
 exposes the private trip budget on the public share page.
+Accommodation Planning v1 adds one private structured stay location per trip.
+Owners/editors can add, edit, or remove an accommodation with name/type/address,
+optional attached place coordinates, check-in/check-out dates, notes, and an
+optional accommodation `estimatedCost`; accepted viewers can read it on private
+trips. Trip Service stores it as JSONB on `trips`, includes its cost in the
+budget summary, forwards it to AI generation/regeneration, and records sanitized
+activity events. The Web App shows an `Accommodation` panel, uses the stay as a
+daily route start/end anchor when coordinates exist, includes it in private PDF
+exports, and omits structured accommodation from public share pages/exports.
+v1 has no hotel search provider, booking flow, multi-stay support, currency
+conversion, or check-in/out calendar events.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token
@@ -197,6 +208,8 @@ collaborators, and non-collaborators,
 checks notification preferences can suppress and re-enable future comment
 notifications, verifies itinerary revision conflict detection rejects stale
 manual edits and day regeneration attempts,
+exercises accommodation add/read/delete, budget inclusion, viewer read-only
+permissions, activity feed events, and public-share redaction,
 confirms only that user can access the trip and versions, and logs out.
 
 See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,

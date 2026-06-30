@@ -114,6 +114,9 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}/calendar-sync/google/status`
 - `POST /trips/{id}/calendar-sync/google/sync`
 - `DELETE /trips/{id}/calendar-sync/google`
+- `GET /trips/{id}/accommodation`
+- `PUT /trips/{id}/accommodation`
+- `DELETE /trips/{id}/accommodation`
 - `GET /collaboration/invitations`
 - `GET /trips/{id}/comments` (and `?dayNumber=&itemIndex=` for one item)
 - `GET /trips/{id}/comments/counts`
@@ -221,6 +224,27 @@ Viewer UI:
 Current v1 limitations: registered users only, advisory presence and soft edit
 locks only, no real-time itinerary sync, no automatic merge, no diff viewer, and
 no hard blocking locks.
+
+## Accommodation Planning
+
+Private trip detail pages show an `Accommodation` panel in the sidebar near the
+budget panel. Owners/editors can add, edit, or remove one stay location; accepted
+viewers can read it but do not see edit controls. The form supports name, type,
+address, check-in/check-out dates, estimated stay cost, notes, and an optional
+attached place from the existing place search dialog. Selecting a place fills
+name/address/place data and infers the type from categories like hotel, lodging,
+hostel, or apartment.
+
+When accommodation has place coordinates, the map shows a distinct
+`Accommodation` marker and the distance builder uses the stay as the start and
+end point for each mapped day (`stay -> first stop -> ... -> last stop -> stay`).
+The distance panel marks those days with `Includes stay`. The budget panel
+includes the accommodation `estimatedCost` through Trip Service's budget summary.
+Private PDF export includes an `Accommodation` section; public share pages and
+public exports do not expose structured accommodation in v1.
+
+Limitations: no hotel search provider, booking/payment flow, multi-stay support,
+currency conversion, or check-in/check-out calendar events.
 
 ## Real-time Trip Presence
 

@@ -1600,6 +1600,28 @@ func (r *routeTestRepo) UpdateTripBudget(_ context.Context, id, userID uuid.UUID
 	return &trip, nil
 }
 
+func (r *routeTestRepo) UpdateTripAccommodation(_ context.Context, id, userID uuid.UUID, accommodation *aggregate.Accommodation) (*entity.Trip, error) {
+	trip, ok := r.trips[id]
+	if !ok || trip.UserID == nil || *trip.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	trip.Accommodation = accommodation
+	trip.UpdatedAt = time.Now().UTC()
+	r.trips[id] = trip
+	return &trip, nil
+}
+
+func (r *routeTestRepo) ClearTripAccommodation(_ context.Context, id, userID uuid.UUID) (*entity.Trip, error) {
+	trip, ok := r.trips[id]
+	if !ok || trip.UserID == nil || *trip.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	trip.Accommodation = nil
+	trip.UpdatedAt = time.Now().UTC()
+	r.trips[id] = trip
+	return &trip, nil
+}
+
 func (r *routeTestRepo) GetByIDAndUserID(_ context.Context, id, userID uuid.UUID) (*entity.Trip, error) {
 	trip, ok := r.trips[id]
 	if !ok || trip.UserID == nil || *trip.UserID != userID {

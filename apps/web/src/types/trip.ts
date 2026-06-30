@@ -1,3 +1,4 @@
+import type { TripAccommodation } from "@/types/accommodation";
 import type { Budget, EstimatedCost } from "@/types/budget";
 import type { Place } from "@/types/place";
 
@@ -56,6 +57,7 @@ export type Trip = {
   budgetAmount?: number | null;
   budgetCurrency: string;
   budget?: Budget | null;
+  accommodation?: TripAccommodation | null;
   travelers: number;
   interests: string[];
   pace: Pace;

@@ -102,6 +102,12 @@ function titleFor(
       return { title: `${actor} updated share settings` };
     case "share_disabled":
       return { title: `${actor} disabled the share link` };
+    case "accommodation_added":
+      return { title: `${actor} added ${accommodationLabel(metadata)}` };
+    case "accommodation_updated":
+      return { title: `${actor} updated ${accommodationLabel(metadata)}` };
+    case "accommodation_removed":
+      return { title: `${actor} removed ${accommodationLabel(metadata)}` };
     default:
       return { title: "Activity recorded" };
   }
@@ -139,6 +145,10 @@ function itemTarget(metadata: Record<string, unknown>): string {
     return name;
   }
   return "an item";
+}
+
+function accommodationLabel(metadata: Record<string, unknown>): string {
+  return asString(metadata.name) ?? "the accommodation";
 }
 
 function asNumber(value: unknown): number | undefined {

@@ -30,6 +30,20 @@ describe("trip export adapters", () => {
       itineraryRevision: 3,
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
+      accommodation: {
+        name: "Hotel Roma",
+        type: "hotel",
+        address: "Via Roma 10",
+        place: {
+          provider: "mock",
+          providerPlaceId: "accommodation-secret-id",
+          name: "Hotel Roma",
+          address: "Via Roma 10",
+          latitude: 41.9028,
+          longitude: 12.4964
+        },
+        estimatedCost: { amount: 240, currency: "EUR", category: "accommodation" }
+      },
       itinerary: {
         generatedAt: "2026-01-01T00:00:00Z",
         source: "internal",
@@ -65,6 +79,8 @@ describe("trip export adapters", () => {
     const serialized = JSON.stringify(exportTrip);
 
     expect(exportTrip.source).toBe("private");
+    expect(exportTrip.accommodation?.name).toBe("Hotel Roma");
+    expect(exportTrip.accommodation?.place?.providerPlaceId).toBe("");
     expect(exportTrip.itinerary?.days[0]?.items[0]?.place?.providerPlaceId).toBe("");
     expect(serialized).not.toContain("user-123");
     expect(serialized).not.toContain("owner@example.com");
@@ -72,6 +88,7 @@ describe("trip export adapters", () => {
     expect(serialized).not.toContain("version-1");
     expect(serialized).not.toContain("private debug query");
     expect(serialized).not.toContain("provider-secret-id");
+    expect(serialized).not.toContain("accommodation-secret-id");
   });
 
   it("normalizes public trips from public data only", () => {
@@ -91,6 +108,7 @@ describe("trip export adapters", () => {
     });
     // The private trip budget is never exposed on public exports.
     expect(exported.budgetAmount).toBeNull();
+    expect(exported.accommodation).toBeNull();
   });
 });
 
@@ -132,6 +150,7 @@ describe("export extras", () => {
         straightLineDistanceKm: 1,
         estimatedWalkingMinutes: 12,
         exceedsPreference: false,
+        usesAccommodationAnchor: false,
         segments: []
       }
     ];

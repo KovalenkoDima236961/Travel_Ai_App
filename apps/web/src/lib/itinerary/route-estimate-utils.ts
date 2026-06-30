@@ -1,10 +1,12 @@
 import { isValidCoordinate } from "@/lib/itinerary/map-utils";
+import type { TripAccommodation } from "@/types/accommodation";
 import type { RouteStop } from "@/types/route";
 import type { Itinerary, ItineraryDay } from "@/types/trip";
 
 export type DayRouteStops = {
   dayNumber: number;
   stops: RouteStop[];
+  usesAccommodationAnchor: boolean;
 };
 
 // A day needs at least two mapped stops before a route estimate is meaningful.
@@ -15,8 +17,26 @@ export const MIN_ROUTE_STOPS = 2;
  * place coordinates. Item order is preserved. The stop name prefers the
  * attached place name and falls back to the item name.
  */
-export function getRouteStopsForDay(day: ItineraryDay): RouteStop[] {
-  return (day.items ?? []).flatMap((item) => {
+export function getAccommodationRouteStop(
+  accommodation?: TripAccommodation | null
+): RouteStop | null {
+  const place = accommodation?.place;
+  if (!place || !isValidCoordinate(place.latitude, place.longitude)) {
+    return null;
+  }
+
+  return {
+    name: accommodation.name?.trim() || place.name?.trim() || "Accommodation",
+    latitude: place.latitude as number,
+    longitude: place.longitude as number
+  };
+}
+
+export function getRouteStopsForDay(
+  day: ItineraryDay,
+  accommodation?: TripAccommodation | null
+): RouteStop[] {
+  const itemStops = (day.items ?? []).flatMap((item) => {
     const place = item.place;
     if (!place || !isValidCoordinate(place.latitude, place.longitude)) {
       return [];
@@ -32,6 +52,17 @@ export function getRouteStopsForDay(day: ItineraryDay): RouteStop[] {
       }
     ];
   });
+
+  if (itemStops.length === 0) {
+    return [];
+  }
+
+  const accommodationStop = getAccommodationRouteStop(accommodation);
+  if (!accommodationStop) {
+    return itemStops;
+  }
+
+  return [accommodationStop, ...itemStops, accommodationStop];
 }
 
 /**
@@ -39,9 +70,12 @@ export function getRouteStopsForDay(day: ItineraryDay): RouteStop[] {
  * stops. Day numbers mirror the rest of the app (day.day, falling back to the
  * 1-based index).
  */
-export function getRouteStopsByDay(itinerary: Itinerary): DayRouteStops[] {
+export function getRouteStopsByDay(
+  itinerary: Itinerary,
+  accommodation?: TripAccommodation | null
+): DayRouteStops[] {
   return (itinerary.days ?? []).flatMap((day, dayIndex) => {
-    const stops = getRouteStopsForDay(day);
+    const stops = getRouteStopsForDay(day, accommodation);
     if (stops.length < MIN_ROUTE_STOPS) {
       return [];
     }
@@ -49,7 +83,8 @@ export function getRouteStopsByDay(itinerary: Itinerary): DayRouteStops[] {
     return [
       {
         dayNumber: day.day || dayIndex + 1,
-        stops
+        stops,
+        usesAccommodationAnchor: Boolean(getAccommodationRouteStop(accommodation))
       }
     ];
   });

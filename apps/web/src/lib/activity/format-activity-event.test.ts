@@ -97,7 +97,19 @@ describe("formatActivityEvent titles", () => {
     { event: { eventType: "collaborator_removed" }, expected: "You removed a collaborator" },
     { event: { eventType: "share_created" }, expected: "You created a share link" },
     { event: { eventType: "share_updated" }, expected: "You updated share settings" },
-    { event: { eventType: "share_disabled" }, expected: "You disabled the share link" }
+    { event: { eventType: "share_disabled" }, expected: "You disabled the share link" },
+    {
+      event: { eventType: "accommodation_added", metadata: { name: "Hotel Roma" } },
+      expected: "You added Hotel Roma"
+    },
+    {
+      event: { eventType: "accommodation_updated", metadata: { name: "Hotel Roma" } },
+      expected: "You updated Hotel Roma"
+    },
+    {
+      event: { eventType: "accommodation_removed", metadata: { name: "Hotel Roma" } },
+      expected: "You removed Hotel Roma"
+    }
   ];
 
   for (const { event, expected } of cases) {

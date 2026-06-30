@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
@@ -55,6 +56,16 @@ func (r UpdateTripItinerary) ToInput() appdto.UpdateItineraryInput {
 // it. A budget object without an amount is treated as a clear.
 type UpdateTripBudget struct {
 	Budget json.RawMessage `json:"budget"`
+}
+
+// UpdateTripAccommodation is the JSON body accepted by
+// PUT /trips/{id}/accommodation.
+type UpdateTripAccommodation struct {
+	Accommodation *aggregate.Accommodation `json:"accommodation"`
+}
+
+func (r UpdateTripAccommodation) ToInput() appdto.UpdateTripAccommodationInput {
+	return appdto.UpdateTripAccommodationInput{Accommodation: r.Accommodation}
 }
 
 type budgetBody struct {

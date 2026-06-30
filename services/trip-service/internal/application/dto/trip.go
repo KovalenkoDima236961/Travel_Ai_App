@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
@@ -37,6 +38,12 @@ type UpdateTripBudgetInput struct {
 	Amount   *float64
 	Currency string
 	Clear    bool
+}
+
+// UpdateTripAccommodationInput is the application-level payload for creating or
+// replacing a trip's structured accommodation.
+type UpdateTripAccommodationInput struct {
+	Accommodation *aggregate.Accommodation
 }
 
 // GenerateItineraryInput is the application-level payload for full itinerary

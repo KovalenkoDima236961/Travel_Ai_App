@@ -1,9 +1,11 @@
+import type { TripAccommodation } from "@/types/accommodation";
 import type { EstimatedCost } from "@/types/budget";
 import type { Place } from "@/types/place";
 import type { Itinerary } from "@/types/trip";
 
 export type MapItineraryMarker = {
   id: string;
+  kind: "itinerary" | "accommodation";
   dayNumber: number;
   itemIndex: number;
   time: string;
@@ -31,8 +33,11 @@ export function isValidCoordinate(latitude: unknown, longitude: unknown) {
   );
 }
 
-export function getItineraryMapMarkers(itinerary: Itinerary): MapItineraryMarker[] {
-  return (itinerary.days ?? []).flatMap((day, dayIndex) => {
+export function getItineraryMapMarkers(
+  itinerary: Itinerary,
+  accommodation?: TripAccommodation | null
+): MapItineraryMarker[] {
+  const markers = (itinerary.days ?? []).flatMap((day, dayIndex) => {
     const dayNumber = day.day || dayIndex + 1;
 
     return (day.items ?? []).flatMap((item, itemIndex) => {
@@ -47,6 +52,7 @@ export function getItineraryMapMarkers(itinerary: Itinerary): MapItineraryMarker
       return [
         {
           id: `day-${dayNumber}-item-${itemIndex}-${place.providerPlaceId}`,
+          kind: "itinerary" as const,
           dayNumber,
           itemIndex,
           time: item.time,
@@ -61,6 +67,36 @@ export function getItineraryMapMarkers(itinerary: Itinerary): MapItineraryMarker
       ];
     });
   });
+
+  const accommodationMarker = getAccommodationMarker(accommodation);
+  return accommodationMarker ? [accommodationMarker, ...markers] : markers;
+}
+
+function getAccommodationMarker(
+  accommodation?: TripAccommodation | null
+): MapItineraryMarker | null {
+  const place = accommodation?.place;
+  const latitude = place?.latitude;
+  const longitude = place?.longitude;
+
+  if (!accommodation || !place || !isValidCoordinate(latitude, longitude)) {
+    return null;
+  }
+
+  return {
+    id: `accommodation-${place.provider}-${place.providerPlaceId}`,
+    kind: "accommodation",
+    dayNumber: 0,
+    itemIndex: -1,
+    time: "Stay",
+    itemName: accommodation.name,
+    itemType: accommodation.type,
+    note: accommodation.notes,
+    estimatedCost: accommodation.estimatedCost ?? null,
+    place,
+    latitude: latitude as number,
+    longitude: longitude as number
+  };
 }
 
 export function getMapCenter(markers: MapItineraryMarker[]): [number, number] {
@@ -80,7 +116,11 @@ export function getMapCenter(markers: MapItineraryMarker[]): [number, number] {
 }
 
 export function getAvailableDays(markers: MapItineraryMarker[]) {
-  return Array.from(new Set(markers.map((marker) => marker.dayNumber))).sort(
-    (leftDay, rightDay) => leftDay - rightDay
-  );
+  return Array.from(
+    new Set(
+      markers
+        .filter((marker) => marker.kind === "itinerary")
+        .map((marker) => marker.dayNumber)
+    )
+  ).sort((leftDay, rightDay) => leftDay - rightDay);
 }

@@ -7,28 +7,30 @@ import (
 	"github.com/google/uuid"
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
 // Trip is the JSON representation of a trip returned to clients.
 type Trip struct {
-	ID                uuid.UUID     `json:"id"`
-	UserID            *uuid.UUID    `json:"userId,omitempty"`
-	Destination       string        `json:"destination"`
-	StartDate         *string       `json:"startDate,omitempty"`
-	Days              int32         `json:"days"`
-	BudgetAmount      *float64      `json:"budgetAmount,omitempty"`
-	BudgetCurrency    string        `json:"budgetCurrency"`
-	Budget            *Budget       `json:"budget"`
-	Travelers         int32         `json:"travelers"`
-	Interests         []string      `json:"interests"`
-	Pace              string        `json:"pace"`
-	Status            entity.Status `json:"status"`
-	Itinerary         any           `json:"itinerary,omitempty"`
-	ItineraryRevision int           `json:"itineraryRevision"`
-	Access            *TripAccess   `json:"access,omitempty"`
-	CreatedAt         time.Time     `json:"createdAt"`
-	UpdatedAt         time.Time     `json:"updatedAt"`
+	ID                uuid.UUID                `json:"id"`
+	UserID            *uuid.UUID               `json:"userId,omitempty"`
+	Destination       string                   `json:"destination"`
+	StartDate         *string                  `json:"startDate,omitempty"`
+	Days              int32                    `json:"days"`
+	BudgetAmount      *float64                 `json:"budgetAmount,omitempty"`
+	BudgetCurrency    string                   `json:"budgetCurrency"`
+	Budget            *Budget                  `json:"budget"`
+	Travelers         int32                    `json:"travelers"`
+	Interests         []string                 `json:"interests"`
+	Pace              string                   `json:"pace"`
+	Status            entity.Status            `json:"status"`
+	Itinerary         any                      `json:"itinerary,omitempty"`
+	Accommodation     *aggregate.Accommodation `json:"accommodation"`
+	ItineraryRevision int                      `json:"itineraryRevision"`
+	Access            *TripAccess              `json:"access,omitempty"`
+	CreatedAt         time.Time                `json:"createdAt"`
+	UpdatedAt         time.Time                `json:"updatedAt"`
 }
 
 type TripAccess struct {
@@ -136,6 +138,10 @@ type PublicShareStatus struct {
 type PublicShareUnlockResponse struct {
 	AccessToken string    `json:"accessToken"`
 	ExpiresAt   time.Time `json:"expiresAt"`
+}
+
+type AccommodationEnvelope struct {
+	Accommodation *aggregate.Accommodation `json:"accommodation"`
 }
 
 // PublicTrip is the sanitized read-only payload for public share links. The
@@ -299,6 +305,10 @@ func NewPublicShareUnlockResponse(unlock appdto.PublicShareUnlockResponse) Publi
 	}
 }
 
+func NewAccommodationEnvelope(accommodation *aggregate.Accommodation) AccommodationEnvelope {
+	return AccommodationEnvelope{Accommodation: accommodation}
+}
+
 // NewPublicTrip maps a domain Trip to its public, read-only JSON payload. The
 // private trip budget is omitted from both the trip fields and the embedded
 // itinerary.
@@ -355,6 +365,7 @@ func NewTrip(t *entity.Trip) Trip {
 		Pace:              t.Pace,
 		Status:            t.Status,
 		ItineraryRevision: t.ItineraryRevision,
+		Accommodation:     t.Accommodation,
 		CreatedAt:         t.CreatedAt,
 		UpdatedAt:         t.UpdatedAt,
 	}

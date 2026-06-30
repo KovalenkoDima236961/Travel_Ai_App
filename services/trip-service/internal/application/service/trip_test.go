@@ -111,6 +111,24 @@ func (m *mockRepo) UpdateTripBudget(_ context.Context, id, userID uuid.UUID, amo
 	return &out, nil
 }
 
+func (m *mockRepo) UpdateTripAccommodation(_ context.Context, id, userID uuid.UUID, accommodation *aggregate.Accommodation) (*entity.Trip, error) {
+	out := entity.Trip{ID: id, UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}
+	if m.getByIDResult != nil {
+		out = *m.getByIDResult
+	}
+	out.Accommodation = accommodation
+	return &out, nil
+}
+
+func (m *mockRepo) ClearTripAccommodation(_ context.Context, id, userID uuid.UUID) (*entity.Trip, error) {
+	out := entity.Trip{ID: id, UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}
+	if m.getByIDResult != nil {
+		out = *m.getByIDResult
+	}
+	out.Accommodation = nil
+	return &out, nil
+}
+
 func (m *mockRepo) GetByIDAndUserID(_ context.Context, _, userID uuid.UUID) (*entity.Trip, error) {
 	m.getByIDUserID = userID
 	if m.getByIDErr != nil {

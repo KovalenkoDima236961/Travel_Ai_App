@@ -45,6 +45,7 @@ export type BudgetSummary = {
   estimatedTotal: number;
   remaining?: number | null;
   overBudgetBy?: number | null;
+  accommodationTotal?: number | null;
   missingEstimateCount: number;
   estimatedItemCount: number;
   unsupportedCurrencyCount?: number;

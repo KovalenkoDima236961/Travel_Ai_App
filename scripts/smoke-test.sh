@@ -648,6 +648,71 @@ if [[ "${TRIP_REVISION}" != "0" ]]; then
 fi
 echo "Created trip ${TRIP_ID}."
 
+echo "Checking accommodation endpoints and budget integration..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${ACCESS_TOKEN}"
+assert_2xx "Get empty accommodation"
+if ! jq -e '.accommodation == null' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Expected new trip accommodation to be null." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+ACCOMMODATION_PAYLOAD="$(jq -nc '{
+  accommodation: {
+    name: "Hotel Roma",
+    type: "hotel",
+    address: "Via Roma 10",
+    place: {
+      provider: "mock",
+      providerPlaceId: "mock-hotel-roma",
+      name: "Hotel Roma",
+      address: "Via Roma 10",
+      latitude: 41.9028,
+      longitude: 12.4964,
+      category: "hotel"
+    },
+    checkInDate: "2026-08-10",
+    checkOutDate: "2026-08-12",
+    estimatedCost: {
+      amount: 120,
+      currency: "eur",
+      category: "food",
+      source: "ai",
+      note: "Smoke total stay cost"
+    },
+    notes: "Smoke test stay"
+  }
+}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${ACCESS_TOKEN}" "${ACCOMMODATION_PAYLOAD}"
+assert_2xx "Update accommodation"
+if ! jq -e '.accommodation.name == "Hotel Roma" and .accommodation.estimatedCost.currency == "EUR" and .accommodation.estimatedCost.category == "accommodation" and .accommodation.estimatedCost.source == "manual"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Accommodation update did not normalize expected fields." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch trip after accommodation update"
+REVISION_AFTER_ACCOMMODATION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${REVISION_AFTER_ACCOMMODATION}" != "${TRIP_REVISION}" ]]; then
+  echo "Accommodation update unexpectedly changed itineraryRevision (${TRIP_REVISION} -> ${REVISION_AFTER_ACCOMMODATION})." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.accommodation.name == "Hotel Roma"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Trip detail did not include accommodation." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
+assert_2xx "Budget summary with accommodation"
+if ! jq -e '.accommodationTotal == 120 and (.byCategory | any(.category == "accommodation" and .estimatedTotal == 120))' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Budget summary did not include accommodation cost." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking owner trip presence state and snapshot endpoints..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${ACCESS_TOKEN}" '{"state":"away"}'
 assert_status "Trip presence invalid state" "400"
@@ -978,6 +1043,19 @@ request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "$
 assert_2xx "Viewer get budget summary"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${COLLAB_ACCESS_TOKEN}" '{"budget":{"amount":1000,"currency":"EUR"}}'
 assert_status "Viewer update budget" "403"
+
+echo "Checking viewer can read but cannot mutate accommodation..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer get accommodation"
+if ! jq -e '.accommodation.name == "Hotel Roma"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Viewer accommodation response did not include expected stay." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${COLLAB_ACCESS_TOKEN}" "${ACCOMMODATION_PAYLOAD}"
+assert_status "Viewer update accommodation" "403"
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Viewer delete accommodation" "403"
 
 echo "Checking viewer can view but cannot edit..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
@@ -1363,9 +1441,27 @@ if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; 
   echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
 fi
-if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments")' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
+if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments") or has("accommodation")' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
   echo "Public shared trip exposed private fields." >&2
   echo "${PUBLIC_TRIP_BODY}" >&2
+  exit 1
+fi
+
+echo "Deleting accommodation and confirming it clears budget summary."
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${ACCESS_TOKEN}"
+assert_2xx "Delete accommodation"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${ACCESS_TOKEN}"
+assert_2xx "Get accommodation after delete"
+if ! jq -e '.accommodation == null' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Expected accommodation to be null after delete." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
+assert_2xx "Budget summary after accommodation delete"
+if ! jq -e '(.accommodationTotal == null) or (.accommodationTotal == 0)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Budget summary still included accommodationTotal after delete." >&2
+  echo "${LAST_BODY}" >&2
   exit 1
 fi
 
@@ -1704,6 +1800,8 @@ assert_2xx "Owner fetch full activity"
 assert_activity_has "Owner activity feed" "trip_created"
 assert_activity_has "Owner activity feed" "itinerary_generated"
 assert_activity_has "Owner activity feed" "comment_created"
+assert_activity_has "Owner activity feed" "accommodation_added"
+assert_activity_has "Owner activity feed" "accommodation_removed"
 assert_activity_has "Owner activity feed" "collaborator_invited"
 assert_activity_has "Owner activity feed" "collaborator_accepted"
 assert_activity_has "Owner activity feed" "collaborator_removed"

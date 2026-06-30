@@ -11,6 +11,7 @@ export type QualityIssueType =
   | "place_match_low_confidence"
   | "place_no_confident_match"
   | "missing_place_coordinates"
+  | "missing_accommodation"
   | "trip_budget_exceeded"
   | "day_budget_high"
   | "expensive_item"

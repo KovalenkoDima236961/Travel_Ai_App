@@ -103,6 +103,22 @@ describe("getRouteStopsForDay", () => {
 
     expect(getRouteStopsForDay(day).map((stop) => stop.name)).toEqual(["Good A", "Good B"]);
   });
+
+  it("wraps mapped item stops with accommodation when coordinates are available", () => {
+    const day: ItineraryDay = {
+      day: 1,
+      title: "Day 1",
+      items: [item("Colosseum", place("Colosseum", A)), item("Trevi Fountain", place("Trevi Fountain", B))]
+    };
+
+    expect(
+      getRouteStopsForDay(day, {
+        name: "Hotel Roma",
+        type: "hotel",
+        place: place("Hotel Roma", C)
+      }).map((stop) => stop.name)
+    ).toEqual(["Hotel Roma", "Colosseum", "Trevi Fountain", "Hotel Roma"]);
+  });
 });
 
 describe("getRouteStopsByDay", () => {
@@ -123,6 +139,26 @@ describe("getRouteStopsByDay", () => {
     expect(result).toHaveLength(1);
     expect(result[0].dayNumber).toBe(2);
     expect(result[0].stops).toHaveLength(2);
+  });
+
+  it("can include one mapped itinerary stop when accommodation anchors the route", () => {
+    const itinerary: Itinerary = {
+      days: [{ day: 1, title: "One stop", items: [item("Solo", place("Solo", A))] }]
+    };
+
+    const result = getRouteStopsByDay(itinerary, {
+      name: "Hotel Roma",
+      type: "hotel",
+      place: place("Hotel Roma", C)
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].usesAccommodationAnchor).toBe(true);
+    expect(result[0].stops.map((stop) => stop.name)).toEqual([
+      "Hotel Roma",
+      "Solo",
+      "Hotel Roma"
+    ]);
   });
 
   it("falls back to the 1-based index when day numbers are missing", () => {

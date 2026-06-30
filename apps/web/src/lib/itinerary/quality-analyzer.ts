@@ -4,6 +4,7 @@ import { isValidCoordinate } from "@/lib/itinerary/map-utils";
 import { getCostAmount } from "@/lib/budget/format";
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
+import type { TripAccommodation } from "@/types/accommodation";
 import type { Budget, BudgetSummary } from "@/types/budget";
 import type { QualityIssue, QualityIssueSeverity, QualitySummary } from "@/types/quality";
 import type { RouteEstimate } from "@/types/route";
@@ -17,6 +18,7 @@ type AnalyzeItineraryQualityParams = {
   routeEstimatesByDay?: Record<number, RouteEstimate | null>;
   fallbackDistanceSummaries?: DayDistanceSummary[];
   maxWalkingKmPerDay?: number | null;
+  accommodation?: TripAccommodation | null;
   placeMatchConfidenceThreshold?: number;
   tripBudget?: Budget | null;
   budgetSummary?: BudgetSummary | null;
@@ -93,6 +95,7 @@ export function analyzeItineraryQuality({
   routeEstimatesByDay,
   fallbackDistanceSummaries,
   maxWalkingKmPerDay,
+  accommodation,
   placeMatchConfidenceThreshold = DEFAULT_PLACE_MATCH_CONFIDENCE_THRESHOLD,
   tripBudget,
   budgetSummary,
@@ -100,8 +103,24 @@ export function analyzeItineraryQuality({
 }: AnalyzeItineraryQualityParams): QualitySummary {
   const issues: QualityIssue[] = [];
   const summaries =
-    fallbackDistanceSummaries ?? getDayDistanceSummaries(itinerary, maxWalkingKmPerDay);
+    fallbackDistanceSummaries ??
+    getDayDistanceSummaries(itinerary, maxWalkingKmPerDay, accommodation);
   const summariesByDay = new Map(summaries.map((summary) => [summary.dayNumber, summary]));
+
+  const dayCount = itinerary.days?.length ?? 0;
+  if (dayCount > 1 && !accommodation) {
+    issues.push({
+      id: "trip-missing-accommodation",
+      type: "missing_accommodation",
+      severity: "info",
+      scope: "trip",
+      title: "Accommodation missing",
+      message: "This multi-day trip has no accommodation set.",
+      suggestion: "Add a stay location to make route and budget checks more complete.",
+      instructionHint: "Plan each day around a practical accommodation base.",
+      metadata: { dayCount }
+    });
+  }
 
   for (const [dayIndex, day] of (itinerary.days ?? []).entries()) {
     const dayNumber = day.day || dayIndex + 1;

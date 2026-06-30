@@ -53,6 +53,7 @@ function fallbackSummary(distanceKm: number): DayDistanceSummary {
     estimatedWalkingMinutes: Math.round(distanceKm * 12),
     exceedsPreference: false,
     maxWalkingKmPerDay: 8,
+    usesAccommodationAnchor: false,
     segments: []
   };
 }
@@ -248,6 +249,36 @@ describe("analyzeItineraryQuality", () => {
     });
 
     expect(summary.total).toBe(0);
+  });
+
+  it("flags multi-day trips without accommodation", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: {
+        days: [
+          { day: 1, title: "Day 1", items: [item()] },
+          { day: 2, title: "Day 2", items: [item({ name: "Second museum" })] }
+        ]
+      }
+    });
+
+    expect(summary.tripIssues.some((issue) => issue.type === "missing_accommodation")).toBe(true);
+  });
+
+  it("does not flag missing accommodation when a stay is set", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: {
+        days: [
+          { day: 1, title: "Day 1", items: [item()] },
+          { day: 2, title: "Day 2", items: [item({ name: "Second museum" })] }
+        ]
+      },
+      accommodation: {
+        name: "Hotel Roma",
+        type: "hotel"
+      }
+    });
+
+    expect(summary.tripIssues.some((issue) => issue.type === "missing_accommodation")).toBe(false);
   });
 
   it("returns no issues for a clean itinerary", () => {

@@ -78,9 +78,10 @@ func (s *Service) UpdateTripBudget(ctx context.Context, tripID uuid.UUID, in app
 
 func budgetSummaryForTrip(trip *entity.Trip) budget.Summary {
 	return budget.CalculateBudgetSummary(budget.TripBudget{
-		Amount:   trip.BudgetAmount,
-		Currency: trip.BudgetCurrency,
-		Days:     int(trip.Days),
+		Amount:        trip.BudgetAmount,
+		Currency:      trip.BudgetCurrency,
+		Days:          int(trip.Days),
+		Accommodation: trip.Accommodation,
 	}, parseItineraryLenient(trip.Itinerary))
 }
 

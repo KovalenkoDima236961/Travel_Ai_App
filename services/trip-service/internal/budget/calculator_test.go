@@ -83,6 +83,34 @@ func TestCalculateBudgetSummary_SumsAndGroups(t *testing.T) {
 	}
 }
 
+func TestCalculateBudgetSummary_IncludesAccommodationCost(t *testing.T) {
+	trip := TripBudget{
+		Amount:   ptr(500),
+		Currency: "EUR",
+		Days:     1,
+		Accommodation: &aggregate.Accommodation{
+			Name:          "Hotel Roma",
+			Type:          aggregate.AccommodationTypeHotel,
+			EstimatedCost: cost(120, "EUR", "other"),
+		},
+	}
+
+	summary := CalculateBudgetSummary(trip, aggregate.Itinerary{})
+
+	if summary.EstimatedTotal != 120 {
+		t.Fatalf("expected estimatedTotal 120, got %v", summary.EstimatedTotal)
+	}
+	if summary.AccommodationTotal == nil || *summary.AccommodationTotal != 120 {
+		t.Fatalf("expected accommodationTotal 120, got %v", summary.AccommodationTotal)
+	}
+	if summary.EstimatedItemCount != 1 {
+		t.Fatalf("expected 1 estimated item, got %d", summary.EstimatedItemCount)
+	}
+	if len(summary.ByCategory) != 1 || summary.ByCategory[0].Category != "accommodation" {
+		t.Fatalf("expected accommodation category, got %+v", summary.ByCategory)
+	}
+}
+
 func TestCalculateBudgetSummary_RemainingAndOverBudget(t *testing.T) {
 	withinBudget := CalculateBudgetSummary(TripBudget{Amount: ptr(100), Currency: "EUR", Days: 2}, sampleItinerary())
 	if withinBudget.Remaining == nil || *withinBudget.Remaining != 40 {

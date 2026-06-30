@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 )
 
 // Status represents the lifecycle state of a trip planning request.
@@ -32,6 +34,7 @@ type Trip struct {
 	Pace              string
 	Status            Status
 	Itinerary         json.RawMessage
+	Accommodation     *aggregate.Accommodation
 	ItineraryRevision int
 	CreatedAt         time.Time
 	UpdatedAt         time.Time

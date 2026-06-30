@@ -72,6 +72,7 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 			Travelers:      2,
 			Interests:      []string{"food", "history", "hidden_gems"},
 			Pace:           "balanced",
+			Accommodation:  testAccommodation(),
 		},
 		WeatherForecast: validWeatherForecast(),
 	})
@@ -93,6 +94,9 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 	assertCapturedPayload(t, captured, tripID.String(), "2026-08-10", &budget)
 	if captured.WeatherForecast == nil || captured.WeatherForecast.Days[0].Condition != "hot" {
 		t.Fatalf("expected weatherForecast to be serialized, got %+v", captured.WeatherForecast)
+	}
+	if captured.Accommodation == nil || captured.Accommodation.Name != "Hotel Roma" {
+		t.Fatalf("expected accommodation to be serialized, got %+v", captured.Accommodation)
 	}
 }
 
@@ -326,6 +330,9 @@ func TestAIPlanningHTTPGeneratorRegenerateDay_SendsCorrectPayload(t *testing.T) 
 	if captured.WeatherForecast == nil || captured.WeatherForecast.Provider != "mock" {
 		t.Fatalf("expected weatherForecast to be serialized, got %+v", captured.WeatherForecast)
 	}
+	if captured.Accommodation == nil || captured.Accommodation.Type != aggregate.AccommodationTypeHotel {
+		t.Fatalf("expected accommodation to be serialized, got %+v", captured.Accommodation)
+	}
 }
 
 func TestAIPlanningHTTPGeneratorRegenerateItem_SendsCorrectPayload(t *testing.T) {
@@ -374,6 +381,9 @@ func TestAIPlanningHTTPGeneratorRegenerateItem_SendsCorrectPayload(t *testing.T)
 	}
 	if captured.WeatherForecast == nil || captured.WeatherForecast.Days[0].TemperatureMaxC != 35 {
 		t.Fatalf("expected weatherForecast to be serialized, got %+v", captured.WeatherForecast)
+	}
+	if captured.Accommodation == nil || captured.Accommodation.Address != "Via Roma 10" {
+		t.Fatalf("expected accommodation to be serialized, got %+v", captured.Accommodation)
 	}
 }
 
@@ -427,6 +437,17 @@ func validTrip() entity.Trip {
 		BudgetCurrency: "EUR",
 		Travelers:      2,
 		Pace:           "balanced",
+		Accommodation:  testAccommodation(),
+	}
+}
+
+func testAccommodation() *aggregate.Accommodation {
+	return &aggregate.Accommodation{
+		Name:         "Hotel Roma",
+		Type:         aggregate.AccommodationTypeHotel,
+		Address:      "Via Roma 10",
+		CheckInDate:  "2026-08-10",
+		CheckOutDate: "2026-08-14",
 	}
 }
 

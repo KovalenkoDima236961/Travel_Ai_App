@@ -33,6 +33,7 @@ def build_itinerary_prompt(
     rag_context_section = _rag_context_section(rag_chunks)
     user_context_section = _user_context_section(request)
     weather_context_section = _weather_context_section(request.weather_forecast)
+    accommodation_context_section = _accommodation_context_section(request.accommodation)
 
     return f"""
 You are generating an itinerary for a web-based travel planning application.
@@ -73,6 +74,7 @@ Trip request:
 - Pace: {request.pace}
 {user_context_section}
 {weather_context_section}
+{accommodation_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -130,6 +132,7 @@ def build_repair_prompt(
     rag_context_section = _rag_context_section(rag_chunks)
     user_context_section = _user_context_section(request)
     weather_context_section = _weather_context_section(request.weather_forecast)
+    accommodation_context_section = _accommodation_context_section(request.accommodation)
 
     return f"""
 You previously generated an itinerary JSON response, but it was invalid.
@@ -147,6 +150,7 @@ Original trip request:
 - Pace: {request.pace}
 {user_context_section}
 {weather_context_section}
+{accommodation_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -248,6 +252,7 @@ Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
+{_accommodation_context_section(request.accommodation)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 {opening_hours_section}
@@ -323,6 +328,7 @@ Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
+{_accommodation_context_section(request.accommodation)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 {opening_hours_section}
@@ -396,6 +402,7 @@ Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
+{_accommodation_context_section(request.accommodation)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -441,6 +448,7 @@ Trip request:
 {_partial_trip_section(request)}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
+{_accommodation_context_section(request.accommodation)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -450,6 +458,54 @@ Invalid previous response:
 Return ONLY corrected JSON for item index {request.item_index} in day {request.day_number}.
 Do not include markdown, explanations, comments, code fences, or fields outside the schema.
 """.strip()
+
+
+def _accommodation_context_section(accommodation: object | None) -> str:
+    if accommodation is None:
+        return ""
+
+    lines = [
+        "ACCOMMODATION CONTEXT:",
+        "Use this optional stay location to make the day routes practical.",
+    ]
+    _append_optional_line(lines, "Name", getattr(accommodation, "name", None))
+    _append_optional_line(lines, "Type", getattr(accommodation, "type", None))
+    _append_optional_line(lines, "Address", getattr(accommodation, "address", None))
+
+    place = getattr(accommodation, "place", None)
+    if place is not None:
+        _append_optional_line(lines, "Place name", getattr(place, "name", None))
+        _append_optional_line(lines, "Place address", getattr(place, "address", None))
+        latitude = getattr(place, "latitude", None)
+        longitude = getattr(place, "longitude", None)
+        if latitude is not None and longitude is not None:
+            lines.append(f"- Coordinates: {latitude:g}, {longitude:g}")
+
+    check_in = getattr(accommodation, "check_in_date", None)
+    if check_in is not None:
+        lines.append(f"- Check-in: {check_in.isoformat()}")
+    check_out = getattr(accommodation, "check_out_date", None)
+    if check_out is not None:
+        lines.append(f"- Check-out: {check_out.isoformat()}")
+
+    estimated_cost = getattr(accommodation, "estimated_cost", None)
+    if isinstance(estimated_cost, dict):
+        amount = estimated_cost.get("amount")
+        currency = estimated_cost.get("currency")
+        if amount is not None and currency:
+            lines.append(f"- Estimated stay cost: {amount} {currency}")
+
+    _append_optional_line(lines, "Notes", getattr(accommodation, "notes", None))
+    lines.extend(
+        [
+            "Accommodation instructions:",
+            "- Plan each day to start and end near this accommodation when practical.",
+            "- Avoid unnecessary zig-zag routes far from the accommodation.",
+            "- For early or late activities, account for travel time from or to the accommodation.",
+            "- Do not add accommodation booking suggestions unless the user asks for them.",
+        ]
+    )
+    return "\n" + "\n".join(lines)
 
 
 def _items_per_day_for_pace(pace: str) -> int:

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { estimateRoute } from "@/lib/api/routes";
 import { getRouteStopsByDay, routeStopsCacheKey } from "@/lib/itinerary/route-estimate-utils";
+import type { TripAccommodation } from "@/types/accommodation";
 import type { RouteEstimate } from "@/types/route";
 import type { Itinerary } from "@/types/trip";
 
@@ -10,6 +11,7 @@ export type DayRouteEstimateState = {
   estimate: RouteEstimate | null;
   isLoading: boolean;
   isError: boolean;
+  usesAccommodationAnchor: boolean;
 };
 
 export type UseRouteEstimatesResult = {
@@ -37,11 +39,12 @@ const EMPTY_RESULT: UseRouteEstimatesResult = {
  */
 export function useRouteEstimates(
   itinerary: Itinerary | null | undefined,
-  enabled: boolean
+  enabled: boolean,
+  accommodation?: TripAccommodation | null
 ): UseRouteEstimatesResult {
   const daysWithStops = useMemo(
-    () => (itinerary ? getRouteStopsByDay(itinerary) : []),
-    [itinerary]
+    () => (itinerary ? getRouteStopsByDay(itinerary, accommodation) : []),
+    [itinerary, accommodation]
   );
 
   const results = useQueries({
@@ -64,7 +67,7 @@ export function useRouteEstimates(
     const byDay = new Map<number, DayRouteEstimateState>();
     let isAnyLoading = false;
 
-    daysWithStops.forEach(({ dayNumber }, index) => {
+    daysWithStops.forEach(({ dayNumber, usesAccommodationAnchor }, index) => {
       const result = results[index];
       const isLoading = Boolean(result?.isLoading);
       if (isLoading) {
@@ -74,7 +77,8 @@ export function useRouteEstimates(
         dayNumber,
         estimate: result?.data ?? null,
         isLoading,
-        isError: Boolean(result?.isError)
+        isError: Boolean(result?.isError),
+        usesAccommodationAnchor
       });
     });
 

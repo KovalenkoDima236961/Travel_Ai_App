@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AccommodationPanel } from "@/components/accommodation/AccommodationPanel";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
@@ -160,7 +161,8 @@ function TripDetailPageContent() {
   const currentItinerary = tripQuery.data?.itinerary ?? null;
   const routeEstimateStates = useRouteEstimates(
     currentItinerary,
-    tripQuery.data?.status === "COMPLETED" && Boolean(currentItinerary)
+    tripQuery.data?.status === "COMPLETED" && Boolean(currentItinerary),
+    tripQuery.data?.accommodation ?? null
   );
   const routeEstimatesByDay = useMemo<Record<number, RouteEstimate | null>>(() => {
     const estimates: Record<number, RouteEstimate | null> = {};
@@ -171,8 +173,14 @@ function TripDetailPageContent() {
   }, [routeEstimateStates.byDay]);
   const fallbackDistanceSummaries = useMemo(
     () =>
-      currentItinerary ? getDayDistanceSummaries(currentItinerary, maxWalkingKmPerDay) : [],
-    [currentItinerary, maxWalkingKmPerDay]
+      currentItinerary
+        ? getDayDistanceSummaries(
+            currentItinerary,
+            maxWalkingKmPerDay,
+            tripQuery.data?.accommodation ?? null
+          )
+        : [],
+    [currentItinerary, maxWalkingKmPerDay, tripQuery.data?.accommodation]
   );
 
   const weatherParams = {
@@ -336,6 +344,7 @@ function TripDetailPageContent() {
     [
       fallbackDistanceSummaries,
       routeEstimatesByDay,
+      tripQuery.data?.accommodation,
       tripQuery.data,
       weatherForecastQuery.data
     ]
@@ -718,6 +727,7 @@ function TripDetailPageContent() {
           </Card>
 
           <BudgetPanel canEdit={canMutateTrip} trip={trip} />
+          <AccommodationPanel canEdit={canMutateTrip} trip={trip} />
 
           {presenceEnabled ? (
             <TripPresenceIndicator
@@ -907,8 +917,13 @@ function TripDetailPageContent() {
                     regeneratingTarget={activeRegeneratingTarget}
                     startDate={trip.startDate}
                   />
-                  <ItineraryMap itinerary={trip.itinerary} startDate={trip.startDate} />
+                  <ItineraryMap
+                    accommodation={trip.accommodation ?? null}
+                    itinerary={trip.itinerary}
+                    startDate={trip.startDate}
+                  />
                   <DistanceSummary
+                    accommodation={trip.accommodation ?? null}
                     itinerary={trip.itinerary}
                     maxWalkingKmPerDay={maxWalkingKmPerDay}
                     onOptimizeDay={canMutateTrip ? setOptimizingDayNumber : undefined}

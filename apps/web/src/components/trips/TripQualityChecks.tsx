@@ -68,6 +68,7 @@ export function TripQualityChecks({
       routeEstimatesByDay,
       fallbackDistanceSummaries,
       maxWalkingKmPerDay,
+      accommodation: trip.accommodation ?? null,
       tripBudget: trip.budget,
       budgetSummary
     });
@@ -77,6 +78,7 @@ export function TripQualityChecks({
     itinerary,
     maxWalkingKmPerDay,
     routeEstimatesByDay,
+    trip.accommodation,
     trip.budget,
     trip.startDate,
     weatherForecast

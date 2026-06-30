@@ -11,9 +11,10 @@ import (
 // TripBudget is the trip-level budget context the calculator needs. Days is the
 // trip's planned day count, used to derive the optional daily budget share.
 type TripBudget struct {
-	Amount   *float64
-	Currency string
-	Days     int
+	Amount        *float64
+	Currency      string
+	Days          int
+	Accommodation *aggregate.Accommodation
 }
 
 // freeItemTypes are itinerary item types that usually carry no cost, so a
@@ -94,12 +95,40 @@ func CalculateBudgetSummary(trip TripBudget, itinerary aggregate.Itinerary) Summ
 		summary.ByDay = append(summary.ByDay, daySummary)
 	}
 
+	addAccommodationCost(&summary, trip, currency, categoryTotals, categoryCounts)
+
 	summary.EstimatedTotal = round2(summary.EstimatedTotal)
 	summary.ByCategory = buildCategorySummaries(categoryTotals, categoryCounts)
 
 	applyBudget(&summary, trip)
 
 	return summary
+}
+
+func addAccommodationCost(
+	summary *Summary,
+	trip TripBudget,
+	currency string,
+	categoryTotals map[string]float64,
+	categoryCounts map[string]int,
+) {
+	if trip.Accommodation == nil || !hasUsableAmount(trip.Accommodation.EstimatedCost) {
+		return
+	}
+	cost := trip.Accommodation.EstimatedCost
+	if !currencyMatches(cost.Currency, currency) {
+		summary.UnsupportedCurrencyCount++
+		return
+	}
+
+	amount := *cost.Amount
+	summary.EstimatedTotal += amount
+	summary.EstimatedItemCount++
+	categoryTotals[CategoryAccommodation] += amount
+	categoryCounts[CategoryAccommodation]++
+
+	total := round2(amount)
+	summary.AccommodationTotal = &total
 }
 
 // applyBudget fills the budget-relative fields. When the trip has no budget,
@@ -150,6 +179,11 @@ func buildCategorySummaries(totals map[string]float64, counts map[string]int) []
 func resolveSummaryCurrency(trip TripBudget, itinerary aggregate.Itinerary) string {
 	if c := strings.ToUpper(strings.TrimSpace(trip.Currency)); c != "" {
 		return c
+	}
+	if trip.Accommodation != nil && trip.Accommodation.EstimatedCost != nil {
+		if c := strings.ToUpper(strings.TrimSpace(trip.Accommodation.EstimatedCost.Currency)); c != "" {
+			return c
+		}
 	}
 	for _, day := range itinerary.Days {
 		for i := range day.Items {

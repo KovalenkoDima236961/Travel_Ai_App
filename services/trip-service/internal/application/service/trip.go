@@ -40,6 +40,9 @@ const (
 	maxPlaceEnrichmentQuery    = 300
 	maxPlaceEnrichmentProvider = 50
 	maxPlaceEnrichmentReason   = 200
+	maxAccommodationNameLength = 200
+	maxAccommodationAddress    = 500
+	maxAccommodationNotes      = 1000
 	defaultLimit               = 20
 	maxLimit                   = 100
 )
@@ -62,6 +65,8 @@ type editableItinerary struct {
 type tripRepository interface {
 	Create(ctx context.Context, t *entity.Trip) (*entity.Trip, error)
 	UpdateTripBudget(ctx context.Context, id, userID uuid.UUID, amount *float64, currency string) (*entity.Trip, error)
+	UpdateTripAccommodation(ctx context.Context, id, userID uuid.UUID, accommodation *aggregate.Accommodation) (*entity.Trip, error)
+	ClearTripAccommodation(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error)
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)

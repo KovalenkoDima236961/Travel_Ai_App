@@ -26,6 +26,36 @@ forwards it without persisting it. When present, prompt generation adds a
 rainy days, avoid long outdoor walks during high heat, schedule parks/viewpoints
 on better weather days, and add indoor backups when rain chance is high.
 
+Full and partial generation requests also accept optional `accommodation`
+context forwarded by Trip Service. The context may include name, type, address,
+attached place coordinates, check-in/check-out dates, notes, and estimated stay
+cost. When present, prompt generation adds an `ACCOMMODATION CONTEXT` section
+and asks the model to plan each day to start/end near the stay when practical,
+avoid unnecessary zig-zag routes, account for early/late travel time to or from
+the stay, and avoid booking suggestions unless the user asks for them.
+
+Example accommodation payload:
+
+```json
+{
+  "accommodation": {
+    "name": "Hotel Roma",
+    "type": "hotel",
+    "address": "Via Roma 10",
+    "place": {
+      "provider": "mock",
+      "providerPlaceId": "mock-hotel-roma",
+      "name": "Hotel Roma",
+      "address": "Via Roma 10",
+      "latitude": 41.9028,
+      "longitude": 12.4964
+    },
+    "checkInDate": "2026-08-10",
+    "checkOutDate": "2026-08-12"
+  }
+}
+```
+
 Partial regeneration requests also accept attached place metadata inside
 `currentItinerary.days[].items[].place`. When those places include optional
 `openingHours`, prompt generation adds an `ATTACHED PLACE OPENING HOURS` section

@@ -1,4 +1,4 @@
-import { buildTripPdfLines, type TripPdfLine, type TripPdfLineVariant } from "@/components/export/TripPdfDocument";
+import { buildTripPdfLines, type TripPdfLine, type TripPdfLineVariant } from "@/lib/export/trip-pdf-lines";
 import { downloadBlob } from "@/lib/export/download";
 import { buildPdfFilename } from "@/lib/export/export-filenames";
 import type { ExportTrip } from "@/lib/export/trip-export-adapter";

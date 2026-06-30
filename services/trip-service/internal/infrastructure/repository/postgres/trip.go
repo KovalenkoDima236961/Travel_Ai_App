@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres/dto"
@@ -73,6 +74,52 @@ func (r *Repository) UpdateTripBudget(ctx context.Context, id, userID uuid.UUID,
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build update trip budget: %w", err)
+	}
+
+	return dto.Scan(r.db.QueryRow(ctx, query, args...))
+}
+
+// UpdateTripAccommodation stores the structured trip accommodation JSON for an
+// owned trip. It does not touch itinerary_revision because itinerary JSON is
+// unchanged.
+func (r *Repository) UpdateTripAccommodation(ctx context.Context, id, userID uuid.UUID, accommodation *aggregate.Accommodation) (*entity.Trip, error) {
+	raw, err := json.Marshal(accommodation)
+	if err != nil {
+		return nil, fmt.Errorf("marshal accommodation: %w", err)
+	}
+
+	query, args, err := r.db.Builder.
+		Update("trips").
+		Set("accommodation", []byte(raw)).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
+		Suffix("RETURNING " + dto.Columns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build update trip accommodation: %w", err)
+	}
+
+	return dto.Scan(r.db.QueryRow(ctx, query, args...))
+}
+
+// ClearTripAccommodation removes the structured accommodation JSON for an
+// owned trip without mutating itinerary_revision.
+func (r *Repository) ClearTripAccommodation(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error) {
+	query, args, err := r.db.Builder.
+		Update("trips").
+		Set("accommodation", nil).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
+		Suffix("RETURNING " + dto.Columns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build clear trip accommodation: %w", err)
 	}
 
 	return dto.Scan(r.db.QueryRow(ctx, query, args...))

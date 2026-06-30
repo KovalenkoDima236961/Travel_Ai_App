@@ -1,4 +1,6 @@
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
+import type { TripAccommodation } from "@/types/accommodation";
+import type { Place } from "@/types/place";
 import type { PublicTrip } from "@/types/share";
 import type { RouteEstimate } from "@/types/route";
 import type { Itinerary, ItineraryDay, ItineraryItem, Trip } from "@/types/trip";
@@ -13,6 +15,7 @@ export type ExportTrip = {
   travelers?: number | null;
   interests?: string[];
   pace?: string | null;
+  accommodation?: TripAccommodation | null;
   itinerary?: Itinerary | null;
   weatherSummary?: ExportWeatherDay[] | null;
   distanceSummary?: ExportDistanceDay[] | null;
@@ -52,6 +55,7 @@ export function toExportTripFromPrivateTrip(
     travelers: trip.travelers ?? null,
     interests: cloneStringArray(trip.interests),
     pace: trip.pace ?? null,
+    accommodation: sanitizeAccommodation(trip.accommodation),
     itinerary: sanitizeItinerary(trip.itinerary),
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
@@ -75,6 +79,7 @@ export function toExportTripFromPublicTrip(
     travelers: trip.travelers ?? null,
     interests: cloneStringArray(trip.interests),
     pace: trip.pace ?? null,
+    accommodation: null,
     itinerary: sanitizeItinerary(trip.itinerary),
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
@@ -156,19 +161,47 @@ function sanitizeItem(item: ItineraryItem): ItineraryItem {
     name: item.name ?? "",
     note: item.note ?? null,
     estimatedCost: item.estimatedCost ?? null,
-    place: item.place
-      ? {
-          provider: item.place.provider,
-          providerPlaceId: "",
-          name: item.place.name,
-          address: item.place.address,
-          rating: item.place.rating ?? null,
-          ratingCount: item.place.ratingCount ?? null,
-          mapUrl: item.place.mapUrl ?? null,
-          category: item.place.category ?? null,
-          website: item.place.website ?? null
-        }
-      : null
+    place: sanitizePlace(item.place)
+  };
+}
+
+function sanitizeAccommodation(
+  accommodation: TripAccommodation | null | undefined
+): TripAccommodation | null {
+  if (!accommodation) {
+    return null;
+  }
+
+  return {
+    name: accommodation.name,
+    type: accommodation.type,
+    address: accommodation.address ?? null,
+    place: sanitizePlace(accommodation.place),
+    checkInDate: accommodation.checkInDate ?? null,
+    checkOutDate: accommodation.checkOutDate ?? null,
+    estimatedCost: accommodation.estimatedCost ?? null,
+    notes: accommodation.notes ?? null
+  };
+}
+
+function sanitizePlace(place: Place | null | undefined): Place | null {
+  if (!place) {
+    return null;
+  }
+
+  return {
+    provider: place.provider,
+    providerPlaceId: "",
+    name: place.name,
+    address: place.address,
+    latitude: place.latitude ?? null,
+    longitude: place.longitude ?? null,
+    rating: place.rating ?? null,
+    ratingCount: place.ratingCount ?? null,
+    mapUrl: place.mapUrl ?? null,
+    category: place.category ?? null,
+    website: place.website ?? null,
+    openingHours: place.openingHours ?? null
   };
 }
 

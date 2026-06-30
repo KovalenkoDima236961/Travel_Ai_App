@@ -7,6 +7,11 @@ const (
 	EventTripCreated       = "trip_created"
 	EventTripBudgetUpdated = "trip_budget_updated"
 
+	// Accommodation.
+	EventAccommodationAdded   = "accommodation_added"
+	EventAccommodationUpdated = "accommodation_updated"
+	EventAccommodationRemoved = "accommodation_removed"
+
 	// Itinerary.
 	EventItineraryGenerated  = "itinerary_generated"
 	EventItineraryUpdated    = "itinerary_updated"
@@ -43,6 +48,7 @@ const (
 // Entity type constants describe the kind of object an event refers to.
 const (
 	EntityTrip             = "trip"
+	EntityAccommodation    = "accommodation"
 	EntityItinerary        = "itinerary"
 	EntityItineraryDay     = "itinerary_day"
 	EntityItineraryItem    = "itinerary_item"
@@ -58,6 +64,9 @@ const (
 var knownEventTypes = map[string]struct{}{
 	EventTripCreated:             {},
 	EventTripBudgetUpdated:       {},
+	EventAccommodationAdded:      {},
+	EventAccommodationUpdated:    {},
+	EventAccommodationRemoved:    {},
 	EventItineraryGenerated:      {},
 	EventItineraryUpdated:        {},
 	EventDayRegenerated:          {},

@@ -68,6 +68,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/shared-with-me", h.ListSharedTrips)
 		r.Get("/{id}", h.Get)
+		r.Get("/{id}/accommodation", h.GetAccommodation)
+		r.Put("/{id}/accommodation", h.UpdateAccommodation)
+		r.Delete("/{id}/accommodation", h.DeleteAccommodation)
 		r.Get("/{id}/budget-summary", h.GetBudgetSummary)
 		r.Put("/{id}/budget", h.UpdateTripBudget)
 		r.Get("/{id}/share", h.GetShare)
@@ -219,6 +222,61 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response.NewTripWithAccess(t, access))
+}
+
+// GetAccommodation handles GET /trips/{id}/accommodation. Any private
+// owner/editor/viewer may read it.
+func (h *Handler) GetAccommodation(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	accommodation, err := h.svc.GetTripAccommodation(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewAccommodationEnvelope(accommodation))
+}
+
+// UpdateAccommodation handles PUT /trips/{id}/accommodation. Only owner/editor
+// may mutate it; itinerary revision is unchanged.
+func (h *Handler) UpdateAccommodation(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	var req request.UpdateTripAccommodation
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	updated, err := h.svc.UpdateTripAccommodation(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewAccommodationEnvelope(updated.Accommodation))
+}
+
+// DeleteAccommodation handles DELETE /trips/{id}/accommodation.
+func (h *Handler) DeleteAccommodation(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	if _, err := h.svc.DeleteTripAccommodation(r.Context(), id); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
 // GetBudgetSummary handles GET /trips/{id}/budget-summary. Any accepted

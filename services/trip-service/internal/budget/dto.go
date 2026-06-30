@@ -9,6 +9,7 @@ type Summary struct {
 	Currency                 string            `json:"currency"`
 	TripBudget               *float64          `json:"tripBudget"`
 	EstimatedTotal           float64           `json:"estimatedTotal"`
+	AccommodationTotal       *float64          `json:"accommodationTotal,omitempty"`
 	Remaining                *float64          `json:"remaining"`
 	OverBudgetBy             *float64          `json:"overBudgetBy"`
 	MissingEstimateCount     int               `json:"missingEstimateCount"`

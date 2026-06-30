@@ -1,0 +1,2 @@
+ALTER TABLE trips
+ADD COLUMN accommodation JSONB NULL;

@@ -31,6 +31,7 @@ COST_CATEGORIES = {
 }
 COST_CONFIDENCES = {"low", "medium", "high"}
 COST_SOURCES = {"ai", "manual", "provider"}
+ACCOMMODATION_TYPES = {"hotel", "hostel", "apartment", "guesthouse", "home", "other"}
 _CURRENCY_PATTERN = re.compile(r"^[A-Z]{3}$")
 _MAX_COST_NOTE = 300
 
@@ -161,6 +162,78 @@ class WeatherForecast(APIModel):
     days: list[WeatherDay] = Field(default_factory=list)
 
 
+class AccommodationPlace(APIModel):
+    provider: str | None = None
+    provider_place_id: str | None = Field(default=None, alias="providerPlaceId")
+    name: str | None = None
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    map_url: str | None = Field(default=None, alias="mapUrl")
+    category: str | None = None
+    website: str | None = None
+
+    @field_validator(
+        "provider",
+        "provider_place_id",
+        "name",
+        "address",
+        "map_url",
+        "category",
+        "website",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_string(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+
+class AccommodationContext(APIModel):
+    name: NonEmptyString
+    type: str = "other"
+    address: str | None = None
+    place: AccommodationPlace | None = None
+    check_in_date: date | None = Field(default=None, alias="checkInDate")
+    check_out_date: date | None = Field(default=None, alias="checkOutDate")
+    estimated_cost: dict[str, object] | None = Field(default=None, alias="estimatedCost")
+    notes: str | None = None
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: object) -> object:
+        if value is None:
+            return "other"
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            return normalized if normalized in ACCOMMODATION_TYPES else "other"
+        return value
+
+    @field_validator("address", "notes", mode="before")
+    @classmethod
+    def normalize_optional_string(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+    @model_validator(mode="after")
+    def check_out_after_check_in(self) -> "AccommodationContext":
+        if (
+            self.check_in_date is not None
+            and self.check_out_date is not None
+            and self.check_out_date <= self.check_in_date
+        ):
+            raise ValueError("checkOutDate must be after checkInDate")
+        return self
+
+
 class GenerateItineraryRequest(APIModel):
     trip_id: UUID = Field(alias="tripId")
     destination: NonEmptyString
@@ -174,6 +247,7 @@ class GenerateItineraryRequest(APIModel):
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
+    accommodation: AccommodationContext | None = None
 
     @field_validator("budget_currency", mode="before")
     @classmethod
@@ -433,6 +507,7 @@ class RegenerateDayRequest(APIModel):
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
+    accommodation: AccommodationContext | None = None
 
     @field_validator("instruction", mode="before")
     @classmethod

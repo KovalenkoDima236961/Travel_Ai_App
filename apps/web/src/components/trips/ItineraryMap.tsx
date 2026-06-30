@@ -9,6 +9,7 @@ import {
   getMapCenter
 } from "@/lib/itinerary/map-utils";
 import { cn } from "@/lib/utils";
+import type { TripAccommodation } from "@/types/accommodation";
 import type { Itinerary } from "@/types/trip";
 
 const LeafletItineraryMap = dynamic(
@@ -25,13 +26,22 @@ const LeafletItineraryMap = dynamic(
 
 type ItineraryMapProps = {
   itinerary: Itinerary;
+  accommodation?: TripAccommodation | null;
   startDate?: string | null;
   className?: string;
 };
 
-export function ItineraryMap({ itinerary, startDate, className }: ItineraryMapProps) {
+export function ItineraryMap({
+  itinerary,
+  accommodation,
+  startDate,
+  className
+}: ItineraryMapProps) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const markers = useMemo(() => getItineraryMapMarkers(itinerary), [itinerary]);
+  const markers = useMemo(
+    () => getItineraryMapMarkers(itinerary, accommodation),
+    [itinerary, accommodation]
+  );
   const availableDays = useMemo(() => getAvailableDays(markers), [markers]);
 
   useEffect(() => {
@@ -44,7 +54,9 @@ export function ItineraryMap({ itinerary, startDate, className }: ItineraryMapPr
     () =>
       selectedDay == null
         ? markers
-        : markers.filter((marker) => marker.dayNumber === selectedDay),
+        : markers.filter(
+            (marker) => marker.kind === "accommodation" || marker.dayNumber === selectedDay
+          ),
     [markers, selectedDay]
   );
   const center = useMemo(() => getMapCenter(filteredMarkers), [filteredMarkers]);

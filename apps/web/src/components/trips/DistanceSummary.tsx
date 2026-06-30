@@ -12,10 +12,12 @@ import {
 import { useRouteEstimates, type DayRouteEstimateState } from "@/lib/hooks/useRouteEstimates";
 import { MIN_OPTIMIZABLE_STOPS } from "@/lib/itinerary/route-optimization-utils";
 import { cn } from "@/lib/utils";
+import type { TripAccommodation } from "@/types/accommodation";
 import type { Itinerary } from "@/types/trip";
 
 type DistanceSummaryProps = {
   itinerary: Itinerary;
+  accommodation?: TripAccommodation | null;
   maxWalkingKmPerDay?: number | null;
   className?: string;
   /**
@@ -32,14 +34,15 @@ type DistanceSummaryProps = {
 
 export function DistanceSummary({
   itinerary,
+  accommodation,
   maxWalkingKmPerDay,
   className,
   routeEstimatesEnabled = true,
   onOptimizeDay
 }: DistanceSummaryProps) {
   const summaries = useMemo(
-    () => getDayDistanceSummaries(itinerary, maxWalkingKmPerDay),
-    [itinerary, maxWalkingKmPerDay]
+    () => getDayDistanceSummaries(itinerary, maxWalkingKmPerDay, accommodation),
+    [itinerary, maxWalkingKmPerDay, accommodation]
   );
 
   const measuredDays = useMemo(
@@ -49,7 +52,7 @@ export function DistanceSummary({
 
   // Hooks must run before any early return. The hook itself produces no queries
   // when there are no days with at least two mapped stops, so it is cheap here.
-  const routeEstimates = useRouteEstimates(itinerary, routeEstimatesEnabled);
+  const routeEstimates = useRouteEstimates(itinerary, routeEstimatesEnabled, accommodation);
 
   const routeProvider = useMemo(() => {
     for (const summary of measuredDays) {
@@ -202,6 +205,11 @@ function DaySummaryRow({ summary, routeState, onOptimizeDay }: DaySummaryRowProp
           {exceedsPreference ? (
             <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
               Above your walking preference
+            </span>
+          ) : null}
+          {summary.usesAccommodationAnchor || routeState?.usesAccommodationAnchor ? (
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+              Includes stay
             </span>
           ) : null}
           {canOptimize ? (

@@ -161,6 +161,39 @@ def test_generate_itinerary_accepts_optional_weather_forecast() -> None:
     assert request.weather_forecast.days[0].precipitation_chance == 5
 
 
+def test_generate_itinerary_accepts_optional_accommodation() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["accommodation"] = {
+        "name": "Hotel Roma",
+        "type": "Hotel",
+        "address": "Via Roma 10",
+        "place": {
+            "provider": "google",
+            "providerPlaceId": "hotel-roma",
+            "name": "Hotel Roma",
+            "address": "Via Roma 10",
+            "latitude": 41.9028,
+            "longitude": 12.4964,
+            "mapUrl": "https://maps.example/hotel-roma",
+            "category": "lodging",
+        },
+        "checkInDate": "2026-08-10",
+        "checkOutDate": "2026-08-14",
+        "estimatedCost": {"amount": 420, "currency": "EUR", "category": "accommodation"},
+        "notes": "Near the train station.",
+    }
+
+    response = client.post("/generate-itinerary", json=payload)
+
+    assert response.status_code == 200
+    request = GenerateItineraryRequest.model_validate(payload)
+    assert request.accommodation is not None
+    assert request.accommodation.name == "Hotel Roma"
+    assert request.accommodation.type == "hotel"
+    assert request.accommodation.place is not None
+    assert request.accommodation.place.latitude == 41.9028
+
+
 def test_user_preferences_arrays_are_trimmed_deduplicated_and_optional() -> None:
     payload = deepcopy(VALID_PAYLOAD)
     payload["userPreferences"] = {

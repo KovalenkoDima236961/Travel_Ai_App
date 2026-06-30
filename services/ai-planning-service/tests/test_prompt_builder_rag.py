@@ -30,6 +30,26 @@ def _request() -> GenerateItineraryRequest:
     return GenerateItineraryRequest.model_validate(deepcopy(VALID_PAYLOAD))
 
 
+def _accommodation_payload() -> dict:
+    return {
+        "name": "Hotel Roma",
+        "type": "hotel",
+        "address": "Via Roma 10",
+        "place": {
+            "provider": "google",
+            "providerPlaceId": "hotel-roma",
+            "name": "Hotel Roma",
+            "address": "Via Roma 10",
+            "latitude": 41.9028,
+            "longitude": 12.4964,
+        },
+        "checkInDate": "2026-08-10",
+        "checkOutDate": "2026-08-12",
+        "estimatedCost": {"amount": 240, "currency": "EUR", "category": "accommodation"},
+        "notes": "Use this as the daily base.",
+    }
+
+
 def _rag_chunks() -> list[KnowledgeSearchResult]:
     return [
         KnowledgeSearchResult(
@@ -136,6 +156,24 @@ def test_itinerary_prompt_omits_weather_section_when_not_provided() -> None:
     assert "WEATHER FORECAST:" not in prompt
 
 
+def test_itinerary_prompt_includes_accommodation_context_when_provided() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["accommodation"] = _accommodation_payload()
+
+    prompt = build_itinerary_prompt(GenerateItineraryRequest.model_validate(payload))
+
+    assert "ACCOMMODATION CONTEXT:" in prompt
+    assert "- Name: Hotel Roma" in prompt
+    assert "- Coordinates: 41.9028, 12.4964" in prompt
+    assert "Plan each day to start and end near this accommodation" in prompt
+
+
+def test_itinerary_prompt_omits_accommodation_context_when_not_provided() -> None:
+    prompt = build_itinerary_prompt(_request())
+
+    assert "ACCOMMODATION CONTEXT:" not in prompt
+
+
 def test_repair_prompt_includes_rag_context() -> None:
     prompt = build_repair_prompt(
         request=_request(),
@@ -200,6 +238,22 @@ def test_repair_prompt_preserves_weather_context() -> None:
     assert "Preserve weather-aware choices from the weather forecast" in prompt
 
 
+def test_repair_prompt_preserves_accommodation_context() -> None:
+    payload = deepcopy(VALID_PAYLOAD)
+    payload["accommodation"] = _accommodation_payload()
+    request = GenerateItineraryRequest.model_validate(payload)
+
+    prompt = build_repair_prompt(
+        request=request,
+        invalid_response_text='{"days": []}',
+        validation_error="missing days",
+    )
+
+    assert "ACCOMMODATION CONTEXT:" in prompt
+    assert "- Address: Via Roma 10" in prompt
+    assert "Avoid unnecessary zig-zag routes far from the accommodation." in prompt
+
+
 def test_partial_regeneration_prompt_includes_weather_context() -> None:
     payload = {
         "trip": {
@@ -254,6 +308,17 @@ def test_partial_regeneration_prompt_includes_weather_context() -> None:
     assert "WEATHER FORECAST:" in prompt
     assert "Rain likely: consider indoor alternatives" in prompt
     assert "Adapt the replacement day to the weather forecast when relevant." in prompt
+
+
+def test_partial_regeneration_prompt_includes_accommodation_context() -> None:
+    payload = _partial_payload_with_opening_hours()
+    payload["accommodation"] = _accommodation_payload()
+
+    prompt = build_regenerate_day_prompt(RegenerateDayRequest.model_validate(payload))
+
+    assert "ACCOMMODATION CONTEXT:" in prompt
+    assert "- Check-in: 2026-08-10" in prompt
+    assert "For early or late activities, account for travel time" in prompt
 
 
 def test_regenerate_day_prompt_includes_attached_place_opening_hours() -> None:

@@ -220,6 +220,78 @@ fields are removed and the itinerary's `totalBudget` is stripped. Item-level
 - AI costs are approximate estimates, not real prices.
 - No real ticket-price/booking provider integration.
 
+## Accommodation Planning v1
+
+Trips can store one structured private accommodation/stay location in the
+`trips.accommodation JSONB NULL` column. Private trip detail responses include
+`accommodation`; public share responses omit it by default.
+
+Shape:
+
+```json
+{
+  "accommodation": {
+    "name": "Hotel Roma",
+    "type": "hotel",
+    "address": "Via Roma 10",
+    "place": {
+      "provider": "mock",
+      "providerPlaceId": "mock-hotel-roma",
+      "name": "Hotel Roma",
+      "address": "Via Roma 10",
+      "latitude": 41.9028,
+      "longitude": 12.4964,
+      "mapUrl": "https://...",
+      "category": "hotel",
+      "website": "https://..."
+    },
+    "checkInDate": "2026-08-10",
+    "checkOutDate": "2026-08-12",
+    "estimatedCost": {
+      "amount": 120,
+      "currency": "EUR",
+      "category": "accommodation",
+      "source": "manual"
+    },
+    "notes": "Near Termini"
+  }
+}
+```
+
+Endpoints:
+
+| Method | Path                             | Who                     |
+| ------ | -------------------------------- | ----------------------- |
+| GET    | `/trips/{id}/accommodation`      | owner / editor / viewer |
+| PUT    | `/trips/{id}/accommodation`      | owner / editor          |
+| DELETE | `/trips/{id}/accommodation`      | owner / editor          |
+
+Validation requires a non-empty `name` (max 200), valid type
+(`hotel | hostel | apartment | guesthouse | home | other`), optional address max
+500, optional notes max 1000, valid `YYYY-MM-DD` dates with check-out after
+check-in, valid attached place coordinates, and non-negative estimated cost.
+Accommodation cost is normalized to category `accommodation` and source
+`manual`.
+
+Updating or clearing accommodation updates `updated_at` but does **not**
+increment `itineraryRevision`. Successful writes create activity events
+`accommodation_added`, `accommodation_updated`, or `accommodation_removed` with
+safe metadata (`name`, `type`) only. No collaborator notifications are sent in
+v1.
+
+Budget summaries include the structured stay cost once as
+`accommodationTotal` and in the `accommodation` category. If a user also adds a
+hotel as a normal itinerary item, that item cost is still counted separately;
+the Web App does not create such items automatically.
+
+AI generation and partial regeneration receive accommodation context when
+present. Calendar sync remains unchanged: no check-in/check-out events are
+created in v1.
+
+Limitations: one accommodation per trip, no booking/search provider integration,
+no multi-stay support, no currency conversion, and no check-in/out calendar
+events.
+
 ## Tech stack
 
 | Concern           | Choice                                                        |
