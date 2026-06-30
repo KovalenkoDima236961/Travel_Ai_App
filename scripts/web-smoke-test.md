@@ -128,15 +128,21 @@ http://localhost:3000
 6. Confirm the panel refreshes with the new budget and the itinerary revision is
    unchanged (no conflict warning, version history not affected).
 7. Open the itinerary editor, expand an item's `Estimated cost`, change the
-   amount/category, and save the itinerary.
-8. Confirm the saved cost shows a `manual` marker and the budget total updates.
-9. Edit the budget to an amount **below** the estimated total and save.
-10. Confirm the `Budget` panel switches to an over-budget warning style.
-11. Open `Trip Quality Checks` and confirm budget issues appear (over budget,
+   amount/category, set currency to `JPY`, and save the itinerary.
+8. Confirm the saved cost shows a `manual` marker and the budget panel shows an
+   approximate converted total plus `JPY` under original currency totals.
+9. If you intentionally enter an unsupported currency code through API/devtools,
+   confirm the Budget panel shows a conversion warning and Trip Quality Checks
+   reports a conversion issue without inventing an exchange rate.
+10. Edit the budget to an amount **below** the estimated total and save.
+11. Confirm the `Budget` panel switches to an over-budget warning style.
+12. Open `Trip Quality Checks` and confirm budget issues appear (over budget,
     day over budget, expensive item, or missing cost estimates).
-12. For the trip-level over-budget issue, click `Improve day N`, confirm a
+13. For the trip-level over-budget issue, click `Improve day N`, confirm a
     generation job starts, and that the resulting day is budget-aware.
-13. Create a public share link, open `/share/{shareToken}` in a logged-out
+14. Export a private PDF and confirm the budget summary uses approximate
+    converted totals and includes original currency totals when present.
+15. Create a public share link, open `/share/{shareToken}` in a logged-out
     window, and confirm the private trip budget is **not** shown (item cost
     badges may still appear).
 

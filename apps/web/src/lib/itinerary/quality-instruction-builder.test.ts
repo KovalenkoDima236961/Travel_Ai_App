@@ -111,4 +111,22 @@ describe("quality instruction builder", () => {
     expect(instruction).not.toContain("[");
     expect(instruction).not.toContain("]");
   });
+
+  it("does not ask AI to fix exchange rates for conversion issues", () => {
+    const instruction = buildImproveDayInstruction(1, [
+      issue({
+        id: "conversion",
+        type: "conversion_unavailable",
+        scope: "trip",
+        title: "Currency conversion unavailable",
+        message: "Some costs could not be converted.",
+        suggestion: "Check currency codes.",
+        instructionHint:
+          "Do not change exchange rates. Suggest manual currency or cost corrections for unconverted items."
+      })
+    ]);
+
+    expect(instruction).toContain("Do not change exchange rates");
+    expect(instruction).toContain("manual currency or cost corrections");
+  });
 });

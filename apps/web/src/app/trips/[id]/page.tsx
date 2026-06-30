@@ -346,10 +346,12 @@ function TripDetailPageContent() {
             distanceSummary: toExportDistanceSummary(
               fallbackDistanceSummaries,
               routeEstimatesByDay
-            )
+            ),
+            budgetSummary: budgetSummaryQuery.data ?? null
           })
         : null,
     [
+      budgetSummaryQuery.data,
       fallbackDistanceSummaries,
       routeEstimatesByDay,
       tripQuery.data?.accommodation,

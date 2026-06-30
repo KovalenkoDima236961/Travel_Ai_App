@@ -15,7 +15,8 @@ export type QualityIssueType =
   | "trip_budget_exceeded"
   | "day_budget_high"
   | "expensive_item"
-  | "missing_cost_estimate";
+  | "missing_cost_estimate"
+  | "conversion_unavailable";
 
 export type QualityIssue = {
   id: string;

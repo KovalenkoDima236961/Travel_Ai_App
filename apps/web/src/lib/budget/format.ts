@@ -32,6 +32,14 @@ export function formatMoney(
   return /^[A-Z]{2,4}$/.test(code) ? `${formatted} ${code}` : formatted;
 }
 
+export function formatApproxMoney(
+  amount: number | null | undefined,
+  currency: string | null | undefined
+): string {
+  const formatted = formatMoney(amount, currency);
+  return formatted === "—" ? formatted : `≈${formatted}`;
+}
+
 /**
  * A raw itinerary item cost may arrive as the structured object or, from older
  * data, as a bare number. These helpers normalise reading either shape.

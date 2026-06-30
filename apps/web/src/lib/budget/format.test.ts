@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   costBadgeLabel,
+  formatApproxMoney,
   formatMoney,
   getCostAmount,
   getCostCurrency,
@@ -21,6 +22,11 @@ describe("formatMoney", () => {
   it("falls back gracefully for invalid currency codes", () => {
     expect(formatMoney(20, "ZZZ123")).toBe("20");
     expect(formatMoney(20, "")).toBe("20");
+  });
+
+  it("formats approximate money with a leading marker", () => {
+    expect(formatApproxMoney(14.8, "EUR")).toBe("≈€14.80");
+    expect(formatApproxMoney(null, "EUR")).toBe("—");
   });
 });
 

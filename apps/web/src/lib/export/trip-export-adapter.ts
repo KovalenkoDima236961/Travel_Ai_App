@@ -1,5 +1,6 @@
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
 import type { TripAccommodation } from "@/types/accommodation";
+import type { BudgetSummary } from "@/types/budget";
 import type { Place } from "@/types/place";
 import type { PublicTrip } from "@/types/share";
 import type { RouteEstimate } from "@/types/route";
@@ -19,6 +20,7 @@ export type ExportTrip = {
   itinerary?: Itinerary | null;
   weatherSummary?: ExportWeatherDay[] | null;
   distanceSummary?: ExportDistanceDay[] | null;
+  budgetSummary?: BudgetSummary | null;
   source: "private" | "public";
 };
 
@@ -40,6 +42,7 @@ export type ExportDistanceDay = {
 export type ExportExtras = {
   weatherSummary?: ExportWeatherDay[] | null;
   distanceSummary?: ExportDistanceDay[] | null;
+  budgetSummary?: BudgetSummary | null;
 };
 
 export function toExportTripFromPrivateTrip(
@@ -59,6 +62,7 @@ export function toExportTripFromPrivateTrip(
     itinerary: sanitizeItinerary(trip.itinerary),
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
+    budgetSummary: extras.budgetSummary ?? null,
     source: "private"
   };
 }
@@ -83,6 +87,7 @@ export function toExportTripFromPublicTrip(
     itinerary: sanitizeItinerary(trip.itinerary),
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
+    budgetSummary: null,
     source: "public"
   };
 }

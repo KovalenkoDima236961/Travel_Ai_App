@@ -116,23 +116,28 @@ optional and fail-open by default. Access tokens and full preference payloads
 should not be logged.
 External Integrations Service v1 lives in
 `services/external-integrations-service` and owns place search/details, route
-estimation, and weather forecast provider boundaries. Place search/details use
-the deterministic mock provider by default and can optionally use Foursquare via
-`PLACE_PROVIDER=foursquare`; mock remains the local no-key default. Routing and
-weather likewise support real providers behind clean provider abstractions while
-keeping the `POST /routes/estimate` and `GET /weather/forecast` contracts stable:
-real routing via OpenRouteService (`ROUTE_PROVIDER=ors`) and real weather via
-OpenWeatherMap (`WEATHER_PROVIDER=openweathermap`), each opt-in with mock as the
-default and the fail-open fallback. Results are cached in a small in-memory TTL
-cache, and provider API keys never reach the Web App. The Web App calls this
-service when attaching optional place metadata to itinerary items, estimating
-per-day routes via `POST /routes/estimate`, and showing trip weather via
-`GET /weather/forecast`. Route and weather data are read-only; attached places can
-also carry optional local `openingHours` intervals (`dayOfWeek` 1 Monday through 7
-Sunday, `HH:mm` local time). The Web App shows advisory closed-place warnings when
-hours are available and handles missing real provider fields gracefully. No real
-Google Places provider, real opening-hours provider, or Google Maps routing is
-enabled yet.
+estimation, weather forecast, and exchange-rate provider boundaries.
+Place search/details use the deterministic mock provider by default and can
+optionally use Foursquare via `PLACE_PROVIDER=foursquare`; mock remains the local
+no-key default. Routing and weather likewise support real providers behind clean
+provider abstractions while keeping the `POST /routes/estimate` and
+`GET /weather/forecast` contracts stable: real routing via OpenRouteService
+(`ROUTE_PROVIDER=ors`) and real weather via OpenWeatherMap
+(`WEATHER_PROVIDER=openweathermap`), each opt-in with mock as the default and the
+fail-open fallback. Exchange-rate v1 exposes deterministic mock
+`GET /exchange-rates/latest` and `GET /exchange-rates/convert` endpoints used by
+Trip Service budget summaries; real exchange-rate provider names are reserved
+for future adapters. Results are cached in a small in-memory TTL cache, and
+provider API keys never reach the Web App. The Web App calls this service when
+attaching optional place metadata to itinerary items, estimating per-day routes
+via `POST /routes/estimate`, and showing trip weather via
+`GET /weather/forecast`; Trip Service calls it for budget conversion. Route,
+weather, and exchange-rate data are read-only; attached places can also carry
+optional local `openingHours` intervals (`dayOfWeek` 1 Monday through 7 Sunday,
+`HH:mm` local time). The Web App shows advisory closed-place warnings when hours
+are available and handles missing real provider fields gracefully. No real Google
+Places provider, real opening-hours provider, Google Maps routing, historical
+exchange rates, or trading-grade rate accuracy is enabled yet.
 Calendar Sync v1 is implemented inside External Integrations Service rather
 than a separate Calendar Service. Users can connect one Google Calendar account
 through server-side OAuth, tokens are encrypted at rest, and Trip Service can
@@ -149,12 +154,18 @@ demand via `GET /trips/{id}/budget-summary` (estimated total, remaining/over,
 daily and category breakdowns) and owners/editors set the budget via
 `PUT /trips/{id}/budget` without touching the itinerary revision. Manual item
 cost edits reuse the existing revision-checked `PUT /trips/{id}/itinerary` flow,
-so conflict detection and version history apply unchanged. The Web App shows a
-`BudgetPanel`, item cost badges, and budget-aware quality warnings (over-budget
-trip/day, expensive items, missing estimates). AI generation/regeneration
-includes approximate costs in the trip/preferred currency. v1 uses one currency
-per trip with no conversion, no real ticket-price/booking provider, and never
-exposes the private trip budget on the public share page.
+so conflict detection and version history apply unchanged. Multi-currency
+Support v1 converts item and accommodation estimates into the trip budget
+currency with External Integrations Service exchange rates, preserves original
+currency totals, and reports conversion warnings when a cost cannot be
+converted. The Web App shows a `BudgetPanel`, item cost badges, approximate
+converted totals, and budget-aware quality warnings (over-budget trip/day,
+expensive items, missing estimates, conversion gaps). AI generation/regeneration
+prefers the trip/preferred currency but may use local currencies when natural;
+the backend conversion is the source of truth for budget totals. v1 has no real
+ticket-price/booking provider, historical rates, crypto rates, or financial
+accuracy guarantees, and never exposes the private trip budget on the public
+share page.
 Accommodation Planning v1 adds one private structured stay location per trip.
 Owners/editors can add, edit, or remove an accommodation with name/type/address,
 optional attached place coordinates, check-in/check-out dates, notes, and an
@@ -164,8 +175,8 @@ budget summary, forwards it to AI generation/regeneration, and records sanitized
 activity events. The Web App shows an `Accommodation` panel, uses the stay as a
 daily route start/end anchor when coordinates exist, includes it in private PDF
 exports, and omits structured accommodation from public share pages/exports.
-v1 has no hotel search provider, booking flow, multi-stay support, currency
-conversion, or check-in/out calendar events.
+v1 has no hotel search provider, booking flow, multi-stay support, real booking
+price feed, or check-in/out calendar events.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token

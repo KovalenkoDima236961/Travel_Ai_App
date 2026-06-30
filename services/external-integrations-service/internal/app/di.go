@@ -13,6 +13,7 @@ import (
 	tokencrypto "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/crypto"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
+	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/exchangerates"
 	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
 	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
 	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
@@ -55,13 +56,19 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 	if err != nil {
 		return nil, fmt.Errorf("init weather provider: %w", err)
 	}
+	exchangeRateProvider, err := exchangerateprovider.New(cfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("init exchange rate provider: %w", err)
+	}
 
 	svc := appservice.New(provider, log)
 	routesSvc := appservice.NewRoutesService(routeProvider, log)
 	weatherSvc := appservice.NewWeatherService(weatherProvider, log)
+	exchangeRateSvc := appservice.NewExchangeRateService(exchangeRateProvider, log)
 	placesHandler := handler.NewPlacesHandler(svc, log, cfg.PlaceProvider.Provider)
 	routesHandler := handler.NewRoutesHandler(routesSvc, log, cfg.RouteProvider.Provider)
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, log)
+	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateSvc, log)
 	cipher, err := tokencrypto.NewStringCipher(cfg.Calendar.EncryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("init calendar token encryption: %w", err)
@@ -88,6 +95,7 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 		placesHandler,
 		routesHandler,
 		weatherHandler,
+		exchangeRateHandler,
 		calendarHandler,
 		internalCalendarHandler,
 		readinessHandler,

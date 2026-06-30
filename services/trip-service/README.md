@@ -177,17 +177,40 @@ and itinerary JSON:
   "overBudgetBy": 0,
   "missingEstimateCount": 4,
   "estimatedItemCount": 18,
+  "convertedItemCount": 3,
+  "unconvertedItemCount": 0,
   "unsupportedCurrencyCount": 0,
+  "originalCurrencyTotals": [
+    { "currency": "EUR", "amount": 120 },
+    { "currency": "JPY", "amount": 45000 }
+  ],
+  "conversionWarnings": [],
+  "exchangeRateInfo": {
+    "provider": "mock",
+    "asOf": "2026-06-30T12:00:00Z",
+    "fallbackUsed": false
+  },
   "byDay": [{ "dayNumber": 1, "estimatedTotal": 120.00, "missingEstimateCount": 1,
+              "originalCurrencyTotals": [{ "currency": "JPY", "amount": 10000 }],
               "dailyBudgetShare": 100.00, "overDailyBudgetBy": 20.00 }],
   "byCategory": [{ "category": "food", "estimatedTotal": 210.00, "itemCount": 7 }]
 }
 ```
 
 When the trip has no budget, `tripBudget`/`remaining`/`overBudgetBy` are `null`
-but `estimatedTotal` is still returned. Estimates in a currency other than the
-summary currency are counted in `unsupportedCurrencyCount` and excluded from the
-totals (no conversion in v1).
+but `estimatedTotal` is still returned. Multi-currency Support v1 converts item
+and accommodation estimates into the summary currency with External Integrations
+Service exchange rates. `originalCurrencyTotals` preserves the source-currency
+amounts, `exchangeRateInfo` identifies the approximate rate source, and
+`conversionWarnings` lists costs that could not be converted and were excluded.
+
+Budget conversion config:
+
+- `BUDGET_CONVERSION_ENABLED=true` enables exchange-rate conversion.
+- `BUDGET_CONVERSION_FAIL_OPEN=true` returns partial summaries with warnings
+  when conversion fails; when `false`, the endpoint returns `502` with
+  `budget_conversion_failed`.
+- `EXCHANGE_RATE_CLIENT_TIMEOUT_SECONDS=8` controls the Trip Service client.
 
 `PUT /trips/{id}/budget` sets or clears the budget:
 
@@ -216,7 +239,9 @@ fields are removed and the itinerary's `totalBudget` is stripped. Item-level
 
 ### Limitations
 
-- One currency per trip; no currency conversion.
+- One trip summary currency; item/accommodation estimates may use other
+  supported currencies and are converted approximately.
+- No historical rates and no currency minor-unit perfection in v1.
 - AI costs are approximate estimates, not real prices.
 - No real ticket-price/booking provider integration.
 
@@ -289,7 +314,7 @@ present. Calendar sync remains unchanged: no check-in/check-out events are
 created in v1.
 
 Limitations: one accommodation per trip, no booking/search provider integration,
-no multi-stay support, no currency conversion, and no check-in/out calendar
+no multi-stay support, no real booking price feed, and no check-in/out calendar
 events.
 
 ## Tech stack

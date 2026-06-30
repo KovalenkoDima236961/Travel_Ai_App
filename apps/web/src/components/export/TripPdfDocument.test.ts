@@ -50,4 +50,44 @@ describe("buildTripPdfLines accommodation", () => {
     expect(text).not.toContain("Hotel Roma");
     expect(text).not.toContain("Via Roma 10");
   });
+
+  it("uses converted private budget summary when provided", () => {
+    const text = buildTripPdfLines({
+      destination: "Tokyo",
+      days: 2,
+      source: "private",
+      budgetAmount: 900,
+      budgetCurrency: "EUR",
+      budgetSummary: {
+        currency: "EUR",
+        tripBudget: 900,
+        estimatedTotal: 842.3,
+        remaining: 57.7,
+        overBudgetBy: 0,
+        missingEstimateCount: 0,
+        estimatedItemCount: 3,
+        convertedItemCount: 2,
+        unconvertedItemCount: 0,
+        originalCurrencyTotals: [
+          { currency: "JPY", amount: 45000 },
+          { currency: "EUR", amount: 120 }
+        ],
+        conversionWarnings: [],
+        exchangeRateInfo: {
+          provider: "mock",
+          asOf: "2026-06-30T12:00:00Z",
+          fallbackUsed: false
+        },
+        byDay: [],
+        byCategory: []
+      },
+      itinerary: { days: [] }
+    })
+      .map((line) => line.text)
+      .join("\n");
+
+    expect(text).toContain("Estimated total: ≈€842.30");
+    expect(text).toContain("JPY: ¥45,000");
+    expect(text).toContain("Approximate conversions");
+  });
 });

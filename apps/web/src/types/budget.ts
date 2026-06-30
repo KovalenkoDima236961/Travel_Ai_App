@@ -29,6 +29,7 @@ export type BudgetDaySummary = {
   dayNumber: number;
   estimatedTotal: number;
   missingEstimateCount: number;
+  originalCurrencyTotals?: OriginalCurrencyTotal[];
   dailyBudgetShare?: number | null;
   overDailyBudgetBy?: number | null;
 };
@@ -48,9 +49,31 @@ export type BudgetSummary = {
   accommodationTotal?: number | null;
   missingEstimateCount: number;
   estimatedItemCount: number;
+  convertedItemCount?: number;
+  unconvertedItemCount?: number;
   unsupportedCurrencyCount?: number;
+  originalCurrencyTotals?: OriginalCurrencyTotal[];
+  conversionWarnings?: ConversionWarning[];
+  exchangeRateInfo?: ExchangeRateInfo | null;
   byDay: BudgetDaySummary[];
   byCategory: BudgetCategorySummary[];
+};
+
+export type OriginalCurrencyTotal = {
+  currency: string;
+  amount: number;
+};
+
+export type ConversionWarning = {
+  currency: string;
+  amount?: number | null;
+  reason: string;
+};
+
+export type ExchangeRateInfo = {
+  provider?: string | null;
+  asOf?: string | null;
+  fallbackUsed?: boolean;
 };
 
 export const COST_CATEGORIES: CostCategory[] = [

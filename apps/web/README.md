@@ -134,16 +134,19 @@ route estimates, and weather forecasts:
 - `GET /places/{placeId}`
 - `POST /routes/estimate`
 - `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
+- `GET /exchange-rates/latest?base=EUR` and `GET /exchange-rates/convert?...`
+  indirectly through Trip Service budget summaries
 - `GET /calendar/google/status`
 - `POST /calendar/google/connect`
 - `DELETE /calendar/google/disconnect`
 
-The Web App does not call third-party place, route, or weather APIs directly.
-It also does not call Google Calendar directly. The private trip detail page
-renders `CalendarSyncPanel` for completed trips; owners and editors can connect
-Google Calendar, sync/update itinerary events using the latest
-`itineraryRevision`, remove synced events, or disconnect the account. Viewers
-see a disabled message, and public share pages never render calendar sync.
+The Web App does not call third-party place, route, weather, exchange-rate, or
+calendar APIs directly. It also does not call Google Calendar directly. The
+private trip detail page renders `CalendarSyncPanel` for completed trips; owners
+and editors can connect Google Calendar, sync/update itinerary events using the
+latest `itineraryRevision`, remove synced events, or disconnect the account.
+Viewers see a disabled message, and public share pages never render calendar
+sync.
 If External Integrations Service is configured with `PLACE_PROVIDER=foursquare`,
 the browser still calls the same `/places/search` and `/places/{placeId}`
 endpoints and receives normalized `Place` objects. The same applies to routing
@@ -152,9 +155,11 @@ and weather: the route/weather provider can be switched server-side
 change — the Web App keeps calling `POST /routes/estimate` and
 `GET /weather/forecast` and receives the same canonical response shape. Real
 provider keys stay server-side; the browser never calls OpenRouteService or
-OpenWeatherMap directly. Responses may include an optional `fallbackUsed` flag
-and a `provider` label (`mock`, `ors`, or `openweathermap`); the UI treats these
-as advisory developer hints.
+OpenWeatherMap directly. Trip Service uses the same service for budget
+conversion, so exchange-rate keys also stay server-side. Responses may include an
+optional `fallbackUsed` flag and a `provider` label (`mock`, `ors`,
+`openweathermap`, or `identity`); the UI treats these as advisory developer
+hints.
 
 Automatic place enrichment after AI generation is owned by Trip Service. The Web
 App does not call enrichment directly; it renders returned `place` metadata and
@@ -244,7 +249,7 @@ Private PDF export includes an `Accommodation` section; public share pages and
 public exports do not expose structured accommodation in v1.
 
 Limitations: no hotel search provider, booking/payment flow, multi-stay support,
-currency conversion, or check-in/check-out calendar events.
+real booking price feed, or check-in/check-out calendar events.
 
 ## Real-time Trip Presence
 
@@ -626,11 +631,12 @@ the card asks the user to save or cancel edits first.
 
 Private trip detail pages show a `Budget` panel in the sidebar. It fetches
 `GET /trips/{id}/budget-summary` and shows the trip budget, estimated total,
-remaining or over-budget amount, daily totals, and category totals. When the
-estimated total exceeds the budget it switches to a warning style. Owners and
-editors can set, edit, or clear the trip budget through `PUT /trips/{id}/budget`
-(viewers see a read-only panel). Updating the budget does not change the
-itinerary revision.
+remaining or over-budget amount, daily totals, category totals, original
+currency totals, conversion warnings, and exchange-rate metadata. Converted
+amounts are rendered as approximate. When the estimated total exceeds the budget
+it switches to a warning style. Owners and editors can set, edit, or clear the
+trip budget through `PUT /trips/{id}/budget` (viewers see a read-only panel).
+Updating the budget does not change the itinerary revision.
 
 Itinerary items show a compact cost badge (for example `€18 ticket`, with
 `(approx.)` for low-confidence and a small `manual` marker for hand-edited
@@ -641,14 +647,17 @@ confidence, note) with `source: "manual"`, and the editor saves with
 unchanged. A stale cost edit returns `409 itinerary_conflict`.
 
 Budget-aware quality checks (`trip_budget_exceeded`, `day_budget_high`,
-`expensive_item`, `missing_cost_estimate`) appear in the Trip Quality Checks
-card. `Improve day` instructions ask the AI to reduce cost; for a whole-trip
-overrun the card offers an `Improve day N` action targeting the highest-cost day.
+`expensive_item`, `missing_cost_estimate`, `conversion_unavailable`) appear in
+the Trip Quality Checks card. `Improve day` instructions ask the AI to reduce
+cost; for a whole-trip overrun the card offers an `Improve day N` action
+targeting the highest-cost day. Conversion warnings ask for manual currency or
+cost correction and do not ask the AI to invent exchange rates.
 
-Private PDF export can include a budget summary (trip budget, estimated total,
-remaining/over, and daily totals) plus item cost badges. The public share page
-and public export never show the private trip budget; only item-level cost
-badges that are part of the shared itinerary are visible.
+Private PDF export can include the backend budget summary (trip budget,
+approximate estimated total, remaining/over, original currency totals, and
+conversion notes) plus item cost badges. The public share page and public export
+never show the private trip budget; only item-level cost badges that are part of
+the shared itinerary are visible.
 
 ## Route Optimization v1
 

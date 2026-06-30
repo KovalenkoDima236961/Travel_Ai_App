@@ -1,6 +1,7 @@
 package budget
 
 import (
+	"context"
 	"math"
 	"sort"
 	"strings"
@@ -15,6 +16,18 @@ type TripBudget struct {
 	Currency      string
 	Days          int
 	Accommodation *aggregate.Accommodation
+}
+
+// CurrencyConverter is the exchange-rate client port used by converted budget
+// summaries. It is intentionally small so tests can substitute deterministic
+// converters.
+type CurrencyConverter interface {
+	Convert(ctx context.Context, amount float64, from string, to string) (*CurrencyConversionResult, error)
+}
+
+type ConversionOptions struct {
+	Enabled  bool
+	FailOpen bool
 }
 
 // freeItemTypes are itinerary item types that usually carry no cost, so a
@@ -42,16 +55,41 @@ var paidItemTypes = toSet([]string{
 // estimates are skipped (and counted) rather than failing, so a summary is
 // always returned.
 func CalculateBudgetSummary(trip TripBudget, itinerary aggregate.Itinerary) Summary {
+	summary, _ := CalculateBudgetSummaryWithConversion(
+		context.Background(),
+		trip,
+		itinerary,
+		nil,
+		ConversionOptions{},
+	)
+	return summary
+}
+
+// CalculateBudgetSummaryWithConversion computes the on-demand budget summary
+// with optional approximate currency conversion. When conversion is disabled or
+// no converter is supplied it preserves the old behavior: same-currency costs
+// are included and foreign currencies are counted as unsupported/unconverted.
+func CalculateBudgetSummaryWithConversion(
+	ctx context.Context,
+	trip TripBudget,
+	itinerary aggregate.Itinerary,
+	converter CurrencyConverter,
+	options ConversionOptions,
+) (Summary, error) {
 	currency := resolveSummaryCurrency(trip, itinerary)
+	conversionEnabled := options.Enabled && converter != nil
 
 	summary := Summary{
-		Currency:   currency,
-		ByDay:      make([]DaySummary, 0, len(itinerary.Days)),
-		ByCategory: make([]CategorySummary, 0),
+		Currency:               currency,
+		OriginalCurrencyTotals: make([]OriginalCurrencyTotal, 0),
+		ConversionWarnings:     make([]ConversionWarning, 0),
+		ByDay:                  make([]DaySummary, 0, len(itinerary.Days)),
+		ByCategory:             make([]CategorySummary, 0),
 	}
 
 	categoryTotals := make(map[string]float64)
 	categoryCounts := make(map[string]int)
+	originalTotals := make(map[string]float64)
 
 	days := append([]aggregate.ItineraryDay(nil), itinerary.Days...)
 	sort.SliceStable(days, func(i, j int) bool { return days[i].Day < days[j].Day })
@@ -59,6 +97,7 @@ func CalculateBudgetSummary(trip TripBudget, itinerary aggregate.Itinerary) Summ
 	for _, day := range days {
 		dayTotal := 0.0
 		dayMissing := 0
+		dayOriginalTotals := make(map[string]float64)
 
 		for i := range day.Items {
 			item := day.Items[i]
@@ -72,63 +111,108 @@ func CalculateBudgetSummary(trip TripBudget, itinerary aggregate.Itinerary) Summ
 				continue
 			}
 
-			if !currencyMatches(cost.Currency, currency) {
+			originalCurrency := costCurrency(cost.Currency, currency)
+			amount := *cost.Amount
+			addOriginalTotal(originalTotals, originalCurrency, amount)
+			addOriginalTotal(dayOriginalTotals, originalCurrency, amount)
+
+			convertedAmount, converted, ok, reason, err := convertAmount(ctx, converter, conversionEnabled, options.FailOpen, amount, originalCurrency, currency)
+			if err != nil {
+				return Summary{}, err
+			}
+			if !ok {
 				summary.UnsupportedCurrencyCount++
+				summary.UnconvertedItemCount++
+				summary.ConversionWarnings = append(summary.ConversionWarnings, ConversionWarning{
+					Currency: originalCurrency,
+					Amount:   floatPtr(amount),
+					Reason:   reason,
+				})
 				continue
 			}
+			if converted != nil {
+				summary.ConvertedItemCount++
+				mergeExchangeRateInfo(&summary, converted)
+			}
 
-			amount := *cost.Amount
-			dayTotal += amount
-			summary.EstimatedTotal += amount
+			dayTotal += convertedAmount
+			summary.EstimatedTotal += convertedAmount
 			summary.EstimatedItemCount++
 
 			category := itemCategory(cost, item.Type)
-			categoryTotals[category] += amount
+			categoryTotals[category] += convertedAmount
 			categoryCounts[category]++
 		}
 
 		daySummary := DaySummary{
-			DayNumber:            day.Day,
-			EstimatedTotal:       round2(dayTotal),
-			MissingEstimateCount: dayMissing,
+			DayNumber:              day.Day,
+			EstimatedTotal:         round2(dayTotal),
+			MissingEstimateCount:   dayMissing,
+			OriginalCurrencyTotals: buildOriginalCurrencyTotals(dayOriginalTotals),
 		}
 		summary.ByDay = append(summary.ByDay, daySummary)
 	}
 
-	addAccommodationCost(&summary, trip, currency, categoryTotals, categoryCounts)
+	if err := addAccommodationCost(ctx, &summary, trip, currency, converter, conversionEnabled, options.FailOpen, originalTotals, categoryTotals, categoryCounts); err != nil {
+		return Summary{}, err
+	}
 
 	summary.EstimatedTotal = round2(summary.EstimatedTotal)
+	summary.OriginalCurrencyTotals = buildOriginalCurrencyTotals(originalTotals)
 	summary.ByCategory = buildCategorySummaries(categoryTotals, categoryCounts)
 
 	applyBudget(&summary, trip)
 
-	return summary
+	return summary, nil
 }
 
 func addAccommodationCost(
+	ctx context.Context,
 	summary *Summary,
 	trip TripBudget,
 	currency string,
+	converter CurrencyConverter,
+	conversionEnabled bool,
+	failOpen bool,
+	originalTotals map[string]float64,
 	categoryTotals map[string]float64,
 	categoryCounts map[string]int,
-) {
+) error {
 	if trip.Accommodation == nil || !hasUsableAmount(trip.Accommodation.EstimatedCost) {
-		return
+		return nil
 	}
 	cost := trip.Accommodation.EstimatedCost
-	if !currencyMatches(cost.Currency, currency) {
+	originalCurrency := costCurrency(cost.Currency, currency)
+	amount := *cost.Amount
+	addOriginalTotal(originalTotals, originalCurrency, amount)
+
+	convertedAmount, converted, ok, reason, err := convertAmount(ctx, converter, conversionEnabled, failOpen, amount, originalCurrency, currency)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		summary.UnsupportedCurrencyCount++
-		return
+		summary.UnconvertedItemCount++
+		summary.ConversionWarnings = append(summary.ConversionWarnings, ConversionWarning{
+			Currency: originalCurrency,
+			Amount:   floatPtr(amount),
+			Reason:   reason,
+		})
+		return nil
+	}
+	if converted != nil {
+		summary.ConvertedItemCount++
+		mergeExchangeRateInfo(summary, converted)
 	}
 
-	amount := *cost.Amount
-	summary.EstimatedTotal += amount
+	summary.EstimatedTotal += convertedAmount
 	summary.EstimatedItemCount++
-	categoryTotals[CategoryAccommodation] += amount
+	categoryTotals[CategoryAccommodation] += convertedAmount
 	categoryCounts[CategoryAccommodation]++
 
-	total := round2(amount)
+	total := round2(convertedAmount)
 	summary.AccommodationTotal = &total
+	return nil
 }
 
 // applyBudget fills the budget-relative fields. When the trip has no budget,
@@ -211,6 +295,102 @@ func hasUsableAmount(cost *aggregate.EstimatedCost) bool {
 func currencyMatches(itemCurrency, summaryCurrency string) bool {
 	normalized := strings.ToUpper(strings.TrimSpace(itemCurrency))
 	return normalized == "" || normalized == summaryCurrency
+}
+
+func costCurrency(itemCurrency, summaryCurrency string) string {
+	normalized := strings.ToUpper(strings.TrimSpace(itemCurrency))
+	if normalized == "" {
+		return summaryCurrency
+	}
+	return normalized
+}
+
+func convertAmount(
+	ctx context.Context,
+	converter CurrencyConverter,
+	conversionEnabled bool,
+	failOpen bool,
+	amount float64,
+	from string,
+	to string,
+) (float64, *CurrencyConversionResult, bool, string, error) {
+	if currencyMatches(from, to) {
+		return amount, nil, true, "", nil
+	}
+	if !conversionEnabled {
+		return 0, nil, false, "conversion_disabled", nil
+	}
+	result, err := converter.Convert(ctx, amount, from, to)
+	if err != nil {
+		if failOpen {
+			return 0, nil, false, conversionReason(err), nil
+		}
+		return 0, nil, false, conversionReason(err), err
+	}
+	return result.ConvertedAmount, result, true, "", nil
+}
+
+func addOriginalTotal(totals map[string]float64, currency string, amount float64) {
+	totals[currency] += amount
+}
+
+func buildOriginalCurrencyTotals(totals map[string]float64) []OriginalCurrencyTotal {
+	currencies := make([]string, 0, len(totals))
+	for currency := range totals {
+		currencies = append(currencies, currency)
+	}
+	sort.Strings(currencies)
+	out := make([]OriginalCurrencyTotal, 0, len(currencies))
+	for _, currency := range currencies {
+		out = append(out, OriginalCurrencyTotal{
+			Currency: currency,
+			Amount:   round2(totals[currency]),
+		})
+	}
+	return out
+}
+
+func mergeExchangeRateInfo(summary *Summary, conversion *CurrencyConversionResult) {
+	if conversion == nil {
+		return
+	}
+	if summary.ExchangeRateInfo == nil {
+		summary.ExchangeRateInfo = &ExchangeRateInfo{
+			Provider:     conversion.Provider,
+			AsOf:         conversion.AsOf,
+			FallbackUsed: conversion.FallbackUsed,
+		}
+		return
+	}
+	if summary.ExchangeRateInfo.Provider == "" {
+		summary.ExchangeRateInfo.Provider = conversion.Provider
+	}
+	if summary.ExchangeRateInfo.AsOf.IsZero() || conversion.AsOf.After(summary.ExchangeRateInfo.AsOf) {
+		summary.ExchangeRateInfo.AsOf = conversion.AsOf
+	}
+	summary.ExchangeRateInfo.FallbackUsed = summary.ExchangeRateInfo.FallbackUsed || conversion.FallbackUsed
+}
+
+type reasonedError interface {
+	Reason() string
+}
+
+func conversionReason(err error) string {
+	if err == nil {
+		return "conversion_unavailable"
+	}
+	if reasoned, ok := err.(reasonedError); ok {
+		reason := strings.TrimSpace(reasoned.Reason())
+		if reason != "" {
+			return reason
+		}
+	}
+	return "conversion_unavailable"
+}
+
+func floatPtr(value float64) *float64 {
+	v := round2(value)
+	return &v
 }
 
 // itemCategory uses the explicit estimate category when present, otherwise it is

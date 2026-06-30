@@ -21,6 +21,7 @@ func NewRouter(
 	placesHandler *handler.PlacesHandler,
 	routesHandler *handler.RoutesHandler,
 	weatherHandler *handler.WeatherHandler,
+	exchangeRateHandler *handler.ExchangeRateHandler,
 	calendarHandler *handler.CalendarHandler,
 	internalCalendarHandler *handler.InternalCalendarHandler,
 	readinessHandler http.Handler,
@@ -43,6 +44,9 @@ func NewRouter(
 	placesHandler.RegisterRoutes(r)
 	routesHandler.RegisterRoutes(r)
 	weatherHandler.RegisterRoutes(r)
+	if exchangeRateHandler != nil {
+		exchangeRateHandler.RegisterRoutes(r)
+	}
 	if calendarHandler != nil {
 		r.Get("/calendar/google/callback", calendarHandler.Callback)
 	}

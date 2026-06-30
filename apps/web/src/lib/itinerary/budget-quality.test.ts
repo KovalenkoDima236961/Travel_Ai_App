@@ -59,6 +59,7 @@ describe("getBudgetIssues", () => {
     // 130 > 100 * 1.2 -> critical
     expect(issue?.severity).toBe("critical");
     expect(issue?.scope).toBe("trip");
+    expect(issue?.message).toContain("about 130 EUR");
   });
 
   it("uses warning severity when modestly over budget", () => {
@@ -145,6 +146,23 @@ describe("getBudgetIssues", () => {
     expect(issue).toBeTruthy();
     expect(issue?.severity).toBe("warning");
     expect(issue?.itemIndex).toBe(0);
+  });
+
+  it("detects conversion_unavailable when costs could not be converted", () => {
+    const issues = getBudgetIssues({
+      itinerary: itinerary(),
+      budgetSummary: summary({
+        estimatedTotal: 80,
+        overBudgetBy: 0,
+        unconvertedItemCount: 1,
+        conversionWarnings: [{ currency: "XXX", amount: 99, reason: "unsupported_currency" }]
+      })
+    });
+
+    const issue = issues.find((entry) => entry.type === "conversion_unavailable");
+    expect(issue).toBeTruthy();
+    expect(issue?.severity).toBe("info");
+    expect(issue?.message).toContain("could not be converted");
   });
 
   it("returns no issues without a budget summary", () => {

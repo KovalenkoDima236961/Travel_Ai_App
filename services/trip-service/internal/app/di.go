@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/exchangerateclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
@@ -183,6 +184,21 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			cfg.CalendarSync.Enabled,
 			cfg.PublicSharing.PublicWebBaseURL,
 			cfg.CalendarSync.DefaultTimeZone,
+		))
+	}
+	if cfg.BudgetConversion.Enabled {
+		exchangeRateClient, err := exchangerateclient.New(exchangerateclient.Config{
+			BaseURL:        cfg.BudgetConversion.ExternalIntegrationsServiceURL,
+			Token:          cfg.BudgetConversion.InternalServiceToken,
+			TimeoutSeconds: cfg.BudgetConversion.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init exchange rate client: %w", err)
+		}
+		opts = append(opts, service.WithBudgetConversion(
+			exchangeRateClient,
+			cfg.BudgetConversion.Enabled,
+			cfg.BudgetConversion.FailOpen,
 		))
 	}
 	svc := service.New(repo, gen, log, opts...)

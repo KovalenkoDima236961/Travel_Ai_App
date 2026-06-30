@@ -931,6 +931,7 @@ func (h *Handler) writeValidationError(w http.ResponseWriter, err error) {
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var invalid *apperrs.InvalidInputError
 	var dependency *apperrs.DependencyError
+	var budgetConversion *apperrs.BudgetConversionError
 	var revisionRequired *apperrs.ExpectedItineraryRevisionRequiredError
 	var conflict *apperrs.ItineraryConflictError
 	switch {
@@ -947,6 +948,11 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		})
 	case errors.As(err, &invalid):
 		writeError(w, http.StatusBadRequest, invalid.Error())
+	case errors.As(err, &budgetConversion):
+		writeJSON(w, http.StatusBadGateway, map[string]any{
+			"error":   "budget_conversion_failed",
+			"message": budgetConversion.Error(),
+		})
 	case errors.As(err, &dependency):
 		writeError(w, http.StatusBadGateway, dependency.Error())
 	case errors.Is(err, apperrs.ErrForbidden):

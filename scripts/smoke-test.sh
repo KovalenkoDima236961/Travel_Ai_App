@@ -442,6 +442,27 @@ if [[ "${WEATHER_PROVIDER_NAME}" != "mock" || "${WEATHER_DAY_COUNT}" -ne 3 || -z
   exit 1
 fi
 
+echo "Checking mock exchange-rate latest and conversion endpoints..."
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/exchange-rates/latest?base=EUR"
+assert_2xx "Exchange-rate latest"
+if ! jq -e '.provider == "mock" and .base == "EUR" and (.rates.JPY > 100) and (.rates.USD > 1)' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Exchange-rate latest did not include expected mock EUR rates." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/exchange-rates/convert?amount=10000&from=JPY&to=EUR"
+assert_2xx "Exchange-rate conversion"
+if ! jq -e '.provider == "mock" and .from == "JPY" and .to == "EUR" and .amount == 10000 and (.convertedAmount > 58 and .convertedAmount < 59)' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Exchange-rate conversion did not return expected mock JPY->EUR result." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking unsupported exchange-rate currency is rejected..."
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/exchange-rates/convert?amount=10&from=XXX&to=EUR"
+assert_status "Unsupported exchange-rate currency" "400"
+
 # Optional real-provider checks. These only run when the operator has opted into
 # a real provider AND supplied an API key in the shell environment. Missing keys
 # must never fail the default mock smoke test.
@@ -845,7 +866,7 @@ fi
 
 echo "Editing an item cost through the revision-checked itinerary update..."
 UPDATED_ITINERARY="$(jq -c \
-  '.itinerary | .days[0].items[0].estimatedCost = {amount:123.45,currency:"EUR",category:"activity",confidence:"high",source:"manual",note:"smoke"}' \
+  '.itinerary | .days[0].items[0].estimatedCost = {amount:10000,currency:"JPY",category:"activity",confidence:"high",source:"manual",note:"smoke multi-currency"}' \
   <<<"${COMPLETED_TRIP_BODY}")"
 ITINERARY_UPDATE_PAYLOAD="$(jq -nc --argjson itinerary "${UPDATED_ITINERARY}" --argjson revision "${TRIP_REVISION}" '{itinerary:$itinerary,expectedItineraryRevision:$revision}')"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${ACCESS_TOKEN}" "${ITINERARY_UPDATE_PAYLOAD}"
@@ -861,10 +882,23 @@ TRIP_REVISION="${NEW_REVISION}"
 echo "Confirming budget summary reflects the edited item cost..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
 assert_2xx "Get budget summary after item cost edit"
-if ! jq -e '.estimatedTotal >= 123.45' <<<"${LAST_BODY}" >/dev/null; then
+if ! jq -e '.estimatedTotal >= 58' <<<"${LAST_BODY}" >/dev/null; then
   echo "Budget summary did not reflect the edited item cost." >&2
   echo "${LAST_BODY}" >&2
   exit 1
+fi
+if [[ "${BUDGET_CONVERSION_ENABLED:-true}" != "false" ]]; then
+  if ! jq -e '
+    .currency == "EUR"
+    and (.convertedItemCount >= 1)
+    and (.unconvertedItemCount == 0)
+    and (.originalCurrencyTotals | any(.currency == "JPY" and .amount == 10000))
+    and (.exchangeRateInfo.provider == "mock")
+  ' >/dev/null <<<"${LAST_BODY}"; then
+    echo "Budget summary did not include expected multi-currency conversion metadata." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
 fi
 echo "Budget tracking checks passed."
 
@@ -1470,7 +1504,7 @@ if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; 
   echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
 fi
-if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments") or has("accommodation")' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
+if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments") or has("accommodation") or has("budget") or has("budgetAmount") or has("budgetCurrency")' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
   echo "Public shared trip exposed private fields." >&2
   echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
@@ -1900,5 +1934,5 @@ OTHER_LOGOUT_PAYLOAD="$(jq -nc --arg refreshToken "${OTHER_REFRESH_TOKEN}" '{ref
 request POST "${AUTH_SERVICE_URL}/auth/logout" "${OTHER_LOGOUT_PAYLOAD}"
 assert_2xx "Logout second user"
 
-echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), revision conflicts were rejected, version restore worked, calendar sync was exercised when using the mock provider, the activity feed recorded major actions with access enforced, and owner isolation was enforced."
+echo "Smoke test passed: authenticated trip ${TRIP_ID} completed with ${DAYS_COUNT} itinerary day(s), budget conversion was exercised, revision conflicts were rejected, version restore worked, calendar sync was exercised when using the mock provider, the activity feed recorded major actions with access enforced, and owner isolation was enforced."
 echo "Open ${WEB_APP_URL}/login to run the manual browser flow."

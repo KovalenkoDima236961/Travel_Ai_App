@@ -4,7 +4,12 @@ import {
 } from "@/lib/export/ics";
 import type { ExportDistanceDay, ExportTrip, ExportWeatherDay } from "@/lib/export/trip-export-adapter";
 import { formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
-import { costBadgeLabel, getCostAmount } from "@/lib/budget/format";
+import {
+  costBadgeLabel,
+  formatApproxMoney,
+  formatMoney as formatBudgetMoney,
+  getCostAmount
+} from "@/lib/budget/format";
 import type { ItineraryItem } from "@/types/trip";
 
 export type TripPdfLineVariant =
@@ -195,6 +200,68 @@ function appendAccommodationSummary(lines: TripPdfLine[], exportTrip: ExportTrip
 // includes the private trip budget; item-level cost badges still render inline.
 function appendBudgetSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
   if (exportTrip.source !== "private") {
+    return;
+  }
+  if (exportTrip.budgetSummary) {
+    const summary = exportTrip.budgetSummary;
+    const currency = summary.currency ?? exportTrip.budgetCurrency ?? undefined;
+    lines.push({ text: "Budget summary", variant: "heading" });
+    if (summary.tripBudget != null) {
+      lines.push({
+        text: `Trip budget: ${formatBudgetMoney(summary.tripBudget, currency)}`,
+        variant: "body",
+        indent: 14
+      });
+      if ((summary.overBudgetBy ?? 0) > 0) {
+        lines.push({
+          text: `Over budget by: ${formatApproxMoney(summary.overBudgetBy, currency)}`,
+          variant: "body",
+          indent: 14
+        });
+      } else if (summary.remaining != null) {
+        lines.push({
+          text: `Remaining: ${formatApproxMoney(summary.remaining, currency)}`,
+          variant: "body",
+          indent: 14
+        });
+      }
+    }
+    lines.push({
+      text: `Estimated total: ${formatApproxMoney(summary.estimatedTotal, currency)}`,
+      variant: "body",
+      indent: 14
+    });
+    if (summary.accommodationTotal != null) {
+      lines.push({
+        text: `Accommodation: ${formatApproxMoney(summary.accommodationTotal, currency)}`,
+        variant: "small",
+        indent: 28
+      });
+    }
+    if (summary.originalCurrencyTotals?.length) {
+      lines.push({ text: "Original currency totals:", variant: "small", indent: 28 });
+      summary.originalCurrencyTotals.forEach((total) => {
+        lines.push({
+          text: `${total.currency}: ${formatBudgetMoney(total.amount, total.currency)}`,
+          variant: "small",
+          indent: 42
+        });
+      });
+    }
+    if (summary.conversionWarnings?.length) {
+      lines.push({
+        text: "Some costs could not be converted and are not included in the total.",
+        variant: "small",
+        indent: 28
+      });
+    }
+    if (summary.exchangeRateInfo) {
+      lines.push({
+        text: "Approximate conversions; no historical rates or financial advice.",
+        variant: "small",
+        indent: 28
+      });
+    }
     return;
   }
   const days = exportTrip.itinerary?.days ?? [];

@@ -69,6 +69,15 @@ weather_provider:
   open_meteo_base_url: ""
   weather_api_key: ""
 
+exchange_rate_provider:
+  provider: mock
+  fallback_to_mock: true
+  timeout_seconds: 8
+  base_url: ""
+  api_key: ""
+  cache_enabled: true
+  cache_ttl_seconds: 21600
+
 calendar:
   enabled: true
   provider: mock

@@ -103,3 +103,10 @@ calendar_sync:
   internal_service_token: dev-internal-service-token
   timeout_seconds: 30
   default_time_zone: Europe/Bratislava
+
+budget_conversion:
+  enabled: true
+  fail_open: true
+  external_integrations_service_url: http://external-integrations-service:8084
+  internal_service_token: dev-internal-service-token
+  timeout_seconds: 8

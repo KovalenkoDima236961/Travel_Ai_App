@@ -43,7 +43,7 @@ type ItineraryItem struct {
 // itinerary item as part of the itinerary JSONB. All fields are optional; an
 // item without a meaningful estimate omits the whole object. Currency, when
 // present, is an uppercase ISO-like 3-letter code; an empty currency is treated
-// as the trip/itinerary currency by budget computations (no conversion in v1).
+// as the trip/itinerary currency by budget computations.
 type EstimatedCost struct {
 	Amount     *float64 `json:"amount,omitempty"`
 	Currency   string   `json:"currency,omitempty"`

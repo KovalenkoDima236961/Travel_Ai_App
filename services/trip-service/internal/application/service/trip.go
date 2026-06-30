@@ -146,6 +146,10 @@ type calendarSyncProvider interface {
 	DeleteGoogleCalendarEvents(ctx context.Context, input calendarclient.DeleteRequest) (*calendarclient.DeleteResult, error)
 }
 
+type budgetConversionProvider interface {
+	Convert(ctx context.Context, amount float64, from string, to string) (*budget.CurrencyConversionResult, error)
+}
+
 // Option customizes Service dependencies that are not required for the core
 // trip CRUD flow.
 type Option func(*Service)
@@ -195,6 +199,14 @@ func WithCalendarSync(provider calendarSyncProvider, enabled bool, publicWebBase
 	}
 }
 
+func WithBudgetConversion(provider budgetConversionProvider, enabled bool, failOpen bool) Option {
+	return func(s *Service) {
+		s.budgetConversionProvider = provider
+		s.budgetConversionEnabled = enabled
+		s.budgetConversionFailOpen = failOpen
+	}
+}
+
 // WithPublicSharing configures owner-managed public read-only trip links.
 func WithPublicSharing(
 	enabled bool,
@@ -235,6 +247,9 @@ type Service struct {
 	calendarSyncEnabled          bool
 	calendarSyncPublicWebBaseURL string
 	calendarSyncDefaultTimeZone  string
+	budgetConversionProvider     budgetConversionProvider
+	budgetConversionEnabled      bool
+	budgetConversionFailOpen     bool
 	activity                     activityService
 	notifier                     notifier
 	notificationsEnabled         bool
@@ -249,13 +264,14 @@ type Service struct {
 // New constructs the trip service.
 func New(repo tripRepository, generator application.ItineraryGenerator, log *zap.Logger, opts ...Option) *Service {
 	s := &Service{
-		repo:                 repo,
-		generator:            generator,
-		publicSharingEnabled: true,
-		publicWebBaseURL:     "http://localhost:3000",
-		shareTokenBytes:      32,
-		publicShareTokens:    sharing.NewPublicShareTokenManager("dev-public-share-secret-change-me", time.Hour),
-		log:                  log,
+		repo:                     repo,
+		generator:                generator,
+		publicSharingEnabled:     true,
+		publicWebBaseURL:         "http://localhost:3000",
+		shareTokenBytes:          32,
+		publicShareTokens:        sharing.NewPublicShareTokenManager("dev-public-share-secret-change-me", time.Hour),
+		budgetConversionFailOpen: true,
+		log:                      log,
 	}
 	for _, opt := range opts {
 		opt(s)

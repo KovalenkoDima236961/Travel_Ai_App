@@ -1,10 +1,11 @@
 # External Integrations Service
 
 External Integrations Service owns third-party integration boundaries for the
-travel app. v1 exposes place search/details, route estimates, and weather
-forecasts through stable application APIs so the Web App can use
-integration-shaped data without calling third-party APIs directly. Mock providers
-remain the local default; place search/details can optionally use Foursquare.
+travel app. v1 exposes place search/details, route estimates, weather forecasts,
+and exchange-rate conversion through stable application APIs so the Web App and
+Trip Service can use integration-shaped data without calling third-party APIs
+directly. Mock providers remain the local default; place search/details can
+optionally use Foursquare.
 Calendar Sync v1 also lives here: the service owns Google OAuth, encrypted token
 storage, and Google Calendar event create/update/delete calls for Trip Service.
 
@@ -49,6 +50,8 @@ external-integrations-service/
 - `GET /places/{placeId}`
 - `POST /routes/estimate`
 - `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
+- `GET /exchange-rates/latest?base=EUR`
+- `GET /exchange-rates/convert?amount=2500&from=JPY&to=EUR`
 - `GET /calendar/google/status`
 - `POST /calendar/google/connect`
 - `GET /calendar/google/callback`
@@ -90,6 +93,14 @@ curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
 - `OPENWEATHER_UNITS` defaults to `metric`
 - `WEATHER_CACHE_ENABLED` defaults to `true`; `WEATHER_CACHE_TTL_SECONDS` defaults
   to `3600` (1 hour)
+- `EXCHANGE_RATE_PROVIDER` defaults to `mock`. Reserved real-provider names:
+  `exchangerate_host`, `openexchangerates`, `exchangerate_api`.
+- `EXCHANGE_RATE_PROVIDER_FALLBACK_TO_MOCK` defaults to `true`.
+- `EXCHANGE_RATE_PROVIDER_TIMEOUT_SECONDS` defaults to `8`.
+- `EXCHANGE_RATE_BASE_URL` and `EXCHANGE_RATE_API_KEY` are reserved for real
+  providers. API keys are server-side only and must not be exposed to the Web App.
+- `EXCHANGE_RATE_CACHE_ENABLED` defaults to `true`;
+  `EXCHANGE_RATE_CACHE_TTL_SECONDS` defaults to `21600` (6 hours).
 - `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:3000`
 - `CORS_ALLOWED_METHODS` defaults to `GET,POST,DELETE,OPTIONS`
 - `CORS_ALLOWED_HEADERS` defaults to `Content-Type,Authorization`
@@ -120,8 +131,40 @@ Documented for future providers, but unused in v1:
 - `OPEN_METEO_BASE_URL`
 - `WEATHER_API_KEY`
 
-Unsupported `PLACE_PROVIDER`, `ROUTE_PROVIDER`, or `WEATHER_PROVIDER` values
+Unsupported `PLACE_PROVIDER`, `ROUTE_PROVIDER`, `WEATHER_PROVIDER`, or
+`EXCHANGE_RATE_PROVIDER` values
 fail startup with a clear error. Providers are selected independently.
+
+## Exchange Rates v1
+
+The exchange-rate API is used by Trip Service budget summaries to convert item
+and accommodation costs into the trip budget currency. The default `mock`
+provider is deterministic and supports `EUR`, `USD`, `GBP`, `JPY`, `CZK`,
+`PLN`, `HUF`, `CHF`, `CAD`, and `AUD`.
+
+Examples:
+
+```bash
+curl "http://localhost:8084/exchange-rates/latest?base=EUR"
+curl "http://localhost:8084/exchange-rates/convert?amount=2500&from=JPY&to=EUR"
+```
+
+Currency codes must be uppercase ISO-like 3-letter codes and amounts must be
+non-negative. Identity conversion (`from == to`) returns provider `identity`,
+rate `1`, and does not call a provider.
+
+When a real provider adapter fails and fallback is enabled, the service logs a
+safe warning and returns a mock result with `fallbackUsed: true`. If fallback is
+disabled, the endpoint returns `502` with
+`{"error":"exchange_rate_provider_unavailable"}`. Unsupported currencies return
+`400` with `{"error":"unsupported_currency"}`.
+
+Successful latest-rate tables are cached in memory by provider and base
+currency. Errors are not cached, and the cache is cleared on service restart.
+
+Limitations: conversions are approximate, no historical rates are supported, no
+crypto rates are supported, and the API must not be used for financial advice or
+trading.
 
 ## Google Calendar Sync v1
 

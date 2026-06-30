@@ -28,7 +28,14 @@ func (s *Service) GetBudgetSummary(ctx context.Context, tripID uuid.UUID) (budge
 	if err != nil {
 		return budget.Summary{}, err
 	}
-	return budgetSummaryForTrip(trip), nil
+	summary, err := s.budgetSummaryForTrip(ctx, trip)
+	if err != nil {
+		if s.budgetConversionFailOpen {
+			return budgetSummaryForTrip(trip), nil
+		}
+		return budget.Summary{}, apperrs.ErrBudgetConversionFailed
+	}
+	return summary, nil
 }
 
 // UpdateTripBudget validates and persists the trip-level budget. Only owner and
@@ -83,6 +90,18 @@ func budgetSummaryForTrip(trip *entity.Trip) budget.Summary {
 		Days:          int(trip.Days),
 		Accommodation: trip.Accommodation,
 	}, parseItineraryLenient(trip.Itinerary))
+}
+
+func (s *Service) budgetSummaryForTrip(ctx context.Context, trip *entity.Trip) (budget.Summary, error) {
+	return budget.CalculateBudgetSummaryWithConversion(ctx, budget.TripBudget{
+		Amount:        trip.BudgetAmount,
+		Currency:      trip.BudgetCurrency,
+		Days:          int(trip.Days),
+		Accommodation: trip.Accommodation,
+	}, parseItineraryLenient(trip.Itinerary), s.budgetConversionProvider, budget.ConversionOptions{
+		Enabled:  s.budgetConversionEnabled,
+		FailOpen: s.budgetConversionFailOpen,
+	})
 }
 
 func budgetActivityMetadata(trip *entity.Trip) map[string]any {

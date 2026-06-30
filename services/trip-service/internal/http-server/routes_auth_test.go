@@ -1479,6 +1479,11 @@ func TestAuthDisabledUsesDevUserID(t *testing.T) {
 
 func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *routeTestRepo) {
 	t.Helper()
+	return newAuthTestRouterWithOptions(t, authCfg)
+}
+
+func newAuthTestRouterWithOptions(t *testing.T, authCfg config.AuthConfig, extraOpts ...service.Option) (http.Handler, *routeTestRepo) {
+	t.Helper()
 
 	repo := &routeTestRepo{
 		trips:             map[uuid.UUID]entity.Trip{},
@@ -1487,10 +1492,7 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 		sharesByToken:     map[string]entity.TripShare{},
 	}
 	gen := routeTestGenerator{}
-	svc := service.New(
-		repo,
-		gen,
-		zap.NewNop(),
+	opts := []service.Option{
 		service.WithPublicSharing(true, "http://localhost:3000", 32, testPublicShareSecret, 60),
 		service.WithUserLookup(routeTestUserLookup{
 			usersByEmail: map[string]appdto.UserLookupResult{
@@ -1505,7 +1507,9 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 			},
 		}),
 		service.WithActivity(activity.New(repo, zap.NewNop())),
-	)
+	}
+	opts = append(opts, extraOpts...)
+	svc := service.New(repo, gen, zap.NewNop(), opts...)
 	validator, err := validation.NewValidator()
 	if err != nil {
 		t.Fatalf("init validator: %v", err)

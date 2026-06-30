@@ -12,14 +12,18 @@ import (
 )
 
 const (
-	PlaceProviderMock          = "mock"
-	PlaceProviderFoursquare    = "foursquare"
-	RouteProviderMock          = "mock"
-	RouteProviderORS           = "ors"
-	WeatherProviderMock        = "mock"
-	WeatherProviderOpenWeather = "openweathermap"
-	CalendarProviderGoogle     = "google"
-	CalendarProviderMock       = "mock"
+	PlaceProviderMock                     = "mock"
+	PlaceProviderFoursquare               = "foursquare"
+	RouteProviderMock                     = "mock"
+	RouteProviderORS                      = "ors"
+	WeatherProviderMock                   = "mock"
+	WeatherProviderOpenWeather            = "openweathermap"
+	ExchangeRateProviderMock              = "mock"
+	ExchangeRateProviderHost              = "exchangerate_host"
+	ExchangeRateProviderOpenExchangeRates = "openexchangerates"
+	ExchangeRateProviderAPI               = "exchangerate_api"
+	CalendarProviderGoogle                = "google"
+	CalendarProviderMock                  = "mock"
 
 	DefaultDevelopmentJWTSecret     = "change-me-in-development"
 	DefaultDevelopmentInternalToken = "dev-internal-service-token"
@@ -28,16 +32,17 @@ const (
 // Config is the root application configuration. It is loaded from a YAML file
 // with environment-variable overrides, then validated during bootstrap.
 type Config struct {
-	Env             string                `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production test"`
-	HTTPServer      HTTPServer            `yaml:"http_server" validate:"required"`
-	Postgres        postgres.Config       `yaml:"postgres" validate:"required"`
-	Auth            AuthConfig            `yaml:"auth" validate:"required"`
-	Internal        InternalConfig        `yaml:"internal" validate:"required"`
-	CORS            CORSConfig            `yaml:"cors" validate:"required"`
-	PlaceProvider   PlaceProviderConfig   `yaml:"place_provider" validate:"required"`
-	RouteProvider   RouteProviderConfig   `yaml:"route_provider" validate:"required"`
-	WeatherProvider WeatherProviderConfig `yaml:"weather_provider" validate:"required"`
-	Calendar        CalendarConfig        `yaml:"calendar" validate:"required"`
+	Env                  string                     `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production test"`
+	HTTPServer           HTTPServer                 `yaml:"http_server" validate:"required"`
+	Postgres             postgres.Config            `yaml:"postgres" validate:"required"`
+	Auth                 AuthConfig                 `yaml:"auth" validate:"required"`
+	Internal             InternalConfig             `yaml:"internal" validate:"required"`
+	CORS                 CORSConfig                 `yaml:"cors" validate:"required"`
+	PlaceProvider        PlaceProviderConfig        `yaml:"place_provider" validate:"required"`
+	RouteProvider        RouteProviderConfig        `yaml:"route_provider" validate:"required"`
+	WeatherProvider      WeatherProviderConfig      `yaml:"weather_provider" validate:"required"`
+	ExchangeRateProvider ExchangeRateProviderConfig `yaml:"exchange_rate_provider" validate:"required"`
+	Calendar             CalendarConfig             `yaml:"calendar" validate:"required"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -111,6 +116,18 @@ type WeatherProviderConfig struct {
 	// Documented for future real providers; unused in v1.
 	OpenMeteoBaseURL string `yaml:"open_meteo_base_url" env:"OPEN_METEO_BASE_URL"`
 	WeatherAPIKey    string `yaml:"weather_api_key" env:"WEATHER_API_KEY"`
+}
+
+// ExchangeRateProviderConfig selects the exchange-rate provider adapter. The
+// mock provider remains the default and fallback for local development.
+type ExchangeRateProviderConfig struct {
+	Provider        string `yaml:"provider" env:"EXCHANGE_RATE_PROVIDER" env-default:"mock"`
+	FallbackToMock  bool   `yaml:"fallback_to_mock" env:"EXCHANGE_RATE_PROVIDER_FALLBACK_TO_MOCK" env-default:"true"`
+	TimeoutSeconds  int    `yaml:"timeout_seconds" env:"EXCHANGE_RATE_PROVIDER_TIMEOUT_SECONDS" env-default:"8"`
+	BaseURL         string `yaml:"base_url" env:"EXCHANGE_RATE_BASE_URL"`
+	APIKey          string `yaml:"api_key" env:"EXCHANGE_RATE_API_KEY"`
+	CacheEnabled    bool   `yaml:"cache_enabled" env:"EXCHANGE_RATE_CACHE_ENABLED" env-default:"true"`
+	CacheTTLSeconds int    `yaml:"cache_ttl_seconds" env:"EXCHANGE_RATE_CACHE_TTL_SECONDS" env-default:"21600"`
 }
 
 type CalendarConfig struct {
@@ -250,6 +267,20 @@ func Load(path string) (*Config, error) {
 	}
 	cfg.WeatherProvider.OpenMeteoBaseURL = strings.TrimSpace(cfg.WeatherProvider.OpenMeteoBaseURL)
 	cfg.WeatherProvider.WeatherAPIKey = strings.TrimSpace(cfg.WeatherProvider.WeatherAPIKey)
+
+	cfg.ExchangeRateProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.ExchangeRateProvider.Provider))
+	if cfg.ExchangeRateProvider.Provider == "" {
+		cfg.ExchangeRateProvider.Provider = ExchangeRateProviderMock
+	}
+	if cfg.ExchangeRateProvider.TimeoutSeconds <= 0 {
+		cfg.ExchangeRateProvider.TimeoutSeconds = 8
+	}
+	cfg.ExchangeRateProvider.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.ExchangeRateProvider.BaseURL), "/")
+	cfg.ExchangeRateProvider.APIKey = strings.TrimSpace(cfg.ExchangeRateProvider.APIKey)
+	if cfg.ExchangeRateProvider.CacheTTLSeconds <= 0 {
+		cfg.ExchangeRateProvider.CacheTTLSeconds = 21600
+	}
+
 	cfg.Calendar.Provider = strings.ToLower(strings.TrimSpace(cfg.Calendar.Provider))
 	if cfg.Calendar.Provider == "" {
 		cfg.Calendar.Provider = CalendarProviderMock

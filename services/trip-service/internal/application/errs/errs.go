@@ -64,3 +64,14 @@ func (e *DependencyError) Error() string { return e.Message }
 func NewDependencyError(format string, args ...any) *DependencyError {
 	return &DependencyError{Message: fmt.Sprintf(format, args...)}
 }
+
+// BudgetConversionError signals that budget summary conversion was required but
+// one or more costs could not be converted. The HTTP layer maps it to 502 with
+// a stable machine-readable code.
+type BudgetConversionError struct{}
+
+func (e *BudgetConversionError) Error() string {
+	return "Some costs could not be converted."
+}
+
+var ErrBudgetConversionFailed = &BudgetConversionError{}

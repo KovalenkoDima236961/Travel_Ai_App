@@ -141,12 +141,15 @@ Itinerary items carry an optional structured `estimatedCost`:
 
 Generation and regeneration prompts ask the model to include an approximate
 `estimatedCost` object for paid activities, museum/tickets, restaurants, cafes,
-transport, shopping, and accommodation, using realistic local costs in the
-requested currency (the trip budget currency, else the user's preferred currency,
-else `EUR`). When uncertain, the model is told to use `null` instead of inventing
-an exact price, and `0` for genuinely free stops. **AI estimates are approximate,
-not real prices.** The mock generator emits the same structured costs so local
-development exercises the full budget flow.
+transport, shopping, and accommodation. The model should prefer the requested
+currency (the trip budget currency, else the user's preferred currency, else
+`EUR`), but may use a known local currency when that is more natural for the
+destination. Currency values must be uppercase 3-letter codes. When uncertain,
+the model is told to use `null` instead of inventing an exact price or exchange
+rate, and `0` for genuinely free stops. **AI estimates are approximate, not real
+prices.** Trip Service owns any exchange-rate conversion in budget summaries.
+The mock generator emits the same structured costs so local development
+exercises the full budget flow.
 
 ## Generator Modes
 

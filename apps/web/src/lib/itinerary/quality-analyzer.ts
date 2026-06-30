@@ -191,6 +191,26 @@ export function getBudgetIssues({
   const budgetAmount =
     budgetSummary.tripBudget ?? (tripBudget ? tripBudget.amount : null);
 
+  if ((budgetSummary.unconvertedItemCount ?? 0) > 0) {
+    const count = budgetSummary.unconvertedItemCount ?? 0;
+    issues.push({
+      id: "budget-conversion-unavailable",
+      type: "conversion_unavailable",
+      severity: count >= 3 ? "warning" : "info",
+      scope: "trip",
+      title: "Currency conversion unavailable",
+      message:
+        "Some costs could not be converted, so the budget total may be incomplete.",
+      suggestion: "Check the affected cost currencies or update them manually.",
+      instructionHint:
+        "Do not change exchange rates. Suggest manual currency or cost corrections for unconverted items.",
+      metadata: {
+        unconvertedItemCount: count,
+        conversionWarnings: budgetSummary.conversionWarnings ?? []
+      }
+    });
+  }
+
   // A) Whole-trip over budget.
   if (
     budgetAmount != null &&
@@ -208,12 +228,18 @@ export function getBudgetIssues({
       severity,
       scope: "trip",
       title: "Over budget",
-      message: `Estimated total ${money(budgetSummary.estimatedTotal, currency)} exceeds the ${money(
+      message: `Estimated total about ${money(budgetSummary.estimatedTotal, currency)} exceeds the ${money(
         budgetAmount,
         currency
       )} budget by ${money(overBy, currency)}.`,
       suggestion: "Lower-cost alternatives or fewer paid activities can bring the trip back on budget.",
-      instructionHint: `Keep total estimated cost within ${money(budgetAmount, currency)}.`,
+      instructionHint: `The estimated total is about ${money(
+        budgetSummary.estimatedTotal,
+        currency
+      )}, over the ${money(budgetAmount, currency)} budget. Keep total estimated cost within ${money(
+        budgetAmount,
+        currency
+      )}.`,
       metadata: {
         estimatedTotal: budgetSummary.estimatedTotal,
         tripBudget: budgetAmount,

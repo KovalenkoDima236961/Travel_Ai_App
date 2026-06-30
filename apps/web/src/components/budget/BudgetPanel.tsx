@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { budgetKeys, getTripBudgetSummary, updateTripBudget } from "@/lib/api/budget";
 import { tripKeys } from "@/lib/api/trips";
-import { formatMoney } from "@/lib/budget/format";
+import { formatApproxMoney, formatMoney } from "@/lib/budget/format";
 import { getErrorMessage } from "@/lib/utils";
 import type { Budget, BudgetSummary } from "@/types/budget";
 import type { Trip } from "@/types/trip";
@@ -114,7 +114,7 @@ function BudgetSummaryView({
           label="Trip budget"
           value={hasBudget ? formatMoney(summary.tripBudget, currency) : "No budget set"}
         />
-        <SummaryRow label="Estimated total" value={formatMoney(summary.estimatedTotal, currency)} />
+        <SummaryRow label="Estimated total" value={formatApproxMoney(summary.estimatedTotal, currency)} />
         {hasBudget ? (
           <SummaryRow
             emphasis={overBudget ? "danger" : "ok"}
@@ -130,7 +130,40 @@ function BudgetSummaryView({
       {overBudget ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           This trip is estimated to go over budget by{" "}
-          {formatMoney(summary.overBudgetBy, currency)}.
+          {formatApproxMoney(summary.overBudgetBy, currency)}.
+        </div>
+      ) : null}
+
+      {summary.originalCurrencyTotals?.length ? (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Original totals
+          </p>
+          <ul className="mt-2 space-y-1">
+            {summary.originalCurrencyTotals.map((total) => (
+              <li className="flex items-center justify-between gap-3" key={total.currency}>
+                <span className="text-slate-600">{total.currency}</span>
+                <span className="text-slate-900">{formatMoney(total.amount, total.currency)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {summary.conversionWarnings?.length ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">
+            Some costs could not be converted and are not included in the total.
+          </p>
+          <ul className="mt-2 space-y-1 text-xs">
+            {summary.conversionWarnings.map((warning, index) => (
+              <li key={`${warning.currency}-${warning.reason}-${index}`}>
+                {warning.amount != null
+                  ? `${formatMoney(warning.amount, warning.currency)} - ${formatWarningReason(warning.reason)}`
+                  : `${warning.currency} - ${formatWarningReason(warning.reason)}`}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -141,11 +174,21 @@ function BudgetSummaryView({
         </p>
       ) : null}
 
-      {summary.unsupportedCurrencyCount ? (
+      {summary.unsupportedCurrencyCount && !summary.conversionWarnings?.length ? (
         <p className="text-xs text-slate-500">
           {summary.unsupportedCurrencyCount} item
           {summary.unsupportedCurrencyCount === 1 ? "" : "s"} use a different currency and are
           excluded from totals.
+        </p>
+      ) : null}
+
+      {summary.exchangeRateInfo ? (
+        <p className="text-xs text-slate-500">
+          Approximate exchange rates from {formatProvider(summary.exchangeRateInfo.provider)}
+          {summary.exchangeRateInfo.asOf
+            ? `, as of ${formatExchangeRateDate(summary.exchangeRateInfo.asOf)}`
+            : ""}
+          {summary.exchangeRateInfo.fallbackUsed ? " (mock fallback used)" : ""}.
         </p>
       ) : null}
 
@@ -159,7 +202,7 @@ function BudgetSummaryView({
                 <li className="flex items-center justify-between gap-3" key={day.dayNumber}>
                   <span className="text-slate-600">Day {day.dayNumber}</span>
                   <span className={dayOver ? "font-medium text-red-700" : "text-slate-900"}>
-                    {formatMoney(day.estimatedTotal, currency)}
+                    {formatApproxMoney(day.estimatedTotal, currency)}
                     {day.dailyBudgetShare != null
                       ? ` / ${formatMoney(day.dailyBudgetShare, currency)}`
                       : ""}
@@ -181,7 +224,7 @@ function BudgetSummaryView({
               <li className="flex items-center justify-between gap-3" key={category.category}>
                 <span className="capitalize text-slate-600">{category.category}</span>
                 <span className="text-slate-900">
-                  {formatMoney(category.estimatedTotal, currency)}
+                  {formatApproxMoney(category.estimatedTotal, currency)}
                   <span className="ml-1 text-xs text-slate-400">
                     ({category.itemCount})
                   </span>
@@ -216,4 +259,37 @@ function SummaryRow({
       <dd className={valueClass}>{value}</dd>
     </div>
   );
+}
+
+function formatProvider(provider: string | null | undefined): string {
+  const value = (provider ?? "").trim();
+  if (!value) {
+    return "the configured provider";
+  }
+  return value
+    .split(/[_-]/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatWarningReason(reason: string): string {
+  switch (reason) {
+    case "unsupported_currency":
+      return "unsupported currency";
+    case "provider_unavailable":
+      return "provider unavailable";
+    case "conversion_disabled":
+      return "conversion disabled";
+    default:
+      return "conversion unavailable";
+  }
+}
+
+function formatExchangeRateDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date);
 }

@@ -92,9 +92,10 @@ Rules:
   (non-negative number), currency (3-letter code), category
   (food|transport|ticket|activity|accommodation|shopping|other), confidence
   (low|medium|high), and source "ai". Use amount 0 for genuinely free stops.
-- Use approximate realistic local costs in the requested currency. If uncertain,
-  set estimatedCost to null instead of inventing an exact price.
-- Avoid hallucinated exact prices when uncertain; use reasonable estimates.
+- Prefer the requested budget currency or preferredCurrency for estimatedCost.currency.
+  If a local currency is more natural and known, use a valid uppercase 3-letter code.
+- Use approximate realistic costs only. Do not invent exact exchange rates, do not
+  claim financial accuracy, and set estimatedCost to null when uncertain.
 - Respect user profile and travel preferences where possible.
 - Prefer activities matching travelStyles and interests.
 - If preferences conflict with the explicit trip request, prioritize the trip request first.
@@ -197,6 +198,8 @@ Repair rules:
   for paid items (amount non-negative, currency a 3-letter code, category one of
   food|transport|ticket|activity|accommodation|shopping|other, source "ai"), or null
   when there is no cost or you are uncertain. Use amount 0 for free stops.
+- Prefer the requested budget currency or preferredCurrency; local currency is acceptable
+  only when natural and known. Do not invent exact exchange rates.
 - Keep total estimated costs reasonable for the requested budget when a budget is provided.
 - Preserve personalization from the user profile and travel preferences where it fits the schema.
 - Do not remove preference-aware details unless they caused the validation error or violate
@@ -282,6 +285,8 @@ Rules:
   for paid items (amount non-negative, currency a 3-letter code, category one of
   food|transport|ticket|activity|accommodation|shopping|other, source "ai"), or null
   when there is no cost or you are uncertain. Use amount 0 for free stops.
+- Prefer the trip budget/preferred currency; local currency is acceptable only when
+  natural and known. Do not invent exact exchange rates.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -357,6 +362,8 @@ Rules:
   for paid items (amount non-negative, currency a 3-letter code, category one of
   food|transport|ticket|activity|accommodation|shopping|other, source "ai"), or null
   when there is no cost or you are uncertain. Use amount 0 for free stops.
+- Prefer the trip budget/preferred currency; local currency is acceptable only when
+  natural and known. Do not invent exact exchange rates.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()

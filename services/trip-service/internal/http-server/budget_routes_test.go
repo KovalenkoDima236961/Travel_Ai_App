@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
@@ -151,6 +154,157 @@ func TestBudgetSummaryOwnerReflectsItineraryCosts(t *testing.T) {
 	}
 	if summary.Remaining == nil || *summary.Remaining != 488 {
 		t.Fatalf("expected remaining 488, got %v", summary.Remaining)
+	}
+}
+
+func TestBudgetSummaryConvertsForeignCurrencyCosts(t *testing.T) {
+	router, _ := newAuthTestRouterWithOptions(
+		t,
+		budgetTestAuthConfig(),
+		service.WithBudgetConversion(routeTestExchangeRates{}, true, true),
+	)
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	tripID := createBudgetTestTrip(t, router, ownerToken)
+
+	itineraryJSON := `{
+		"expectedItineraryRevision": 0,
+		"itinerary": {
+			"currency": "EUR",
+			"days": [
+				{
+					"day": 1,
+					"title": "Tokyo",
+					"items": [
+						{"time":"09:00","type":"food","name":"Ramen","estimatedCost":{"amount":2500,"currency":"JPY","category":"food"}},
+						{"time":"12:00","type":"ticket","name":"Museum","estimatedCost":{"amount":20,"currency":"EUR","category":"ticket"}}
+					]
+				}
+			]
+		}
+	}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/trips/"+tripID.String()+"/itinerary", bytes.NewReader([]byte(itineraryJSON)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected itinerary update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	revisionAfterItinerary := fetchTripRevision(t, router, ownerToken, tripID)
+
+	accommodationJSON := `{
+		"accommodation": {
+			"name": "Tokyo Hotel",
+			"type": "hotel",
+			"estimatedCost": {"amount":17050,"currency":"JPY","category":"accommodation"}
+		}
+	}`
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+tripID.String()+"/accommodation", bytes.NewReader([]byte(accommodationJSON)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected accommodation update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+
+	rec = getBudgetSummary(t, router, ownerToken, tripID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var summary budget.Summary
+	if err := json.Unmarshal(rec.Body.Bytes(), &summary); err != nil {
+		t.Fatalf("decode summary: %v", err)
+	}
+	if summary.EstimatedTotal != 134.66 {
+		t.Fatalf("expected converted total 134.66, got %+v", summary)
+	}
+	if summary.ConvertedItemCount != 2 {
+		t.Fatalf("expected 2 converted costs, got %d", summary.ConvertedItemCount)
+	}
+	if summary.ExchangeRateInfo == nil || summary.ExchangeRateInfo.Provider != "route-test" {
+		t.Fatalf("expected exchange rate info, got %+v", summary.ExchangeRateInfo)
+	}
+	if amountByOriginalCurrency(summary.OriginalCurrencyTotals, "JPY") != 19550 {
+		t.Fatalf("expected original JPY total 19550, got %+v", summary.OriginalCurrencyTotals)
+	}
+	if revisionAfterSummary := fetchTripRevision(t, router, ownerToken, tripID); revisionAfterSummary != revisionAfterItinerary {
+		t.Fatalf("expected budget summary not to mutate itineraryRevision %d, got %d", revisionAfterItinerary, revisionAfterSummary)
+	}
+}
+
+func TestBudgetSummaryConversionWarningAndFailClosed(t *testing.T) {
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	body := `{
+		"expectedItineraryRevision": 0,
+		"itinerary": {
+			"days": [
+				{
+					"day": 1,
+					"title": "Day",
+					"items": [
+						{"time":"09:00","type":"ticket","name":"Show","estimatedCost":{"amount":99,"currency":"XXX","category":"ticket"}}
+					]
+				}
+			]
+		}
+	}`
+
+	router, _ := newAuthTestRouterWithOptions(
+		t,
+		budgetTestAuthConfig(),
+		service.WithBudgetConversion(routeTestExchangeRates{}, true, true),
+	)
+	tripID := createBudgetTestTrip(t, router, ownerToken)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/trips/"+tripID.String()+"/itinerary", bytes.NewReader([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected itinerary update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	rec = getBudgetSummary(t, router, ownerToken, tripID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected fail-open HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var summary budget.Summary
+	if err := json.Unmarshal(rec.Body.Bytes(), &summary); err != nil {
+		t.Fatalf("decode summary: %v", err)
+	}
+	if summary.UnconvertedItemCount != 1 || len(summary.ConversionWarnings) != 1 {
+		t.Fatalf("expected one conversion warning, got %+v", summary)
+	}
+	if summary.ConversionWarnings[0].Reason != "unsupported_currency" {
+		t.Fatalf("expected unsupported_currency warning, got %+v", summary.ConversionWarnings)
+	}
+
+	failClosedRouter, _ := newAuthTestRouterWithOptions(
+		t,
+		budgetTestAuthConfig(),
+		service.WithBudgetConversion(routeTestExchangeRates{}, true, false),
+	)
+	failClosedTripID := createBudgetTestTrip(t, failClosedRouter, ownerToken)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/trips/"+failClosedTripID.String()+"/itinerary", bytes.NewReader([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	failClosedRouter.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected itinerary update HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	rec = getBudgetSummary(t, failClosedRouter, ownerToken, failClosedTripID)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected fail-closed HTTP 502, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var errBody map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if errBody["error"] != "budget_conversion_failed" {
+		t.Fatalf("expected budget_conversion_failed, got %+v", errBody)
 	}
 }
 
@@ -328,4 +482,41 @@ func TestBudgetPermissionsViewerAndNonCollaborator(t *testing.T) {
 	if rec := getBudgetSummary(t, router, strangerToken, tripID); rec.Code != http.StatusNotFound {
 		t.Fatalf("expected non-collaborator summary HTTP 404, got %d with %s", rec.Code, rec.Body.String())
 	}
+}
+
+type routeTestExchangeRates struct{}
+
+func (routeTestExchangeRates) Convert(_ context.Context, amount float64, from string, to string) (*budget.CurrencyConversionResult, error) {
+	if from == "JPY" && to == "EUR" {
+		return &budget.CurrencyConversionResult{
+			Provider:        "route-test",
+			From:            from,
+			To:              to,
+			Amount:          amount,
+			ConvertedAmount: mathRound2(amount / 170.5),
+			Rate:            1 / 170.5,
+			AsOf:            time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC),
+		}, nil
+	}
+	return nil, routeTestExchangeRateError{reason: "unsupported_currency"}
+}
+
+type routeTestExchangeRateError struct {
+	reason string
+}
+
+func (e routeTestExchangeRateError) Error() string  { return e.reason }
+func (e routeTestExchangeRateError) Reason() string { return e.reason }
+
+func amountByOriginalCurrency(totals []budget.OriginalCurrencyTotal, currency string) float64 {
+	for _, total := range totals {
+		if total.Currency == currency {
+			return total.Amount
+		}
+	}
+	return 0
+}
+
+func mathRound2(value float64) float64 {
+	return float64(int(value*100+0.5)) / 100
 }

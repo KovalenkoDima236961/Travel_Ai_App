@@ -1,7 +1,9 @@
 package budget
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 )
@@ -173,6 +175,123 @@ func TestCalculateBudgetSummary_UnsupportedCurrency(t *testing.T) {
 	}
 }
 
+func TestCalculateBudgetSummaryWithConversion_ConvertsItemAndAccommodation(t *testing.T) {
+	itinerary := aggregate.Itinerary{
+		Days: []aggregate.ItineraryDay{{
+			Day:   1,
+			Title: "Tokyo",
+			Items: []aggregate.ItineraryItem{
+				{Time: "09:00", Type: "food", Name: "Ramen", EstimatedCost: cost(2500, "JPY", "food")},
+				{Time: "12:00", Type: "ticket", Name: "Museum", EstimatedCost: cost(20, "EUR", "ticket")},
+			},
+		}},
+	}
+	trip := TripBudget{
+		Amount:   ptr(900),
+		Currency: "EUR",
+		Days:     1,
+		Accommodation: &aggregate.Accommodation{
+			Name:          "Tokyo hotel",
+			Type:          aggregate.AccommodationTypeHotel,
+			EstimatedCost: cost(17050, "JPY", "accommodation"),
+		},
+	}
+
+	summary, err := CalculateBudgetSummaryWithConversion(context.Background(), trip, itinerary, fakeConverter{}, ConversionOptions{
+		Enabled:  true,
+		FailOpen: true,
+	})
+	if err != nil {
+		t.Fatalf("calculate summary: %v", err)
+	}
+	if summary.EstimatedTotal != 134.66 {
+		t.Fatalf("expected total 134.66, got %v", summary.EstimatedTotal)
+	}
+	if summary.AccommodationTotal == nil || *summary.AccommodationTotal != 100 {
+		t.Fatalf("expected converted accommodation total 100, got %v", summary.AccommodationTotal)
+	}
+	if summary.ConvertedItemCount != 2 {
+		t.Fatalf("expected 2 converted costs, got %d", summary.ConvertedItemCount)
+	}
+	if summary.UnconvertedItemCount != 0 || len(summary.ConversionWarnings) != 0 {
+		t.Fatalf("expected no warnings, got count=%d warnings=%+v", summary.UnconvertedItemCount, summary.ConversionWarnings)
+	}
+	if len(summary.OriginalCurrencyTotals) != 2 {
+		t.Fatalf("expected original totals for EUR and JPY, got %+v", summary.OriginalCurrencyTotals)
+	}
+	if amountByCurrency(summary.OriginalCurrencyTotals, "JPY") != 19550 {
+		t.Fatalf("expected original JPY total 19550, got %+v", summary.OriginalCurrencyTotals)
+	}
+	if summary.ByDay[0].EstimatedTotal != 34.66 {
+		t.Fatalf("expected day total 34.66, got %+v", summary.ByDay[0])
+	}
+	if amountByCategory(summary.ByCategory, "food") != 14.66 {
+		t.Fatalf("expected food category 14.66, got %+v", summary.ByCategory)
+	}
+	if amountByCategory(summary.ByCategory, "accommodation") != 100 {
+		t.Fatalf("expected accommodation category 100, got %+v", summary.ByCategory)
+	}
+	if summary.ExchangeRateInfo == nil || summary.ExchangeRateInfo.Provider != "fake" {
+		t.Fatalf("expected exchange rate info, got %+v", summary.ExchangeRateInfo)
+	}
+}
+
+func TestCalculateBudgetSummaryWithConversion_FailOpenWarning(t *testing.T) {
+	itinerary := aggregate.Itinerary{
+		Days: []aggregate.ItineraryDay{{
+			Day:   1,
+			Title: "Day",
+			Items: []aggregate.ItineraryItem{
+				{Time: "09:00", Type: "food", Name: "Lunch", EstimatedCost: cost(10, "EUR", "food")},
+				{Time: "12:00", Type: "ticket", Name: "Show", EstimatedCost: cost(99, "XXX", "ticket")},
+			},
+		}},
+	}
+
+	summary, err := CalculateBudgetSummaryWithConversion(
+		context.Background(),
+		TripBudget{Amount: ptr(100), Currency: "EUR", Days: 1},
+		itinerary,
+		fakeConverter{},
+		ConversionOptions{Enabled: true, FailOpen: true},
+	)
+	if err != nil {
+		t.Fatalf("calculate summary: %v", err)
+	}
+	if summary.EstimatedTotal != 10 {
+		t.Fatalf("expected unsupported currency excluded, got total %v", summary.EstimatedTotal)
+	}
+	if summary.UnconvertedItemCount != 1 || summary.UnsupportedCurrencyCount != 1 {
+		t.Fatalf("expected one unconverted item, got unsupported=%d unconverted=%d", summary.UnsupportedCurrencyCount, summary.UnconvertedItemCount)
+	}
+	if len(summary.ConversionWarnings) != 1 || summary.ConversionWarnings[0].Reason != "unsupported_currency" {
+		t.Fatalf("expected unsupported_currency warning, got %+v", summary.ConversionWarnings)
+	}
+}
+
+func TestCalculateBudgetSummaryWithConversion_FailClosedReturnsError(t *testing.T) {
+	itinerary := aggregate.Itinerary{
+		Days: []aggregate.ItineraryDay{{
+			Day:   1,
+			Title: "Day",
+			Items: []aggregate.ItineraryItem{
+				{Time: "12:00", Type: "ticket", Name: "Show", EstimatedCost: cost(99, "XXX", "ticket")},
+			},
+		}},
+	}
+
+	_, err := CalculateBudgetSummaryWithConversion(
+		context.Background(),
+		TripBudget{Amount: ptr(100), Currency: "EUR", Days: 1},
+		itinerary,
+		fakeConverter{},
+		ConversionOptions{Enabled: true, FailOpen: false},
+	)
+	if err == nil {
+		t.Fatal("expected fail-closed conversion error")
+	}
+}
+
 func TestCalculateBudgetSummary_IgnoresInvalidEstimateSafely(t *testing.T) {
 	negative := -5.0
 	itinerary := aggregate.Itinerary{
@@ -241,4 +360,46 @@ func TestCalculateBudgetSummary_RoundsToTwoDecimals(t *testing.T) {
 	if summary.Remaining == nil || *summary.Remaining != 69.65 {
 		t.Fatalf("expected remaining 69.65, got %v", summary.Remaining)
 	}
+}
+
+type fakeConverter struct{}
+
+func (fakeConverter) Convert(_ context.Context, amount float64, from string, to string) (*CurrencyConversionResult, error) {
+	if from == "JPY" && to == "EUR" {
+		return &CurrencyConversionResult{
+			Provider:        "fake",
+			From:            from,
+			To:              to,
+			Amount:          amount,
+			ConvertedAmount: round2(amount / 170.5),
+			Rate:            1 / 170.5,
+			AsOf:            time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC),
+		}, nil
+	}
+	return nil, fakeConversionError{reason: "unsupported_currency"}
+}
+
+type fakeConversionError struct {
+	reason string
+}
+
+func (e fakeConversionError) Error() string  { return e.reason }
+func (e fakeConversionError) Reason() string { return e.reason }
+
+func amountByCurrency(totals []OriginalCurrencyTotal, currency string) float64 {
+	for _, total := range totals {
+		if total.Currency == currency {
+			return total.Amount
+		}
+	}
+	return 0
+}
+
+func amountByCategory(totals []CategorySummary, category string) float64 {
+	for _, total := range totals {
+		if total.Category == category {
+			return total.EstimatedTotal
+		}
+	}
+	return 0
 }

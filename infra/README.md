@@ -45,6 +45,14 @@ Trip Service can also call External Integrations Service for mock weather
 forecasts before full or partial itinerary generation. `WEATHER_CONTEXT_ENABLED=true`
 enables this path and `WEATHER_CONTEXT_FAIL_OPEN=true` lets generation continue
 without weather if the service is unavailable.
+Budget summaries also use External Integrations Service for exchange-rate
+conversion when item or accommodation costs use a currency different from the
+trip budget currency. `BUDGET_CONVERSION_ENABLED=true` and
+`BUDGET_CONVERSION_FAIL_OPEN=true` are the local defaults, so unsupported or
+unavailable conversions become budget warnings instead of breaking the trip page.
+External Integrations Service defaults to deterministic mock rates via
+`EXCHANGE_RATE_PROVIDER=mock`; real provider names are reserved for future
+adapters and API keys stay server-side.
 Background Jobs v1 for AI generation/regeneration is enabled by default with
 `GENERATION_JOBS_ENABLED=true` and
 `GENERATION_JOB_WORKER_ENABLED=true`. The worker is in-process, polls Postgres

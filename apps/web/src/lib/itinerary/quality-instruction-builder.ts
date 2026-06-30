@@ -3,7 +3,9 @@ import type { QualityIssue } from "@/types/quality";
 const MAX_INSTRUCTION_LENGTH = 1000;
 
 export function buildImproveDayInstruction(dayNumber: number, issues: QualityIssue[]): string {
-  const relevantIssues = issues.filter((issue) => issue.dayNumber === dayNumber);
+  const relevantIssues = issues.filter(
+    (issue) => issue.dayNumber === dayNumber || issue.scope === "trip"
+  );
   const bullets = relevantIssues.map(formatDayIssueBullet).filter(Boolean);
 
   return capInstruction(
@@ -67,7 +69,8 @@ function formatDayIssueBullet(issue: QualityIssue): string {
   if (
     issue.type === "place_match_low_confidence" ||
     issue.type === "place_no_confident_match" ||
-    issue.type === "missing_place_coordinates"
+    issue.type === "missing_place_coordinates" ||
+    issue.type === "conversion_unavailable"
   ) {
     return issue.instructionHint;
   }
@@ -98,6 +101,10 @@ function formatItemIssueBullet(issue: QualityIssue): string {
 
   if (issue.type === "place_match_pending_review") {
     return "The attached auto-matched place still needs review.";
+  }
+
+  if (issue.type === "conversion_unavailable") {
+    return "Suggest manual currency or cost correction; do not invent exchange rates.";
   }
 
   return issue.instructionHint;

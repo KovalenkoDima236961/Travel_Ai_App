@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
+	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/exchangerates"
 	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
 	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
 	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
@@ -168,6 +169,52 @@ func TestCORSPreflightWorks(t *testing.T) {
 	}
 }
 
+func TestExchangeRatesConvertJPYToEUR(t *testing.T) {
+	resp := performRequest(newTestRouter(), http.MethodGet, "/exchange-rates/convert?amount=2500&from=JPY&to=EUR", "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	var body entity.CurrencyConversionResult
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Provider != "mock" || body.From != "JPY" || body.To != "EUR" {
+		t.Fatalf("unexpected conversion metadata: %+v", body)
+	}
+	if body.ConvertedAmount != 14.66 {
+		t.Fatalf("expected converted amount 14.66, got %v", body.ConvertedAmount)
+	}
+	if body.Rate == 0 {
+		t.Fatalf("expected rate to be populated")
+	}
+}
+
+func TestExchangeRatesLatestValidatesBase(t *testing.T) {
+	resp := performRequest(newTestRouter(), http.MethodGet, "/exchange-rates/latest?base=EU", "")
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestExchangeRatesConvertValidatesAmountAndUnsupportedCurrency(t *testing.T) {
+	resp := performRequest(newTestRouter(), http.MethodGet, "/exchange-rates/convert?amount=-1&from=JPY&to=EUR", "")
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid amount, got %d body=%s", resp.Code, resp.Body.String())
+	}
+
+	resp = performRequest(newTestRouter(), http.MethodGet, "/exchange-rates/convert?amount=10&from=XXX&to=EUR", "")
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unsupported currency, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if body["error"] != "unsupported_currency" {
+		t.Fatalf("expected unsupported_currency, got %+v", body)
+	}
+}
+
 func newTestRouter() http.Handler {
 	cfg := testConfig()
 	svc := appservice.New(placeprovider.NewMockPlaceProvider(), zap.NewNop())
@@ -176,11 +223,14 @@ func newTestRouter() http.Handler {
 	routesHandler := handler.NewRoutesHandler(routesSvc, zap.NewNop(), cfg.RouteProvider.Provider)
 	weatherSvc := appservice.NewWeatherService(weatherprovider.NewMockWeatherProvider(), zap.NewNop())
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, zap.NewNop())
+	exchangeRateSvc := appservice.NewExchangeRateService(exchangerateprovider.NewMockExchangeRateProvider(), zap.NewNop())
+	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateSvc, zap.NewNop())
 	return NewRouter(
 		zap.NewNop(),
 		placesHandler,
 		routesHandler,
 		weatherHandler,
+		exchangeRateHandler,
 		nil,
 		nil,
 		NewReadinessHandler(zap.NewNop()),
@@ -196,9 +246,10 @@ func testConfig() *config.Config {
 		HTTPServer: config.HTTPServer{
 			Address: ":0",
 		},
-		PlaceProvider:   config.PlaceProviderConfig{Provider: "mock"},
-		RouteProvider:   config.RouteProviderConfig{Provider: "mock"},
-		WeatherProvider: config.WeatherProviderConfig{Provider: "mock"},
+		PlaceProvider:        config.PlaceProviderConfig{Provider: "mock"},
+		RouteProvider:        config.RouteProviderConfig{Provider: "mock"},
+		WeatherProvider:      config.WeatherProviderConfig{Provider: "mock"},
+		ExchangeRateProvider: config.ExchangeRateProviderConfig{Provider: "mock"},
 		CORS: config.CORSConfig{
 			AllowedOrigins: "http://localhost:3000",
 			AllowedMethods: "GET,POST,DELETE,OPTIONS",
