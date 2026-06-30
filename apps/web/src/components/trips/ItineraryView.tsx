@@ -7,6 +7,7 @@ import {
   getTripItemDate
 } from "@/lib/itinerary/opening-hours-utils";
 import { formatDate, formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
+import { costBadgeLabel, isManualCost } from "@/lib/budget/format";
 import { Button } from "@/components/ui/Button";
 import { CommentButton } from "@/components/comments/CommentButton";
 import { makeCommentItemKey } from "@/lib/comments/comment-counts";
@@ -195,9 +196,15 @@ export function ItineraryView({
                     ) : null}
                   </div>
                   <div className="flex items-start justify-between gap-3 sm:flex-col sm:items-end">
-                    {item.estimatedCost != null ? (
-                      <div className="text-sm font-semibold text-slate-900">
-                        {formatMoney(item.estimatedCost, displayCurrency)}
+                    {costBadgeLabel(item.estimatedCost, displayCurrency) ? (
+                      <div
+                        className="text-sm font-semibold text-slate-900"
+                        title={isManualCost(item.estimatedCost) ? "Manually edited cost" : undefined}
+                      >
+                        {costBadgeLabel(item.estimatedCost, displayCurrency)}
+                        {isManualCost(item.estimatedCost) ? (
+                          <span className="ml-1 text-xs font-normal text-slate-400">manual</span>
+                        ) : null}
                       </div>
                     ) : (
                       <span className="hidden sm:block" />

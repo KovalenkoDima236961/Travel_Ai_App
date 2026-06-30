@@ -56,6 +56,28 @@ func (r *Repository) Create(ctx context.Context, t *entity.Trip) (*entity.Trip, 
 	return dto.Scan(r.db.QueryRow(ctx, query, args...))
 }
 
+// UpdateTripBudget sets only the trip-level budget columns. It deliberately does
+// not touch itinerary or itinerary_revision because the itinerary JSON is
+// unchanged. A nil amount and empty currency clear the budget.
+func (r *Repository) UpdateTripBudget(ctx context.Context, id, userID uuid.UUID, amount *float64, currency string) (*entity.Trip, error) {
+	query, args, err := r.db.Builder.
+		Update("trips").
+		Set("budget_amount", dto.NumericArg(amount)).
+		Set("budget_currency", dto.TextArg(currency)).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
+		Suffix("RETURNING " + dto.Columns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build update trip budget: %w", err)
+	}
+
+	return dto.Scan(r.db.QueryRow(ctx, query, args...))
+}
+
 // GetByID loads a trip without owner scoping. It is used only after an enabled
 // public share token has already been validated.
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {

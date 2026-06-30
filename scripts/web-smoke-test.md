@@ -115,6 +115,31 @@ http://localhost:3000
 56. Go to `/trips`.
 57. Confirm the trip appears in the list.
 
+## Budget Tracking
+
+1. Create a trip with budget `EUR 700` and generate its itinerary (mock AI is
+   fine).
+2. On the trip detail page, confirm the `Budget` panel appears in the sidebar.
+3. Confirm it shows the trip budget, an estimated total, and remaining amount,
+   plus daily and category totals.
+4. Confirm itinerary item cards show cost badges (for example `€18 ticket`), with
+   `(approx.)` on low-confidence costs.
+5. Click `Edit` in the `Budget` panel, change the amount, and `Save budget`.
+6. Confirm the panel refreshes with the new budget and the itinerary revision is
+   unchanged (no conflict warning, version history not affected).
+7. Open the itinerary editor, expand an item's `Estimated cost`, change the
+   amount/category, and save the itinerary.
+8. Confirm the saved cost shows a `manual` marker and the budget total updates.
+9. Edit the budget to an amount **below** the estimated total and save.
+10. Confirm the `Budget` panel switches to an over-budget warning style.
+11. Open `Trip Quality Checks` and confirm budget issues appear (over budget,
+    day over budget, expensive item, or missing cost estimates).
+12. For the trip-level over-budget issue, click `Improve day N`, confirm a
+    generation job starts, and that the resulting day is budget-aware.
+13. Create a public share link, open `/share/{shareToken}` in a logged-out
+    window, and confirm the private trip budget is **not** shown (item cost
+    badges may still appear).
+
 ## Collaborative Planning
 
 1. Create two registered accounts: an owner and a collaborator.

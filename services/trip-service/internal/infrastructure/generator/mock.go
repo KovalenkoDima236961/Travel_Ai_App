@@ -1,10 +1,9 @@
-// Package generator holds itinerary-generator adapters that satisfy the
-// application.ItineraryGenerator port.
 package generator
 
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 	"unicode"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
@@ -42,6 +42,8 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 		interests = []string{"sightseeing"}
 	}
 
+	currency := mockCurrency(input)
+
 	days := make([]aggregate.ItineraryDay, 0, trip.Days)
 	for i := int32(0); i < trip.Days; i++ {
 		focus := interests[int(i)%len(interests)]
@@ -50,6 +52,8 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 			Title: fmt.Sprintf("Day %d in %s — %s", i+1, trip.Destination, titleCase(focus)),
 			Items: []aggregate.ItineraryItem{
 				{
+					// Intentionally left without an estimate to exercise the
+					// missing-estimate path in the budget summary.
 					Time: "09:00",
 					Type: "activity",
 					Name: fmt.Sprintf("Explore %s highlights", trip.Destination),
@@ -59,19 +63,34 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 					),
 				},
 				{
-					Time: "13:00",
-					Type: "meal",
-					Name: "Lunch at a local spot",
+					Time:          "11:00",
+					Type:          "viewpoint",
+					Name:          "Free scenic viewpoint",
+					EstimatedCost: mockCost(0, "other", currency, "high", "Free to visit"),
 				},
 				{
-					Time: "15:00",
-					Type: "activity",
-					Name: fmt.Sprintf("A %s-paced %s experience", trip.Pace, focus),
+					Time:          "13:00",
+					Type:          "meal",
+					Name:          "Lunch at a local spot",
+					EstimatedCost: mockCost(15, "food", currency, "medium", "Approximate lunch price"),
 				},
 				{
-					Time: "19:30",
-					Type: "meal",
-					Name: "Dinner recommendation",
+					Time:          "15:00",
+					Type:          "ticket",
+					Name:          fmt.Sprintf("%s city museum", titleCase(trip.Destination)),
+					EstimatedCost: mockCost(18, "ticket", currency, "medium", "Standard adult admission"),
+				},
+				{
+					Time:          "17:30",
+					Type:          "transport",
+					Name:          "Day transit pass",
+					EstimatedCost: mockCost(8, "transport", currency, "low", "Public transport estimate"),
+				},
+				{
+					Time:          "19:30",
+					Type:          "meal",
+					Name:          "Dinner recommendation",
+					EstimatedCost: mockCost(24, "food", currency, "low", "Mid-range dinner estimate"),
 				},
 			},
 		})
@@ -133,7 +152,7 @@ func (g *MockItineraryGenerator) RegenerateDay(_ context.Context, input applicat
 				Type:          "food",
 				Name:          "Updated local lunch",
 				Note:          "Keeps the partial regeneration flow predictable in mock mode.",
-				EstimatedCost: floatPtr(15),
+				EstimatedCost: mockCost(15, "food", mockTripCurrency(trip), "medium", "Approximate lunch price"),
 			},
 			{
 				Time: "16:00",
@@ -170,7 +189,7 @@ func (g *MockItineraryGenerator) RegenerateItem(_ context.Context, input applica
 		Type:          "food",
 		Name:          fmt.Sprintf("Updated local option %d", input.ItemIndex+1),
 		Note:          weatherAwareNote(fmt.Sprintf("Mock replacement for day %d in %s.", input.DayNumber, trip.Destination), weatherDay),
-		EstimatedCost: floatPtr(12),
+		EstimatedCost: mockCost(12, "food", mockTripCurrency(trip), "medium", "Approximate meal price"),
 	}, nil
 }
 
@@ -204,6 +223,38 @@ func titleCase(s string) string {
 	return string(r)
 }
 
-func floatPtr(value float64) *float64 {
-	return &value
+// mockCurrency resolves the currency for sample estimates: trip budget currency,
+// then the user's preferred currency, then the package default.
+func mockCurrency(input application.GenerateItineraryInput) string {
+	if c := strings.TrimSpace(input.Trip.BudgetCurrency); c != "" {
+		return strings.ToUpper(c)
+	}
+	if input.UserProfile != nil {
+		if c := strings.TrimSpace(input.UserProfile.PreferredCurrency); c != "" {
+			return strings.ToUpper(c)
+		}
+	}
+	return defaultCurrency
+}
+
+// mockTripCurrency resolves the currency for regeneration sample estimates from
+// the trip alone (regeneration inputs do not carry budget currency separately).
+func mockTripCurrency(trip entity.Trip) string {
+	if c := strings.TrimSpace(trip.BudgetCurrency); c != "" {
+		return strings.ToUpper(c)
+	}
+	return defaultCurrency
+}
+
+// mockCost builds a structured sample estimate with source "ai".
+func mockCost(amount float64, category, currency, confidence, note string) *aggregate.EstimatedCost {
+	value := amount
+	return &aggregate.EstimatedCost{
+		Amount:     &value,
+		Currency:   currency,
+		Category:   category,
+		Confidence: confidence,
+		Source:     "ai",
+		Note:       note,
+	}
 }

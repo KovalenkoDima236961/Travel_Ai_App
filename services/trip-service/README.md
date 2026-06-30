@@ -112,6 +112,114 @@ Service process stops; stale running jobs older than
 `worker_restarted`. `GENERATION_JOB_WORKER_MAX_CONCURRENT` is documented for
 future use; the v1 worker processes sequentially.
 
+## Budget Tracking v1
+
+Trips carry an optional structured budget and itinerary items carry optional
+structured cost estimates. The service computes a budget summary on demand.
+
+Trip budget columns (already present on `trips`):
+
+- `budget_amount NUMERIC(10,2) NULL` — non-negative, or NULL for "no budget".
+- `budget_currency VARCHAR(3) NULL` — uppercase ISO-like 3-letter code.
+
+The Trip DTO exposes both the legacy flat fields (`budgetAmount`,
+`budgetCurrency`) and a normalized structured object for clients:
+
+```json
+{ "budget": { "amount": 700, "currency": "EUR" } }
+```
+
+`budget` is `null` when no amount is set.
+
+### Item-level `estimatedCost`
+
+Each itinerary item may include a structured estimate (stored inside the
+itinerary JSONB):
+
+```json
+{
+  "estimatedCost": {
+    "amount": 25.50,
+    "currency": "EUR",
+    "category": "food",
+    "confidence": "medium",
+    "source": "ai",
+    "note": "Approximate lunch price"
+  }
+}
+```
+
+- `category`: `food | transport | ticket | activity | accommodation | shopping | other`.
+- `confidence`: `low | medium | high`.
+- `source`: `ai | manual | provider`. AI-generated items default to `ai`; manual
+  edits saved through `PUT /trips/{id}/itinerary` are backstopped to `manual`.
+- `amount` may be `0` (free) or absent (no estimate). The legacy bare-number form
+  (`"estimatedCost": 25.5`) is still accepted and read transparently.
+- Validation rejects a negative amount or a malformed currency; an unknown
+  category is coerced to `other`, an over-length note is truncated to 300 chars.
+
+### Endpoints
+
+| Method | Path                          | Who                         |
+| ------ | ----------------------------- | --------------------------- |
+| GET    | `/trips/{id}/budget-summary`  | owner / editor / viewer     |
+| PUT    | `/trips/{id}/budget`          | owner / editor              |
+
+`GET /trips/{id}/budget-summary` computes a `BudgetSummary` from the trip budget
+and itinerary JSON:
+
+```json
+{
+  "currency": "EUR",
+  "tripBudget": 700,
+  "estimatedTotal": 612.50,
+  "remaining": 87.50,
+  "overBudgetBy": 0,
+  "missingEstimateCount": 4,
+  "estimatedItemCount": 18,
+  "unsupportedCurrencyCount": 0,
+  "byDay": [{ "dayNumber": 1, "estimatedTotal": 120.00, "missingEstimateCount": 1,
+              "dailyBudgetShare": 100.00, "overDailyBudgetBy": 20.00 }],
+  "byCategory": [{ "category": "food", "estimatedTotal": 210.00, "itemCount": 7 }]
+}
+```
+
+When the trip has no budget, `tripBudget`/`remaining`/`overBudgetBy` are `null`
+but `estimatedTotal` is still returned. Estimates in a currency other than the
+summary currency are counted in `unsupportedCurrencyCount` and excluded from the
+totals (no conversion in v1).
+
+`PUT /trips/{id}/budget` sets or clears the budget:
+
+```json
+{ "budget": { "amount": 700, "currency": "EUR" } }   // set
+{ "budget": null }                                    // clear
+```
+
+It returns `{ "budget": { "amount": 700, "currency": "EUR" } }` (or
+`{ "budget": null }`). It records a `trip_budget_updated` activity event.
+
+### Manual cost edits and conflict detection
+
+There is no separate item-cost endpoint. Editing an item's `estimatedCost` reuses
+`PUT /trips/{id}/itinerary` with `expectedItineraryRevision`, so the existing
+optimistic-concurrency check applies: a stale edit returns `409`
+`itinerary_conflict`, and a successful save increments `itineraryRevision`.
+Updating the trip-level budget does **not** mutate `itineraryRevision` (the
+itinerary JSON is unchanged) and does not require `expectedItineraryRevision`.
+
+### Public share
+
+The public share response never exposes the private trip budget: the flat budget
+fields are removed and the itinerary's `totalBudget` is stripped. Item-level
+`estimatedCost` values remain visible because they are part of the shared plan.
+
+### Limitations
+
+- One currency per trip; no currency conversion.
+- AI costs are approximate estimates, not real prices.
+- No real ticket-price/booking provider integration.
+
 ## Tech stack
 
 | Concern           | Choice                                                        |

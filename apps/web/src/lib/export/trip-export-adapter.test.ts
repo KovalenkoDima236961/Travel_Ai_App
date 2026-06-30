@@ -79,16 +79,18 @@ describe("trip export adapters", () => {
       destination: "Paris",
       startDate: null,
       days: 3,
-      budgetCurrency: "EUR",
       status: "COMPLETED",
-      itinerary: { days: [] }
+      itinerary: { days: [], currency: "EUR" }
     };
 
-    expect(toExportTripFromPublicTrip(trip)).toMatchObject({
+    const exported = toExportTripFromPublicTrip(trip);
+    expect(exported).toMatchObject({
       destination: "Paris",
       startDate: null,
       source: "public"
     });
+    // The private trip budget is never exposed on public exports.
+    expect(exported.budgetAmount).toBeNull();
   });
 });
 

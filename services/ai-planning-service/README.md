@@ -82,6 +82,42 @@ Ollama with the original trip details, the validation error, and the invalid res
 repair request must return the same public JSON shape. Raw model output is never returned to
 API clients.
 
+## Estimated Cost (Budget Tracking v1)
+
+Itinerary items carry an optional structured `estimatedCost`:
+
+```json
+{
+  "estimatedCost": {
+    "amount": 18,
+    "currency": "EUR",
+    "category": "ticket",
+    "confidence": "medium",
+    "source": "ai"
+  }
+}
+```
+
+- `category`: `food | transport | ticket | activity | accommodation | shopping | other`.
+- `confidence`: `low | medium | high`; `source`: `ai | manual | provider`.
+- Generated output defaults `source` to `ai`, `confidence` to `low`, and an
+  unknown `category` to `other`. `currency` is upper-cased; an invalid currency
+  is dropped.
+- The legacy bare-number form (`"estimatedCost": 18`) is still accepted and
+  coerced to `{ "amount": 18 }` for backward compatibility.
+- Repair is lenient: an unrepairable cost object becomes `null` rather than
+  failing the whole generation; a negative amount is left intact so the business
+  validator can reject it (`negative_cost`).
+
+Generation and regeneration prompts ask the model to include an approximate
+`estimatedCost` object for paid activities, museum/tickets, restaurants, cafes,
+transport, shopping, and accommodation, using realistic local costs in the
+requested currency (the trip budget currency, else the user's preferred currency,
+else `EUR`). When uncertain, the model is told to use `null` instead of inventing
+an exact price, and `0` for genuinely free stops. **AI estimates are approximate,
+not real prices.** The mock generator emits the same structured costs so local
+development exercises the full budget flow.
+
 ## Generator Modes
 
 The service supports two generator modes:

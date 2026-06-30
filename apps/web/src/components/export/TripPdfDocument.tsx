@@ -4,6 +4,7 @@ import {
 } from "@/lib/export/ics";
 import type { ExportDistanceDay, ExportTrip, ExportWeatherDay } from "@/lib/export/trip-export-adapter";
 import { formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
+import { costBadgeLabel, getCostAmount } from "@/lib/budget/format";
 import type { ItineraryItem } from "@/types/trip";
 
 export type TripPdfLineVariant =
@@ -75,9 +76,10 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
             lines.push({ text: `Map: ${item.place.mapUrl}`, variant: "small", indent: 28 });
           }
         }
-        if (item.estimatedCost != null) {
+        const costBadge = costBadgeLabel(item.estimatedCost, exportTrip.budgetCurrency ?? undefined);
+        if (costBadge) {
           lines.push({
-            text: `Estimated cost: ${formatMoney(item.estimatedCost, exportTrip.budgetCurrency ?? undefined)}`,
+            text: `Estimated cost: ${costBadge}`,
             variant: "small",
             indent: 28
           });
@@ -86,6 +88,7 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
     });
   }
 
+  appendBudgetSummary(lines, exportTrip);
   appendWeatherSummary(lines, exportTrip.weatherSummary);
   appendDistanceSummary(lines, exportTrip.distanceSummary);
 
@@ -161,6 +164,72 @@ function formatItemHeading(item: ItineraryItem): string {
   ].filter(Boolean);
 
   return parts.join(" - ");
+}
+
+// appendBudgetSummary adds a private-only budget rollup. The public export never
+// includes the private trip budget; item-level cost badges still render inline.
+function appendBudgetSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
+  if (exportTrip.source !== "private") {
+    return;
+  }
+  const days = exportTrip.itinerary?.days ?? [];
+  if (days.length === 0) {
+    return;
+  }
+
+  const currency = exportTrip.budgetCurrency ?? undefined;
+  let estimatedTotal = 0;
+  let costedItems = 0;
+  const dayTotals: { dayNumber: number; total: number }[] = [];
+
+  days.forEach((day, dayIndex) => {
+    let dayTotal = 0;
+    (day.items ?? []).forEach((item) => {
+      const amount = getCostAmount(item.estimatedCost);
+      if (amount != null) {
+        dayTotal += amount;
+        estimatedTotal += amount;
+        costedItems += 1;
+      }
+    });
+    dayTotals.push({ dayNumber: day.day || dayIndex + 1, total: dayTotal });
+  });
+
+  if (costedItems === 0 && exportTrip.budgetAmount == null) {
+    return;
+  }
+
+  lines.push({ text: "Budget summary", variant: "heading" });
+  if (exportTrip.budgetAmount != null) {
+    lines.push({
+      text: `Trip budget: ${formatMoney(exportTrip.budgetAmount, currency)}`,
+      variant: "body",
+      indent: 14
+    });
+    const remaining = exportTrip.budgetAmount - estimatedTotal;
+    lines.push({
+      text:
+        remaining >= 0
+          ? `Remaining: ${formatMoney(remaining, currency)}`
+          : `Over budget by: ${formatMoney(Math.abs(remaining), currency)}`,
+      variant: "body",
+      indent: 14
+    });
+  }
+  lines.push({
+    text: `Estimated total: ${formatMoney(estimatedTotal, currency)}`,
+    variant: "body",
+    indent: 14
+  });
+  dayTotals
+    .filter((entry) => entry.total > 0)
+    .forEach((entry) => {
+      lines.push({
+        text: `Day ${entry.dayNumber}: ${formatMoney(entry.total, currency)}`,
+        variant: "small",
+        indent: 28
+      });
+    });
 }
 
 function appendWeatherSummary(lines: TripPdfLine[], weatherSummary?: ExportWeatherDay[] | null) {

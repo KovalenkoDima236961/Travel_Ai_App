@@ -130,13 +130,16 @@ class ItineraryValidator:
                         code="empty_item_note",
                     )
 
-                if item.estimated_cost is not None:
-                    if item.estimated_cost < 0:
+                cost_amount = (
+                    item.estimated_cost.amount if item.estimated_cost is not None else None
+                )
+                if cost_amount is not None:
+                    if cost_amount < 0:
                         raise ItineraryValidationError(
                             f"Day {day.day} item {item_index} estimated cost cannot be negative",
                             code="negative_cost",
                         )
-                    total_estimated_cost += item.estimated_cost
+                    total_estimated_cost += cost_amount
                     estimated_cost_count += 1
 
                 combined_text = " ".join(

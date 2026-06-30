@@ -226,5 +226,9 @@ def _ensure_item_values_valid(item: ItineraryItem, label: str) -> None:
         raise LLMResponseParseError(f"{label} type cannot be empty")
     if not item.name.strip():
         raise LLMResponseParseError(f"{label} name cannot be empty")
-    if item.estimated_cost is not None and item.estimated_cost < 0:
+    if (
+        item.estimated_cost is not None
+        and item.estimated_cost.amount is not None
+        and item.estimated_cost.amount < 0
+    ):
         raise LLMResponseParseError(f"{label} estimatedCost cannot be negative")

@@ -1,3 +1,4 @@
+import type { Budget, EstimatedCost } from "@/types/budget";
 import type { Place } from "@/types/place";
 
 export type TripStatus = "DRAFT" | "PROCESSING" | "COMPLETED" | "FAILED";
@@ -23,7 +24,7 @@ export type ItineraryItem = {
   type: "place" | "food" | "activity" | "transport" | "rest" | string;
   name: string;
   note?: string | null;
-  estimatedCost?: number | null;
+  estimatedCost?: EstimatedCost | null;
   place?: Place | null;
   placeEnrichment?: PlaceEnrichment | null;
 };
@@ -54,6 +55,7 @@ export type Trip = {
   days: number;
   budgetAmount?: number | null;
   budgetCurrency: string;
+  budget?: Budget | null;
   travelers: number;
   interests: string[];
   pace: Pace;

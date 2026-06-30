@@ -82,8 +82,9 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 	if got == nil || len(got.Days) != 1 {
 		t.Fatalf("expected one itinerary day, got %+v", got)
 	}
-	if got.Days[0].Items[0].EstimatedCost == nil || *got.Days[0].Items[0].EstimatedCost != 18 {
-		t.Fatalf("expected estimated cost to decode, got %+v", got.Days[0].Items[0].EstimatedCost)
+	gotCost := got.Days[0].Items[0].EstimatedCost
+	if gotCost == nil || gotCost.Amount == nil || *gotCost.Amount != 18 {
+		t.Fatalf("expected legacy numeric estimated cost to decode, got %+v", gotCost)
 	}
 	if got.Destination != "Rome" || got.Source != "ai-planning-service-http" {
 		t.Fatalf("expected enriched itinerary metadata, got %+v", got)
@@ -359,7 +360,7 @@ func TestAIPlanningHTTPGeneratorRegenerateItem_SendsCorrectPayload(t *testing.T)
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got.Name != "Local trattoria" || got.EstimatedCost == nil || *got.EstimatedCost != 15 {
+	if got.Name != "Local trattoria" || got.EstimatedCost == nil || got.EstimatedCost.Amount == nil || *got.EstimatedCost.Amount != 15 {
 		t.Fatalf("unexpected replacement item: %+v", got)
 	}
 	if captured.Trip.ID != input.Trip.ID.String() || captured.DayNumber != 2 || captured.ItemIndex != 1 {

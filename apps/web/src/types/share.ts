@@ -30,12 +30,12 @@ export type PublicShareUnlockResponse = {
   expiresAt: string;
 };
 
+// PublicTrip intentionally omits the private trip budget (amount and currency).
+// Item-level estimated costs remain inside the shared itinerary.
 export type PublicTrip = {
   destination: string;
   startDate?: string | null;
   days: number;
-  budgetAmount?: number | null;
-  budgetCurrency?: string | null;
   travelers?: number | null;
   interests?: string[];
   pace?: string | null;

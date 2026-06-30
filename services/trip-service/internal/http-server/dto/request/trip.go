@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bytes"
 	"encoding/json"
 	"time"
 
@@ -47,6 +48,36 @@ func (r UpdateTripItinerary) ToInput() appdto.UpdateItineraryInput {
 		Itinerary:                 r.Itinerary,
 		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
 	}
+}
+
+// UpdateTripBudget is the JSON body accepted by PUT /trips/{id}/budget. The
+// budget field is an object {amount, currency} to set a budget, or null to clear
+// it. A budget object without an amount is treated as a clear.
+type UpdateTripBudget struct {
+	Budget json.RawMessage `json:"budget"`
+}
+
+type budgetBody struct {
+	Amount   *float64 `json:"amount"`
+	Currency string   `json:"currency"`
+}
+
+// ToInput maps the transport request to the application-level input. It returns
+// an error only when a present budget object is malformed JSON.
+func (r UpdateTripBudget) ToInput() (appdto.UpdateTripBudgetInput, error) {
+	raw := bytes.TrimSpace(r.Budget)
+	if len(raw) == 0 || string(raw) == "null" {
+		return appdto.UpdateTripBudgetInput{Clear: true}, nil
+	}
+
+	var body budgetBody
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return appdto.UpdateTripBudgetInput{}, err
+	}
+	if body.Amount == nil {
+		return appdto.UpdateTripBudgetInput{Clear: true}, nil
+	}
+	return appdto.UpdateTripBudgetInput{Amount: body.Amount, Currency: body.Currency}, nil
 }
 
 // GenerateTripItinerary is the JSON body accepted by POST /trips/{id}/generate.

@@ -1,3 +1,4 @@
+import type { EstimatedCost } from "@/types/budget";
 import type { Place } from "@/types/place";
 import type { Itinerary } from "@/types/trip";
 
@@ -9,7 +10,7 @@ export type MapItineraryMarker = {
   itemName: string;
   itemType: string;
   note?: string | null;
-  estimatedCost?: number | null;
+  estimatedCost?: EstimatedCost | null;
   place: Place;
   latitude: number;
   longitude: number;

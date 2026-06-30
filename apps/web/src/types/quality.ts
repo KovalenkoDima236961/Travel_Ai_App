@@ -10,7 +10,11 @@ export type QualityIssueType =
   | "place_match_pending_review"
   | "place_match_low_confidence"
   | "place_no_confident_match"
-  | "missing_place_coordinates";
+  | "missing_place_coordinates"
+  | "trip_budget_exceeded"
+  | "day_budget_high"
+  | "expensive_item"
+  | "missing_cost_estimate";
 
 export type QualityIssue = {
   id: string;

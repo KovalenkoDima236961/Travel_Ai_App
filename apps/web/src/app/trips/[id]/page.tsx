@@ -27,6 +27,7 @@ import {
   prepareItineraryForEdit,
   validateEditableItinerary
 } from "@/components/trips/ItineraryEditor";
+import { BudgetPanel } from "@/components/budget/BudgetPanel";
 import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
@@ -41,6 +42,7 @@ import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { activityKeys } from "@/lib/api/activity";
+import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
 import { isItineraryConflictError } from "@/lib/api/client";
 import {
@@ -188,6 +190,13 @@ function TripDetailPageContent() {
     enabled: canFetchWeather,
     staleTime: 10 * 60 * 1000,
     retry: 1
+  });
+
+  // Shares the cache key with BudgetPanel so the summary is fetched once and
+  // also feeds budget-aware quality checks.
+  const budgetSummaryQuery = useQuery({
+    queryKey: budgetKeys.summary(tripId),
+    queryFn: () => getTripBudgetSummary(tripId)
   });
 
   // Comments are a private collaboration feature: anyone who can view this
@@ -444,6 +453,7 @@ function TripDetailPageContent() {
       });
       queryClient.setQueryData(tripKeys.detail(tripId), updated);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+      await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
       await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
       await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       await tripQuery.refetch();
@@ -578,6 +588,7 @@ function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) }),
+      queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
     ]);
     await tripQuery.refetch();
@@ -598,6 +609,7 @@ function TripDetailPageContent() {
 
   async function handleVersionRestored(updatedTrip: Trip) {
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
+    await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
     await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
@@ -608,6 +620,7 @@ function TripDetailPageContent() {
     const optimizedDayNumber = optimizingDayNumber;
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
     await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
+    await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
     await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
@@ -704,6 +717,8 @@ function TripDetailPageContent() {
             </div>
           </Card>
 
+          <BudgetPanel canEdit={canMutateTrip} trip={trip} />
+
           {presenceEnabled ? (
             <TripPresenceIndicator
               currentUserId={currentUserId}
@@ -764,6 +779,7 @@ function TripDetailPageContent() {
           {trip.status === "COMPLETED" && trip.itinerary ? (
             <div className="space-y-4">
               <TripQualityChecks
+                budgetSummary={budgetSummaryQuery.data ?? null}
                 fallbackDistanceSummaries={fallbackDistanceSummaries}
                 isEditing={isEditing}
                 isImproving={createGenerationJobMutation.isPending || hasActiveGenerationJob}

@@ -355,10 +355,21 @@ func TestPublicTripSharingOwnerFlowAndSanitizedPublicResponse(t *testing.T) {
 	if _, ok := publicBody["versionHistory"]; ok {
 		t.Fatalf("public response must not include version history: %+v", publicBody)
 	}
+	// The private trip budget must never appear on the public share, even though
+	// the trip was created with a budget.
+	if _, ok := publicBody["budgetAmount"]; ok {
+		t.Fatalf("public response must not include budgetAmount: %+v", publicBody)
+	}
+	if _, ok := publicBody["budgetCurrency"]; ok {
+		t.Fatalf("public response must not include budgetCurrency: %+v", publicBody)
+	}
 	itinerary, ok := publicBody["itinerary"].(map[string]any)
 	days, daysOK := itinerary["days"].([]any)
 	if !ok || !daysOK || len(days) == 0 {
 		t.Fatalf("expected public itinerary days, got %+v", publicBody["itinerary"])
+	}
+	if _, ok := itinerary["totalBudget"]; ok {
+		t.Fatalf("public itinerary must not include totalBudget: %+v", itinerary)
 	}
 
 	rec = httptest.NewRecorder()
@@ -1575,6 +1586,18 @@ func (r *routeTestRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip,
 	r.trips[out.ID] = out
 	r.created = &out
 	return &out, nil
+}
+
+func (r *routeTestRepo) UpdateTripBudget(_ context.Context, id, userID uuid.UUID, amount *float64, currency string) (*entity.Trip, error) {
+	trip, ok := r.trips[id]
+	if !ok || trip.UserID == nil || *trip.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	trip.BudgetAmount = amount
+	trip.BudgetCurrency = currency
+	trip.UpdatedAt = time.Now().UTC()
+	r.trips[id] = trip
+	return &trip, nil
 }
 
 func (r *routeTestRepo) GetByIDAndUserID(_ context.Context, id, userID uuid.UUID) (*entity.Trip, error) {

@@ -50,7 +50,13 @@ The JSON must exactly match this schema and must not include any other fields:
           "type": "place",
           "name": "string",
           "note": "string",
-          "estimatedCost": 18
+          "estimatedCost": {{
+            "amount": 18,
+            "currency": "EUR",
+            "category": "ticket",
+            "confidence": "medium",
+            "source": "ai"
+          }}
         }}
       ]
     }}
@@ -79,7 +85,13 @@ Rules:
 - Do not repeat the same item name within a day.
 - Use only these item types: place, food, activity, transport, rest.
 - Include practical notes tailored to {request.destination}; avoid generic filler.
-- Include estimatedCost as a number or null.
+- For each paid activity, museum/ticket, restaurant, cafe, transport, shopping, and
+  accommodation item, include estimatedCost as an object with fields amount
+  (non-negative number), currency (3-letter code), category
+  (food|transport|ticket|activity|accommodation|shopping|other), confidence
+  (low|medium|high), and source "ai". Use amount 0 for genuinely free stops.
+- Use approximate realistic local costs in the requested currency. If uncertain,
+  set estimatedCost to null instead of inventing an exact price.
 - Avoid hallucinated exact prices when uncertain; use reasonable estimates.
 - Respect user profile and travel preferences where possible.
 - Prefer activities matching travelStyles and interests.
@@ -154,7 +166,13 @@ The corrected JSON must exactly match this schema and must not include any other
           "type": "place",
           "name": "string",
           "note": "string",
-          "estimatedCost": 18
+          "estimatedCost": {{
+            "amount": 18,
+            "currency": "EUR",
+            "category": "ticket",
+            "confidence": "medium",
+            "source": "ai"
+          }}
         }}
       ]
     }}
@@ -171,7 +189,10 @@ Repair rules:
 - Do not repeat the same time within a day.
 - Do not repeat the same item name within a day.
 - Make every day title, item name, and item note non-empty.
-- Include estimatedCost as a non-negative number or null.
+- Include estimatedCost as an object {{amount, currency, category, confidence, source}}
+  for paid items (amount non-negative, currency a 3-letter code, category one of
+  food|transport|ticket|activity|accommodation|shopping|other, source "ai"), or null
+  when there is no cost or you are uncertain. Use amount 0 for free stops.
 - Keep total estimated costs reasonable for the requested budget when a budget is provided.
 - Preserve personalization from the user profile and travel preferences where it fits the schema.
 - Do not remove preference-aware details unless they caused the validation error or violate
@@ -211,7 +232,13 @@ The JSON must exactly match this schema and must not include any other fields:
         "type": "place",
         "name": "string",
         "note": "string",
-        "estimatedCost": 18
+        "estimatedCost": {{
+          "amount": 18,
+          "currency": "EUR",
+          "category": "ticket",
+          "confidence": "medium",
+          "source": "ai"
+        }}
       }}
     ]
   }}
@@ -246,7 +273,10 @@ Rules:
 - Use realistic HH:MM 24-hour times.
 - Sort items by time ascending.
 - Use only these item types: place, food, activity, transport, rest.
-- Include estimatedCost as a non-negative number or null.
+- Include estimatedCost as an object {{amount, currency, category, confidence, source}}
+  for paid items (amount non-negative, currency a 3-letter code, category one of
+  food|transport|ticket|activity|accommodation|shopping|other, source "ai"), or null
+  when there is no cost or you are uncertain. Use amount 0 for free stops.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -279,7 +309,13 @@ The JSON must exactly match this schema and must not include any other fields:
     "type": "food",
     "name": "string",
     "note": "string",
-    "estimatedCost": 15
+    "estimatedCost": {{
+      "amount": 15,
+      "currency": "EUR",
+      "category": "food",
+      "confidence": "medium",
+      "source": "ai"
+    }}
   }}
 }}
 
@@ -311,7 +347,10 @@ Rules:
 - Follow the user instruction if provided.
 - Adapt the replacement item to the weather forecast when relevant.
 - Use only these item types: place, food, activity, transport, rest.
-- Include estimatedCost as a non-negative number or null.
+- Include estimatedCost as an object {{amount, currency, category, confidence, source}}
+  for paid items (amount non-negative, currency a 3-letter code, category one of
+  food|transport|ticket|activity|accommodation|shopping|other, source "ai"), or null
+  when there is no cost or you are uncertain. Use amount 0 for free stops.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -341,7 +380,13 @@ Required schema:
         "type": "place",
         "name": "string",
         "note": "string",
-        "estimatedCost": 18
+        "estimatedCost": {{
+          "amount": 18,
+          "currency": "EUR",
+          "category": "ticket",
+          "confidence": "medium",
+          "source": "ai"
+        }}
       }}
     ]
   }}
@@ -382,7 +427,13 @@ Required schema:
     "type": "food",
     "name": "string",
     "note": "string",
-    "estimatedCost": 15
+    "estimatedCost": {{
+      "amount": 15,
+      "currency": "EUR",
+      "category": "food",
+      "confidence": "medium",
+      "source": "ai"
+    }}
   }}
 }}
 

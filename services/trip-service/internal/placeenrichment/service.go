@@ -206,6 +206,10 @@ func copyItinerary(in aggregate.Itinerary) aggregate.Itinerary {
 			item := in.Days[dayIndex].Items[itemIndex]
 			if item.EstimatedCost != nil {
 				value := *item.EstimatedCost
+				if value.Amount != nil {
+					amount := *value.Amount
+					value.Amount = &amount
+				}
 				item.EstimatedCost = &value
 			}
 			if item.Place != nil {

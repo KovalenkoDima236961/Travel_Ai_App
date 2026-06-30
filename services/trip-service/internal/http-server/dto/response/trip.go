@@ -1,8 +1,7 @@
-// Package response holds the outbound HTTP payloads for the trip endpoints and
-// their mapping from domain entities.
 package response
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +19,7 @@ type Trip struct {
 	Days              int32         `json:"days"`
 	BudgetAmount      *float64      `json:"budgetAmount,omitempty"`
 	BudgetCurrency    string        `json:"budgetCurrency"`
+	Budget            *Budget       `json:"budget"`
 	Travelers         int32         `json:"travelers"`
 	Interests         []string      `json:"interests"`
 	Pace              string        `json:"pace"`
@@ -138,21 +138,22 @@ type PublicShareUnlockResponse struct {
 	ExpiresAt   time.Time `json:"expiresAt"`
 }
 
-// PublicTrip is the sanitized read-only payload for public share links.
+// PublicTrip is the sanitized read-only payload for public share links. The
+// private trip budget (both the flat fields and the itinerary's totalBudget) is
+// intentionally omitted; item-level estimated costs within the itinerary remain
+// visible because they are part of the shared plan.
 type PublicTrip struct {
-	Destination    string        `json:"destination"`
-	StartDate      *string       `json:"startDate,omitempty"`
-	Days           int32         `json:"days"`
-	BudgetAmount   *float64      `json:"budgetAmount,omitempty"`
-	BudgetCurrency string        `json:"budgetCurrency,omitempty"`
-	Travelers      int32         `json:"travelers,omitempty"`
-	Interests      []string      `json:"interests"`
-	Pace           string        `json:"pace,omitempty"`
-	Status         entity.Status `json:"status"`
-	Itinerary      any           `json:"itinerary,omitempty"`
-	CreatedAt      time.Time     `json:"createdAt"`
-	UpdatedAt      time.Time     `json:"updatedAt"`
-	SharedAt       time.Time     `json:"sharedAt"`
+	Destination string        `json:"destination"`
+	StartDate   *string       `json:"startDate,omitempty"`
+	Days        int32         `json:"days"`
+	Travelers   int32         `json:"travelers,omitempty"`
+	Interests   []string      `json:"interests"`
+	Pace        string        `json:"pace,omitempty"`
+	Status      entity.Status `json:"status"`
+	Itinerary   any           `json:"itinerary,omitempty"`
+	CreatedAt   time.Time     `json:"createdAt"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+	SharedAt    time.Time     `json:"sharedAt"`
 }
 
 // NewListTrips maps a page of domain trips to the API envelope. Items is always
@@ -298,20 +299,20 @@ func NewPublicShareUnlockResponse(unlock appdto.PublicShareUnlockResponse) Publi
 	}
 }
 
-// NewPublicTrip maps a domain Trip to its public, read-only JSON payload.
+// NewPublicTrip maps a domain Trip to its public, read-only JSON payload. The
+// private trip budget is omitted from both the trip fields and the embedded
+// itinerary.
 func NewPublicTrip(t *entity.Trip, sharedAt time.Time) PublicTrip {
 	resp := PublicTrip{
-		Destination:    t.Destination,
-		Days:           t.Days,
-		BudgetAmount:   t.BudgetAmount,
-		BudgetCurrency: t.BudgetCurrency,
-		Travelers:      t.Travelers,
-		Interests:      t.Interests,
-		Pace:           t.Pace,
-		Status:         t.Status,
-		CreatedAt:      t.CreatedAt,
-		UpdatedAt:      t.UpdatedAt,
-		SharedAt:       sharedAt,
+		Destination: t.Destination,
+		Days:        t.Days,
+		Travelers:   t.Travelers,
+		Interests:   t.Interests,
+		Pace:        t.Pace,
+		Status:      t.Status,
+		CreatedAt:   t.CreatedAt,
+		UpdatedAt:   t.UpdatedAt,
+		SharedAt:    sharedAt,
 	}
 	if t.Interests == nil {
 		resp.Interests = []string{}
@@ -321,9 +322,22 @@ func NewPublicTrip(t *entity.Trip, sharedAt time.Time) PublicTrip {
 		resp.StartDate = &s
 	}
 	if len(t.Itinerary) > 0 {
-		resp.Itinerary = t.Itinerary
+		resp.Itinerary = sanitizePublicItinerary(t.Itinerary)
 	}
 	return resp
+}
+
+// sanitizePublicItinerary strips the trip-level budget (totalBudget) from the
+// shared itinerary so the owner's private budget is not exposed publicly, while
+// preserving everything else (including item-level estimated costs). If the
+// payload cannot be parsed it is dropped entirely to fail closed.
+func sanitizePublicItinerary(raw json.RawMessage) any {
+	var generic map[string]any
+	if err := json.Unmarshal(raw, &generic); err != nil {
+		return nil
+	}
+	delete(generic, "totalBudget")
+	return generic
 }
 
 // NewTrip maps a domain Trip to its API representation.
@@ -335,6 +349,7 @@ func NewTrip(t *entity.Trip) Trip {
 		Days:              t.Days,
 		BudgetAmount:      t.BudgetAmount,
 		BudgetCurrency:    t.BudgetCurrency,
+		Budget:            NewBudget(t),
 		Travelers:         t.Travelers,
 		Interests:         t.Interests,
 		Pace:              t.Pace,

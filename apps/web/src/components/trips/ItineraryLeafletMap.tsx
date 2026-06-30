@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import { formatInterestLabel, formatMoney } from "@/lib/utils";
+import { formatInterestLabel } from "@/lib/utils";
+import { costBadgeLabel } from "@/lib/budget/format";
 import type { MapItineraryMarker } from "@/lib/itinerary/map-utils";
 import {
   formatOpeningHoursForDay,
@@ -69,8 +70,8 @@ export function ItineraryLeafletMap({
                       : ""}
                   </p>
                 ) : null}
-                {marker.estimatedCost != null ? (
-                  <p>Estimated cost {formatMoney(marker.estimatedCost, currency)}</p>
+                {costBadgeLabel(marker.estimatedCost, currency) ? (
+                  <p>Estimated cost {costBadgeLabel(marker.estimatedCost, currency)}</p>
                 ) : null}
               </div>
               <MapOpeningHoursStatus marker={marker} startDate={startDate} />

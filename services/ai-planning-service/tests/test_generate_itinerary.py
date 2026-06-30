@@ -511,4 +511,4 @@ def test_regenerate_item_accepts_optional_user_context() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["item"]["estimatedCost"] <= 15
+    assert body["item"]["estimatedCost"]["amount"] <= 15

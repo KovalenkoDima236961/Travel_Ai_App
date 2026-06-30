@@ -9,6 +9,7 @@ import {
   buildImproveItemInstruction
 } from "@/lib/itinerary/quality-instruction-builder";
 import { cn } from "@/lib/utils";
+import type { BudgetSummary } from "@/types/budget";
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
 import type { QualityIssue, QualityIssueSeverity, QualityIssueType } from "@/types/quality";
 import type { RouteEstimate } from "@/types/route";
@@ -21,6 +22,7 @@ type TripQualityChecksProps = {
   routeEstimatesByDay?: Record<number, RouteEstimate | null>;
   fallbackDistanceSummaries?: DayDistanceSummary[];
   maxWalkingKmPerDay?: number | null;
+  budgetSummary?: BudgetSummary | null;
   onImproveDay?: (dayNumber: number, instruction: string) => Promise<void>;
   onImproveItem?: (
     dayNumber: number,
@@ -36,7 +38,8 @@ const DEFAULT_VISIBLE_ISSUE_COUNT = 5;
 const actionableItemIssueTypes: QualityIssueType[] = [
   "place_may_be_closed",
   "place_match_low_confidence",
-  "place_no_confident_match"
+  "place_no_confident_match",
+  "expensive_item"
 ];
 
 export function TripQualityChecks({
@@ -45,6 +48,7 @@ export function TripQualityChecks({
   routeEstimatesByDay,
   fallbackDistanceSummaries,
   maxWalkingKmPerDay,
+  budgetSummary,
   onImproveDay,
   onImproveItem,
   isImproving = false,
@@ -63,13 +67,17 @@ export function TripQualityChecks({
       weatherForecast,
       routeEstimatesByDay,
       fallbackDistanceSummaries,
-      maxWalkingKmPerDay
+      maxWalkingKmPerDay,
+      tripBudget: trip.budget,
+      budgetSummary
     });
   }, [
+    budgetSummary,
     fallbackDistanceSummaries,
     itinerary,
     maxWalkingKmPerDay,
     routeEstimatesByDay,
+    trip.budget,
     trip.startDate,
     weatherForecast
   ]);
@@ -83,6 +91,19 @@ export function TripQualityChecks({
   const visibleIssues = allIssues.slice(0, DEFAULT_VISIBLE_ISSUE_COUNT);
   const hasHiddenIssues = allIssues.length > DEFAULT_VISIBLE_ISSUE_COUNT;
   const canImprove = Boolean(onImproveDay && onImproveItem);
+  const tripIssues = summary.tripIssues;
+  const highestCostDayNumber =
+    budgetSummary && budgetSummary.byDay.length > 0
+      ? [...budgetSummary.byDay].sort((left, right) => right.estimatedTotal - left.estimatedTotal)[0]
+          .dayNumber
+      : null;
+
+  async function improveHighestCostDay() {
+    if (highestCostDayNumber == null) {
+      return;
+    }
+    await improveDay(highestCostDayNumber, summary?.byDay[highestCostDayNumber] ?? []);
+  }
 
   async function improveDay(dayNumber: number, issues: QualityIssue[]) {
     if (!onImproveDay) {
@@ -121,6 +142,36 @@ export function TripQualityChecks({
       {isEditing ? (
         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           Save or cancel edits before improving with AI.
+        </div>
+      ) : null}
+
+      {tripIssues.length > 0 ? (
+        <div className="mt-5 space-y-3 border-b border-slate-100 pb-4">
+          {tripIssues.map((issue) => (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between" key={issue.id}>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <SeverityBadge severity={issue.severity} />
+                  <p className="font-medium text-slate-950">{issue.title}</p>
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{issue.message}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{issue.suggestion}</p>
+              </div>
+              {canImprove &&
+              issue.type === "trip_budget_exceeded" &&
+              highestCostDayNumber != null ? (
+                <Button
+                  disabled={isEditing || isImproving}
+                  onClick={improveHighestCostDay}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  {isImproving ? "Improving..." : `Improve day ${highestCostDayNumber}`}
+                </Button>
+              ) : null}
+            </div>
+          ))}
         </div>
       ) : null}
 

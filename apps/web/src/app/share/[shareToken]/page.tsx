@@ -28,7 +28,6 @@ import {
 } from "@/lib/export/trip-export-adapter";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import {
-  formatBudget,
   formatDate,
   getErrorMessage,
   formatInterestLabel,
@@ -216,7 +215,7 @@ export default function PublicSharePage() {
   const trip = publicTripQuery.data;
   const itinerary = trip.itinerary ?? null;
   const interests = trip.interests ?? [];
-  const currency = trip.budgetCurrency ?? "EUR";
+  const currency = itinerary?.currency ?? "EUR";
   const travelers = trip.travelers ?? 0;
 
   return (
@@ -244,7 +243,6 @@ export default function PublicSharePage() {
             <DetailRow label="Start date" value={trip.startDate ? formatDate(trip.startDate) : "Not set"} />
             <DetailRow label="Duration" value={`${trip.days} ${trip.days === 1 ? "day" : "days"}`} />
             <DetailRow label="Travelers" value={travelers > 0 ? String(travelers) : "Not set"} />
-            <DetailRow label="Budget" value={formatBudget(trip.budgetAmount, currency)} />
             <DetailRow label="Pace" value={trip.pace ? formatPaceLabel(trip.pace) : "Not set"} />
             {trip.sharedAt ? (
               <DetailRow

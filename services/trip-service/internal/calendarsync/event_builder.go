@@ -198,8 +198,12 @@ func buildDescription(item aggregate.ItineraryItem, tripURL, currency string) st
 	if mapURL := itemMapURL(item); mapURL != "" {
 		parts = append(parts, "Map: "+mapURL)
 	}
-	if item.EstimatedCost != nil {
-		parts = append(parts, fmt.Sprintf("Estimated cost: %.2f %s", *item.EstimatedCost, strings.TrimSpace(currency)))
+	if item.EstimatedCost != nil && item.EstimatedCost.Amount != nil {
+		costCurrency := strings.TrimSpace(item.EstimatedCost.Currency)
+		if costCurrency == "" {
+			costCurrency = strings.TrimSpace(currency)
+		}
+		parts = append(parts, fmt.Sprintf("Estimated cost: %.2f %s", *item.EstimatedCost.Amount, costCurrency))
 	}
 	if strings.TrimSpace(tripURL) != "" {
 		parts = append(parts, "Trip: "+strings.TrimSpace(tripURL))

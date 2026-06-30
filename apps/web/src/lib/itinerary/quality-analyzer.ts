@@ -1,8 +1,10 @@
 import { getOpeningStatus, getTripItemDate } from "@/lib/itinerary/opening-hours-utils";
 import { getEffectiveReviewStatus } from "@/lib/itinerary/place-enrichment-review-utils";
 import { isValidCoordinate } from "@/lib/itinerary/map-utils";
+import { getCostAmount } from "@/lib/budget/format";
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
+import type { Budget, BudgetSummary } from "@/types/budget";
 import type { QualityIssue, QualityIssueSeverity, QualitySummary } from "@/types/quality";
 import type { RouteEstimate } from "@/types/route";
 import type { Itinerary, ItineraryDay, ItineraryItem } from "@/types/trip";
@@ -16,7 +18,35 @@ type AnalyzeItineraryQualityParams = {
   fallbackDistanceSummaries?: DayDistanceSummary[];
   maxWalkingKmPerDay?: number | null;
   placeMatchConfidenceThreshold?: number;
+  tripBudget?: Budget | null;
+  budgetSummary?: BudgetSummary | null;
+  expensiveItemThreshold?: number;
 };
+
+// Default absolute threshold (in the trip currency) above which a single paid
+// item is flagged as expensive when no budget-relative threshold applies.
+const DEFAULT_EXPENSIVE_ITEM_THRESHOLD = 150;
+const DAY_BUDGET_OVERRUN_RATIO = 1.25;
+const TRIP_BUDGET_CRITICAL_RATIO = 1.2;
+
+// Item types that usually carry a cost; a missing estimate on these is flagged.
+const paidItemTypeTerms = [
+  "food",
+  "restaurant",
+  "cafe",
+  "ticket",
+  "museum",
+  "attraction",
+  "activity",
+  "transport",
+  "accommodation",
+  "hotel",
+  "shopping",
+  "market",
+  "tour"
+];
+const freeItemTypeTerms = ["walk", "viewpoint", "rest", "break", "free", "note", "check"];
+const MISSING_ESTIMATE_GROUP_THRESHOLD = 3;
 
 type DistanceForDay = {
   distanceKm: number;
@@ -63,7 +93,10 @@ export function analyzeItineraryQuality({
   routeEstimatesByDay,
   fallbackDistanceSummaries,
   maxWalkingKmPerDay,
-  placeMatchConfidenceThreshold = DEFAULT_PLACE_MATCH_CONFIDENCE_THRESHOLD
+  placeMatchConfidenceThreshold = DEFAULT_PLACE_MATCH_CONFIDENCE_THRESHOLD,
+  tripBudget,
+  budgetSummary,
+  expensiveItemThreshold
 }: AnalyzeItineraryQualityParams): QualitySummary {
   const issues: QualityIssue[] = [];
   const summaries =
@@ -105,7 +138,190 @@ export function analyzeItineraryQuality({
     }
   }
 
+  issues.push(
+    ...getBudgetIssues({
+      itinerary,
+      tripBudget,
+      budgetSummary,
+      expensiveItemThreshold
+    })
+  );
+
   return summarizeIssues(issues);
+}
+
+type BudgetIssueParams = {
+  itinerary: Itinerary;
+  tripBudget?: Budget | null;
+  budgetSummary?: BudgetSummary | null;
+  expensiveItemThreshold?: number;
+};
+
+export function getBudgetIssues({
+  itinerary,
+  tripBudget,
+  budgetSummary,
+  expensiveItemThreshold
+}: BudgetIssueParams): QualityIssue[] {
+  if (!budgetSummary) {
+    return [];
+  }
+
+  const issues: QualityIssue[] = [];
+  const currency = budgetSummary.currency;
+  const budgetAmount =
+    budgetSummary.tripBudget ?? (tripBudget ? tripBudget.amount : null);
+
+  // A) Whole-trip over budget.
+  if (
+    budgetAmount != null &&
+    budgetAmount > 0 &&
+    budgetSummary.estimatedTotal > budgetAmount
+  ) {
+    const overBy = budgetSummary.estimatedTotal - budgetAmount;
+    const severity: QualityIssueSeverity =
+      budgetSummary.estimatedTotal > budgetAmount * TRIP_BUDGET_CRITICAL_RATIO
+        ? "critical"
+        : "warning";
+    issues.push({
+      id: "trip-budget-exceeded",
+      type: "trip_budget_exceeded",
+      severity,
+      scope: "trip",
+      title: "Over budget",
+      message: `Estimated total ${money(budgetSummary.estimatedTotal, currency)} exceeds the ${money(
+        budgetAmount,
+        currency
+      )} budget by ${money(overBy, currency)}.`,
+      suggestion: "Lower-cost alternatives or fewer paid activities can bring the trip back on budget.",
+      instructionHint: `Keep total estimated cost within ${money(budgetAmount, currency)}.`,
+      metadata: {
+        estimatedTotal: budgetSummary.estimatedTotal,
+        tripBudget: budgetAmount,
+        overBudgetBy: overBy
+      }
+    });
+  }
+
+  // B) Individual days well over their share of the budget.
+  for (const day of budgetSummary.byDay) {
+    if (day.dailyBudgetShare == null || day.dailyBudgetShare <= 0) {
+      continue;
+    }
+    if (day.estimatedTotal > day.dailyBudgetShare * DAY_BUDGET_OVERRUN_RATIO) {
+      const severity: QualityIssueSeverity =
+        day.estimatedTotal > day.dailyBudgetShare * 1.5 ? "critical" : "warning";
+      issues.push({
+        id: `day-${day.dayNumber}-budget-high`,
+        type: "day_budget_high",
+        severity,
+        scope: "day",
+        dayNumber: day.dayNumber,
+        title: "Day over daily budget",
+        message: `Day ${day.dayNumber} is estimated at ${money(
+          day.estimatedTotal,
+          currency
+        )}, above its ${money(day.dailyBudgetShare, currency)} daily share.`,
+        suggestion: "Replace or reorder paid activities to reduce this day's cost.",
+        instructionHint:
+          "This day is over the daily budget share. Replace or reorder paid activities to reduce cost.",
+        metadata: {
+          estimatedTotal: day.estimatedTotal,
+          dailyBudgetShare: day.dailyBudgetShare
+        }
+      });
+    }
+  }
+
+  // C) Individual expensive items, and D) likely-paid items missing an estimate.
+  const absoluteThreshold = expensiveItemThreshold ?? DEFAULT_EXPENSIVE_ITEM_THRESHOLD;
+  const budgetShareThreshold = budgetAmount != null ? budgetAmount * 0.3 : null;
+
+  for (const [dayIndex, day] of (itinerary.days ?? []).entries()) {
+    const dayNumber = day.day || dayIndex + 1;
+    let missingInDay = 0;
+    const missingItems: number[] = [];
+
+    for (const [itemIndex, item] of (day.items ?? []).entries()) {
+      const amount = getCostAmount(item.estimatedCost);
+
+      if (amount == null) {
+        if (itemLikelyNeedsCost(item.type)) {
+          missingInDay += 1;
+          missingItems.push(itemIndex);
+        }
+        continue;
+      }
+
+      const overShare = budgetShareThreshold != null && amount > budgetShareThreshold;
+      if (overShare || amount > absoluteThreshold) {
+        issues.push({
+          id: `day-${dayNumber}-item-${itemIndex}-expensive`,
+          type: "expensive_item",
+          severity: overShare ? "warning" : "info",
+          scope: "item",
+          dayNumber,
+          itemIndex,
+          title: "Expensive item",
+          message: `${item.name || "This item"} is estimated at ${money(amount, currency)}.`,
+          suggestion: "Consider a lower-cost alternative for this item.",
+          instructionHint:
+            "Reduce expensive paid activities and suggest lower-cost alternatives.",
+          metadata: { amount, threshold: budgetShareThreshold ?? absoluteThreshold }
+        });
+      }
+    }
+
+    if (missingInDay >= MISSING_ESTIMATE_GROUP_THRESHOLD) {
+      issues.push({
+        id: `day-${dayNumber}-missing-cost-estimates`,
+        type: "missing_cost_estimate",
+        severity: "info",
+        scope: "day",
+        dayNumber,
+        title: "Missing cost estimates",
+        message: `Day ${dayNumber} has ${missingInDay} paid items without a cost estimate.`,
+        suggestion: "Add realistic cost estimates so the budget summary is accurate.",
+        instructionHint: "Add realistic cost estimates for missing paid items.",
+        metadata: { missingCount: missingInDay }
+      });
+    } else {
+      for (const itemIndex of missingItems) {
+        const item = day.items?.[itemIndex];
+        issues.push({
+          id: `day-${dayNumber}-item-${itemIndex}-missing-cost`,
+          type: "missing_cost_estimate",
+          severity: "info",
+          scope: "item",
+          dayNumber,
+          itemIndex,
+          title: "Missing cost estimate",
+          message: `${item?.name || "This item"} likely has a cost but no estimate.`,
+          suggestion: "Add an estimated cost for this item.",
+          instructionHint: "Add realistic cost estimates for missing paid items.",
+          metadata: { itemType: item?.type ?? null }
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+function itemLikelyNeedsCost(itemType: string | null | undefined): boolean {
+  const normalized = (itemType ?? "").toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (freeItemTypeTerms.some((term) => normalized.includes(term))) {
+    return false;
+  }
+  return paidItemTypeTerms.some((term) => normalized.includes(term));
+}
+
+function money(amount: number, currency: string): string {
+  const rounded = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+  return `${rounded} ${currency}`;
 }
 
 function getDistanceForDay(

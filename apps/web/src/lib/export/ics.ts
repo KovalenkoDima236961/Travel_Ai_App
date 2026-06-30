@@ -1,3 +1,4 @@
+import { costBadgeLabel } from "@/lib/budget/format";
 import { slugifyForFilename } from "@/lib/export/export-filenames";
 import type { ExportTrip } from "@/lib/export/trip-export-adapter";
 import type { ItineraryItem } from "@/types/trip";
@@ -210,8 +211,8 @@ function buildDescription(item: ItineraryItem, currency?: string | null): string
     item.place?.name ? `Place: ${item.place.name}` : null,
     item.place?.address ? `Address: ${item.place.address}` : null,
     item.place?.mapUrl ? `Map: ${item.place.mapUrl}` : null,
-    item.estimatedCost != null
-      ? `Estimated cost: ${item.estimatedCost}${currency ? ` ${currency}` : ""}`
+    costBadgeLabel(item.estimatedCost, currency)
+      ? `Estimated cost: ${costBadgeLabel(item.estimatedCost, currency)}`
       : null
   ].filter((line): line is string => Boolean(line));
 

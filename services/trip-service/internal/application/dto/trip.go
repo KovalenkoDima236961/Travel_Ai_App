@@ -29,6 +29,16 @@ type UpdateItineraryInput struct {
 	ExpectedItineraryRevision *int
 }
 
+// UpdateTripBudgetInput is the application-level payload for a trip budget
+// update. Clear is true when the request explicitly clears the budget
+// (budget: null or a budget object without an amount); otherwise Amount and
+// Currency carry the new budget.
+type UpdateTripBudgetInput struct {
+	Amount   *float64
+	Currency string
+	Clear    bool
+}
+
 // GenerateItineraryInput is the application-level payload for full itinerary
 // generation.
 type GenerateItineraryInput struct {

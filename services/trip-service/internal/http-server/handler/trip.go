@@ -68,6 +68,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/shared-with-me", h.ListSharedTrips)
 		r.Get("/{id}", h.Get)
+		r.Get("/{id}/budget-summary", h.GetBudgetSummary)
+		r.Put("/{id}/budget", h.UpdateTripBudget)
 		r.Get("/{id}/share", h.GetShare)
 		r.Post("/{id}/share", h.CreateShare)
 		r.Patch("/{id}/share", h.UpdateShare)
@@ -217,6 +219,53 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response.NewTripWithAccess(t, access))
+}
+
+// GetBudgetSummary handles GET /trips/{id}/budget-summary. Any accepted
+// collaborator (owner/editor/viewer) may read it.
+func (h *Handler) GetBudgetSummary(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	summary, err := h.svc.GetBudgetSummary(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, summary)
+}
+
+// UpdateTripBudget handles PUT /trips/{id}/budget. Only owner/editor may update.
+// It does not require expectedItineraryRevision and does not mutate the
+// itinerary revision.
+func (h *Handler) UpdateTripBudget(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+
+	var req request.UpdateTripBudget
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	in, err := req.ToInput()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid budget")
+		return
+	}
+
+	updated, err := h.svc.UpdateTripBudget(r.Context(), id, in)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response.NewBudgetEnvelope(updated))
 }
 
 func (h *Handler) ListSharedTrips(w http.ResponseWriter, r *http.Request) {

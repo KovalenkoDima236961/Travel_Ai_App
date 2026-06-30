@@ -4,7 +4,8 @@ package activity
 // vocabulary stays consistent across recording call sites, the API, and tests.
 const (
 	// Trip.
-	EventTripCreated = "trip_created"
+	EventTripCreated       = "trip_created"
+	EventTripBudgetUpdated = "trip_budget_updated"
 
 	// Itinerary.
 	EventItineraryGenerated  = "itinerary_generated"
@@ -56,6 +57,7 @@ const (
 // an unknown type is allowed (forward-compat) but is logged so typos surface.
 var knownEventTypes = map[string]struct{}{
 	EventTripCreated:             {},
+	EventTripBudgetUpdated:       {},
 	EventItineraryGenerated:      {},
 	EventItineraryUpdated:        {},
 	EventDayRegenerated:          {},

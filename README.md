@@ -137,6 +137,20 @@ and per private trip; owners and editors can sync their own calendars, viewers
 and public share viewers cannot. v1 uses the primary calendar only, the
 `calendar.events` scope, and no two-way sync, webhooks, recurring events, or
 Apple/Outlook providers.
+Budget Tracking v1 gives each trip an optional structured budget
+(`{ amount, currency }`) and each itinerary item an optional structured
+`estimatedCost` (`{ amount, currency, category, confidence, source, note }`,
+AI-estimated or manually edited). Trip Service computes a budget summary on
+demand via `GET /trips/{id}/budget-summary` (estimated total, remaining/over,
+daily and category breakdowns) and owners/editors set the budget via
+`PUT /trips/{id}/budget` without touching the itinerary revision. Manual item
+cost edits reuse the existing revision-checked `PUT /trips/{id}/itinerary` flow,
+so conflict detection and version history apply unchanged. The Web App shows a
+`BudgetPanel`, item cost badges, and budget-aware quality warnings (over-budget
+trip/day, expensive items, missing estimates). AI generation/regeneration
+includes approximate costs in the trip/preferred currency. v1 uses one currency
+per trip with no conversion, no real ticket-price/booking provider, and never
+exposes the private trip budget on the public share page.
 
 Web App v1 supports register/login/logout and stores tokens in `localStorage`
 for development. Secure httpOnly cookies should replace localStorage token

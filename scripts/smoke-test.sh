@@ -714,6 +714,76 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
 
+echo "Checking budget summary reflects generated itinerary costs..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
+assert_2xx "Get budget summary"
+BUDGET_ESTIMATED_TOTAL="$(jq -r '.estimatedTotal // empty' <<<"${LAST_BODY}")"
+if [[ -z "${BUDGET_ESTIMATED_TOTAL}" ]]; then
+  echo "Budget summary did not include estimatedTotal." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.tripBudget == 500' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Expected budget summary tripBudget=500." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+echo "Budget summary estimatedTotal=${BUDGET_ESTIMATED_TOTAL}."
+
+echo "Updating the trip budget (must not change itineraryRevision)..."
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${ACCESS_TOKEN}" '{"budget":{"amount":300,"currency":"EUR"}}'
+assert_2xx "Update trip budget"
+if ! jq -e '.budget.amount == 300 and .budget.currency == "EUR"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Budget update did not echo the new budget." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch trip after budget update"
+REVISION_AFTER_BUDGET="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${REVISION_AFTER_BUDGET}" != "${TRIP_REVISION}" ]]; then
+  echo "Budget update unexpectedly changed itineraryRevision (${TRIP_REVISION} -> ${REVISION_AFTER_BUDGET})." >&2
+  exit 1
+fi
+
+echo "Rejecting an invalid budget currency..."
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${ACCESS_TOKEN}" '{"budget":{"amount":100,"currency":"EU"}}'
+assert_status "Invalid budget currency" "400"
+
+echo "Confirming budget summary reflects the lower budget..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
+assert_2xx "Get budget summary after budget update"
+if ! jq -e '.tripBudget == 300' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Budget summary did not reflect updated budget 300." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Editing an item cost through the revision-checked itinerary update..."
+UPDATED_ITINERARY="$(jq -c \
+  '.itinerary | .days[0].items[0].estimatedCost = {amount:123.45,currency:"EUR",category:"activity",confidence:"high",source:"manual",note:"smoke"}' \
+  <<<"${COMPLETED_TRIP_BODY}")"
+ITINERARY_UPDATE_PAYLOAD="$(jq -nc --argjson itinerary "${UPDATED_ITINERARY}" --argjson revision "${TRIP_REVISION}" '{itinerary:$itinerary,expectedItineraryRevision:$revision}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${ACCESS_TOKEN}" "${ITINERARY_UPDATE_PAYLOAD}"
+assert_2xx "Update itinerary item cost"
+NEW_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${NEW_REVISION}" != "$((TRIP_REVISION + 1))" ]]; then
+  echo "Expected itineraryRevision to increment to $((TRIP_REVISION + 1)), got ${NEW_REVISION}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+TRIP_REVISION="${NEW_REVISION}"
+
+echo "Confirming budget summary reflects the edited item cost..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
+assert_2xx "Get budget summary after item cost edit"
+if ! jq -e '.estimatedTotal >= 123.45' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Budget summary did not reflect the edited item cost." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+echo "Budget tracking checks passed."
+
 if [[ "${CALENDAR_PROVIDER:-mock}" == "mock" ]]; then
   echo "Checking mock Google Calendar connection and sync..."
   request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/calendar/google/status" "${ACCESS_TOKEN}"
@@ -902,6 +972,12 @@ fi
 echo "Checking accepted viewer can update viewing presence..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/presence/state" "${COLLAB_ACCESS_TOKEN}" '{"state":"viewing"}'
 assert_2xx "Accepted viewer presence state"
+
+echo "Checking accepted viewer can read the budget summary but cannot update the budget..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer get budget summary"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${COLLAB_ACCESS_TOKEN}" '{"budget":{"amount":1000,"currency":"EUR"}}'
+assert_status "Viewer update budget" "403"
 
 echo "Checking viewer can view but cannot edit..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"

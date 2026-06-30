@@ -16,6 +16,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -60,6 +61,7 @@ type editableItinerary struct {
 // unexported — the use case owns the abstraction it consumes.
 type tripRepository interface {
 	Create(ctx context.Context, t *entity.Trip) (*entity.Trip, error)
+	UpdateTripBudget(ctx context.Context, id, userID uuid.UUID, amount *float64, currency string) (*entity.Trip, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error)
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
@@ -932,8 +934,8 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].name is required", dayIndex, itemIndex)
 			}
 			item.Note = strings.TrimSpace(item.Note)
-			if item.EstimatedCost != nil && *item.EstimatedCost < 0 {
-				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].estimatedCost must be >= 0", dayIndex, itemIndex)
+			if err := budget.NormalizeEstimatedCost(item.EstimatedCost, budget.SourceManual); err != nil {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].estimatedCost: %s", dayIndex, itemIndex, err.Error())
 			}
 			if err := validateAndNormalizePlaceRef(item.Place, "itinerary.days[%d].items[%d].place", dayIndex, itemIndex); err != nil {
 				return nil, err
@@ -1008,7 +1010,7 @@ func validateCurrentItinerary(itinerary aggregate.Itinerary) error {
 				strings.TrimSpace(item.Name) == "" {
 				return currentItineraryInvalidError()
 			}
-			if item.EstimatedCost != nil && *item.EstimatedCost < 0 {
+			if item.EstimatedCost != nil && item.EstimatedCost.Amount != nil && *item.EstimatedCost.Amount < 0 {
 				return currentItineraryInvalidError()
 			}
 			if err := validateAndNormalizePlaceRef(item.Place, "place"); err != nil {
@@ -1067,8 +1069,8 @@ func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.Itinerar
 	if normalized.Name == "" {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item name is required")
 	}
-	if normalized.EstimatedCost != nil && *normalized.EstimatedCost < 0 {
-		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item estimated cost must be >= 0")
+	if err := budget.NormalizeEstimatedCost(normalized.EstimatedCost, budget.SourceAI); err != nil {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item estimatedCost is invalid: %s", err.Error())
 	}
 	if err := validateAndNormalizePlaceRef(normalized.Place, "replacement item place"); err != nil {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item place is invalid")
@@ -1506,11 +1508,34 @@ func (s *Service) enrichGeneratedItinerary(ctx context.Context, tripID uuid.UUID
 	if itinerary == nil {
 		return itinerary, nil
 	}
+	normalizeGeneratedCosts(itinerary)
 	result, err := s.enrichItinerary(ctx, tripID, trip, *itinerary, "generate")
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+// normalizeGeneratedCosts repairs AI-generated item cost estimates in place.
+// Generated output defaults source to "ai"; an estimate that cannot be repaired
+// (negative amount or malformed currency) is dropped rather than failing the
+// whole generation.
+func normalizeGeneratedCosts(itinerary *aggregate.Itinerary) {
+	if itinerary == nil {
+		return
+	}
+	for dayIndex := range itinerary.Days {
+		items := itinerary.Days[dayIndex].Items
+		for itemIndex := range items {
+			cost := items[itemIndex].EstimatedCost
+			if cost == nil {
+				continue
+			}
+			if err := budget.NormalizeEstimatedCost(cost, budget.SourceAI); err != nil {
+				items[itemIndex].EstimatedCost = nil
+			}
+		}
+	}
 }
 
 func (s *Service) enrichReplacementDay(ctx context.Context, tripID uuid.UUID, trip entity.Trip, day aggregate.ItineraryDay) (aggregate.ItineraryDay, error) {

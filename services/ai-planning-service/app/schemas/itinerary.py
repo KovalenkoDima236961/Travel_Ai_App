@@ -1,5 +1,6 @@
+import re
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -16,6 +17,22 @@ from pydantic import (
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 CurrencyCode = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=3)]
 Pace = Literal["relaxed", "balanced", "intensive"]
+
+# Item-level cost-estimate vocabularies, kept in sync with Trip Service and the
+# web client.
+COST_CATEGORIES = {
+    "food",
+    "transport",
+    "ticket",
+    "activity",
+    "accommodation",
+    "shopping",
+    "other",
+}
+COST_CONFIDENCES = {"low", "medium", "high"}
+COST_SOURCES = {"ai", "manual", "provider"}
+_CURRENCY_PATTERN = re.compile(r"^[A-Z]{3}$")
+_MAX_COST_NOTE = 300
 
 
 def _serialize_decimal(value: Decimal | None) -> int | float | None:
@@ -214,16 +231,128 @@ class PlaceRef(APIModel):
     opening_hours: list[OpeningHoursInterval] = Field(default_factory=list, alias="openingHours")
 
 
+class EstimatedCost(APIModel):
+    """Structured item-level cost estimate.
+
+    Soft problems are repaired during validation (unknown category -> "other",
+    unknown confidence dropped, invalid currency dropped, note truncated) so a
+    single bad field never fails generation. A negative amount is intentionally
+    left intact so downstream validation can reject it.
+    """
+
+    amount: Decimal | None = None
+    currency: str | None = None
+    category: str | None = None
+    confidence: str | None = None
+    source: str | None = None
+    note: str | None = None
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def _empty_amount_to_none(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
+
+    @field_validator("currency")
+    @classmethod
+    def _normalize_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if not normalized or not _CURRENCY_PATTERN.match(normalized):
+            return None
+        return normalized
+
+    @field_validator("category")
+    @classmethod
+    def _normalize_category(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        return normalized if normalized in COST_CATEGORIES else "other"
+
+    @field_validator("confidence")
+    @classmethod
+    def _normalize_confidence(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        return normalized if normalized in COST_CONFIDENCES else None
+
+    @field_validator("source")
+    @classmethod
+    def _normalize_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        return normalized if normalized in COST_SOURCES else None
+
+    @field_validator("note")
+    @classmethod
+    def _normalize_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return normalized[:_MAX_COST_NOTE]
+
+    @model_validator(mode="after")
+    def _apply_defaults(self) -> "EstimatedCost":
+        # Generated output defaults to source "ai"; a present amount gets a
+        # low-confidence/other-category default when unspecified.
+        if self.amount is not None:
+            if self.source is None:
+                self.source = "ai"
+            if self.confidence is None:
+                self.confidence = "low"
+            if self.category is None:
+                self.category = "other"
+        return self
+
+    @field_serializer("amount", when_used="json")
+    def serialize_amount(self, value: Decimal | None) -> int | float | None:
+        return _serialize_decimal(value)
+
+
 class ItineraryItem(APIModel):
     time: str
     type: str
     name: str
     note: str | None = None
-    estimated_cost: Decimal | None = Field(default=None, alias="estimatedCost")
+    estimated_cost: EstimatedCost | None = Field(default=None, alias="estimatedCost")
 
-    @field_serializer("estimated_cost", when_used="json")
-    def serialize_estimated_cost(self, value: Decimal | None) -> int | float | None:
-        return _serialize_decimal(value)
+    @field_validator("estimated_cost", mode="before")
+    @classmethod
+    def _coerce_estimated_cost(cls, value: object) -> object:
+        """Accept the structured object or the legacy bare-number form.
+
+        An invalid/unrepairable cost object is dropped to null rather than
+        failing the whole itinerary.
+        """
+        if value is None or isinstance(value, EstimatedCost):
+            return value
+        if isinstance(value, (int, float, Decimal)):
+            payload: object = {"amount": value}
+        elif isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                payload = {"amount": Decimal(stripped)}
+            except (InvalidOperation, ValueError):
+                return None
+        elif isinstance(value, dict):
+            payload = value
+        else:
+            return None
+        try:
+            return EstimatedCost.model_validate(payload)
+        except ValueError:
+            return None
 
 
 class ItineraryDay(APIModel):

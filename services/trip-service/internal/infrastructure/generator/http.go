@@ -191,7 +191,7 @@ func (g *AIPlanningHTTPGenerator) Generate(ctx context.Context, input applicatio
 func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input application.RegenerateDayInput) (*aggregate.ItineraryDay, error) {
 	trip := input.Trip
 	payload := aiPlanningRegenerateDayRequest{
-		Trip:             newAIPlanningTripRequest(trip),
+		Trip:             newAIPlanningTripRequest(trip, input.UserProfile),
 		CurrentItinerary: input.CurrentItinerary,
 		DayNumber:        input.DayNumber,
 		Instruction:      input.Instruction,
@@ -211,7 +211,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input appli
 func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input application.RegenerateItemInput) (*aggregate.ItineraryItem, error) {
 	trip := input.Trip
 	payload := aiPlanningRegenerateItemRequest{
-		Trip:             newAIPlanningTripRequest(trip),
+		Trip:             newAIPlanningTripRequest(trip, input.UserProfile),
 		CurrentItinerary: input.CurrentItinerary,
 		DayNumber:        input.DayNumber,
 		ItemIndex:        input.ItemIndex,
@@ -236,10 +236,7 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		startDate = &formatted
 	}
 
-	currency := strings.TrimSpace(trip.BudgetCurrency)
-	if currency == "" {
-		currency = defaultCurrency
-	}
+	currency := resolveRequestCurrency(trip.BudgetCurrency, input.UserProfile)
 	pace := strings.TrimSpace(trip.Pace)
 	if pace == "" {
 		pace = defaultPace
@@ -265,17 +262,28 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 	}
 }
 
-func newAIPlanningTripRequest(trip entity.Trip) aiPlanningTripRequest {
+// resolveRequestCurrency chooses the currency sent to AI Planning Service: the
+// trip budget currency, then the user's preferred currency, then the default.
+func resolveRequestCurrency(budgetCurrency string, profile *usercontext.UserProfile) string {
+	if c := strings.ToUpper(strings.TrimSpace(budgetCurrency)); c != "" {
+		return c
+	}
+	if profile != nil {
+		if c := strings.ToUpper(strings.TrimSpace(profile.PreferredCurrency)); c != "" {
+			return c
+		}
+	}
+	return defaultCurrency
+}
+
+func newAIPlanningTripRequest(trip entity.Trip, profile *usercontext.UserProfile) aiPlanningTripRequest {
 	var startDate *string
 	if trip.StartDate != nil {
 		formatted := trip.StartDate.Format("2006-01-02")
 		startDate = &formatted
 	}
 
-	currency := strings.TrimSpace(trip.BudgetCurrency)
-	if currency == "" {
-		currency = defaultCurrency
-	}
+	currency := resolveRequestCurrency(trip.BudgetCurrency, profile)
 	pace := strings.TrimSpace(trip.Pace)
 	if pace == "" {
 		pace = defaultPace

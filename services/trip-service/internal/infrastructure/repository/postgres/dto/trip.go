@@ -51,6 +51,17 @@ func IDArg(id uuid.UUID) pgtype.UUID {
 	return toPgUUID(id)
 }
 
+// NumericArg encodes a nullable decimal (e.g. budget_amount) for a query value.
+func NumericArg(f *float64) pgtype.Numeric {
+	return toPgNumeric(f)
+}
+
+// TextArg encodes a nullable text column (e.g. budget_currency); an empty string
+// is stored as NULL.
+func TextArg(s string) pgtype.Text {
+	return toPgText(s)
+}
+
 // Scan reads a single row (in Columns order) into a domain Trip. It returns
 // domain errs.ErrNotFound when the row is absent.
 func Scan(row pgx.Row) (*entity.Trip, error) {

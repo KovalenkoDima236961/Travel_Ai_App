@@ -32,6 +32,12 @@ type mockRepo struct {
 	createdTrip *entity.Trip
 	createErr   error
 
+	budgetUpdateAmount   *float64
+	budgetUpdateCurrency string
+	budgetUpdateUserID   uuid.UUID
+	budgetUpdateCalled   bool
+	budgetUpdateErr      error
+
 	getByIDResult *entity.Trip
 	getByIDErr    error
 	getByIDUserID uuid.UUID
@@ -85,6 +91,23 @@ func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, erro
 	out.ID = uuid.New()
 	out.CreatedAt = time.Now()
 	out.UpdatedAt = time.Now()
+	return &out, nil
+}
+
+func (m *mockRepo) UpdateTripBudget(_ context.Context, id, userID uuid.UUID, amount *float64, currency string) (*entity.Trip, error) {
+	m.budgetUpdateCalled = true
+	m.budgetUpdateAmount = amount
+	m.budgetUpdateCurrency = currency
+	m.budgetUpdateUserID = userID
+	if m.budgetUpdateErr != nil {
+		return nil, m.budgetUpdateErr
+	}
+	out := entity.Trip{ID: id, UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}
+	if m.getByIDResult != nil {
+		out = *m.getByIDResult
+	}
+	out.BudgetAmount = amount
+	out.BudgetCurrency = currency
 	return &out, nil
 }
 

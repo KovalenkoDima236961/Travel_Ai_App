@@ -22,14 +22,18 @@ class ItineraryGenerator(Protocol):
 
 class MockItineraryGenerator:
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse:
-        days = [
-            ItineraryDay(
-                day=day_number,
-                title=self._title_for_day(request, day_number),
-                items=self._items_for_day(request, day_number),
+        currency = request.budget_currency
+        days: list[ItineraryDay] = []
+        for day_number in range(1, request.days + 1):
+            items = self._items_for_day(request, day_number)
+            _finalize_item_costs(items, currency)
+            days.append(
+                ItineraryDay(
+                    day=day_number,
+                    title=self._title_for_day(request, day_number),
+                    items=items,
+                )
             )
-            for day_number in range(1, request.days + 1)
-        ]
         return ItineraryResponse(days=days)
 
     def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse:
@@ -56,33 +60,35 @@ class MockItineraryGenerator:
             )
             third_note = "Plan this slower indoor break to avoid the afternoon heat."
 
+        items = [
+            ItineraryItem(
+                time=first_time,
+                type="activity",
+                name=f"Updated {destination} neighborhood walk",
+                note=first_note,
+                estimated_cost=Decimal("0"),
+            ),
+            ItineraryItem(
+                time="12:30",
+                type="food",
+                name="Budget local lunch" if cheap else "Local lunch stop",
+                note="Simple local food option selected for partial regeneration.",
+                estimated_cost=lunch_cost,
+            ),
+            ItineraryItem(
+                time="15:30",
+                type=third_type,
+                name=third_name,
+                note=third_note,
+                estimated_cost=Decimal("6"),
+            ),
+        ]
+        _finalize_item_costs(items, request.trip.budget_currency)
         return RegenerateDayResponse(
             day=ItineraryDay(
                 day=request.day_number,
                 title=f"Day {request.day_number}: refreshed {destination} plan",
-                items=[
-                    ItineraryItem(
-                        time=first_time,
-                        type="activity",
-                        name=f"Updated {destination} neighborhood walk",
-                        note=first_note,
-                        estimated_cost=Decimal("0"),
-                    ),
-                    ItineraryItem(
-                        time="12:30",
-                        type="food",
-                        name="Budget local lunch" if cheap else "Local lunch stop",
-                        note="Simple local food option selected for partial regeneration.",
-                        estimated_cost=lunch_cost,
-                    ),
-                    ItineraryItem(
-                        time="15:30",
-                        type=third_type,
-                        name=third_name,
-                        note=third_note,
-                        estimated_cost=Decimal("6"),
-                    ),
-                ],
+                items=items,
             )
         )
 
@@ -103,15 +109,15 @@ class MockItineraryGenerator:
             note = "Rain is likely, so this replacement keeps the plan indoors."
         elif weather_day and weather_day.temperature_max_c >= 32:
             note += " High heat expected; choose a shaded or indoor option."
-        return RegenerateItemResponse(
-            item=ItineraryItem(
-                time="12:30",
-                type=item_type,
-                name=item_name,
-                note=note,
-                estimated_cost=Decimal("9") if cheap else Decimal("15"),
-            )
+        item = ItineraryItem(
+            time="12:30",
+            type=item_type,
+            name=item_name,
+            note=note,
+            estimated_cost=Decimal("9") if cheap else Decimal("15"),
         )
+        _finalize_item_costs([item], request.trip.budget_currency)
+        return RegenerateItemResponse(item=item)
 
     def _title_for_day(self, request: GenerateItineraryRequest, day_number: int) -> str:
         interests = self._personalized_interests(request)
@@ -342,6 +348,37 @@ class MockItineraryGenerator:
             interests.add("food")
             interests.add("local_food")
         return interests
+
+
+_TYPE_TO_COST_CATEGORY = {
+    "food": "food",
+    "transport": "transport",
+    "activity": "activity",
+    "place": "ticket",
+    "rest": "other",
+}
+
+
+def _infer_cost_category(item_type: str) -> str:
+    return _TYPE_TO_COST_CATEGORY.get(item_type.strip().lower(), "other")
+
+
+def _finalize_item_costs(items: list[ItineraryItem], currency: str | None) -> None:
+    """Fill in the currency, category and source for sample item estimates.
+
+    The deterministic items are built with a bare amount; this fills the rest of
+    the structured estimate so mock output mirrors real generated costs.
+    """
+    for item in items:
+        cost = item.estimated_cost
+        if cost is None:
+            continue
+        if cost.currency is None and currency:
+            cost.currency = currency
+        if cost.category in (None, "other"):
+            cost.category = _infer_cost_category(item.type)
+        if cost.source is None:
+            cost.source = "ai"
 
 
 def _normalize_interest(value: str) -> str:

@@ -36,7 +36,7 @@ describe("generateTripIcs", () => {
 
     expect(ics).toContain("Place: Test Museum");
     expect(ics).toContain("Map: https://maps.example.com/test");
-    expect(ics).toContain("Estimated cost: 15 EUR");
+    expect(ics).toContain("Estimated cost: €15 ticket");
   });
 
   it("does not include private fields after adapter sanitization", () => {
@@ -76,7 +76,7 @@ function baseExportTrip(): ExportTrip {
               type: "activity",
               name: "Museum, East; Wing",
               note: "Line 1\nLine 2",
-              estimatedCost: 15,
+              estimatedCost: { amount: 15, currency: "EUR", category: "ticket" },
               place: {
                 provider: "mock",
                 providerPlaceId: "",

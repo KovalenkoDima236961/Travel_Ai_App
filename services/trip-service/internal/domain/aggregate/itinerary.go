@@ -1,6 +1,10 @@
 package aggregate
 
-import "time"
+import (
+	"bytes"
+	"encoding/json"
+	"time"
+)
 
 // Itinerary is the generated plan associated with a trip. It is stored on the
 // trip as JSONB. The typed shape is shared by local and remote itinerary
@@ -30,9 +34,52 @@ type ItineraryItem struct {
 	Type            string               `json:"type"`
 	Name            string               `json:"name"`
 	Note            string               `json:"note,omitempty"`
-	EstimatedCost   *float64             `json:"estimatedCost,omitempty"`
+	EstimatedCost   *EstimatedCost       `json:"estimatedCost,omitempty"`
 	Place           *PlaceRef            `json:"place,omitempty"`
 	PlaceEnrichment *PlaceEnrichmentMeta `json:"placeEnrichment,omitempty"`
+}
+
+// EstimatedCost is the structured, item-level cost estimate stored on an
+// itinerary item as part of the itinerary JSONB. All fields are optional; an
+// item without a meaningful estimate omits the whole object. Currency, when
+// present, is an uppercase ISO-like 3-letter code; an empty currency is treated
+// as the trip/itinerary currency by budget computations (no conversion in v1).
+type EstimatedCost struct {
+	Amount     *float64 `json:"amount,omitempty"`
+	Currency   string   `json:"currency,omitempty"`
+	Category   string   `json:"category,omitempty"`
+	Confidence string   `json:"confidence,omitempty"`
+	Source     string   `json:"source,omitempty"`
+	Note       string   `json:"note,omitempty"`
+}
+
+// UnmarshalJSON accepts both the structured object form and the legacy bare
+// number form (where estimatedCost was a single float). This keeps itineraries
+// stored or generated before Budget Tracking v1 readable. A null payload leaves
+// the value zeroed (callers hold it behind a pointer, so null stays nil).
+func (c *EstimatedCost) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil
+	}
+	if trimmed[0] == '{' {
+		// Alias avoids recursing back into this method.
+		type alias EstimatedCost
+		var a alias
+		if err := json.Unmarshal(trimmed, &a); err != nil {
+			return err
+		}
+		*c = EstimatedCost(a)
+		return nil
+	}
+
+	// Legacy form: a bare number meaning the amount only.
+	var amount float64
+	if err := json.Unmarshal(trimmed, &amount); err != nil {
+		return err
+	}
+	c.Amount = &amount
+	return nil
 }
 
 // OpeningHoursInterval is one local-time opening interval for an attached

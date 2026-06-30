@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AttachPlaceDialog } from "@/components/places/AttachPlaceDialog";
+import { ItemCostEditor } from "@/components/budget/ItemCostEditor";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -56,6 +57,7 @@ export function ItineraryEditor({
   onChange
 }: ItineraryEditorProps) {
   const days = itinerary.days ?? [];
+  const tripCurrency = (itinerary.currency ?? "EUR").toUpperCase();
   const [moveTargets, setMoveTargets] = useState<Record<string, number>>({});
   const [reorderMessage, setReorderMessage] = useState<string | null>(null);
   const [attachTarget, setAttachTarget] = useState<{ dayIndex: number; itemIndex: number } | null>(
@@ -325,30 +327,6 @@ export function ItineraryEditor({
                     />
                   </div>
 
-                  <div className="grid gap-2">
-                    <label
-                      className="text-sm font-medium text-slate-700"
-                      htmlFor={`item-cost-${dayIndex}-${itemIndex}`}
-                    >
-                      Cost
-                    </label>
-                    <Input
-                      disabled={disabled}
-                      id={`item-cost-${dayIndex}-${itemIndex}`}
-                      min={0}
-                      onChange={(event) =>
-                        updateItem(dayIndex, itemIndex, {
-                          estimatedCost:
-                            event.target.value === "" ? null : Number(event.target.value)
-                        })
-                      }
-                      placeholder="0"
-                      step="0.01"
-                      type="number"
-                      value={item.estimatedCost ?? ""}
-                    />
-                  </div>
-
                   <div className="flex items-end">
                     <Button
                       disabled={disabled}
@@ -359,6 +337,19 @@ export function ItineraryEditor({
                       Remove
                     </Button>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-md border border-slate-200 bg-white p-3">
+                  <p className="mb-3 text-sm font-medium text-slate-700">Estimated cost</p>
+                  <ItemCostEditor
+                    cost={item.estimatedCost}
+                    disabled={disabled}
+                    idPrefix={`item-cost-${dayIndex}-${itemIndex}`}
+                    onChange={(estimatedCost) =>
+                      updateItem(dayIndex, itemIndex, { estimatedCost })
+                    }
+                    tripCurrency={tripCurrency}
+                  />
                 </div>
 
                 <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">

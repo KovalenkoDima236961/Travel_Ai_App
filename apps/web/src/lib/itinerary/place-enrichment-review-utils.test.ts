@@ -28,7 +28,7 @@ function item(overrides: Partial<ItineraryItem> = {}): ItineraryItem {
     type: "activity",
     name: "Colosseum",
     note: "Original note",
-    estimatedCost: 12,
+    estimatedCost: { amount: 12, currency: "EUR", category: "ticket" },
     ...overrides
   };
 }

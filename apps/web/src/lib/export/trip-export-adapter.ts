@@ -67,8 +67,11 @@ export function toExportTripFromPublicTrip(
     destination: trip.destination,
     startDate: trip.startDate ?? null,
     days: trip.days,
-    budgetAmount: trip.budgetAmount ?? null,
-    budgetCurrency: trip.budgetCurrency ?? null,
+    // The private trip budget is never exposed on the public share. Item-level
+    // costs (which carry their own currency) remain in the shared itinerary; the
+    // itinerary currency is used only as a display fallback for those costs.
+    budgetAmount: null,
+    budgetCurrency: trip.itinerary?.currency ?? null,
     travelers: trip.travelers ?? null,
     interests: cloneStringArray(trip.interests),
     pace: trip.pace ?? null,

@@ -1,3 +1,4 @@
+import { getCostAmount } from "@/lib/budget/format";
 import type { Itinerary, ItineraryDay, ItineraryItem } from "@/types/trip";
 
 export type ItemMoveDirection = "up" | "down";
@@ -163,11 +164,9 @@ export function validateEditableItinerary(itinerary: Itinerary): string[] {
       if (!item.name.trim()) {
         errors.push(`${itemLabel} needs a name.`);
       }
-      if (item.estimatedCost != null && item.estimatedCost < 0) {
+      const costAmount = getCostAmount(item.estimatedCost);
+      if (costAmount != null && costAmount < 0) {
         errors.push(`${itemLabel} cost must be 0 or more.`);
-      }
-      if (item.estimatedCost != null && Number.isNaN(item.estimatedCost)) {
-        errors.push(`${itemLabel} cost must be a valid number.`);
       }
       if (item.place) {
         if (!item.place.provider.trim()) {

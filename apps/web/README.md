@@ -576,6 +576,8 @@ service signals:
 - place opening hours at the scheduled item time
 - place enrichment confidence and review state
 - missing map-ready place coordinates for enriched itinerary items
+- budget signals (see Budget Tracking v1): over-budget trip/day, expensive items,
+  and likely-paid items missing a cost estimate
 
 The checks are advisory and never regenerate automatically. Users stay in
 control: `Improve day` and `Improve item` buttons build concise AI instructions
@@ -590,6 +592,34 @@ logic. If route estimates, weather, preferences, opening hours, or enrichment
 metadata are unavailable, the card simply omits those checks and continues with
 the signals it has. In manual edit mode, AI improvement buttons are hidden and
 the card asks the user to save or cancel edits first.
+
+## Budget Tracking v1
+
+Private trip detail pages show a `Budget` panel in the sidebar. It fetches
+`GET /trips/{id}/budget-summary` and shows the trip budget, estimated total,
+remaining or over-budget amount, daily totals, and category totals. When the
+estimated total exceeds the budget it switches to a warning style. Owners and
+editors can set, edit, or clear the trip budget through `PUT /trips/{id}/budget`
+(viewers see a read-only panel). Updating the budget does not change the
+itinerary revision.
+
+Itinerary items show a compact cost badge (for example `€18 ticket`, with
+`(approx.)` for low-confidence and a small `manual` marker for hand-edited
+costs). Item costs are edited through the existing itinerary editor: the
+`ItemCostEditor` sets a structured `estimatedCost` (amount, currency, category,
+confidence, note) with `source: "manual"`, and the editor saves with
+`expectedItineraryRevision`, so conflict detection and version history apply
+unchanged. A stale cost edit returns `409 itinerary_conflict`.
+
+Budget-aware quality checks (`trip_budget_exceeded`, `day_budget_high`,
+`expensive_item`, `missing_cost_estimate`) appear in the Trip Quality Checks
+card. `Improve day` instructions ask the AI to reduce cost; for a whole-trip
+overrun the card offers an `Improve day N` action targeting the highest-cost day.
+
+Private PDF export can include a budget summary (trip budget, estimated total,
+remaining/over, and daily totals) plus item cost badges. The public share page
+and public export never show the private trip budget; only item-level cost
+badges that are part of the shared itinerary are visible.
 
 ## Route Optimization v1
 
