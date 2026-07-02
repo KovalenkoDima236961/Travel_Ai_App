@@ -75,12 +75,27 @@ type EditLocksConfig struct {
 }
 
 type GenerationJobsConfig struct {
-	Enabled                   bool `yaml:"enabled" env:"GENERATION_JOBS_ENABLED" env-default:"true"`
-	WorkerEnabled             bool `yaml:"worker_enabled" env:"GENERATION_JOB_WORKER_ENABLED" env-default:"true"`
-	WorkerPollIntervalSeconds int  `yaml:"worker_poll_interval_seconds" env:"GENERATION_JOB_WORKER_POLL_INTERVAL_SECONDS" env-default:"2" validate:"min=1"`
-	WorkerMaxConcurrent       int  `yaml:"worker_max_concurrent" env:"GENERATION_JOB_WORKER_MAX_CONCURRENT" env-default:"1" validate:"min=1"`
-	MaxRunningSeconds         int  `yaml:"max_running_seconds" env:"GENERATION_JOB_MAX_RUNNING_SECONDS" env-default:"600" validate:"min=1"`
-	FailOpenNotifications     bool `yaml:"fail_open_notifications" env:"GENERATION_JOB_FAIL_OPEN_NOTIFICATIONS" env-default:"true"`
+	Enabled                   bool   `yaml:"enabled" env:"GENERATION_JOBS_ENABLED" env-default:"true"`
+	WorkerEnabled             bool   `yaml:"worker_enabled" env:"GENERATION_JOB_WORKER_ENABLED" env-default:"true"`
+	DispatchMode              string `yaml:"dispatch_mode" env:"GENERATION_JOB_DISPATCH_MODE" env-default:"in_process" validate:"oneof=in_process queue"`
+	WorkerPollIntervalSeconds int    `yaml:"worker_poll_interval_seconds" env:"GENERATION_JOB_WORKER_POLL_INTERVAL_SECONDS" env-default:"2" validate:"min=1"`
+	WorkerMaxConcurrent       int    `yaml:"worker_max_concurrent" env:"GENERATION_JOB_WORKER_MAX_CONCURRENT" env-default:"1" validate:"min=1"`
+	MaxRunningSeconds         int    `yaml:"max_running_seconds" env:"GENERATION_JOB_MAX_RUNNING_SECONDS" env-default:"600" validate:"min=1"`
+	PublishTimeoutSeconds     int    `yaml:"publish_timeout_seconds" env:"GENERATION_JOB_PUBLISH_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
+	PublishFailOpen           bool   `yaml:"publish_fail_open" env:"GENERATION_JOB_PUBLISH_FAIL_OPEN" env-default:"false"`
+	RabbitMQURL               string `yaml:"rabbitmq_url" env:"RABBITMQ_URL" env-default:"amqp://guest:guest@rabbitmq:5672/"`
+	RabbitMQExchange          string `yaml:"rabbitmq_exchange" env:"RABBITMQ_EXCHANGE" env-default:"trip.jobs.exchange"`
+	RabbitMQDLX               string `yaml:"rabbitmq_dlx" env:"RABBITMQ_DLX" env-default:"trip.jobs.dlx"`
+	QueueName                 string `yaml:"queue_name" env:"GENERATION_JOBS_QUEUE" env-default:"trip.generation.jobs"`
+	RoutingKey                string `yaml:"routing_key" env:"GENERATION_JOBS_ROUTING_KEY" env-default:"trip.generation"`
+	DeadLetterQueueName       string `yaml:"dead_letter_queue_name" env:"GENERATION_JOBS_DEAD_LETTER_QUEUE" env-default:"trip.generation.dead_letter"`
+	DeadLetterRoutingKey      string `yaml:"dead_letter_routing_key" env:"GENERATION_JOBS_DEAD_LETTER_ROUTING_KEY" env-default:"trip.generation.dead"`
+	RetryQueueName            string `yaml:"retry_queue_name" env:"GENERATION_JOBS_RETRY_QUEUE" env-default:"trip.generation.retry"`
+	RetryRoutingKey           string `yaml:"retry_routing_key" env:"GENERATION_JOBS_RETRY_ROUTING_KEY" env-default:"trip.generation.retry"`
+	RetryDelaySeconds         int    `yaml:"retry_delay_seconds" env:"GENERATION_JOBS_RETRY_DELAY_SECONDS" env-default:"10" validate:"min=1"`
+	Prefetch                  int    `yaml:"prefetch" env:"GENERATION_JOBS_PREFETCH" env-default:"1" validate:"min=1"`
+	MaxAttempts               int    `yaml:"max_attempts" env:"GENERATION_JOBS_MAX_ATTEMPTS" env-default:"3" validate:"min=1"`
+	FailOpenNotifications     bool   `yaml:"fail_open_notifications" env:"GENERATION_JOB_FAIL_OPEN_NOTIFICATIONS" env-default:"true"`
 }
 
 type CalendarSyncConfig struct {
@@ -230,6 +245,10 @@ func (c *Config) GenerationJobWorkerPollInterval() time.Duration {
 
 func (c *Config) GenerationJobMaxRunning() time.Duration {
 	return time.Duration(c.GenerationJobs.MaxRunningSeconds) * time.Second
+}
+
+func (c *Config) GenerationJobPublishTimeout() time.Duration {
+	return time.Duration(c.GenerationJobs.PublishTimeoutSeconds) * time.Second
 }
 
 // MustLoad loads and validates the configuration, panicking on any error.

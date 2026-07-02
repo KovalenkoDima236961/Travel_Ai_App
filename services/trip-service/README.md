@@ -87,10 +87,43 @@ day/item index mapping.
 AI full generation and day/item regeneration can run through PostgreSQL-backed
 `trip_generation_jobs` rows. The new asynchronous endpoints validate private
 owner/editor access and `expectedItineraryRevision`, insert a queued job, and
-return `202 Accepted` with a `job` payload immediately. The in-process worker
-claims queued jobs with `FOR UPDATE SKIP LOCKED`, runs the existing generation
-service methods, and saves only through the existing revision-aware itinerary
-update path.
+return `202 Accepted` with a `job` payload immediately.
+
+Dispatch mode is controlled by `GENERATION_JOB_DISPATCH_MODE`:
+
+- `in_process` keeps the legacy Trip Service poller. It claims queued jobs with
+  `FOR UPDATE SKIP LOCKED`, runs the existing generation service methods, and
+  saves only through the existing revision-aware itinerary update path.
+- `queue` publishes a small RabbitMQ message and does not start the in-process
+  poller. `services/worker-service` consumes the message, claims the existing DB
+  row, and runs the same generation service methods.
+
+Queue messages contain only:
+
+```json
+{
+  "messageId": "uuid",
+  "jobId": "uuid",
+  "tripId": "uuid",
+  "jobType": "full_generation",
+  "createdAt": "2026-06-30T12:00:00Z"
+}
+```
+
+They intentionally contain no itinerary JSON, AI prompt, user preferences,
+access token, or other private payload. Headers include `x-attempts`,
+`x-source-service=trip-service`, and `x-message-type=trip_generation_job`;
+messages are persistent JSON.
+
+If publish fails and `GENERATION_JOB_PUBLISH_FAIL_OPEN=false`, Trip Service
+marks the job failed with `job_dispatch_failed` and returns HTTP `503`:
+
+```json
+{ "error": "job_dispatch_failed" }
+```
+
+`GENERATION_JOB_PUBLISH_FAIL_OPEN=true` keeps the job queued and logs the
+failure; use it only with an operational repair plan.
 
 Job types are `full_generation`, `day_regeneration`, `item_regeneration`,
 `quality_improvement_day`, `quality_improvement_item`, and
@@ -99,20 +132,30 @@ Job types are `full_generation`, `day_regeneration`, `item_regeneration`,
 proposal was stored for review; it does not mean the itinerary changed. If the
 itinerary changes while a job is queued or running, the job fails with
 `itinerary_conflict` and does not overwrite the newer itinerary. Failed jobs are
-visible through the job API; Trip Service also records a `generation_job_failed`
-activity event and sends a requester-only in-app notification.
+visible through the job API; Trip Service or Worker Service also records a
+`generation_job_failed` activity event and sends a requester-only in-app
+notification.
 
 The legacy synchronous endpoints remain available for compatibility:
 `POST /trips/{id}/generate`,
 `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`, and
 `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`.
 
-Limitations: v1 uses no RabbitMQ/Kafka/Redis queue, no distributed locks, no
-separate worker service, and no progress streaming. Jobs stop when the Trip
-Service process stops; stale running jobs older than
-`GENERATION_JOB_MAX_RUNNING_SECONDS` are marked failed on startup with
-`worker_restarted`. `GENERATION_JOB_WORKER_MAX_CONCURRENT` is documented for
-future use; the v1 worker processes sequentially.
+Queue topology defaults:
+
+- `RABBITMQ_EXCHANGE=trip.jobs.exchange`
+- `GENERATION_JOBS_QUEUE=trip.generation.jobs`
+- `GENERATION_JOBS_ROUTING_KEY=trip.generation`
+- `RABBITMQ_DLX=trip.jobs.dlx`
+- `GENERATION_JOBS_DEAD_LETTER_QUEUE=trip.generation.dead_letter`
+- `GENERATION_JOBS_DEAD_LETTER_ROUTING_KEY=trip.generation.dead`
+- `GENERATION_JOBS_RETRY_QUEUE=trip.generation.retry`
+- `GENERATION_JOBS_RETRY_DELAY_SECONDS=10`
+- `GENERATION_JOBS_MAX_ATTEMPTS=3`
+
+Limitations: v1 has no transactional outbox, Kafka, Redis queue, distributed
+locks, distributed tracing, or progress streaming. Stale running jobs older than
+`GENERATION_JOB_MAX_RUNNING_SECONDS` are marked failed on worker startup.
 
 ## Advanced AI Budget Optimization v1
 

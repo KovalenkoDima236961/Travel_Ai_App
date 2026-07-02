@@ -104,9 +104,24 @@ edit_locks:
 generation_jobs:
   enabled: true
   worker_enabled: true
+  dispatch_mode: in_process # in_process | queue
   worker_poll_interval_seconds: 2
   worker_max_concurrent: 1
   max_running_seconds: 600
+  publish_timeout_seconds: 5
+  publish_fail_open: false
+  rabbitmq_url: amqp://guest:guest@localhost:5672/
+  rabbitmq_exchange: trip.jobs.exchange
+  rabbitmq_dlx: trip.jobs.dlx
+  queue_name: trip.generation.jobs
+  routing_key: trip.generation
+  dead_letter_queue_name: trip.generation.dead_letter
+  dead_letter_routing_key: trip.generation.dead
+  retry_queue_name: trip.generation.retry
+  retry_routing_key: trip.generation.retry
+  retry_delay_seconds: 10
+  prefetch: 1
+  max_attempts: 3
   fail_open_notifications: true
 
 calendar_sync:

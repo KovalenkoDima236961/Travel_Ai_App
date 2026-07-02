@@ -1096,6 +1096,10 @@ func (h *Handler) writeGenerationJobError(w http.ResponseWriter, err error) {
 			"error":   "generation_job_not_cancellable",
 			"message": "Only queued generation jobs can be cancelled.",
 		})
+	case errors.Is(err, generationjobs.ErrJobDispatchFailed):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"error": "job_dispatch_failed",
+		})
 	default:
 		h.writeServiceError(w, err)
 	}

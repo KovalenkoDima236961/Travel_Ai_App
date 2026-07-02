@@ -104,6 +104,25 @@ func (r *Repository) ClaimNextGenerationJob(ctx context.Context) (*entity.Genera
 	return dto.ScanGenerationJob(r.db.QueryRow(ctx, query))
 }
 
+func (r *Repository) ClaimGenerationJob(ctx context.Context, id uuid.UUID) (*entity.GenerationJob, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_generation_jobs").
+		Set("status", string(entity.GenerationJobStatusRunning)).
+		Set("started_at", sq.Expr("NOW()")).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":     dto.IDArg(id),
+			"status": string(entity.GenerationJobStatusQueued),
+		}).
+		Suffix("RETURNING " + dto.GenerationJobColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build claim generation job: %w", err)
+	}
+
+	return dto.ScanGenerationJob(r.db.QueryRow(ctx, query, args...))
+}
+
 func (r *Repository) CompleteGenerationJob(
 	ctx context.Context,
 	id uuid.UUID,
@@ -143,6 +162,32 @@ func (r *Repository) FailGenerationJob(
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build fail generation job: %w", err)
+	}
+
+	return dto.ScanGenerationJob(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ResetRunningGenerationJobToQueued(
+	ctx context.Context,
+	id uuid.UUID,
+	errorCode string,
+	errorMessage string,
+) (*entity.GenerationJob, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_generation_jobs").
+		Set("status", string(entity.GenerationJobStatusQueued)).
+		Set("started_at", nil).
+		Set("error_code", errorCode).
+		Set("error_message", errorMessage).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":     dto.IDArg(id),
+			"status": string(entity.GenerationJobStatusRunning),
+		}).
+		Suffix("RETURNING " + dto.GenerationJobColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build reset generation job for retry: %w", err)
 	}
 
 	return dto.ScanGenerationJob(r.db.QueryRow(ctx, query, args...))

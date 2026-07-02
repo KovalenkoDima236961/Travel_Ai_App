@@ -24,8 +24,10 @@ type Repository interface {
 	GetGenerationJobByIDAndTrip(ctx context.Context, id, tripID uuid.UUID) (*entity.GenerationJob, error)
 	ListGenerationJobsByTrip(ctx context.Context, tripID uuid.UUID, limit int) ([]entity.GenerationJob, error)
 	ClaimNextGenerationJob(ctx context.Context) (*entity.GenerationJob, error)
+	ClaimGenerationJob(ctx context.Context, id uuid.UUID) (*entity.GenerationJob, error)
 	CompleteGenerationJob(ctx context.Context, id uuid.UUID, resultItineraryRevision int) (*entity.GenerationJob, error)
 	FailGenerationJob(ctx context.Context, id uuid.UUID, errorCode string, errorMessage string) (*entity.GenerationJob, error)
+	ResetRunningGenerationJobToQueued(ctx context.Context, id uuid.UUID, errorCode string, errorMessage string) (*entity.GenerationJob, error)
 	CancelQueuedGenerationJob(ctx context.Context, id uuid.UUID) (*entity.GenerationJob, error)
 	MarkStaleRunningGenerationJobsFailed(ctx context.Context, startedBefore time.Time, errorCode string, errorMessage string) (int64, error)
 }
@@ -40,17 +42,30 @@ type TripService interface {
 }
 
 type Service struct {
-	repo  Repository
-	trips TripService
-	cfg   Config
+	repo      Repository
+	trips     TripService
+	cfg       Config
+	publisher JobPublisher
 }
 
-func NewService(repo Repository, trips TripService, cfg Config) *Service {
-	return &Service{
+type Option func(*Service)
+
+func WithPublisher(publisher JobPublisher) Option {
+	return func(s *Service) {
+		s.publisher = publisher
+	}
+}
+
+func NewService(repo Repository, trips TripService, cfg Config, opts ...Option) *Service {
+	s := &Service{
 		repo:  repo,
 		trips: trips,
 		cfg:   NormalizeConfig(cfg),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateRequest) (*entity.GenerationJob, error) {
@@ -86,7 +101,7 @@ func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateReques
 		return nil, err
 	}
 
-	return s.repo.CreateGenerationJob(ctx, &entity.GenerationJob{
+	job, err := s.repo.CreateGenerationJob(ctx, &entity.GenerationJob{
 		ID:                        uuid.New(),
 		TripID:                    tripID,
 		RequestedByUserID:         user.ID,
@@ -98,6 +113,38 @@ func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateReques
 		ItemIndex:                 req.ItemIndex,
 		Payload:                   req.Payload,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if s.cfg.QueueMode() {
+		if s.publisher == nil {
+			_, _ = s.repo.FailGenerationJob(
+				ctx,
+				job.ID,
+				ErrorJobDispatchFailed,
+				"Generation job could not be dispatched.",
+			)
+			return nil, ErrJobDispatchFailed
+		}
+		publishCtx, cancel := context.WithTimeout(ctx, s.cfg.PublishTimeout)
+		err = s.publisher.PublishGenerationJob(publishCtx, NewQueueMessage(job))
+		cancel()
+		if err != nil {
+			if s.cfg.PublishFailOpen {
+				return job, nil
+			}
+			_, _ = s.repo.FailGenerationJob(
+				ctx,
+				job.ID,
+				ErrorJobDispatchFailed,
+				"Generation job could not be dispatched.",
+			)
+			return nil, ErrJobDispatchFailed
+		}
+	}
+
+	return job, nil
 }
 
 func (s *Service) Get(ctx context.Context, tripID, jobID uuid.UUID) (*entity.GenerationJob, error) {

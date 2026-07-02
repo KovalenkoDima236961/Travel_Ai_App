@@ -22,6 +22,14 @@ Open:
 http://localhost:3000
 ```
 
+RabbitMQ management UI:
+
+```text
+http://localhost:15672
+```
+
+Use local credentials `guest` / `guest`.
+
 ## Browser Flow
 
 1. Go to `http://localhost:3000`.
@@ -56,13 +64,34 @@ http://localhost:3000
     forecast days, temperatures, rain chance, wind speed, and any warning badges.
 12. Click `Generate itinerary`.
 13. Confirm a generation status card appears quickly and the page remains responsive.
-14. Wait for the card to show completion.
-15. Confirm the itinerary appears.
-16. If any generated items show `Auto-matched place`, confirm they also show a
+14. In RabbitMQ, confirm `trip.generation.jobs` briefly receives and consumes a
+    message.
+15. Wait for the card to show completion.
+16. Confirm the itinerary appears.
+17. If any generated items show `Auto-matched place`, confirm they also show a
     place address/provider and, when confidence is present, a percentage.
-17. If at least two generated auto-matched places have coordinates, confirm map
+18. If at least two generated auto-matched places have coordinates, confirm map
     markers and distance estimates appear before any manual place attachment.
-18. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+19. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+
+## Queue Worker Recovery
+
+1. With the stack running, stop only the worker:
+
+   ```bash
+   docker compose -f infra/docker-compose.yml --env-file infra/.env stop worker-service
+   ```
+
+2. Create another generation or regeneration job from the Web App.
+3. Confirm the status card remains `queued`.
+4. In RabbitMQ, confirm a message remains in `trip.generation.jobs`.
+5. Restart the worker:
+
+   ```bash
+   docker compose -f infra/docker-compose.yml --env-file infra/.env start worker-service
+   ```
+
+6. Confirm the message is consumed and the Web App status card completes.
 18. Open `Version History`.
 19. Confirm a `Generated` version exists.
 20. Click `Edit itinerary`.

@@ -1,8 +1,8 @@
 # Travel AI App
 
 AI travel planning project with Go Auth Service, Go Trip Service, Go User
-Service, Go External Integrations Service, Go Notification Service,
-Python/FastAPI AI Planning Service, and a Next.js web app.
+Service, Go External Integrations Service, Go Notification Service, Go Worker
+Service, RabbitMQ, Python/FastAPI AI Planning Service, and a Next.js web app.
 
 Auth Service v1 lives in `services/auth-service` and supports email/password
 registration, login, refresh token rotation, logout, and JWT-backed `/auth/me`.
@@ -46,15 +46,19 @@ access. If another editor holds the lock, the Web App warns the user but allows
 `Continue anyway`; `itineraryRevision` conflict detection remains the final
 safety mechanism. Locks are instance-local, expire automatically, and are not
 hard blocking.
-Background Jobs v1 moves slow AI full generation and day/item regeneration to a
-PostgreSQL-backed `trip_generation_jobs` queue processed by an in-process Trip
-Service worker. The Web App creates jobs, shows a status card, polls job state,
-and refetches the trip when the job completes. Jobs check
+Background Jobs v1 moves slow AI full generation, day/item regeneration, quality
+improvements, and budget optimization to PostgreSQL-backed
+`trip_generation_jobs` rows dispatched through RabbitMQ in local compose.
+Trip Service validates and creates jobs, publishes small messages to
+`trip.jobs.exchange`, and `services/worker-service` consumes them from
+`trip.generation.jobs`. The Web App creates jobs, shows a status card, polls job
+state, and refetches the trip when the job completes. Jobs check
 `expectedItineraryRevision` when queued and again through the final
 revision-aware save, so newer itinerary edits are not overwritten; stale jobs
-fail visibly with `itinerary_conflict`. There is no RabbitMQ, Kafka, Redis
-queue, separate worker service, distributed locking, or progress streaming in
-v1.
+fail visibly with `itinerary_conflict`. The in-process Trip Service worker
+remains available with `GENERATION_JOB_DISPATCH_MODE=in_process`; queue mode has
+manual ACK/NACK, retries, and a DLQ. There is no Kafka, Redis queue, distributed
+locking, transactional outbox, or progress streaming in v1.
 Activity Feed / Audit Log v1 records important successful actions on a trip
 (creation, generation, edits, regenerations, version restores, comments,
 collaborator changes, and share setting changes) as persistent rows in a

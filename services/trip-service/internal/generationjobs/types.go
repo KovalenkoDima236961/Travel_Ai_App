@@ -10,6 +10,8 @@ const (
 	ErrorEnrichment          = "enrichment_failed"
 	ErrorCancelled           = "cancelled"
 	ErrorWorkerRestarted     = "worker_restarted"
+	ErrorWorkerInterrupted   = "worker_interrupted"
+	ErrorJobDispatchFailed   = "job_dispatch_failed"
 	ErrorUnknown             = "unknown_error"
 )
 

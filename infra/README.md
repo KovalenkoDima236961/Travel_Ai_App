@@ -55,10 +55,16 @@ External Integrations Service defaults to deterministic mock rates via
 adapters and API keys stay server-side.
 Background Jobs v1 for AI generation/regeneration is enabled by default with
 `GENERATION_JOBS_ENABLED=true` and
-`GENERATION_JOB_WORKER_ENABLED=true`. The worker is in-process, polls Postgres
-every `GENERATION_JOB_WORKER_POLL_INTERVAL_SECONDS=2`, processes sequentially
-for local Ollama safety, and marks old running jobs failed after
-`GENERATION_JOB_MAX_RUNNING_SECONDS=600` on startup.
+`GENERATION_JOB_DISPATCH_MODE=queue`. Trip Service validates requests, inserts
+`trip_generation_jobs` rows, and publishes small RabbitMQ messages to
+`trip.jobs.exchange`. `worker-service` consumes `trip.generation.jobs`, claims
+the existing DB row, runs the same generation/optimization logic, and updates
+the job result for the Web App poller. Local retry/DLQ defaults are
+`GENERATION_JOBS_MAX_ATTEMPTS=3`,
+`GENERATION_JOBS_RETRY_DELAY_SECONDS=10`, and
+`GENERATION_JOBS_PREFETCH=1` for Ollama safety. Use
+`GENERATION_JOB_DISPATCH_MODE=in_process` to fall back to the Trip Service
+poller.
 Trip Service also uses External Integrations Service for AI Place Enrichment v1
 after generated itinerary payloads. `PLACE_ENRICHMENT_ENABLED=true` enables the
 path, `PLACE_ENRICHMENT_FAIL_OPEN=true` keeps generation successful when place
@@ -161,11 +167,21 @@ Useful local URLs:
 - Web App: http://localhost:3000
 - Web Settings Page: http://localhost:3000/settings
 - Trip Service: http://localhost:8080
+- Worker Service: http://localhost:8090
+- RabbitMQ Management UI: http://localhost:15672
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083
 - External Integrations Service: http://localhost:8084
 - Notification Service: http://localhost:8086
 - AI Planning Service: http://localhost:8000
+
+RabbitMQ local credentials are `guest` / `guest`. These are local-development
+defaults only; do not reuse them outside the compose stack. In the management
+UI, inspect:
+
+- `trip.generation.jobs` for queued generation/optimization work.
+- `trip.generation.retry` for delayed retry messages.
+- `trip.generation.dead_letter` for invalid or terminally failed deliveries.
 
 The `web-app` service receives browser-facing and internal service URLs:
 

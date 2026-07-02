@@ -7,6 +7,7 @@ USER_SERVICE_URL="${SMOKE_USER_SERVICE_URL:-${USER_SERVICE_URL:-http://localhost
 AI_PLANNING_SERVICE_URL="${SMOKE_AI_PLANNING_SERVICE_URL:-${AI_PLANNING_SERVICE_URL:-http://localhost:8000}}"
 EXTERNAL_INTEGRATIONS_SERVICE_URL="${SMOKE_EXTERNAL_INTEGRATIONS_SERVICE_URL:-${NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL:-http://localhost:8084}}"
 NOTIFICATION_SERVICE_URL="${SMOKE_NOTIFICATION_SERVICE_URL:-${NOTIFICATION_SERVICE_URL:-http://localhost:8086}}"
+WORKER_SERVICE_URL="${SMOKE_WORKER_SERVICE_URL:-${WORKER_SERVICE_URL:-http://localhost:8090}}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
 INTERNAL_SERVICE_TOKEN_FOR_SMOKE="${SMOKE_INTERNAL_SERVICE_TOKEN:-${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}}"
 
@@ -296,6 +297,16 @@ assert_2xx "Auth Service health check"
 echo "Checking Trip Service health..."
 request GET "${TRIP_SERVICE_URL}/health"
 assert_2xx "Trip Service health check"
+
+if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then
+  echo "Checking Worker Service health..."
+  request GET "${WORKER_SERVICE_URL}/health"
+  assert_2xx "Worker Service health check"
+
+  echo "Checking Worker Service readiness..."
+  request GET "${WORKER_SERVICE_URL}/ready"
+  assert_2xx "Worker Service readiness check"
+fi
 
 echo "Checking User Service health..."
 request GET "${USER_SERVICE_URL}/health"

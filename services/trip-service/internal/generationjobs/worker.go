@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
@@ -21,7 +22,27 @@ type Worker struct {
 	log   *zap.Logger
 }
 
+type ProcessStatus string
+
+const (
+	ProcessStatusCompleted ProcessStatus = "completed"
+	ProcessStatusFailed    ProcessStatus = "failed"
+	ProcessStatusSkipped   ProcessStatus = "skipped"
+)
+
+type ProcessResult struct {
+	Status                  ProcessStatus
+	Job                     *entity.GenerationJob
+	ErrorCode               string
+	ErrorMessage            string
+	Retryable               bool
+	ResultItineraryRevision *int
+}
+
 func NewWorker(repo Repository, trips TripService, cfg Config, log *zap.Logger) *Worker {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return &Worker{
 		repo:  repo,
 		trips: trips,
@@ -31,7 +52,7 @@ func NewWorker(repo Repository, trips TripService, cfg Config, log *zap.Logger) 
 }
 
 func (w *Worker) Start(parent context.Context) func(context.Context) error {
-	if !w.cfg.Enabled || !w.cfg.WorkerEnabled {
+	if !w.cfg.Enabled || !w.cfg.WorkerEnabled || w.cfg.QueueMode() {
 		w.log.Info("generation job worker disabled")
 		return func(context.Context) error { return nil }
 	}
@@ -94,18 +115,99 @@ func (w *Worker) processNext(ctx context.Context) bool {
 		zap.String("job_type", string(job.JobType)),
 	)
 
+	if _, err := w.processClaimedJob(ctx, job, true); err != nil {
+		w.log.Warn("generation job processing persistence failed",
+			zap.String("job_id", job.ID.String()),
+			zap.Error(err),
+		)
+	}
+	return true
+}
+
+func (w *Worker) ProcessJobByID(ctx context.Context, jobID uuid.UUID, failOnError bool) (ProcessResult, error) {
+	job, claimed, err := w.claimGenerationJob(ctx, jobID)
+	if err != nil {
+		return ProcessResult{}, err
+	}
+	if !claimed {
+		return ProcessResult{
+			Status: ProcessStatusSkipped,
+			Job:    job,
+		}, nil
+	}
+	return w.processClaimedJob(ctx, job, failOnError)
+}
+
+func (w *Worker) ResetRunningJobForRetry(ctx context.Context, jobID uuid.UUID, code, message string) error {
+	_, err := w.repo.ResetRunningGenerationJobToQueued(ctx, jobID, code, truncateSafeMessage(message))
+	return err
+}
+
+func (w *Worker) FailClaimedJob(ctx context.Context, job *entity.GenerationJob, code, message string) error {
+	if job == nil {
+		return domainerrs.ErrNotFound
+	}
+	return w.failJob(ctx, job, code, message)
+}
+
+func (w *Worker) claimGenerationJob(ctx context.Context, jobID uuid.UUID) (*entity.GenerationJob, bool, error) {
+	job, err := w.repo.ClaimGenerationJob(ctx, jobID)
+	if err == nil {
+		w.log.Info("generation job claimed",
+			zap.String("job_id", job.ID.String()),
+			zap.String("trip_id", job.TripID.String()),
+			zap.String("job_type", string(job.JobType)),
+		)
+		return job, true, nil
+	}
+	if !isNoQueuedJob(err) {
+		return nil, false, err
+	}
+
+	job, err = w.repo.GetGenerationJobByID(ctx, jobID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch job.Status {
+	case entity.GenerationJobStatusRunning,
+		entity.GenerationJobStatusCompleted,
+		entity.GenerationJobStatusFailed,
+		entity.GenerationJobStatusCancelled:
+		w.log.Info("generation job message skipped",
+			zap.String("job_id", job.ID.String()),
+			zap.String("trip_id", job.TripID.String()),
+			zap.String("job_type", string(job.JobType)),
+			zap.String("status", string(job.Status)),
+		)
+		return job, false, nil
+	default:
+		return job, false, ErrJobAlreadyFinished
+	}
+}
+
+func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJob, failOnError bool) (ProcessResult, error) {
 	processCtx, cancel := context.WithTimeout(ctx, w.cfg.MaxRunning)
 	defer cancel()
 
 	updatedTrip, processErr := w.process(processCtx, job)
 	if processErr != nil {
-		code, message := classifyJobError(processErr)
+		code, message := ClassifyJobError(processErr)
 		if errors.Is(processCtx.Err(), context.DeadlineExceeded) {
 			code = ErrorAIGeneration
 			message = "generation job timed out"
 		}
-		w.failJob(ctx, job, code, message)
-		return true
+		result := ProcessResult{
+			Status:       ProcessStatusFailed,
+			Job:          job,
+			ErrorCode:    code,
+			ErrorMessage: message,
+			Retryable:    IsRetryableErrorCode(code),
+		}
+		if !failOnError {
+			return result, nil
+		}
+		return result, w.failJob(ctx, job, code, message)
 	}
 
 	completed, err := w.repo.CompleteGenerationJob(ctx, job.ID, updatedTrip.ItineraryRevision)
@@ -114,14 +216,19 @@ func (w *Worker) processNext(ctx context.Context) bool {
 			zap.String("job_id", job.ID.String()),
 			zap.Error(err),
 		)
-		return true
+		return ProcessResult{}, err
 	}
 	w.log.Info("generation job completed",
 		zap.String("job_id", completed.ID.String()),
 		zap.String("trip_id", completed.TripID.String()),
 		zap.Int("itinerary_revision", updatedTrip.ItineraryRevision),
 	)
-	return true
+	revision := updatedTrip.ItineraryRevision
+	return ProcessResult{
+		Status:                  ProcessStatusCompleted,
+		Job:                     completed,
+		ResultItineraryRevision: &revision,
+	}, nil
 }
 
 func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entity.Trip, error) {
@@ -177,7 +284,7 @@ func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entit
 	}
 }
 
-func (w *Worker) failJob(ctx context.Context, job *entity.GenerationJob, code, message string) {
+func (w *Worker) failJob(ctx context.Context, job *entity.GenerationJob, code, message string) error {
 	message = truncateSafeMessage(message)
 	failed, err := w.repo.FailGenerationJob(ctx, job.ID, code, message)
 	if err != nil {
@@ -186,7 +293,7 @@ func (w *Worker) failJob(ctx context.Context, job *entity.GenerationJob, code, m
 			zap.String("error_code", code),
 			zap.Error(err),
 		)
-		return
+		return err
 	}
 	w.log.Warn("generation job failed",
 		zap.String("job_id", failed.ID.String()),
@@ -203,6 +310,7 @@ func (w *Worker) failJob(ctx context.Context, job *entity.GenerationJob, code, m
 		code,
 		message,
 	)
+	return nil
 }
 
 func (w *Worker) failStaleRunningJobs(ctx context.Context) error {
@@ -222,7 +330,7 @@ func (w *Worker) failStaleRunningJobs(ctx context.Context) error {
 	return nil
 }
 
-func classifyJobError(err error) (string, string) {
+func ClassifyJobError(err error) (string, string) {
 	if err == nil {
 		return "", ""
 	}
@@ -248,6 +356,15 @@ func classifyJobError(err error) (string, string) {
 		return ErrorCancelled, "Generation job was cancelled."
 	default:
 		return ErrorUnknown, "Generation job failed."
+	}
+}
+
+func IsRetryableErrorCode(code string) bool {
+	switch code {
+	case ErrorAIGeneration, ErrorEnrichment, ErrorUnknown:
+		return true
+	default:
+		return false
 	}
 }
 
