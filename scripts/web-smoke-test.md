@@ -30,6 +30,15 @@ http://localhost:15672
 
 Use local credentials `guest` / `guest`.
 
+Prometheus and Grafana:
+
+```text
+http://localhost:9090
+http://localhost:3001
+```
+
+Use local Grafana credentials `admin` / `admin`.
+
 ## Browser Flow
 
 1. Go to `http://localhost:3000`.
@@ -143,6 +152,23 @@ Use local credentials `guest` / `guest`.
 55. Confirm the restore created another version.
 56. Go to `/trips`.
 57. Confirm the trip appears in the list.
+
+## Observability
+
+1. Open Prometheus at `http://localhost:9090`.
+2. Go to `Status` -> `Target health` and confirm the app services and RabbitMQ
+   are `UP`.
+3. Open Grafana at `http://localhost:3001`.
+4. Log in with `admin` / `admin`.
+5. Open the `Worker Jobs` dashboard.
+6. Trigger itinerary generation from the Web App.
+7. Confirm `worker_jobs_started_total` and either
+   `worker_jobs_completed_total` or `worker_jobs_failed_total` change.
+8. Open the `External Providers` dashboard.
+9. Trigger route, weather, or price calls from the trip page.
+10. Confirm provider request/cache/fallback metrics change.
+11. Check Trip Service and Worker Service logs for the same `correlationId`
+    across job creation, RabbitMQ publish, message consume, and job completion.
 
 ## Budget Tracking
 

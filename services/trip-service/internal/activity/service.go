@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 // Repository is the persistence port the activity service depends on. The
@@ -69,6 +70,7 @@ func (s *Service) Record(ctx context.Context, in RecordActivityInput) error {
 	if err != nil {
 		return fmt.Errorf("create trip activity event: %w", err)
 	}
+	tripobs.RecordActivityEventCreated(stored.EventType)
 	if s.publisher != nil {
 		s.publisher.Publish(ctx, stored.TripID, NewEventDTO(*stored))
 	}

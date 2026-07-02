@@ -257,3 +257,21 @@ started with:
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
+
+## Production Observability v1
+
+The local stack includes Prometheus and Grafana for API, worker, RabbitMQ, AI,
+notification, auth/user, and external-provider health.
+
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3001` (`admin` / `admin`, local dev only)
+- RabbitMQ metrics: `http://localhost:15692/metrics`
+- Service metrics: `/metrics` on each Go service, Worker Service, and AI
+  Planning Service
+
+Services propagate `X-Request-ID` and `X-Correlation-ID` through internal HTTP
+calls and RabbitMQ generation-job messages. Logs include those IDs plus bounded
+job/provider fields; metrics intentionally do not label by user, trip, job,
+request, correlation ID, raw destination, prompt, or private payload. See
+[infra/observability/README.md](infra/observability/README.md) for dashboards,
+metric names, and label rules.

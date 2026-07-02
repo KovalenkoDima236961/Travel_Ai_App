@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
@@ -29,6 +29,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/logger"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/rabbitmq"
@@ -362,8 +363,9 @@ func newHTTPServer(
 	log *zap.Logger,
 ) *http.Server {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
+	r.Use(observability.RequestIDMiddleware)
+	r.Use(chimiddleware.Recoverer)
+	r.Use(observability.HTTPMetricsMiddleware(observability.DefaultHTTPMetrics("worker-service")))
 	r.Use(requestLogger(log))
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -406,6 +408,7 @@ func newHTTPServer(
 			"checks": checks,
 		})
 	})
+	r.Handle("/metrics", observability.MetricsHandler(nil))
 
 	return &http.Server{
 		Addr:         address,
@@ -417,18 +420,28 @@ func newHTTPServer(
 }
 
 func requestLogger(log *zap.Logger) func(http.Handler) http.Handler {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			ww := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
 			next.ServeHTTP(ww, r)
-			log.Info("http_request",
+			status := ww.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+			fields := []zap.Field{
+				zap.String("service", "worker-service"),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
-				zap.Int("status", ww.Status()),
-				zap.Duration("duration", time.Since(start)),
-				zap.String("request_id", middleware.GetReqID(r.Context())),
-			)
+				zap.String("route", observability.RoutePattern(r)),
+				zap.Int("status", status),
+				zap.Float64("durationMs", float64(time.Since(start).Microseconds())/1000),
+			}
+			fields = append(fields, observability.RequestIDFields(r.Context())...)
+			log.Info("http_request", fields...)
 		})
 	}
 }

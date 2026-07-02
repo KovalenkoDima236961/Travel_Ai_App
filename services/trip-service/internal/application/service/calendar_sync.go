@@ -17,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarsync"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 const googleCalendarProvider = "google"
@@ -130,6 +131,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 
 	deleted, deleteFailed, err := s.deleteGoogleEvents(ctx, user.ID, tripID, deleteItems, deleteKeys)
 	if err != nil {
+		tripobs.RecordCalendarSync(googleCalendarProvider, "delete_failed")
 		return nil, err
 	}
 
@@ -144,6 +146,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 	if len(built.Items) == 0 {
 		result.Status = "no_timed_items"
 		result.LastSyncedAt = nowPtr()
+		tripobs.RecordCalendarSync(googleCalendarProvider, result.Status)
 		return result, nil
 	}
 
@@ -156,6 +159,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 		Items:     built.Items,
 	})
 	if err != nil {
+		tripobs.RecordCalendarSync(googleCalendarProvider, "sync_failed")
 		return nil, calendarClientError(err)
 	}
 
@@ -194,6 +198,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 			SyncKey:            item.SyncKey,
 		})
 		if err != nil {
+			tripobs.RecordCalendarSync(googleCalendarProvider, "store_failed")
 			return nil, err
 		}
 	}
@@ -212,6 +217,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 		},
 	})
 
+	tripobs.RecordCalendarSync(googleCalendarProvider, result.Status)
 	return result, nil
 }
 
@@ -236,9 +242,11 @@ func (s *Service) RemoveTripGoogleCalendarSync(ctx context.Context, tripID uuid.
 	}
 	deleted, failed, err := s.deleteGoogleEvents(ctx, user.ID, tripID, items, nil)
 	if err != nil {
+		tripobs.RecordCalendarSync(googleCalendarProvider, "delete_failed")
 		return nil, err
 	}
 	if err := s.repo.MarkAllTripCalendarSyncsDeleted(ctx, tripID, user.ID, googleCalendarProvider); err != nil {
+		tripobs.RecordCalendarSync(googleCalendarProvider, "delete_store_failed")
 		return nil, err
 	}
 	s.recordActivity(ctx, activity.RecordActivityInput{
@@ -252,6 +260,11 @@ func (s *Service) RemoveTripGoogleCalendarSync(ctx context.Context, tripID uuid.
 			"failed":   failed,
 		},
 	})
+	result := "delete_success"
+	if failed > 0 {
+		result = "delete_partial"
+	}
+	tripobs.RecordCalendarSync(googleCalendarProvider, result)
 	return &appdto.TripCalendarDeleteResult{Provider: googleCalendarProvider, Deleted: deleted, Failed: failed}, nil
 }
 

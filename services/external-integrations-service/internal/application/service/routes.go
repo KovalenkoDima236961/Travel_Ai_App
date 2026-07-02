@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 // RouteProvider is implemented by each route-estimation provider. v1 ships only
@@ -39,6 +40,8 @@ func (s *RoutesService) EstimateRoute(ctx context.Context, req entity.RouteEstim
 
 	estimate, err := s.provider.EstimateRoute(ctx, req)
 	if err != nil {
+		extobs.RecordProviderRequest("unknown", "route_estimate", "error", time.Since(start))
+		extobs.RecordProviderFailure("unknown", "route_estimate", "provider_error")
 		s.log.Warn("route_estimate",
 			zap.String("mode", req.Mode),
 			zap.Int("stop_count", len(req.Stops)),
@@ -47,6 +50,10 @@ func (s *RoutesService) EstimateRoute(ctx context.Context, req entity.RouteEstim
 			zap.Error(err),
 		)
 		return nil, err
+	}
+	extobs.RecordProviderRequest(estimate.Provider, "route_estimate", "success", time.Since(start))
+	if estimate.FallbackUsed {
+		extobs.RecordProviderFallback(estimate.Provider, "route_estimate", "mock")
 	}
 
 	s.log.Info("route_estimate",

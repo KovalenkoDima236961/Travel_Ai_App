@@ -3,6 +3,7 @@ package generationjobs
 import (
 	"context"
 	"errors"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 type Worker struct {
@@ -139,7 +141,10 @@ func (w *Worker) ProcessJobByID(ctx context.Context, jobID uuid.UUID, failOnErro
 }
 
 func (w *Worker) ResetRunningJobForRetry(ctx context.Context, jobID uuid.UUID, code, message string) error {
-	_, err := w.repo.ResetRunningGenerationJobToQueued(ctx, jobID, code, truncateSafeMessage(message))
+	job, err := w.repo.ResetRunningGenerationJobToQueued(ctx, jobID, code, truncateSafeMessage(message))
+	if err == nil {
+		recordGenerationJobStatus(job.JobType, job.Status)
+	}
 	return err
 }
 
@@ -186,7 +191,46 @@ func (w *Worker) claimGenerationJob(ctx context.Context, jobID uuid.UUID) (*enti
 	}
 }
 
-func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJob, failOnError bool) (ProcessResult, error) {
+func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJob, failOnError bool) (result ProcessResult, err error) {
+	inProcess := !w.cfg.QueueMode()
+	metricsStartedAt := recordWorkerStart(job, inProcess)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			fields := []zap.Field{
+				zap.String("jobId", job.ID.String()),
+				zap.String("tripId", job.TripID.String()),
+				zap.String("jobType", string(job.JobType)),
+				zap.Any("panic", recovered),
+				zap.ByteString("stack", debug.Stack()),
+			}
+			fields = append(fields, observability.RequestIDFields(ctx)...)
+			w.log.Error("generation job panic recovered", fields...)
+			result = ProcessResult{
+				Status:       ProcessStatusFailed,
+				Job:          job,
+				ErrorCode:    "panic",
+				ErrorMessage: "Generation job failed.",
+				Retryable:    false,
+			}
+			if failOnError {
+				err = w.failJob(ctx, job, result.ErrorCode, result.ErrorMessage)
+			}
+		}
+
+		switch result.Status {
+		case ProcessStatusCompleted:
+			recordWorkerComplete(job, metricsStartedAt, inProcess)
+		case ProcessStatusFailed:
+			recordWorkerFailure(job, result.ErrorCode, metricsStartedAt, inProcess)
+		default:
+			if err != nil {
+				recordWorkerFailure(job, ErrorUnknown, metricsStartedAt, inProcess)
+			} else {
+				workerActiveJobs.WithLabelValues(string(job.JobType)).Dec()
+			}
+		}
+	}()
+
 	processCtx, cancel := context.WithTimeout(ctx, w.cfg.MaxRunning)
 	defer cancel()
 
@@ -218,11 +262,14 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 		)
 		return ProcessResult{}, err
 	}
-	w.log.Info("generation job completed",
-		zap.String("job_id", completed.ID.String()),
-		zap.String("trip_id", completed.TripID.String()),
-		zap.Int("itinerary_revision", updatedTrip.ItineraryRevision),
-	)
+	recordGenerationJobStatus(completed.JobType, completed.Status)
+	fields := []zap.Field{
+		zap.String("jobId", completed.ID.String()),
+		zap.String("tripId", completed.TripID.String()),
+		zap.Int("itineraryRevision", updatedTrip.ItineraryRevision),
+	}
+	fields = append(fields, observability.RequestIDFields(ctx)...)
+	w.log.Info("generation job completed", fields...)
 	revision := updatedTrip.ItineraryRevision
 	return ProcessResult{
 		Status:                  ProcessStatusCompleted,
@@ -295,12 +342,15 @@ func (w *Worker) failJob(ctx context.Context, job *entity.GenerationJob, code, m
 		)
 		return err
 	}
-	w.log.Warn("generation job failed",
-		zap.String("job_id", failed.ID.String()),
-		zap.String("trip_id", failed.TripID.String()),
-		zap.String("error_code", code),
-		zap.String("error_message", message),
-	)
+	fields := []zap.Field{
+		zap.String("jobId", failed.ID.String()),
+		zap.String("tripId", failed.TripID.String()),
+		zap.String("errorCode", code),
+		zap.String("errorMessage", message),
+	}
+	fields = append(fields, observability.RequestIDFields(ctx)...)
+	w.log.Warn("generation job failed", fields...)
+	recordGenerationJobStatus(failed.JobType, failed.Status)
 	w.trips.RecordGenerationJobFailed(
 		ctx,
 		failed.TripID,

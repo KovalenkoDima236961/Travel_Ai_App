@@ -6,6 +6,7 @@ import httpx
 
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
+from app.observability import record_ai_repair_attempt
 from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import (
     BudgetOptimizationProposalResponse,
@@ -208,6 +209,7 @@ class OllamaItineraryGenerator:
                 raise
 
             log_context["repair_attempted"] = True
+            record_ai_repair_attempt("generate_itinerary", "attempted")
             repair_prompt = build_repair_prompt(
                 request=request,
                 invalid_response_text=llm_response,
@@ -232,6 +234,7 @@ class OllamaItineraryGenerator:
 
             repaired_itinerary = self._parse_and_validate(request, repair_response)
             log_context["repair_succeeded"] = True
+            record_ai_repair_attempt("generate_itinerary", "success")
             return repaired_itinerary
 
     def _regenerate_day_with_ollama(
@@ -267,6 +270,7 @@ class OllamaItineraryGenerator:
                 raise
 
             log_context["repair_attempted"] = True
+            record_ai_repair_attempt("regenerate_day", "attempted")
             repair_prompt = build_regenerate_day_repair_prompt(
                 request=request,
                 invalid_response_text=llm_response,
@@ -290,6 +294,7 @@ class OllamaItineraryGenerator:
             )
             repaired = parse_regenerate_day_response(repair_response, request.day_number)
             log_context["repair_succeeded"] = True
+            record_ai_repair_attempt("regenerate_day", "success")
             return repaired
 
     def _regenerate_item_with_ollama(
@@ -325,6 +330,7 @@ class OllamaItineraryGenerator:
                 raise
 
             log_context["repair_attempted"] = True
+            record_ai_repair_attempt("regenerate_item", "attempted")
             repair_prompt = build_regenerate_item_repair_prompt(
                 request=request,
                 invalid_response_text=llm_response,
@@ -348,6 +354,7 @@ class OllamaItineraryGenerator:
             )
             repaired = parse_regenerate_item_response(repair_response)
             log_context["repair_succeeded"] = True
+            record_ai_repair_attempt("regenerate_item", "success")
             return repaired
 
     def _optimize_budget_day_with_ollama(

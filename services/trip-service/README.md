@@ -106,14 +106,16 @@ Queue messages contain only:
   "jobId": "uuid",
   "tripId": "uuid",
   "jobType": "full_generation",
-  "createdAt": "2026-06-30T12:00:00Z"
+  "createdAt": "2026-06-30T12:00:00Z",
+  "correlationId": "uuid",
+  "requestId": "uuid"
 }
 ```
 
 They intentionally contain no itinerary JSON, AI prompt, user preferences,
-access token, or other private payload. Headers include `x-attempts`,
-`x-source-service=trip-service`, and `x-message-type=trip_generation_job`;
-messages are persistent JSON.
+access token, or other private payload. Headers include `x-request-id`,
+`x-correlation-id`, `x-attempts`, `x-source-service=trip-service`, and
+`x-message-type=trip_generation_job`; messages are persistent JSON.
 
 If publish fails and `GENERATION_JOB_PUBLISH_FAIL_OPEN=false`, Trip Service
 marks the job failed with `job_dispatch_failed` and returns HTTP `503`:
@@ -1537,6 +1539,26 @@ make test          # go test ./... -race -count=1
 # or directly:
 go test ./... -race -count=1
 ```
+
+## Observability
+
+- `GET /metrics` exposes Prometheus metrics.
+- HTTP requests record `http_requests_total`,
+  `http_request_duration_seconds`, and `http_requests_in_flight` with bounded
+  `service`, `method`, `route`, and `status` labels.
+- Job and queue metrics include `generation_jobs_created_total`,
+  `generation_jobs_dispatch_total`, `generation_jobs_status_total`,
+  `generation_job_creation_duration_seconds`,
+  `rabbitmq_messages_published_total`, `rabbitmq_publish_failures_total`, and
+  `rabbitmq_publish_duration_seconds`.
+- Feature counters include activity events, notification requests, calendar
+  sync, and budget optimization proposal/job counters.
+- The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
+  them on responses, propagates them to internal HTTP calls, stores them on
+  `trip_generation_jobs`, and includes them in RabbitMQ messages.
+- Logs include request/correlation IDs and bounded job/provider fields. Do not
+  log access tokens, full user preferences, AI prompts, itinerary JSON, or
+  provider secrets.
 
 ## Notes & extension points
 

@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/handler"
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/observability"
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
@@ -34,9 +35,10 @@ func NewRouter(
 ) http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(chimiddleware.RequestID)
+	r.Use(observability.RequestIDMiddleware)
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Recoverer)
+	r.Use(observability.HTTPMetricsMiddleware(observability.DefaultHTTPMetrics("notification-service")))
 	r.Use(requestLogger(log))
 	r.Use(corsMiddleware(corsCfg))
 
@@ -44,6 +46,7 @@ func NewRouter(
 	if readinessHandler != nil {
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
+	r.Handle("/metrics", observability.MetricsHandler(nil))
 
 	// User-facing routes: require a valid access token.
 	r.Group(func(r chi.Router) {
@@ -82,14 +85,21 @@ func requestLogger(log *zap.Logger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(ww, r)
 
-			log.Info("http_request",
+			status := ww.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+			fields := []zap.Field{
+				zap.String("service", "notification-service"),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
-				zap.Int("status", ww.Status()),
+				zap.String("route", observability.RoutePattern(r)),
+				zap.Int("status", status),
 				zap.Int("bytes", ww.BytesWritten()),
-				zap.Duration("duration", time.Since(start)),
-				zap.String("request_id", chimiddleware.GetReqID(r.Context())),
-			)
+				zap.Float64("durationMs", float64(time.Since(start).Microseconds())/1000),
+			}
+			fields = append(fields, observability.RequestIDFields(r.Context())...)
+			log.Info("http_request", fields...)
 		})
 	}
 }

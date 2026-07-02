@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 const (
@@ -42,6 +44,7 @@ func (h *PlacesHandler) RegisterRoutes(r chi.Router) {
 
 // Search handles GET /places/search.
 func (h *PlacesHandler) Search(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	query := strings.TrimSpace(r.URL.Query().Get("query"))
 	destination := strings.TrimSpace(r.URL.Query().Get("destination"))
 
@@ -60,10 +63,13 @@ func (h *PlacesHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 	items, err := h.svc.Search(r.Context(), query, destination)
 	if err != nil {
+		extobs.RecordProviderRequest(h.providerName, "place_search", "error", time.Since(start))
+		extobs.RecordProviderFailure(h.providerName, "place_search", "provider_error")
 		h.log.Warn("place search failed", zap.Int("query_length", len(query)), zap.String("destination", destination), zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "place search failed")
 		return
 	}
+	extobs.RecordProviderRequest(h.providerName, "place_search", "success", time.Since(start))
 
 	h.log.Info("place search completed",
 		zap.Int("query_length", len(query)),
@@ -77,6 +83,7 @@ func (h *PlacesHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 // Details handles GET /places/{placeId}.
 func (h *PlacesHandler) Details(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	placeID := strings.TrimSpace(chi.URLParam(r, "placeId"))
 	if placeID == "" {
 		writeError(w, http.StatusBadRequest, "placeId is required")
@@ -85,14 +92,18 @@ func (h *PlacesHandler) Details(w http.ResponseWriter, r *http.Request) {
 
 	place, err := h.svc.Details(r.Context(), placeID)
 	if err != nil {
+		extobs.RecordProviderRequest(h.providerName, "place_details", "error", time.Since(start))
+		extobs.RecordProviderFailure(h.providerName, "place_details", "provider_error")
 		h.log.Warn("place details failed", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "place details failed")
 		return
 	}
 	if place == nil {
+		extobs.RecordProviderRequest(h.providerName, "place_details", "not_found", time.Since(start))
 		writeError(w, http.StatusNotFound, "place not found")
 		return
 	}
+	extobs.RecordProviderRequest(h.providerName, "place_details", "success", time.Since(start))
 
 	writeJSON(w, http.StatusOK, place)
 }

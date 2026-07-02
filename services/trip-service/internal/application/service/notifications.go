@@ -8,6 +8,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 // notifier is the Notification Service port. The concrete notifications.Client
@@ -40,6 +41,7 @@ func (s *Service) sendNotifications(ctx context.Context, inputs []notifications.
 		return
 	}
 	if err := s.notifier.CreateNotifications(ctx, inputs); err != nil {
+		recordNotificationRequestMetrics(inputs, "error")
 		if s.notificationsFailOpen {
 			s.log.Warn("failed to send notifications (fail-open)",
 				zap.Int("count", len(inputs)),
@@ -51,6 +53,14 @@ func (s *Service) sendNotifications(ctx context.Context, inputs []notifications.
 			zap.Int("count", len(inputs)),
 			zap.Error(err),
 		)
+		return
+	}
+	recordNotificationRequestMetrics(inputs, "success")
+}
+
+func recordNotificationRequestMetrics(inputs []notifications.NotificationCreateInput, result string) {
+	for _, input := range inputs {
+		tripobs.RecordNotificationsRequested(input.Type, result, 1)
 	}
 }
 

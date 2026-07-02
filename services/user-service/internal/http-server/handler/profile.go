@@ -43,9 +43,11 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	profile, err := h.svc.GetProfile(r.Context())
 	if err != nil {
+		recordUserProfileRequest("get", "error")
 		h.writeServiceError(w, err)
 		return
 	}
+	recordUserProfileRequest("get", "success")
 	writeJSON(w, http.StatusOK, response.NewProfile(profile))
 }
 
@@ -53,19 +55,23 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var req request.UpdateProfile
 	if err := decodeJSON(r, &req); err != nil {
+		recordUserProfileRequest("update", "invalid_request")
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if err := h.validator.Validate(req); err != nil {
+		recordUserProfileRequest("update", "validation_error")
 		h.writeValidationError(w, err)
 		return
 	}
 
 	profile, err := h.svc.UpdateProfile(r.Context(), req.ToInput())
 	if err != nil {
+		recordUserProfileRequest("update", "error")
 		h.writeServiceError(w, err)
 		return
 	}
+	recordUserProfileRequest("update", "success")
 	writeJSON(w, http.StatusOK, response.NewProfile(profile))
 }
 
@@ -73,9 +79,11 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 	preferences, err := h.svc.GetPreferences(r.Context())
 	if err != nil {
+		recordUserPreferencesRequest("get", "error")
 		h.writeServiceError(w, err)
 		return
 	}
+	recordUserPreferencesRequest("get", "success")
 	writeJSON(w, http.StatusOK, response.NewPreferences(preferences))
 }
 
@@ -83,19 +91,23 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PatchPreferences(w http.ResponseWriter, r *http.Request) {
 	var req request.PatchPreferences
 	if err := decodeJSON(r, &req); err != nil {
+		recordUserPreferencesRequest("patch", "invalid_request")
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if err := h.validator.Validate(req); err != nil {
+		recordUserPreferencesRequest("patch", "validation_error")
 		h.writeValidationError(w, err)
 		return
 	}
 
 	preferences, err := h.svc.PatchPreferences(r.Context(), req.ToInput())
 	if err != nil {
+		recordUserPreferencesRequest("patch", "error")
 		h.writeServiceError(w, err)
 		return
 	}
+	recordUserPreferencesRequest("patch", "success")
 	writeJSON(w, http.StatusOK, response.NewPreferences(preferences))
 }
 

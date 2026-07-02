@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const maxAIPlanningErrorBodyBytes = 4 * 1024
@@ -120,7 +121,7 @@ func NewAIPlanningHTTPGenerator(baseURL string, client *http.Client, logger *zap
 
 	return &AIPlanningHTTPGenerator{
 		baseURL: normalizedBaseURL,
-		client:  client,
+		client:  observability.InstrumentHTTPClient(client),
 		logger:  logger,
 	}, nil
 }

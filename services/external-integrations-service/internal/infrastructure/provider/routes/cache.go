@@ -11,6 +11,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 // routeCacheMaxEntries bounds the in-memory route cache.
@@ -51,6 +52,7 @@ func (p *cachingRouteProvider) EstimateRoute(ctx context.Context, req entity.Rou
 
 	if cached, ok := p.cache.Get(key); ok {
 		if estimate, ok := cached.(entity.RouteEstimate); ok {
+			extobs.RecordProviderCacheHit(p.providerName, "route_estimate")
 			p.log.Info("route cache lookup",
 				zap.String("endpoint", "route"),
 				zap.String("provider", p.providerName),
@@ -65,6 +67,7 @@ func (p *cachingRouteProvider) EstimateRoute(ctx context.Context, req entity.Rou
 	if err != nil {
 		return nil, err
 	}
+	extobs.RecordProviderCacheMiss(p.providerName, "route_estimate")
 
 	p.log.Info("route cache lookup",
 		zap.String("endpoint", "route"),

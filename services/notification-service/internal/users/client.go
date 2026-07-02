@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/observability"
 )
 
 const maxErrorBodyBytes = 2 * 1024
@@ -55,9 +57,9 @@ func New(cfg Config) (*Client, error) {
 	return &Client{
 		baseURL: normalized,
 		token:   strings.TrimSpace(cfg.Token),
-		httpClient: &http.Client{
+		httpClient: observability.InstrumentHTTPClient(&http.Client{
 			Timeout: time.Duration(timeout) * time.Second,
-		},
+		}),
 	}, nil
 }
 

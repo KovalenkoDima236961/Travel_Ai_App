@@ -9,6 +9,7 @@ EXTERNAL_INTEGRATIONS_SERVICE_URL="${SMOKE_EXTERNAL_INTEGRATIONS_SERVICE_URL:-${
 NOTIFICATION_SERVICE_URL="${SMOKE_NOTIFICATION_SERVICE_URL:-${NOTIFICATION_SERVICE_URL:-http://localhost:8086}}"
 WORKER_SERVICE_URL="${SMOKE_WORKER_SERVICE_URL:-${WORKER_SERVICE_URL:-http://localhost:8090}}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
+PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:9090}"
 INTERNAL_SERVICE_TOKEN_FOR_SMOKE="${SMOKE_INTERNAL_SERVICE_TOKEN:-${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}}"
 
 if [[ "${USER_SERVICE_URL}" == "http://user-service:8083" ]]; then
@@ -162,6 +163,38 @@ assert_status() {
   local expected="$2"
   if [[ "${LAST_STATUS}" != "${expected}" ]]; then
     echo "${label} expected HTTP ${expected}, got HTTP ${LAST_STATUS}" >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+}
+
+assert_metrics_contains() {
+  local label="$1"
+  local url="$2"
+  local metric_name="$3"
+
+  request GET "${url}"
+  assert_2xx "${label}"
+  if [[ "${LAST_BODY}" != *"# HELP"* && "${LAST_BODY}" != *"# TYPE"* ]]; then
+    echo "${label}: response does not look like Prometheus text exposition." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  if [[ "${LAST_BODY}" != *"${metric_name}"* ]]; then
+    echo "${label}: missing metric family '${metric_name}'." >&2
+    exit 1
+  fi
+}
+
+check_prometheus_targets_if_requested() {
+  if [[ "${SMOKE_CHECK_PROMETHEUS_TARGETS:-false}" != "true" ]]; then
+    return 0
+  fi
+
+  request GET "${PROMETHEUS_URL}/api/v1/targets"
+  assert_2xx "Prometheus target health"
+  if ! jq -e '.status == "success" and ([.data.activeTargets[] | select(.health == "up")] | length > 0)' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Prometheus did not report any active targets as up." >&2
     echo "${LAST_BODY}" >&2
     exit 1
   fi
@@ -327,6 +360,20 @@ assert_2xx "Notification Service health check"
 echo "Checking Notification Service readiness..."
 request GET "${NOTIFICATION_SERVICE_URL}/ready"
 assert_2xx "Notification Service readiness check"
+
+if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
+  echo "Checking service metrics endpoints..."
+  assert_metrics_contains "Auth Service metrics" "${AUTH_SERVICE_URL}/metrics" "http_requests_total"
+  assert_metrics_contains "Trip Service metrics" "${TRIP_SERVICE_URL}/metrics" "http_requests_total"
+  assert_metrics_contains "User Service metrics" "${USER_SERVICE_URL}/metrics" "http_requests_total"
+  assert_metrics_contains "AI Planning Service metrics" "${AI_PLANNING_SERVICE_URL}/metrics" "http_requests_total"
+  assert_metrics_contains "External Integrations Service metrics" "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/metrics" "http_requests_total"
+  assert_metrics_contains "Notification Service metrics" "${NOTIFICATION_SERVICE_URL}/metrics" "http_requests_total"
+  if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then
+    assert_metrics_contains "Worker Service metrics" "${WORKER_SERVICE_URL}/metrics" "http_requests_total"
+  fi
+  check_prometheus_targets_if_requested
+fi
 
 echo "Checking Notification Service stream requires auth..."
 request GET "${NOTIFICATION_SERVICE_URL}/notifications/stream"
@@ -521,6 +568,12 @@ if ! jq -e '.matched == false and .estimatedCost == null and (.matchConfidence >
   echo "Price estimate no-match response was not shaped as expected." >&2
   echo "${LAST_BODY}" >&2
   exit 1
+fi
+
+if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
+  echo "Checking external provider metrics after provider calls..."
+  assert_metrics_contains "External provider metrics" "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/metrics" "external_provider_requests_total"
+  assert_metrics_contains "External provider cache metrics" "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/metrics" "external_provider_cache_misses_total"
 fi
 
 # Optional real-provider checks. These only run when the operator has opted into
@@ -846,6 +899,19 @@ if [[ "${GENERATION_JOB_STATUS}" != "completed" ]]; then
   echo "Full generation job did not complete successfully." >&2
   echo "${LAST_BODY}" >&2
   exit 1
+fi
+
+if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
+  echo "Checking job and queue metrics after full generation..."
+  assert_metrics_contains "Trip generation job metrics" "${TRIP_SERVICE_URL}/metrics" "generation_jobs_created_total"
+  assert_metrics_contains "Trip RabbitMQ publish metrics" "${TRIP_SERVICE_URL}/metrics" "rabbitmq_messages_published_total"
+  if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then
+    assert_metrics_contains "Worker job start metrics" "${WORKER_SERVICE_URL}/metrics" "worker_jobs_started_total"
+    if [[ "${LAST_BODY}" != *"worker_jobs_completed_total"* && "${LAST_BODY}" != *"worker_jobs_failed_total"* ]]; then
+      echo "Worker metrics missing both worker_jobs_completed_total and worker_jobs_failed_total." >&2
+      exit 1
+    fi
+  fi
 fi
 
 echo "Fetching completed trip with Authorization header..."

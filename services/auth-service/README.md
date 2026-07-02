@@ -113,3 +113,16 @@ curl -sS -X POST http://localhost:8082/auth/logout \
   -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}"
 ```
+
+## Observability
+
+- `GET /metrics` exposes Prometheus metrics.
+- HTTP middleware records `http_requests_total`,
+  `http_request_duration_seconds`, and `http_requests_in_flight`.
+- Auth counters include `auth_register_total`, `auth_login_total`,
+  `auth_refresh_total`, and `auth_logout_total`, each labeled only by bounded
+  result values.
+- The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
+  them on responses, and includes them in request logs.
+- Do not log Authorization headers, refresh tokens, password values, cookies, or
+  full request bodies.

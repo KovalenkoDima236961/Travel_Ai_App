@@ -105,6 +105,9 @@ func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 
 	inputs, err := req.ToInputs()
 	if err != nil {
+		for _, item := range req.Notifications {
+			recordNotificationFailed(item.Type, "in_app", "invalid_request")
+		}
 		writeServiceError(w, h.log, err)
 		return
 	}
@@ -113,6 +116,9 @@ func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 	if h.preferences != nil {
 		preferenceSet, err = h.preferences.EffectiveForUsers(r.Context(), recipientIDs(inputs))
 		if err != nil {
+			for _, input := range inputs {
+				recordNotificationFailed(input.Type, "in_app", "preferences_error")
+			}
 			writeServiceError(w, h.log, err)
 			return
 		}
@@ -120,14 +126,24 @@ func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 
 	batchResult, err := h.svc.CreateBatchWithPreferences(r.Context(), inputs, preferenceSet)
 	if err != nil {
+		for _, input := range inputs {
+			recordNotificationFailed(input.Type, "in_app", "create_failed")
+		}
 		writeServiceError(w, h.log, err)
 		return
+	}
+	for i := range batchResult.Created {
+		recordNotificationCreated(batchResult.Created[i].Type, "in_app")
 	}
 
 	h.publishCreated(r.Context(), batchResult.Created)
 
 	emailResult, emailErr := h.emails.SendEmailsForNotifications(r.Context(), batchResult.EmailCandidates, preferenceSet)
+	recordNotificationEmail("batch", "sent", emailResult.Sent)
+	recordNotificationEmail("batch", "failed", emailResult.Failed)
+	recordNotificationEmail("batch", "skipped", emailResult.Skipped)
 	if emailErr != nil {
+		recordNotificationFailed("batch", "email", "send_failed")
 		// Fail-closed: rows are committed but email delivery failed. Surface a
 		// 502 so the caller can observe degraded delivery; details are logged.
 		h.log.Warn("email delivery failed for created notifications (fail-closed)",

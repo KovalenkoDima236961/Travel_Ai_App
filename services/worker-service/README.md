@@ -64,12 +64,18 @@ conversion.
 
 - `GET /health` returns process liveness.
 - `GET /ready` checks Postgres and RabbitMQ consumer/publisher readiness.
+- `GET /metrics` exposes Prometheus metrics.
 
 ## Retry And Idempotency
 
-Each message contains only `messageId`, `jobId`, `tripId`, `jobType`, and
-`createdAt`. The job ID is the idempotency key. Completed, failed, cancelled,
-and already-running duplicate messages are acknowledged and skipped.
+Each message contains only `messageId`, `jobId`, `tripId`, `jobType`,
+`createdAt`, `requestId`, and `correlationId`. The job ID is the idempotency
+key. Completed, failed, cancelled, and already-running duplicate messages are
+acknowledged and skipped.
+
+The worker also reads `x-request-id`, `x-correlation-id`, `x-message-type`,
+`x-source-service`, and `x-attempts` headers. Request and correlation IDs are
+placed into context, logged, and propagated to downstream internal HTTP calls.
 
 Retryable processing failures reset the running job row back to `queued`,
 publish a new message to the retry queue with `x-attempts + 1`, and only then
@@ -80,7 +86,22 @@ the original message is NACKed into the DLQ.
 
 - No transactional outbox yet; Trip Service marks the job failed if queue
   publish fails in fail-closed mode.
-- No distributed tracing or metrics stack.
+- No distributed tracing backend yet. Metrics are exposed locally through
+  Prometheus/Grafana.
 - The worker writes Trip Service-owned tables directly as the v1 architecture.
 - Queue mode requires RabbitMQ; `in_process` mode remains available in Trip
   Service for local fallback and tests.
+
+## Observability
+
+Worker metrics include `worker_messages_consumed_total`,
+`worker_messages_acked_total`, `worker_messages_nacked_total`,
+`worker_messages_retried_total`, `worker_messages_dead_lettered_total`,
+`worker_active_jobs`, `worker_jobs_started_total`,
+`worker_jobs_completed_total`, `worker_jobs_failed_total`,
+`worker_job_duration_seconds`, and `worker_job_queue_delay_seconds`.
+
+Job logs include `jobId`, `tripId`, `jobType`, `messageId`, `attempt`,
+`durationMs`, `errorCode`, `requestId`, and `correlationId` when available.
+Panic recovery records `errorCode="panic"`, logs the stack safely, and attempts
+to mark the job failed without crashing the worker process.

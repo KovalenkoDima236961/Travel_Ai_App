@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 // WeatherProvider is implemented by each weather provider. v1 ships only a
@@ -36,6 +37,8 @@ func (s *WeatherService) GetForecast(ctx context.Context, req entity.WeatherFore
 
 	forecast, err := s.provider.GetForecast(ctx, req)
 	if err != nil {
+		extobs.RecordProviderRequest("unknown", "weather_forecast", "error", time.Since(start))
+		extobs.RecordProviderFailure("unknown", "weather_forecast", "provider_error")
 		s.log.Warn("weather_forecast",
 			zap.String("action", "weather_forecast"),
 			zap.String("destination", req.Destination),
@@ -45,6 +48,10 @@ func (s *WeatherService) GetForecast(ctx context.Context, req entity.WeatherFore
 			zap.Error(err),
 		)
 		return nil, err
+	}
+	extobs.RecordProviderRequest(forecast.Provider, "weather_forecast", "success", time.Since(start))
+	if forecast.FallbackUsed {
+		extobs.RecordProviderFallback(forecast.Provider, "weather_forecast", "mock")
 	}
 
 	s.log.Info("weather_forecast",

@@ -7,6 +7,7 @@ from app.api.knowledge_routes import router as knowledge_router
 from app.api.routes import router
 from app.config import get_settings
 from app.core.errors import register_exception_handlers
+from app.observability import metrics_response, request_context_middleware
 from app.services.generator_factory import (
     get_destination_knowledge_provider,
     get_itinerary_generator,
@@ -35,6 +36,8 @@ def create_app() -> FastAPI:
     app.state.destination_knowledge_provider = destination_knowledge_provider
     app.state.knowledge_search_service = knowledge_search_service
     register_exception_handlers(app)
+    app.middleware("http")(request_context_middleware)
+    app.add_api_route("/metrics", metrics_response, methods=["GET"], include_in_schema=False)
     app.include_router(router)
     app.include_router(destination_context_router)
     app.include_router(knowledge_router)

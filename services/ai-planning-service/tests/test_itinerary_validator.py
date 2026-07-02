@@ -214,6 +214,4 @@ def test_dietary_restriction_warning_does_not_fail_validation() -> None:
 
     result = ItineraryValidator().validate(request, _itinerary())
 
-    assert "dietary_restrictions_not_reflected" in [
-        warning.code for warning in result.warnings
-    ]
+    assert "dietary_restrictions_not_reflected" in [warning.code for warning in result.warnings]

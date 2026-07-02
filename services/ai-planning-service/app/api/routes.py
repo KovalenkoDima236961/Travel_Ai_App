@@ -9,6 +9,10 @@ from pydantic import ValidationError
 
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
+from app.observability import (
+    record_ai_request,
+    record_ai_validation_failure,
+)
 from app.schemas.itinerary import (
     BudgetOptimizationProposalResponse,
     GenerateItineraryRequest,
@@ -85,13 +89,21 @@ def ready(request: Request) -> JSONResponse:
 @router.post("/generate-itinerary", response_model=ItineraryResponse)
 def generate_itinerary(
     request: GenerateItineraryRequest,
+    http_request: Request,
     generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
 ) -> ItineraryResponse:
+    operation = "generate_itinerary"
+    mode = _generator_mode(http_request)
+    started_at = time.monotonic()
     try:
-        return generator.generate(request)
+        response = generator.generate(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
     except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
     except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to generate itinerary") from exc
 
 
@@ -100,15 +112,23 @@ async def regenerate_day(
     request: Request,
     generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
 ) -> RegenerateDayResponse | JSONResponse:
-    parsed = await _parse_partial_request(request, RegenerateDayRequest)
+    operation = "regenerate_day"
+    mode = _generator_mode(request)
+    started_at = time.monotonic()
+    parsed = await _parse_partial_request(request, RegenerateDayRequest, operation)
     if isinstance(parsed, JSONResponse):
+        record_ai_request(operation, "validation_error", mode, time.monotonic() - started_at)
         return parsed
 
     try:
-        return generator.regenerate_day(parsed)
+        response = generator.regenerate_day(parsed)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
     except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
     except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to regenerate itinerary day") from exc
 
 
@@ -117,30 +137,41 @@ async def regenerate_item(
     request: Request,
     generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
 ) -> RegenerateItemResponse | JSONResponse:
-    parsed = await _parse_partial_request(request, RegenerateItemRequest)
+    operation = "regenerate_item"
+    mode = _generator_mode(request)
+    started_at = time.monotonic()
+    parsed = await _parse_partial_request(request, RegenerateItemRequest, operation)
     if isinstance(parsed, JSONResponse):
+        record_ai_request(operation, "validation_error", mode, time.monotonic() - started_at)
         return parsed
 
     try:
-        return generator.regenerate_item(parsed)
+        response = generator.regenerate_item(parsed)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
     except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
     except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to regenerate itinerary item") from exc
 
 
 async def _parse_partial_request(
     request: Request,
     model: type[RegenerateDayRequest] | type[RegenerateItemRequest],
+    operation: str,
 ) -> RegenerateDayRequest | RegenerateItemRequest | JSONResponse:
     try:
         payload = await request.json()
     except ValueError:
+        record_ai_validation_failure(operation)
         return JSONResponse(status_code=400, content={"error": "invalid request body"})
 
     try:
         return model.model_validate(payload)
     except ValidationError as exc:
+        record_ai_validation_failure(operation)
         return JSONResponse(
             status_code=400,
             content={"error": _validation_error_message(exc)},
@@ -150,14 +181,27 @@ async def _parse_partial_request(
 @router.post("/optimize-budget/day", response_model=BudgetOptimizationProposalResponse)
 def optimize_budget_day(
     request: OptimizeBudgetDayRequest,
+    http_request: Request,
     generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
 ) -> BudgetOptimizationProposalResponse:
+    operation = "optimize_budget_day"
+    mode = _generator_mode(http_request)
+    started_at = time.monotonic()
     try:
-        return generator.optimize_budget_day(request)
+        response = generator.optimize_budget_day(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
     except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
     except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to optimize itinerary budget") from exc
+
+
+def _generator_mode(request: Request) -> str:
+    settings: Settings = request.app.state.settings
+    return settings.itinerary_generator_mode.strip().lower()
 
 
 def _validation_error_message(exc: ValidationError) -> str:

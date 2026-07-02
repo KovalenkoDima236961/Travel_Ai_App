@@ -16,6 +16,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 type Repository interface {
@@ -69,6 +71,7 @@ func NewService(repo Repository, trips TripService, cfg Config, opts ...Option) 
 }
 
 func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateRequest) (*entity.GenerationJob, error) {
+	startedAt := time.Now()
 	if !s.cfg.Enabled {
 		return nil, ErrDisabled
 	}
@@ -101,6 +104,7 @@ func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateReques
 		return nil, err
 	}
 
+	ctx, requestID, correlationID := observability.EnsureRequestIDs(ctx)
 	job, err := s.repo.CreateGenerationJob(ctx, &entity.GenerationJob{
 		ID:                        uuid.New(),
 		TripID:                    tripID,
@@ -112,36 +116,53 @@ func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateReques
 		DayNumber:                 req.DayNumber,
 		ItemIndex:                 req.ItemIndex,
 		Payload:                   req.Payload,
+		CorrelationID:             &correlationID,
+		RequestID:                 &requestID,
 	})
 	if err != nil {
 		return nil, err
 	}
+	recordGenerationJobCreated(req.JobType, time.Since(startedAt))
+	if req.JobType == entity.GenerationJobTypeBudgetOptimizationDay {
+		tripobs.RecordBudgetOptimizationJobCreated()
+	}
 
 	if s.cfg.QueueMode() {
+		recordGenerationJobDispatch(req.JobType, string(s.cfg.DispatchMode))
 		if s.publisher == nil {
-			_, _ = s.repo.FailGenerationJob(
+			recordGenerationJobDispatchFailed(req.JobType, ErrorJobDispatchFailed)
+			failed, _ := s.repo.FailGenerationJob(
 				ctx,
 				job.ID,
 				ErrorJobDispatchFailed,
 				"Generation job could not be dispatched.",
 			)
+			if failed != nil {
+				recordGenerationJobStatus(failed.JobType, failed.Status)
+			}
 			return nil, ErrJobDispatchFailed
 		}
 		publishCtx, cancel := context.WithTimeout(ctx, s.cfg.PublishTimeout)
-		err = s.publisher.PublishGenerationJob(publishCtx, NewQueueMessage(job))
+		err = s.publisher.PublishGenerationJob(publishCtx, NewQueueMessageFromContext(ctx, job))
 		cancel()
 		if err != nil {
+			recordGenerationJobDispatchFailed(req.JobType, ErrorJobDispatchFailed)
 			if s.cfg.PublishFailOpen {
 				return job, nil
 			}
-			_, _ = s.repo.FailGenerationJob(
+			failed, _ := s.repo.FailGenerationJob(
 				ctx,
 				job.ID,
 				ErrorJobDispatchFailed,
 				"Generation job could not be dispatched.",
 			)
+			if failed != nil {
+				recordGenerationJobStatus(failed.JobType, failed.Status)
+			}
 			return nil, ErrJobDispatchFailed
 		}
+	} else {
+		recordGenerationJobDispatch(req.JobType, string(s.cfg.DispatchMode))
 	}
 
 	return job, nil
@@ -202,7 +223,11 @@ func (s *Service) Cancel(ctx context.Context, tripID, jobID uuid.UUID) (*entity.
 	if access.Level != appservice.AccessLevelOwner && job.RequestedByUserID != user.ID {
 		return nil, apperrs.ErrForbidden
 	}
-	return s.repo.CancelQueuedGenerationJob(ctx, jobID)
+	cancelled, err := s.repo.CancelQueuedGenerationJob(ctx, jobID)
+	if err == nil {
+		recordGenerationJobStatus(cancelled.JobType, cancelled.Status)
+	}
+	return cancelled, err
 }
 
 func (s *Service) requireViewAccess(ctx context.Context, tripID uuid.UUID) error {

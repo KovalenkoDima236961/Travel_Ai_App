@@ -165,10 +165,13 @@ docker compose -f infra/docker-compose.yml up --build
 Useful local URLs:
 
 - Web App: http://localhost:3000
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3001 (`admin` / `admin`, local dev only)
 - Web Settings Page: http://localhost:3000/settings
 - Trip Service: http://localhost:8080
 - Worker Service: http://localhost:8090
 - RabbitMQ Management UI: http://localhost:15672
+- RabbitMQ Prometheus Metrics: http://localhost:15692/metrics
 - Auth Service: http://localhost:8082
 - User Service: http://localhost:8083
 - External Integrations Service: http://localhost:8084
@@ -182,6 +185,12 @@ UI, inspect:
 - `trip.generation.jobs` for queued generation/optimization work.
 - `trip.generation.retry` for delayed retry messages.
 - `trip.generation.dead_letter` for invalid or terminally failed deliveries.
+
+Prometheus scrapes `/metrics` on the Go services, Worker Service, AI Planning
+Service, and RabbitMQ's `rabbitmq_prometheus` plugin. Grafana provisions starter
+dashboards from `infra/observability/grafana/dashboards`. Details, metric naming
+rules, and correlation ID guidance are in
+[`infra/observability/README.md`](observability/README.md).
 
 The `web-app` service receives browser-facing and internal service URLs:
 

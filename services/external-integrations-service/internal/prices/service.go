@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 type Service struct {
@@ -23,6 +25,8 @@ func (s *Service) EstimatePrice(ctx context.Context, input PriceEstimateInput) (
 	start := time.Now()
 	result, err := s.provider.EstimatePrice(ctx, input)
 	if err != nil {
+		extobs.RecordProviderRequest("unknown", "price_estimate", "error", time.Since(start))
+		extobs.RecordProviderFailure("unknown", "price_estimate", "provider_error")
 		s.log.Warn("price_estimate",
 			zap.String("destination", input.Destination),
 			zap.String("place", safePlaceName(input.Place)),
@@ -34,6 +38,10 @@ func (s *Service) EstimatePrice(ctx context.Context, input PriceEstimateInput) (
 	}
 	if result == nil {
 		result = noMatch("No likely paid ticket price found", 0.2)
+	}
+	extobs.RecordProviderRequest(result.Provider, "price_estimate", "success", time.Since(start))
+	if result.FallbackUsed {
+		extobs.RecordProviderFallback(result.Provider, "price_estimate", "mock")
 	}
 	s.log.Info("price_estimate",
 		zap.String("destination", input.Destination),

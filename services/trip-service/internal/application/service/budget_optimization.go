@@ -17,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 func (s *Service) ListBudgetOptimizationProposals(
@@ -160,6 +161,7 @@ func (s *Service) OptimizeBudgetDayForActor(
 	if err != nil {
 		return nil, err
 	}
+	tripobs.RecordBudgetOptimizationProposalCreated(string(proposal.Status))
 
 	s.recordActivity(ctx, activity.RecordActivityInput{
 		TripID:      tripID,

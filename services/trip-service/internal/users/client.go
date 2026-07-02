@@ -13,6 +13,7 @@ import (
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 type Config struct {
@@ -36,9 +37,9 @@ func New(cfg Config) (*Client, error) {
 	}
 	return &Client{
 		baseURL: baseURL,
-		httpClient: &http.Client{
+		httpClient: observability.InstrumentHTTPClient(&http.Client{
 			Timeout: time.Duration(timeoutSeconds) * time.Second,
-		},
+		}),
 	}, nil
 }
 

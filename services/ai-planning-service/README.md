@@ -625,6 +625,21 @@ make test
 make check
 ```
 
+## Observability
+
+- `GET /metrics` exposes Prometheus text metrics through `prometheus_client`.
+- HTTP middleware records `http_requests_total`,
+  `http_request_duration_seconds`, and `http_requests_in_flight`.
+- AI metrics include `ai_requests_total`, `ai_request_duration_seconds`,
+  `ai_validation_failures_total`, and `ai_repair_attempts_total`.
+- AI metric labels are limited to operation/result/mode values such as
+  `generate_itinerary`, `regenerate_day`, `regenerate_item`,
+  `optimize_budget_day`, `mock`, and `ollama`.
+- The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
+  them on responses, and includes them in logs.
+- Do not log full prompts, full user preferences, full private itinerary JSON,
+  tokens, API keys, or raw model output by default.
+
 ## Troubleshooting
 
 `Ollama connection refused`: confirm Ollama is running and `OLLAMA_BASE_URL` is reachable from

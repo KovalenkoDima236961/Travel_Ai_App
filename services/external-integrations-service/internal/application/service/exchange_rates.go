@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 // ExchangeRateProvider is implemented by exchange-rate providers.
@@ -33,6 +34,8 @@ func (s *ExchangeRateService) Latest(ctx context.Context, base string) (*entity.
 	start := time.Now()
 	table, err := s.provider.Latest(ctx, base)
 	if err != nil {
+		extobs.RecordProviderRequest("unknown", "exchange_rate_latest", "error", time.Since(start))
+		extobs.RecordProviderFailure("unknown", "exchange_rate_latest", "provider_error")
 		s.log.Warn("exchange_rate_latest",
 			zap.String("action", "exchange_rate_latest"),
 			zap.String("base", base),
@@ -41,6 +44,10 @@ func (s *ExchangeRateService) Latest(ctx context.Context, base string) (*entity.
 			zap.Error(err),
 		)
 		return nil, err
+	}
+	extobs.RecordProviderRequest(table.Provider, "exchange_rate_latest", "success", time.Since(start))
+	if table.FallbackUsed {
+		extobs.RecordProviderFallback(table.Provider, "exchange_rate_latest", "mock")
 	}
 
 	s.log.Info("exchange_rate_latest",
@@ -59,6 +66,8 @@ func (s *ExchangeRateService) Convert(ctx context.Context, amount float64, from 
 	start := time.Now()
 	result, err := s.provider.Convert(ctx, amount, from, to)
 	if err != nil {
+		extobs.RecordProviderRequest("unknown", "exchange_rate_convert", "error", time.Since(start))
+		extobs.RecordProviderFailure("unknown", "exchange_rate_convert", "provider_error")
 		s.log.Warn("exchange_rate_convert",
 			zap.String("action", "exchange_rate_convert"),
 			zap.String("from", from),
@@ -68,6 +77,10 @@ func (s *ExchangeRateService) Convert(ctx context.Context, amount float64, from 
 			zap.Error(err),
 		)
 		return nil, err
+	}
+	extobs.RecordProviderRequest(result.Provider, "exchange_rate_convert", "success", time.Since(start))
+	if result.FallbackUsed {
+		extobs.RecordProviderFallback(result.Provider, "exchange_rate_convert", "mock")
 	}
 
 	s.log.Info("exchange_rate_convert",

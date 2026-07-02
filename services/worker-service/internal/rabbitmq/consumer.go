@@ -12,6 +12,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/jobqueue"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 type Consumer struct {
@@ -138,12 +139,21 @@ func (c *Consumer) Ready() bool {
 
 func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 	startedAt := time.Now()
+	messageType := delivery.Type
+	if messageType == "" {
+		messageType = readStringHeader(delivery.Headers, generationjobs.HeaderMessageType)
+	}
+	if messageType == "" {
+		messageType = generationjobs.MessageTypeTripGenerationJob
+	}
+	recordConsumed(c.cfg.QueueName, messageType)
 	attempt := readAttempt(delivery.Headers)
 	if attempt < 1 {
 		attempt = 1
 	}
 	msg, err := decodeMessage(delivery)
 	if err != nil {
+		recordNacked(c.cfg.QueueName, messageType, "invalid_message")
 		c.log.Warn("invalid generation job message rejected",
 			zap.Error(err),
 			zap.Int("attempt", attempt),
@@ -151,14 +161,19 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 		_ = delivery.Nack(false, false)
 		return
 	}
+	ctx = observability.ContextWithRequestIDs(ctx, msg.RequestID, msg.CorrelationID)
+	msg.RequestID = observability.RequestIDFromContext(ctx)
+	msg.CorrelationID = observability.CorrelationIDFromContext(ctx)
 
 	logFields := []zap.Field{
-		zap.String("job_id", msg.JobID.String()),
-		zap.String("trip_id", msg.TripID.String()),
-		zap.String("job_type", string(msg.JobType)),
-		zap.String("message_id", msg.MessageID.String()),
+		zap.String("jobId", msg.JobID.String()),
+		zap.String("tripId", msg.TripID.String()),
+		zap.String("jobType", string(msg.JobType)),
+		zap.String("messageId", msg.MessageID.String()),
 		zap.Int("attempt", attempt),
+		zap.String("queue", c.cfg.QueueName),
 	}
+	logFields = append(logFields, observability.RequestIDFields(ctx)...)
 
 	result, err := c.processor.ProcessJobByID(ctx, msg.JobID, false)
 	if err != nil {
@@ -170,23 +185,26 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 	switch result.Status {
 	case generationjobs.ProcessStatusSkipped:
 		_ = delivery.Ack(false)
+		recordAcked(c.cfg.QueueName, messageType)
 		c.log.Info("generation job message acknowledged as duplicate", logFields...)
 	case generationjobs.ProcessStatusCompleted:
 		_ = delivery.Ack(false)
+		recordAcked(c.cfg.QueueName, messageType)
 		c.log.Info("generation job message acknowledged after completion",
 			append(logFields,
-				zap.Duration("duration", time.Since(startedAt)),
+				zap.Float64("durationMs", float64(time.Since(startedAt).Microseconds())/1000),
 			)...,
 		)
 	case generationjobs.ProcessStatusFailed:
 		fields := append(logFields,
-			zap.String("error_code", result.ErrorCode),
-			zap.String("error_message", result.ErrorMessage),
+			zap.String("errorCode", result.ErrorCode),
+			zap.String("errorMessage", result.ErrorMessage),
 			zap.Bool("retryable", result.Retryable),
 		)
 		if result.Retryable && attempt < c.maxAttempts {
 			if err := c.processor.ResetRunningJobForRetry(ctx, msg.JobID, result.ErrorCode, result.ErrorMessage); err != nil {
 				c.log.Warn("failed to reset generation job for retry", append(fields, zap.Error(err))...)
+				recordNacked(c.cfg.QueueName, messageType, "reset_failed")
 				_ = delivery.Nack(false, true)
 				return
 			}
@@ -194,23 +212,30 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 			msg.CreatedAt = time.Now().UTC()
 			if err := c.publisher.PublishRetry(ctx, msg, attempt+1); err != nil {
 				c.log.Warn("failed to publish retry generation job message", append(fields, zap.Error(err))...)
+				recordNacked(c.cfg.QueueName, messageType, "retry_publish_failed")
 				_ = delivery.Nack(false, true)
 				return
 			}
 			_ = delivery.Ack(false)
-			c.log.Warn("generation job scheduled for retry", append(fields, zap.Int("next_attempt", attempt+1))...)
+			recordAcked(c.cfg.QueueName, messageType)
+			recordRetried(c.cfg.QueueName, messageType)
+			c.log.Warn("generation job scheduled for retry", append(fields, zap.Int("nextAttempt", attempt+1))...)
 			return
 		}
 
 		if err := c.processor.FailClaimedJob(ctx, result.Job, result.ErrorCode, result.ErrorMessage); err != nil {
 			c.log.Warn("failed to mark generation job terminally failed", append(fields, zap.Error(err))...)
+			recordNacked(c.cfg.QueueName, messageType, "terminal_mark_failed")
 			_ = delivery.Nack(false, true)
 			return
 		}
 		_ = delivery.Nack(false, false)
+		recordNacked(c.cfg.QueueName, messageType, result.ErrorCode)
+		recordDeadLettered(c.cfg.QueueName, messageType, result.ErrorCode)
 		c.log.Warn("generation job terminally failed and dead-lettered", fields...)
 	default:
 		c.log.Warn("unknown generation job process result", append(logFields, zap.String("status", string(result.Status)))...)
+		recordNacked(c.cfg.QueueName, messageType, "unknown_result")
 		_ = delivery.Nack(false, false)
 	}
 }
@@ -223,23 +248,29 @@ func (c *Consumer) retryOrRequeue(
 	code string,
 	message string,
 ) {
+	messageType := generationjobs.MessageTypeTripGenerationJob
 	if attempt >= c.maxAttempts {
+		recordNacked(c.cfg.QueueName, messageType, code)
+		recordDeadLettered(c.cfg.QueueName, messageType, code)
 		_ = delivery.Nack(false, false)
 		return
 	}
 	msg.MessageID = uuid.New()
 	msg.CreatedAt = time.Now().UTC()
 	if err := c.publisher.PublishRetry(ctx, msg, attempt+1); err != nil {
+		recordNacked(c.cfg.QueueName, messageType, "retry_publish_failed")
 		_ = delivery.Nack(false, true)
 		return
 	}
 	_ = delivery.Ack(false)
+	recordAcked(c.cfg.QueueName, messageType)
+	recordRetried(c.cfg.QueueName, messageType)
 	c.log.Warn("generation job message requeued for retry",
-		zap.String("job_id", msg.JobID.String()),
-		zap.String("message_id", msg.MessageID.String()),
-		zap.Int("next_attempt", attempt+1),
-		zap.String("error_code", code),
-		zap.String("error_message", message),
+		zap.String("jobId", msg.JobID.String()),
+		zap.String("messageId", msg.MessageID.String()),
+		zap.Int("nextAttempt", attempt+1),
+		zap.String("errorCode", code),
+		zap.String("errorMessage", message),
 	)
 }
 
@@ -251,10 +282,33 @@ func decodeMessage(delivery amqp.Delivery) (generationjobs.QueueMessage, error) 
 	if err := json.Unmarshal(delivery.Body, &msg); err != nil {
 		return generationjobs.QueueMessage{}, fmt.Errorf("decode generation job message: %w", err)
 	}
+	if msg.RequestID == "" {
+		msg.RequestID = readStringHeader(delivery.Headers, generationjobs.HeaderRequestID)
+	}
+	if msg.CorrelationID == "" {
+		msg.CorrelationID = readStringHeader(delivery.Headers, generationjobs.HeaderCorrelationID)
+	}
+	if msg.CorrelationID == "" {
+		msg.CorrelationID = msg.RequestID
+	}
 	if err := generationjobs.ValidateQueueMessage(msg); err != nil {
 		return generationjobs.QueueMessage{}, err
 	}
 	return msg, nil
+}
+
+func readStringHeader(headers amqp.Table, key string) string {
+	if headers == nil {
+		return ""
+	}
+	switch v := headers[key].(type) {
+	case string:
+		return v
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return ""
+	}
 }
 
 func readAttempt(headers amqp.Table) int {

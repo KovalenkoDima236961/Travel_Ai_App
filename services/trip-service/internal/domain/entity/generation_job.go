@@ -39,6 +39,8 @@ type GenerationJob struct {
 	DayNumber                 *int
 	ItemIndex                 *int
 	Payload                   json.RawMessage
+	CorrelationID             *string
+	RequestID                 *string
 	ErrorCode                 *string
 	ErrorMessage              *string
 	ResultItineraryRevision   *int

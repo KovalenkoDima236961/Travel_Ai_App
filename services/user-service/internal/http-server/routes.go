@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/handler"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/observability"
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
@@ -25,9 +26,10 @@ func NewRouter(
 ) http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
+	r.Use(observability.RequestIDMiddleware)
+	r.Use(chimiddleware.RealIP)
+	r.Use(chimiddleware.Recoverer)
+	r.Use(observability.HTTPMetricsMiddleware(observability.DefaultHTTPMetrics("user-service")))
 	r.Use(requestLogger(log))
 	r.Use(corsMiddleware(corsCfg))
 
@@ -35,6 +37,7 @@ func NewRouter(
 	if readinessHandler != nil {
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
+	r.Handle("/metrics", observability.MetricsHandler(nil))
 
 	devUserID, err := uuid.Parse(authCfg.DevUserID)
 	if err != nil {
@@ -62,21 +65,31 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 
 // requestLogger logs one structured line per request using Zap.
 func requestLogger(log *zap.Logger) func(http.Handler) http.Handler {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			ww := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 			next.ServeHTTP(ww, r)
 
-			log.Info("http_request",
+			status := ww.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+			fields := []zap.Field{
+				zap.String("service", "user-service"),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
-				zap.Int("status", ww.Status()),
+				zap.String("route", observability.RoutePattern(r)),
+				zap.Int("status", status),
 				zap.Int("bytes", ww.BytesWritten()),
-				zap.Duration("duration", time.Since(start)),
-				zap.String("request_id", middleware.GetReqID(r.Context())),
-			)
+				zap.Float64("durationMs", float64(time.Since(start).Microseconds())/1000),
+			}
+			fields = append(fields, observability.RequestIDFields(r.Context())...)
+			log.Info("http_request", fields...)
 		})
 	}
 }

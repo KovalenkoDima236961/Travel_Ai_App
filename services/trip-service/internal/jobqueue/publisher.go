@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 type RabbitMQPublisher struct {
@@ -97,15 +98,20 @@ func (p *RabbitMQPublisher) publish(
 	attempt int,
 	sourceService string,
 ) error {
+	startedAt := time.Now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if p.channel == nil || p.channel.IsClosed() {
+		recordPublishFailure(p.cfg.QueueName, routingKey, "channel_closed", time.Since(startedAt))
 		return fmt.Errorf("rabbitmq channel is closed")
 	}
 
+	ctx, msg.RequestID, msg.CorrelationID = ensureMessageRequestIDs(ctx, msg)
+
 	body, err := json.Marshal(msg)
 	if err != nil {
+		recordPublishFailure(p.cfg.QueueName, routingKey, "marshal_failed", time.Since(startedAt))
 		return fmt.Errorf("marshal generation job message: %w", err)
 	}
 
@@ -127,6 +133,8 @@ func (p *RabbitMQPublisher) publish(
 			Timestamp:    time.Now().UTC(),
 			Headers: amqp.Table{
 				generationjobs.HeaderAttempts:      int32(attempt),
+				generationjobs.HeaderRequestID:     msg.RequestID,
+				generationjobs.HeaderCorrelationID: msg.CorrelationID,
 				generationjobs.HeaderSourceService: sourceService,
 				generationjobs.HeaderMessageType:   generationjobs.MessageTypeTripGenerationJob,
 			},
@@ -134,27 +142,50 @@ func (p *RabbitMQPublisher) publish(
 		},
 	)
 	if err != nil {
+		recordPublishFailure(p.cfg.QueueName, routingKey, "publish_failed", time.Since(startedAt))
 		return fmt.Errorf("publish generation job: %w", err)
 	}
 
 	select {
 	case confirm := <-confirms:
 		if !confirm.Ack {
+			recordPublishFailure(p.cfg.QueueName, routingKey, "negative_ack", time.Since(startedAt))
 			return fmt.Errorf("rabbitmq negatively acknowledged publish")
 		}
 	case <-publishCtx.Done():
+		recordPublishFailure(p.cfg.QueueName, routingKey, "confirm_timeout", time.Since(startedAt))
 		return fmt.Errorf("wait for rabbitmq publish confirm: %w", publishCtx.Err())
 	}
+	recordPublishSuccess(p.cfg.QueueName, routingKey, generationjobs.MessageTypeTripGenerationJob, time.Since(startedAt))
 
-	p.log.Info("generation job message published",
-		zap.String("job_id", msg.JobID.String()),
-		zap.String("trip_id", msg.TripID.String()),
-		zap.String("job_type", string(msg.JobType)),
-		zap.String("message_id", msg.MessageID.String()),
-		zap.String("routing_key", routingKey),
+	fields := []zap.Field{
+		zap.String("jobId", msg.JobID.String()),
+		zap.String("tripId", msg.TripID.String()),
+		zap.String("jobType", string(msg.JobType)),
+		zap.String("messageId", msg.MessageID.String()),
+		zap.String("queue", p.cfg.QueueName),
+		zap.String("routingKey", routingKey),
 		zap.Int("attempt", attempt),
-	)
+	}
+	fields = append(fields, observability.RequestIDFields(ctx)...)
+	p.log.Info("generation job message published", fields...)
 	return nil
+}
+
+func ensureMessageRequestIDs(ctx context.Context, msg generationjobs.QueueMessage) (context.Context, string, string) {
+	requestID := msg.RequestID
+	correlationID := msg.CorrelationID
+	if requestID == "" || correlationID == "" {
+		_, ctxRequestID, ctxCorrelationID := observability.EnsureRequestIDs(ctx)
+		if requestID == "" {
+			requestID = ctxRequestID
+		}
+		if correlationID == "" {
+			correlationID = ctxCorrelationID
+		}
+	}
+	ctx = observability.ContextWithRequestIDs(ctx, requestID, correlationID)
+	return ctx, observability.RequestIDFromContext(ctx), observability.CorrelationIDFromContext(ctx)
 }
 
 func DeclareTopology(ch *amqp.Channel, cfg Config) error {

@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 const priceCacheMaxEntries = 4096
@@ -38,6 +39,7 @@ func (p *cachingProvider) EstimatePrice(ctx context.Context, input PriceEstimate
 	key := priceCacheKey(p.providerName, input)
 	if cached, ok := p.cache.Get(key); ok {
 		if result, ok := cached.(PriceEstimateResult); ok {
+			extobs.RecordProviderCacheHit(p.providerName, "price_estimate")
 			p.log.Info("price cache lookup",
 				zap.String("endpoint", "price"),
 				zap.String("provider", p.providerName),
@@ -52,6 +54,7 @@ func (p *cachingProvider) EstimatePrice(ctx context.Context, input PriceEstimate
 	if err != nil {
 		return nil, err
 	}
+	extobs.RecordProviderCacheMiss(p.providerName, "price_estimate")
 	if result == nil {
 		result = noMatch("No likely paid ticket price found", 0.2)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 const exchangeRateCacheMaxEntries = 512
@@ -47,6 +48,7 @@ func (p *cachingExchangeRateProvider) Latest(ctx context.Context, base string) (
 	key := exchangeRateCacheKey(p.providerName, base)
 	if cached, ok := p.cache.Get(key); ok {
 		if table, ok := cached.(entity.ExchangeRateTable); ok {
+			extobs.RecordProviderCacheHit(p.providerName, "exchange_rate_latest")
 			p.log.Info("exchange rate cache lookup",
 				zap.String("endpoint", "exchange_rates"),
 				zap.String("provider", p.providerName),
@@ -63,6 +65,7 @@ func (p *cachingExchangeRateProvider) Latest(ctx context.Context, base string) (
 	if err != nil {
 		return nil, err
 	}
+	extobs.RecordProviderCacheMiss(p.providerName, "exchange_rate_latest")
 	p.log.Info("exchange rate cache lookup",
 		zap.String("endpoint", "exchange_rates"),
 		zap.String("provider", p.providerName),

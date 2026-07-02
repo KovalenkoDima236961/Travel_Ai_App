@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const internalServiceTokenHeader = "X-Internal-Service-Token"
@@ -41,7 +43,9 @@ func New(cfg Config) (*Client, error) {
 	return &Client{
 		baseURL: baseURL,
 		token:   strings.TrimSpace(cfg.Token),
-		client:  &http.Client{Timeout: time.Duration(timeout) * time.Second},
+		client: observability.InstrumentHTTPClient(&http.Client{
+			Timeout: time.Duration(timeout) * time.Second,
+		}),
 	}, nil
 }
 

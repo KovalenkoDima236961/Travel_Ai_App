@@ -76,15 +76,18 @@ func (h *Handler) RegisterInternalRoutes(r chi.Router) {
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req request.Register
 	if !decodeJSON(w, r, &req) {
+		recordAuthRegister("invalid_request")
 		return
 	}
 
 	resp, err := h.svc.Register(r.Context(), req.ToInput())
 	if err != nil {
+		recordAuthRegister("error")
 		h.writeServiceError(w, err)
 		return
 	}
 
+	recordAuthRegister("success")
 	writeJSON(w, http.StatusCreated, response.NewAuth(resp))
 }
 
@@ -92,15 +95,18 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req request.Login
 	if !decodeJSON(w, r, &req) {
+		recordAuthLogin("invalid_request")
 		return
 	}
 
 	resp, err := h.svc.Login(r.Context(), req.ToInput())
 	if err != nil {
+		recordAuthLogin("error")
 		h.writeServiceError(w, err)
 		return
 	}
 
+	recordAuthLogin("success")
 	writeJSON(w, http.StatusOK, response.NewAuth(resp))
 }
 
@@ -108,15 +114,18 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req request.Refresh
 	if !decodeJSON(w, r, &req) {
+		recordAuthRefresh("invalid_request")
 		return
 	}
 
 	resp, err := h.svc.Refresh(r.Context(), req.ToInput())
 	if err != nil {
+		recordAuthRefresh("error")
 		h.writeServiceError(w, err)
 		return
 	}
 
+	recordAuthRefresh("success")
 	writeJSON(w, http.StatusOK, response.NewToken(resp))
 }
 
@@ -124,14 +133,17 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req request.Logout
 	if !decodeJSON(w, r, &req) {
+		recordAuthLogout("invalid_request")
 		return
 	}
 
 	if err := h.svc.Logout(r.Context(), req.ToInput()); err != nil {
+		recordAuthLogout("error")
 		h.writeServiceError(w, err)
 		return
 	}
 
+	recordAuthLogout("success")
 	writeJSON(w, http.StatusOK, response.NewLogout())
 }
 

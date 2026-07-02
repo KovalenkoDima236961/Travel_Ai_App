@@ -587,6 +587,26 @@ process-local TTL cache to cut repeated upstream calls:
   results are never cached, so a transient outage is retried rather than pinned.
 - Each lookup logs `cacheHit`, `provider`, and the endpoint type.
 
+## Observability
+
+- `GET /metrics` exposes Prometheus metrics.
+- HTTP middleware records `http_requests_total`,
+  `http_request_duration_seconds`, and `http_requests_in_flight`.
+- Provider metrics include `external_provider_requests_total`,
+  `external_provider_duration_seconds`, `external_provider_failures_total`,
+  `external_provider_fallback_total`,
+  `external_provider_cache_hits_total`, and
+  `external_provider_cache_misses_total`.
+- Provider labels are bounded to provider/operation/result/error/fallback values
+  such as `mock`, `foursquare`, `ors`, `openweathermap`, `place_search`,
+  `route_estimate`, `weather_forecast`, `exchange_rate_latest`,
+  `exchange_rate_convert`, and `price_estimate`.
+- The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
+  them on responses, and includes them in logs. Internal request IDs are not
+  forwarded to public third-party providers by default.
+- Do not log provider API keys, OAuth tokens/codes, full provider error bodies,
+  destinations/place names as metric labels, or browser credentials.
+
 ## Limitations
 
 - In-memory cache only (no Redis); provider rate limits still apply.

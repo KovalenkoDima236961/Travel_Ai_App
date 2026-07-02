@@ -107,6 +107,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 	client := stream.NewClient(user.ID)
 	if err := h.streams.Register(user.ID, client); err != nil {
 		if errors.Is(err, stream.ErrMaxConnectionsExceeded) {
+			recordNotificationSSEEventDropped("connect", "max_connections")
 			writeError(w, http.StatusTooManyRequests, "too many active notification streams")
 			return
 		}
@@ -117,7 +118,11 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	defer h.streams.Unregister(user.ID, client.ID)
+	recordNotificationSSEConnection("active", 1)
+	defer func() {
+		h.streams.Unregister(user.ID, client.ID)
+		recordNotificationSSEConnection("active", -1)
+	}()
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -132,6 +137,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 			_ = controller.SetWriteDeadline(time.Now().Add(h.streamCfg.WriteTimeout))
 		}
 		if err := stream.WriteSSE(w, event.Name, event.Data); err != nil {
+			recordNotificationSSEEventDropped(event.Name, "write_failed")
 			h.log.Debug("write notification stream event failed",
 				zap.String("user_id", user.ID.String()),
 				zap.String("client_id", client.ID),
@@ -141,6 +147,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 			return false
 		}
 		flusher.Flush()
+		recordNotificationSSEEventSent(event.Name)
 		if h.streamCfg.WriteTimeout > 0 {
 			_ = controller.SetWriteDeadline(time.Time{})
 		}

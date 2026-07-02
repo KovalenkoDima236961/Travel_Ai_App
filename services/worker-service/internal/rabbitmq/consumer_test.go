@@ -13,12 +13,16 @@ import (
 )
 
 func TestDecodeMessage(t *testing.T) {
+	requestID := "body-request"
+	correlationID := "body-correlation"
 	msg := generationjobs.QueueMessage{
-		MessageID: uuid.New(),
-		JobID:     uuid.New(),
-		TripID:    uuid.New(),
-		JobType:   entity.GenerationJobTypeBudgetOptimizationDay,
-		CreatedAt: time.Now(),
+		MessageID:     uuid.New(),
+		JobID:         uuid.New(),
+		TripID:        uuid.New(),
+		JobType:       entity.GenerationJobTypeBudgetOptimizationDay,
+		CreatedAt:     time.Now(),
+		RequestID:     requestID,
+		CorrelationID: correlationID,
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {
@@ -34,6 +38,44 @@ func TestDecodeMessage(t *testing.T) {
 	}
 	if got.JobID != msg.JobID {
 		t.Fatalf("job id mismatch: got %s want %s", got.JobID, msg.JobID)
+	}
+	if got.RequestID != requestID {
+		t.Fatalf("request id mismatch: got %q want %q", got.RequestID, requestID)
+	}
+	if got.CorrelationID != correlationID {
+		t.Fatalf("correlation id mismatch: got %q want %q", got.CorrelationID, correlationID)
+	}
+}
+
+func TestDecodeMessageFallsBackToRequestIDHeaders(t *testing.T) {
+	msg := generationjobs.QueueMessage{
+		MessageID: uuid.New(),
+		JobID:     uuid.New(),
+		TripID:    uuid.New(),
+		JobType:   entity.GenerationJobTypeBudgetOptimizationDay,
+		CreatedAt: time.Now(),
+	}
+	body, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := decodeMessage(amqp.Delivery{
+		ContentType: generationjobs.ContentTypeJSON,
+		Headers: amqp.Table{
+			generationjobs.HeaderRequestID:     "header-request",
+			generationjobs.HeaderCorrelationID: "header-correlation",
+		},
+		Body: body,
+	})
+	if err != nil {
+		t.Fatalf("decode valid message: %v", err)
+	}
+	if got.RequestID != "header-request" {
+		t.Fatalf("request id mismatch: got %q want header-request", got.RequestID)
+	}
+	if got.CorrelationID != "header-correlation" {
+		t.Fatalf("correlation id mismatch: got %q want header-correlation", got.CorrelationID)
 	}
 }
 

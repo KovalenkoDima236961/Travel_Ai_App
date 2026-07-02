@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const maxPlaceContextErrorBodyBytes = 2 * 1024
@@ -43,7 +44,7 @@ func NewClient(baseURL string, client *http.Client) (*Client, error) {
 	if client == nil {
 		return nil, fmt.Errorf("place context http client is required")
 	}
-	return &Client{baseURL: normalized, client: client}, nil
+	return &Client{baseURL: normalized, client: observability.InstrumentHTTPClient(client)}, nil
 }
 
 // SearchPlaces searches External Integrations Service for normalized places.

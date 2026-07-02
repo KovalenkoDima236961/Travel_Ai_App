@@ -11,6 +11,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 )
 
 // weatherCacheMaxEntries bounds the in-memory weather cache.
@@ -54,6 +55,7 @@ func (p *cachingWeatherProvider) GetForecast(ctx context.Context, req entity.Wea
 
 	if cached, ok := p.cache.Get(key); ok {
 		if forecast, ok := cached.(entity.WeatherForecast); ok {
+			extobs.RecordProviderCacheHit(p.providerName, "weather_forecast")
 			p.log.Info("weather cache lookup",
 				zap.String("endpoint", "weather"),
 				zap.String("provider", p.providerName),
@@ -68,6 +70,7 @@ func (p *cachingWeatherProvider) GetForecast(ctx context.Context, req entity.Wea
 	if err != nil {
 		return nil, err
 	}
+	extobs.RecordProviderCacheMiss(p.providerName, "weather_forecast")
 
 	p.log.Info("weather cache lookup",
 		zap.String("endpoint", "weather"),

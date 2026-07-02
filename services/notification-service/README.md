@@ -354,6 +354,21 @@ make test          # go test ./... -race
 make lint          # golangci-lint
 ```
 
+## Observability
+
+- `GET /metrics` exposes Prometheus metrics.
+- HTTP middleware records `http_requests_total`,
+  `http_request_duration_seconds`, and `http_requests_in_flight`.
+- Notification metrics include `notifications_created_total`,
+  `notifications_failed_total`, `notifications_email_sent_total`,
+  `notifications_sse_connections`, `notifications_sse_events_sent_total`, and
+  `notifications_sse_events_dropped_total`.
+- The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
+  them on responses, includes them in logs, and propagates them on internal
+  Auth/User Service calls.
+- Do not log access tokens, internal service tokens, SMTP credentials, recipient
+  payloads beyond safe IDs/counts, or full notification metadata.
+
 ## Limitations (v1)
 
 - **Email is synchronous** inside the batch request — no retry queue and no

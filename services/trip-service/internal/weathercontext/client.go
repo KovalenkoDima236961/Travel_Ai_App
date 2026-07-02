@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const maxWeatherContextErrorBodyBytes = 2 * 1024
@@ -42,7 +44,7 @@ func NewClient(baseURL string, client *http.Client) (*Client, error) {
 	if client == nil {
 		return nil, fmt.Errorf("weather context http client is required")
 	}
-	return &Client{baseURL: normalized, client: client}, nil
+	return &Client{baseURL: normalized, client: observability.InstrumentHTTPClient(client)}, nil
 }
 
 // GetForecast loads a daily forecast from External Integrations Service.

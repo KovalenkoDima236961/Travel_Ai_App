@@ -94,3 +94,15 @@ curl -X PATCH http://localhost:8083/users/me/preferences \
     "accommodationStyle": ["budget_hotel"]
   }'
 ```
+
+## Observability
+
+- `GET /metrics` exposes Prometheus metrics.
+- HTTP middleware records `http_requests_total`,
+  `http_request_duration_seconds`, and `http_requests_in_flight`.
+- User counters include `user_profile_requests_total` and
+  `user_preferences_requests_total`, labeled by bounded operation/result values.
+- The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
+  them on responses, and includes them in request logs.
+- Do not log Authorization headers, full travel preferences, or private profile
+  payloads.

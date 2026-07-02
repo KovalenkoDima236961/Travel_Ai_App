@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const maxNotificationErrorBodyBytes = 2 * 1024
@@ -40,7 +42,7 @@ func NewClient(baseURL, token string, client *http.Client) (*Client, error) {
 	if client == nil {
 		return nil, fmt.Errorf("notification http client is required")
 	}
-	return &Client{baseURL: normalized, token: token, client: client}, nil
+	return &Client{baseURL: normalized, token: token, client: observability.InstrumentHTTPClient(client)}, nil
 }
 
 // CreateNotifications creates a batch of notifications. An empty batch is a
