@@ -10,8 +10,10 @@ from pydantic import ValidationError
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.schemas.itinerary import (
+    BudgetOptimizationProposalResponse,
     GenerateItineraryRequest,
     ItineraryResponse,
+    OptimizeBudgetDayRequest,
     RegenerateDayRequest,
     RegenerateDayResponse,
     RegenerateItemRequest,
@@ -143,6 +145,19 @@ async def _parse_partial_request(
             status_code=400,
             content={"error": _validation_error_message(exc)},
         )
+
+
+@router.post("/optimize-budget/day", response_model=BudgetOptimizationProposalResponse)
+def optimize_budget_day(
+    request: OptimizeBudgetDayRequest,
+    generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
+) -> BudgetOptimizationProposalResponse:
+    try:
+        return generator.optimize_budget_day(request)
+    except ItineraryGenerationError:
+        raise
+    except Exception as exc:
+        raise ItineraryGenerationError("Failed to optimize itinerary budget") from exc
 
 
 def _validation_error_message(exc: ValidationError) -> str:

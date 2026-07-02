@@ -8,8 +8,10 @@ from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import (
+    BudgetOptimizationProposalResponse,
     GenerateItineraryRequest,
     ItineraryResponse,
+    OptimizeBudgetDayRequest,
     RegenerateDayRequest,
     RegenerateDayResponse,
     RegenerateItemRequest,
@@ -22,12 +24,14 @@ from app.services.itinerary_validator import ItineraryValidationError, Itinerary
 from app.services.knowledge_search import KnowledgeSearchService
 from app.services.llm_response_parser import (
     LLMResponseParseError,
+    parse_budget_optimization_response,
     parse_itinerary_response,
     parse_regenerate_day_response,
     parse_regenerate_item_response,
 )
 from app.services.prompt_builder import (
     build_itinerary_prompt,
+    build_optimize_budget_day_prompt,
     build_regenerate_day_prompt,
     build_regenerate_day_repair_prompt,
     build_regenerate_item_prompt,
@@ -145,6 +149,33 @@ class OllamaItineraryGenerator:
                 exc_info=True,
             )
             raise ItineraryGenerationError("Failed to regenerate itinerary item") from exc
+
+    def optimize_budget_day(
+        self, request: OptimizeBudgetDayRequest
+    ) -> BudgetOptimizationProposalResponse:
+        started_at = time.monotonic()
+        log_context = self._base_budget_optimization_log_context(request)
+
+        try:
+            proposal = self._optimize_budget_day_with_ollama(request, log_context)
+            log_context["generation_duration_ms"] = self._duration_ms(started_at)
+            logger.info("Ollama budget optimization succeeded", extra=log_context)
+            return proposal
+        except (httpx.HTTPError, OllamaClientError, LLMResponseParseError) as exc:
+            self._record_generation_error(log_context, exc)
+            log_context["generation_duration_ms"] = self._duration_ms(started_at)
+
+            if self._settings.ollama_fallback_to_mock:
+                log_context["fallback_used"] = True
+                logger.warning(
+                    "Ollama budget optimization failed; falling back to mock generator",
+                    extra=log_context,
+                    exc_info=True,
+                )
+                return self._fallback_generator.optimize_budget_day(request)
+
+            logger.error("Ollama budget optimization failed", extra=log_context, exc_info=True)
+            raise ItineraryGenerationError("Failed to optimize itinerary budget") from exc
 
     def _generate_with_ollama(
         self,
@@ -319,6 +350,23 @@ class OllamaItineraryGenerator:
             log_context["repair_succeeded"] = True
             return repaired
 
+    def _optimize_budget_day_with_ollama(
+        self,
+        request: OptimizeBudgetDayRequest,
+        log_context: dict[str, Any],
+    ) -> BudgetOptimizationProposalResponse:
+        prompt = build_optimize_budget_day_prompt(request)
+        self._log_llm_payload("Ollama budget optimization prompt", "prompt", prompt, log_context)
+
+        llm_response = self._call_ollama(prompt)
+        self._log_llm_payload(
+            "Ollama raw budget optimization response",
+            "raw_llm_response",
+            llm_response,
+            log_context,
+        )
+        return parse_budget_optimization_response(llm_response, request.day_number)
+
     def _call_ollama(self, prompt: str) -> str:
         payload = {
             "model": self._settings.ollama_model,
@@ -424,6 +472,32 @@ class OllamaItineraryGenerator:
         if isinstance(request, RegenerateItemRequest):
             context["item_index"] = request.item_index
         return context
+
+    def _base_budget_optimization_log_context(
+        self,
+        request: OptimizeBudgetDayRequest,
+    ) -> dict[str, Any]:
+        return {
+            "trip_id": str(request.trip.id),
+            "destination": request.trip.destination,
+            "day_number": request.day_number,
+            "action": "budget_optimization_day",
+            "generator_mode": "ollama",
+            "model": self._settings.ollama_model,
+            "generation_duration_ms": None,
+            "repair_enabled": False,
+            "repair_attempted": False,
+            "repair_succeeded": False,
+            "fallback_used": False,
+            "destination_context_used": False,
+            "rag_enabled": self._settings.rag_enabled,
+            "rag_results_count": 0,
+            "rag_search_failed": False,
+            "validation_error_code": None,
+            "validation_error_message": None,
+            "instruction_present": request.instruction is not None,
+            "target_reduction_amount": str(request.budget_context.target_reduction_amount),
+        }
 
     def _get_destination_context(
         self,

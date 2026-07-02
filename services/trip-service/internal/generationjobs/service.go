@@ -12,6 +12,7 @@ import (
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
@@ -34,6 +35,7 @@ type TripService interface {
 	GenerateForActor(ctx context.Context, tripID, actorUserID uuid.UUID, expectedRevision int) (*entity.Trip, error)
 	RegenerateDayForActor(ctx context.Context, tripID, actorUserID uuid.UUID, dayNumber int, instruction string, expectedRevision int) (*entity.Trip, error)
 	RegenerateItemForActor(ctx context.Context, tripID, actorUserID uuid.UUID, dayNumber, itemIndex int, instruction string, expectedRevision int) (*entity.Trip, error)
+	OptimizeBudgetDayForActor(ctx context.Context, tripID, actorUserID uuid.UUID, jobID *uuid.UUID, dayNumber int, instruction string, expectedRevision int, payload budgetoptimization.JobPayload) (*entity.Trip, error)
 	RecordGenerationJobFailed(ctx context.Context, tripID, requesterID, jobID uuid.UUID, jobType entity.GenerationJobType, errorCode, errorMessage string)
 }
 
@@ -94,6 +96,7 @@ func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateReques
 		Instruction:               instruction,
 		DayNumber:                 req.DayNumber,
 		ItemIndex:                 req.ItemIndex,
+		Payload:                   req.Payload,
 	})
 }
 
@@ -203,7 +206,9 @@ func validateJobTarget(
 	switch jobType {
 	case entity.GenerationJobTypeFullGeneration:
 		return nil
-	case entity.GenerationJobTypeDayRegeneration, entity.GenerationJobTypeQualityImprovementDay:
+	case entity.GenerationJobTypeDayRegeneration,
+		entity.GenerationJobTypeQualityImprovementDay,
+		entity.GenerationJobTypeBudgetOptimizationDay:
 		if dayNumber == nil || *dayNumber < 1 {
 			return apperrs.NewInvalidInput("dayNumber is required and must be > 0")
 		}

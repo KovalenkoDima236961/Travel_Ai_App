@@ -65,6 +65,10 @@ type RestoreItineraryVersionInput struct {
 	ExpectedItineraryRevision *int
 }
 
+type ApplyBudgetOptimizationProposalInput struct {
+	ExpectedItineraryRevision *int
+}
+
 // CreateTripShareInput holds optional initial controls for a new or re-enabled
 // public share link.
 type CreateTripShareInput struct {

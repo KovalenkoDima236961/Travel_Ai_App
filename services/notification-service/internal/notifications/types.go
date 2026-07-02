@@ -23,6 +23,10 @@ const (
 	TypeItemRegenerated     = "item_regenerated"
 	TypeVersionRestored     = "version_restored"
 	TypeGenerationJobFailed = "generation_job_failed"
+
+	// Budget optimization.
+	TypeBudgetOptimizationReady  = "budget_optimization_ready"
+	TypeBudgetOptimizationFailed = "budget_optimization_failed"
 )
 
 // Entity type constants describe the kind of object a notification refers to.
@@ -41,17 +45,19 @@ const (
 // this helper remains useful for renderers/tests that need to distinguish known
 // vocabulary from future types.
 var knownTypes = map[string]struct{}{
-	TypeCollaborationInvited:   {},
-	TypeCollaborationAccepted:  {},
-	TypeCollaboratorRoleChange: {},
-	TypeCollaboratorRemoved:    {},
-	TypeCommentCreated:         {},
-	TypeItineraryUpdated:       {},
-	TypeItineraryGenerated:     {},
-	TypeDayRegenerated:         {},
-	TypeItemRegenerated:        {},
-	TypeVersionRestored:        {},
-	TypeGenerationJobFailed:    {},
+	TypeCollaborationInvited:     {},
+	TypeCollaborationAccepted:    {},
+	TypeCollaboratorRoleChange:   {},
+	TypeCollaboratorRemoved:      {},
+	TypeCommentCreated:           {},
+	TypeItineraryUpdated:         {},
+	TypeItineraryGenerated:       {},
+	TypeDayRegenerated:           {},
+	TypeItemRegenerated:          {},
+	TypeVersionRestored:          {},
+	TypeGenerationJobFailed:      {},
+	TypeBudgetOptimizationReady:  {},
+	TypeBudgetOptimizationFailed: {},
 }
 
 // IsKnownType reports whether the notification type is part of the recognised

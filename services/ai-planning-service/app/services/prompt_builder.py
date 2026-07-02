@@ -4,6 +4,7 @@ from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import (
     GenerateItineraryRequest,
     OpeningHoursInterval,
+    OptimizeBudgetDayRequest,
     RegenerateDayRequest,
     RegenerateItemRequest,
 )
@@ -364,6 +365,111 @@ Rules:
   when there is no cost or you are uncertain. Use amount 0 for free stops.
 - Prefer the trip budget/preferred currency; local currency is acceptable only when
   natural and known. Do not invent exact exchange rates.
+- Do not include fields outside the schema.
+- Do not include any text outside the JSON.
+""".strip()
+
+
+def build_optimize_budget_day_prompt(request: OptimizeBudgetDayRequest) -> str:
+    instruction = request.instruction or "No extra user instruction provided."
+    selected_day = request.selected_day()
+    selected_day_json = (
+        selected_day.model_dump_json(by_alias=True, exclude_none=True) if selected_day else "{}"
+    )
+
+    return f"""
+You are creating a reviewable budget optimization proposal for one itinerary day.
+
+Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
+The JSON must exactly match this schema and must not include any other fields:
+{{
+  "summary": "string",
+  "scope": "day",
+  "dayNumber": {request.day_number},
+  "currency": "{request.budget_context.currency}",
+  "baseDayEstimatedTotal": 185,
+  "proposedDayEstimatedTotal": 113,
+  "estimatedSavingsAmount": 72,
+  "confidence": "medium",
+  "changes": [
+    {{
+      "type": "replace_item",
+      "oldItemIndex": 1,
+      "oldItemName": "string",
+      "newItemName": "string",
+      "reason": "string",
+      "estimatedSavingsAmount": 35,
+      "currency": "{request.budget_context.currency}"
+    }}
+  ],
+  "preservedItems": [
+    {{
+      "itemIndex": 0,
+      "itemName": "string",
+      "reason": "string"
+    }}
+  ],
+  "tradeoffs": ["string"],
+  "warnings": ["string"],
+  "proposedDay": {{
+    "day": {request.day_number},
+    "title": "string",
+    "items": [
+      {{
+        "time": "09:00",
+        "type": "place",
+        "name": "string",
+        "note": "string",
+        "estimatedCost": {{
+          "amount": 10,
+          "currency": "{request.budget_context.currency}",
+          "category": "ticket",
+          "confidence": "medium",
+          "source": "ai"
+        }}
+      }}
+    ]
+  }}
+}}
+
+Trip request:
+{_partial_trip_section(request)}
+{_partial_user_context_section(request)}
+{_weather_context_section(request.weather_forecast)}
+{_accommodation_context_section(request.accommodation)}
+
+Budget context:
+{request.budget_context.model_dump_json(by_alias=True, exclude_none=True)}
+
+Optimization constraints:
+{request.constraints.model_dump_json(by_alias=True, exclude_none=True)}
+
+Current full itinerary JSON:
+{request.current_itinerary.model_dump_json(by_alias=True, exclude_none=True)}
+
+Selected day to optimize:
+{selected_day_json}
+
+User instruction:
+{instruction}
+
+Rules:
+- Optimize only day {request.day_number}; do not propose full-trip changes.
+- The returned proposedDay.day must be {request.day_number}.
+- Reduce estimated cost while preserving trip quality, core interests, meals, and rest.
+- Prefer free or lower-cost alternatives where reasonable.
+- Do not remove every paid/high-value attraction.
+- Preserve must-see or high-value items when they appear important.
+- Avoid replacing manually priced items when avoidReplacingManualCosts is true.
+- Keep route and walking realistic around accommodation when accommodation context is present.
+- Respect weather and opening-hours context included in item/place data.
+- Explain tradeoffs and approximate savings.
+- Use currency {request.budget_context.currency} where possible.
+- Use estimatedCost with non-negative amount, 3-letter currency, category,
+  confidence, and source "ai".
+- Do not claim exact financial accuracy; warnings may mention approximate ticket prices.
+- Use change types only: replace_item, remove_item, add_item, modify_item_cost,
+  reorder_item, keep_item.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()

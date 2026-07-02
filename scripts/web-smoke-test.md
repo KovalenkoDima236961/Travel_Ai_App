@@ -140,13 +140,30 @@ http://localhost:3000
 12. Open `Trip Quality Checks` and confirm budget issues appear (over budget,
     day over budget, expensive item, missing cost estimates, missing ticket
     prices, high ticket costs, or low-confidence provider estimates).
-13. For the trip-level over-budget issue, click `Improve day N`, confirm a
-    generation job starts, and that the resulting day is budget-aware.
-14. Export a private PDF and confirm the budget summary uses approximate
+13. Click `Optimize Day N for budget` from the Budget panel or a budget-related
+    Trip Quality Checks issue.
+14. In the dialog, confirm the day, target reduction, currency, constraints, max
+    walking increase, and optional instruction are prefilled with reasonable
+    defaults.
+15. Start the optimization job and confirm the shared generation job status card
+    appears.
+16. Wait for the proposal card to appear.
+17. Confirm the proposal shows status, approximate savings, base/proposed day
+    totals, confidence, changes, tradeoffs/warnings, and a `Preview day` button.
+18. Preview the proposal and confirm it shows current and proposed day items.
+19. Click `Apply`.
+20. Confirm the itinerary day changes, the budget summary refetches, and version
+    history/activity include budget optimization entries.
+21. Start a second optimization proposal and click `Discard`; confirm the
+    itinerary does not change.
+22. Log in as an accepted viewer collaborator and confirm proposals are visible
+    but create/apply/discard controls are not available.
+23. Export a private PDF and confirm the budget summary uses approximate
     converted totals and includes original currency totals when present.
-15. Create a public share link, open `/share/{shareToken}` in a logged-out
-    window, and confirm the private trip budget and provider price review
-    metadata are **not** shown (item cost badges may still appear).
+24. Create a public share link, open `/share/{shareToken}` in a logged-out
+    window, and confirm the private trip budget, optimization UI/proposals, and
+    provider price review metadata are **not** shown (item cost badges may still
+    appear).
 
 ## Accommodation Planning
 

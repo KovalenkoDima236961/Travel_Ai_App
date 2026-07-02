@@ -4,6 +4,7 @@ AI Planning Service is a FastAPI microservice for itinerary generation. It expos
 
 - `GET /health`
 - `POST /generate-itinerary`
+- `POST /optimize-budget/day`
 - `GET /destination-context`
 - `GET /destination-context/{destination}`
 - `POST /destination-context/{destination}/preview-prompt`
@@ -150,6 +151,81 @@ rate, and `0` for genuinely free stops. **AI estimates are approximate, not real
 prices.** Trip Service owns any exchange-rate conversion in budget summaries.
 The mock generator emits the same structured costs so local development
 exercises the full budget flow.
+
+## Budget Optimization v1
+
+`POST /optimize-budget/day` returns a reviewable proposal for reducing the cost
+of one itinerary day. It does not update Trip Service state directly; Trip
+Service stores the returned proposal and applies it only after a user confirms.
+
+Request shape:
+
+```json
+{
+  "trip": {
+    "destination": "Rome",
+    "startDate": "2026-08-10",
+    "budget": { "amount": 700, "currency": "EUR" }
+  },
+  "dayNumber": 2,
+  "currentDay": { "day": 2, "title": "Museum day", "items": [] },
+  "budgetContext": {
+    "currency": "EUR",
+    "tripBudget": 700,
+    "tripEstimatedTotal": 920,
+    "dayEstimatedTotal": 185,
+    "dailyBudgetShare": 100,
+    "targetReductionAmount": 80,
+    "expensiveItems": []
+  },
+  "constraints": {
+    "preserveMustSeeItems": true,
+    "maxWalkingIncreaseKm": 2,
+    "keepMealCount": true,
+    "avoidReplacingManualCosts": true
+  },
+  "accommodation": null,
+  "weather": null,
+  "userPreferences": null,
+  "instruction": "Keep the historical theme."
+}
+```
+
+Response shape:
+
+```json
+{
+  "summary": "Reduced estimated cost by replacing a paid tour.",
+  "scope": "day",
+  "dayNumber": 2,
+  "currency": "EUR",
+  "baseDayEstimatedTotal": 185,
+  "proposedDayEstimatedTotal": 113,
+  "estimatedSavingsAmount": 72,
+  "confidence": "medium",
+  "changes": [],
+  "preservedItems": [],
+  "tradeoffs": [],
+  "warnings": ["Ticket prices are approximate."],
+  "proposedDay": { "day": 2, "title": "Budget Museum Day", "items": [] }
+}
+```
+
+The prompt asks the model to prefer free or lower-cost alternatives, preserve
+core user interests and must-see/high-value items, keep meals/rest balance, keep
+routes realistic around accommodation, respect supplied weather/opening-hours
+context, and explain tradeoffs. It must return strict JSON matching the schema.
+Prices and savings are approximate estimates, not guaranteed prices.
+
+Pydantic validates the proposed day, non-negative totals and savings, confidence
+enum, change list, and structured `estimatedCost` values. In mock mode the
+service deterministically replaces the most expensive item with a cheaper
+alternative so Trip Service smoke tests can exercise proposal creation and
+application without Ollama.
+
+Limitations: v1 optimizes one day at a time, returns one proposal, does not
+perform booking or ticket purchase, and relies on user review before any
+itinerary mutation.
 
 ## Generator Modes
 

@@ -17,6 +17,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
@@ -80,6 +81,8 @@ type mockRepo struct {
 	listCollaborators []entity.TripCollaborator
 
 	calendarSyncs []entity.TripCalendarSync
+
+	budgetOptimizationProposals []entity.BudgetOptimizationProposal
 }
 
 func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {
@@ -595,6 +598,106 @@ func (m *mockRepo) MarkAllTripCalendarSyncsDeleted(_ context.Context, tripID, us
 	return nil
 }
 
+func (m *mockRepo) CreateBudgetOptimizationProposal(_ context.Context, proposal *entity.BudgetOptimizationProposal) (*entity.BudgetOptimizationProposal, error) {
+	out := *proposal
+	now := time.Now()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	m.budgetOptimizationProposals = append(m.budgetOptimizationProposals, out)
+	return &out, nil
+}
+
+func (m *mockRepo) GetBudgetOptimizationProposalByIDAndTrip(_ context.Context, id, tripID uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range m.budgetOptimizationProposals {
+		proposal := m.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.TripID == tripID {
+			return &proposal, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListBudgetOptimizationProposalsByTrip(_ context.Context, tripID uuid.UUID, status *entity.BudgetOptimizationProposalStatus, limit int) ([]entity.BudgetOptimizationProposal, error) {
+	out := make([]entity.BudgetOptimizationProposal, 0)
+	for _, proposal := range m.budgetOptimizationProposals {
+		if proposal.TripID != tripID {
+			continue
+		}
+		if status != nil && proposal.Status != *status {
+			continue
+		}
+		out = append(out, proposal)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) ListPendingBudgetOptimizationProposalsByTrip(ctx context.Context, tripID uuid.UUID, limit int) ([]entity.BudgetOptimizationProposal, error) {
+	status := entity.BudgetOptimizationProposalStatusPending
+	return m.ListBudgetOptimizationProposalsByTrip(ctx, tripID, &status, limit)
+}
+
+func (m *mockRepo) MarkBudgetOptimizationProposalApplied(_ context.Context, id uuid.UUID, appliedItineraryRevision int) (*entity.BudgetOptimizationProposal, error) {
+	for i := range m.budgetOptimizationProposals {
+		proposal := &m.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.Status == entity.BudgetOptimizationProposalStatusPending {
+			now := time.Now()
+			proposal.Status = entity.BudgetOptimizationProposalStatusApplied
+			proposal.AppliedItineraryRevision = &appliedItineraryRevision
+			proposal.AppliedAt = &now
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) MarkBudgetOptimizationProposalDiscarded(_ context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range m.budgetOptimizationProposals {
+		proposal := &m.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.Status == entity.BudgetOptimizationProposalStatusPending {
+			now := time.Now()
+			proposal.Status = entity.BudgetOptimizationProposalStatusDiscarded
+			proposal.DiscardedAt = &now
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) MarkBudgetOptimizationProposalExpired(_ context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range m.budgetOptimizationProposals {
+		proposal := &m.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.Status == entity.BudgetOptimizationProposalStatusPending {
+			now := time.Now()
+			proposal.Status = entity.BudgetOptimizationProposalStatusExpired
+			proposal.ExpiredAt = &now
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) MarkBudgetOptimizationProposalFailed(_ context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range m.budgetOptimizationProposals {
+		proposal := &m.budgetOptimizationProposals[i]
+		if proposal.ID == id {
+			proposal.Status = entity.BudgetOptimizationProposalStatusFailed
+			proposal.UpdatedAt = time.Now()
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
 func countTripVersions(versions []entity.ItineraryVersion, tripID uuid.UUID) int {
 	count := 0
 	for _, version := range versions {
@@ -607,18 +710,22 @@ func countTripVersions(versions []entity.ItineraryVersion, tripID uuid.UUID) int
 
 // mockGenerator is an application.ItineraryGenerator test double.
 type mockGenerator struct {
-	result               *aggregate.Itinerary
-	err                  error
-	called               bool
-	capturedInput        application.GenerateItineraryInput
-	dayResult            *aggregate.ItineraryDay
-	dayErr               error
-	regenerateDayCalled  bool
-	capturedDayInput     application.RegenerateDayInput
-	itemResult           *aggregate.ItineraryItem
-	itemErr              error
-	regenerateItemCalled bool
-	capturedItemInput    application.RegenerateItemInput
+	result                *aggregate.Itinerary
+	err                   error
+	called                bool
+	capturedInput         application.GenerateItineraryInput
+	dayResult             *aggregate.ItineraryDay
+	dayErr                error
+	regenerateDayCalled   bool
+	capturedDayInput      application.RegenerateDayInput
+	itemResult            *aggregate.ItineraryItem
+	itemErr               error
+	regenerateItemCalled  bool
+	capturedItemInput     application.RegenerateItemInput
+	optimizeResult        *budgetoptimization.ProposalContent
+	optimizeErr           error
+	optimizeCalled        bool
+	capturedOptimizeInput budgetoptimization.OptimizeDayInput
 }
 
 func (g *mockGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
@@ -667,6 +774,49 @@ func (g *mockGenerator) RegenerateItem(_ context.Context, input application.Rege
 		Time: "12:30",
 		Type: "food",
 		Name: "Replacement item",
+	}, nil
+}
+
+func (g *mockGenerator) OptimizeBudgetDay(_ context.Context, input budgetoptimization.OptimizeDayInput) (*budgetoptimization.ProposalContent, error) {
+	g.optimizeCalled = true
+	g.capturedOptimizeInput = input
+	if g.optimizeErr != nil {
+		return nil, g.optimizeErr
+	}
+	if g.optimizeResult != nil {
+		return g.optimizeResult, nil
+	}
+	savings := 10.0
+	proposedTotal := input.BudgetContext.DayEstimatedTotal - savings
+	if proposedTotal < 0 {
+		proposedTotal = 0
+	}
+	proposedDay := input.CurrentDay
+	if len(proposedDay.Items) > 0 {
+		amount := 0.0
+		proposedDay.Items[0].EstimatedCost = &aggregate.EstimatedCost{
+			Amount:     &amount,
+			Currency:   input.BudgetContext.Currency,
+			Category:   "activity",
+			Confidence: "medium",
+			Source:     "ai",
+		}
+	}
+	return &budgetoptimization.ProposalContent{
+		Summary:                   "Reduced day cost with a cheaper option.",
+		Scope:                     budgetoptimization.ScopeDay,
+		DayNumber:                 input.DayNumber,
+		Currency:                  input.BudgetContext.Currency,
+		BaseDayEstimatedTotal:     input.BudgetContext.DayEstimatedTotal,
+		ProposedDayEstimatedTotal: proposedTotal,
+		EstimatedSavingsAmount:    savings,
+		Confidence:                budgetoptimization.ConfidenceMedium,
+		Changes: []budgetoptimization.ProposalChange{{
+			Type:                   budgetoptimization.ChangeReplaceItem,
+			EstimatedSavingsAmount: &savings,
+			Currency:               input.BudgetContext.Currency,
+		}},
+		ProposedDay: proposedDay,
 	}, nil
 }
 
@@ -760,6 +910,10 @@ func testUserID() uuid.UUID {
 }
 
 func intPtr(v int) *int {
+	return &v
+}
+
+func uuidPtr(v uuid.UUID) *uuid.UUID {
 	return &v
 }
 
@@ -1806,6 +1960,180 @@ func TestRegenerateDay_ReplacesOnlySelectedDay(t *testing.T) {
 	}
 }
 
+func TestApplyBudgetOptimizationProposal_ReplacesOnlySelectedDay(t *testing.T) {
+	tripID := uuid.New()
+	proposalID := uuid.New()
+	dayNumber := 2
+	current := &entity.Trip{
+		ID:                tripID,
+		UserID:            uuidPtr(testUserID()),
+		Destination:       "Rome",
+		Days:              2,
+		BudgetCurrency:    "EUR",
+		Status:            entity.StatusCompleted,
+		Itinerary:         validExistingItineraryRaw(t),
+		ItineraryRevision: 4,
+	}
+	proposal := budgetOptimizationProposal(t, tripID, proposalID, dayNumber, 4, budgetoptimization.ProposalContent{
+		Summary:                   "Replace one paid stop with a cheaper option.",
+		Scope:                     budgetoptimization.ScopeDay,
+		DayNumber:                 dayNumber,
+		Currency:                  "EUR",
+		BaseDayEstimatedTotal:     120,
+		ProposedDayEstimatedTotal: 70,
+		EstimatedSavingsAmount:    50,
+		Confidence:                budgetoptimization.ConfidenceMedium,
+		Changes: []budgetoptimization.ProposalChange{
+			{Type: budgetoptimization.ChangeReplaceItem, OldItemIndex: intPtr(0), OldItemName: "Original Item 2A", NewItemName: "Budget Museum"},
+		},
+		ProposedDay: aggregate.ItineraryDay{
+			Day:   dayNumber,
+			Title: "Budget Day 2",
+			Items: []aggregate.ItineraryItem{
+				{Time: "09:30", Type: "place", Name: "Budget Museum", Note: "Lower-cost option"},
+				{Time: "13:00", Type: "food", Name: "Original Item 2B", Note: "Keep 2B"},
+			},
+		},
+	})
+	repo := &mockRepo{
+		getByIDResult:               current,
+		budgetOptimizationProposals: []entity.BudgetOptimizationProposal{proposal},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	updated, applied, err := svc.ApplyBudgetOptimizationProposal(authContext(), tripID, proposalID, intPtr(4))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.ItineraryRevision != 5 {
+		t.Fatalf("expected revision 5, got %d", updated.ItineraryRevision)
+	}
+	if applied.Status != entity.BudgetOptimizationProposalStatusApplied {
+		t.Fatalf("expected applied proposal, got %s", applied.Status)
+	}
+	if applied.AppliedItineraryRevision == nil || *applied.AppliedItineraryRevision != 5 {
+		t.Fatalf("expected applied revision 5, got %v", applied.AppliedItineraryRevision)
+	}
+	if repo.updateItinSource != entity.ItineraryVersionSourceBudgetOptimizationApplied {
+		t.Fatalf("expected budget optimization version source, got %s", repo.updateItinSource)
+	}
+	got := decodeItinerary(t, repo.updateItinRaw)
+	if got.Days[0].Title != "Original Day 1" {
+		t.Fatalf("day 1 must be preserved, got %q", got.Days[0].Title)
+	}
+	if got.Days[1].Title != "Budget Day 2" || got.Days[1].Items[0].Name != "Budget Museum" {
+		t.Fatalf("day 2 was not replaced with proposal: %+v", got.Days[1])
+	}
+	if len(repo.versions) != 1 {
+		t.Fatalf("expected one version, got %d", len(repo.versions))
+	}
+}
+
+func TestApplyBudgetOptimizationProposal_StaleProposalExpiresWithoutSaving(t *testing.T) {
+	tripID := uuid.New()
+	proposalID := uuid.New()
+	dayNumber := 2
+	current := &entity.Trip{
+		ID:                tripID,
+		UserID:            uuidPtr(testUserID()),
+		Destination:       "Rome",
+		Days:              2,
+		BudgetCurrency:    "EUR",
+		Status:            entity.StatusCompleted,
+		Itinerary:         validExistingItineraryRaw(t),
+		ItineraryRevision: 5,
+	}
+	proposal := budgetOptimizationProposal(t, tripID, proposalID, dayNumber, 4, budgetoptimization.ProposalContent{
+		Summary:                   "Older proposal.",
+		Scope:                     budgetoptimization.ScopeDay,
+		DayNumber:                 dayNumber,
+		Currency:                  "EUR",
+		BaseDayEstimatedTotal:     120,
+		ProposedDayEstimatedTotal: 90,
+		EstimatedSavingsAmount:    30,
+		Confidence:                budgetoptimization.ConfidenceMedium,
+		Changes: []budgetoptimization.ProposalChange{
+			{Type: budgetoptimization.ChangeReplaceItem, OldItemIndex: intPtr(0), OldItemName: "Original Item 2A", NewItemName: "Older option"},
+		},
+		ProposedDay: aggregate.ItineraryDay{
+			Day:   dayNumber,
+			Title: "Older Day 2",
+			Items: []aggregate.ItineraryItem{
+				{Time: "09:30", Type: "place", Name: "Older option"},
+			},
+		},
+	})
+	repo := &mockRepo{
+		getByIDResult:               current,
+		budgetOptimizationProposals: []entity.BudgetOptimizationProposal{proposal},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	_, _, err := svc.ApplyBudgetOptimizationProposal(authContext(), tripID, proposalID, intPtr(5))
+	var conflict *apperrs.ItineraryConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("expected itinerary conflict, got %v", err)
+	}
+	if repo.updateItinRaw != nil {
+		t.Fatal("stale proposal must not save itinerary")
+	}
+	if repo.budgetOptimizationProposals[0].Status != entity.BudgetOptimizationProposalStatusExpired {
+		t.Fatalf("expected stale proposal to expire, got %s", repo.budgetOptimizationProposals[0].Status)
+	}
+}
+
+func TestDiscardBudgetOptimizationProposal_MarksPendingWithoutSaving(t *testing.T) {
+	tripID := uuid.New()
+	proposalID := uuid.New()
+	dayNumber := 2
+	current := &entity.Trip{
+		ID:                tripID,
+		UserID:            uuidPtr(testUserID()),
+		Destination:       "Rome",
+		Days:              2,
+		BudgetCurrency:    "EUR",
+		Status:            entity.StatusCompleted,
+		Itinerary:         validExistingItineraryRaw(t),
+		ItineraryRevision: 4,
+	}
+	proposal := budgetOptimizationProposal(t, tripID, proposalID, dayNumber, 4, budgetoptimization.ProposalContent{
+		Summary:                   "Discardable proposal.",
+		Scope:                     budgetoptimization.ScopeDay,
+		DayNumber:                 dayNumber,
+		Currency:                  "EUR",
+		BaseDayEstimatedTotal:     120,
+		ProposedDayEstimatedTotal: 90,
+		EstimatedSavingsAmount:    30,
+		Confidence:                budgetoptimization.ConfidenceMedium,
+		Changes: []budgetoptimization.ProposalChange{
+			{Type: budgetoptimization.ChangeReplaceItem, OldItemIndex: intPtr(0), OldItemName: "Original Item 2A", NewItemName: "Cheaper option"},
+		},
+		ProposedDay: aggregate.ItineraryDay{
+			Day:   dayNumber,
+			Title: "Cheaper Day 2",
+			Items: []aggregate.ItineraryItem{
+				{Time: "09:30", Type: "place", Name: "Cheaper option"},
+			},
+		},
+	})
+	repo := &mockRepo{
+		getByIDResult:               current,
+		budgetOptimizationProposals: []entity.BudgetOptimizationProposal{proposal},
+	}
+	svc := newTestService(repo, &mockGenerator{})
+
+	discarded, err := svc.DiscardBudgetOptimizationProposal(authContext(), tripID, proposalID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if discarded.Status != entity.BudgetOptimizationProposalStatusDiscarded {
+		t.Fatalf("expected discarded proposal, got %s", discarded.Status)
+	}
+	if repo.updateItinRaw != nil {
+		t.Fatal("discard must not save itinerary")
+	}
+}
+
 func TestRegenerateItem_ReplacesOnlySelectedItem(t *testing.T) {
 	id := uuid.New()
 	repo := &mockRepo{
@@ -2428,6 +2756,36 @@ func validItineraryWithPlaceEnrichmentReviewRaw(t *testing.T, status string) jso
 		t.Fatalf("marshal itinerary with place enrichment review status: %v", err)
 	}
 	return out
+}
+
+func budgetOptimizationProposal(
+	t *testing.T,
+	tripID, proposalID uuid.UUID,
+	dayNumber int,
+	baseRevision int,
+	content budgetoptimization.ProposalContent,
+) entity.BudgetOptimizationProposal {
+	t.Helper()
+	raw, err := json.Marshal(content)
+	if err != nil {
+		t.Fatalf("marshal budget optimization proposal: %v", err)
+	}
+	savings := content.EstimatedSavingsAmount
+	return entity.BudgetOptimizationProposal{
+		ID:                        proposalID,
+		TripID:                    tripID,
+		CreatedByUserID:           testUserID(),
+		Scope:                     entity.BudgetOptimizationScopeDay,
+		DayNumber:                 &dayNumber,
+		ExpectedItineraryRevision: baseRevision,
+		BaseItineraryRevision:     baseRevision,
+		Status:                    entity.BudgetOptimizationProposalStatusPending,
+		Currency:                  content.Currency,
+		EstimatedSavingsAmount:    &savings,
+		ProposalJSON:              raw,
+		CreatedAt:                 time.Now(),
+		UpdatedAt:                 time.Now(),
+	}
 }
 
 func itineraryWithMutatedPlaceRaw(t *testing.T, mutate func(*aggregate.PlaceRef)) json.RawMessage {

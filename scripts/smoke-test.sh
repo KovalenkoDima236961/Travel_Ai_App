@@ -913,6 +913,120 @@ if ! jq -e '.tripBudget == 300' <<<"${LAST_BODY}" >/dev/null; then
   exit 1
 fi
 
+echo "Queueing a day-level budget optimization job..."
+BUDGET_OPTIMIZATION_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{
+  scope:"day",
+  dayNumber:1,
+  targetReductionAmount:20,
+  currency:"EUR",
+  expectedItineraryRevision:$revision,
+  constraints:{
+    preserveMustSeeItems:true,
+    maxWalkingIncreaseKm:2,
+    keepMealCount:true,
+    avoidReplacingManualCosts:true
+  },
+  instruction:"Reduce cost while preserving the day theme."
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-jobs" "${ACCESS_TOKEN}" "${BUDGET_OPTIMIZATION_PAYLOAD}"
+assert_status "Create budget optimization job" "202"
+BUDGET_OPTIMIZATION_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${BUDGET_OPTIMIZATION_JOB_ID}" ]]; then
+  echo "Budget optimization job response did not include a job id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+poll_generation_job "Budget optimization" "${TRIP_ID}" "${BUDGET_OPTIMIZATION_JOB_ID}" "${ACCESS_TOKEN}"
+BUDGET_OPTIMIZATION_JOB_STATUS="$(jq -r '.job.status // empty' <<<"${LAST_BODY}")"
+if [[ "${BUDGET_OPTIMIZATION_JOB_STATUS}" != "completed" ]]; then
+  echo "Budget optimization job did not complete successfully." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Budget optimization ready notification" "${ACCESS_TOKEN}" "budget_optimization_ready"
+
+echo "Fetching pending budget optimization proposal..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals?status=pending&limit=20" "${ACCESS_TOKEN}"
+assert_2xx "List budget optimization proposals"
+BUDGET_PROPOSAL_ID="$(jq -r '.proposals[0].id // empty' <<<"${LAST_BODY}")"
+BUDGET_PROPOSAL_SAVINGS="$(jq -r '.proposals[0].estimatedSavingsAmount // 0' <<<"${LAST_BODY}")"
+if [[ -z "${BUDGET_PROPOSAL_ID}" ]]; then
+  echo "Budget optimization did not create a pending proposal." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.proposals[0].status == "pending" and .proposals[0].proposal.proposedDay.day == 1 and (.proposals[0].estimatedSavingsAmount > 0)' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Budget optimization proposal was not shaped as expected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+echo "Budget optimization proposal ${BUDGET_PROPOSAL_ID} estimates savings=${BUDGET_PROPOSAL_SAVINGS}."
+
+echo "Applying budget optimization proposal..."
+BUDGET_APPLY_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals/${BUDGET_PROPOSAL_ID}/apply" "${ACCESS_TOKEN}" "${BUDGET_APPLY_PAYLOAD}"
+assert_2xx "Apply budget optimization proposal"
+BUDGET_APPLIED_REVISION="$(jq -r '.trip.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${BUDGET_APPLIED_REVISION}" != "$((TRIP_REVISION + 1))" ]]; then
+  echo "Expected budget optimization apply to increment itineraryRevision to $((TRIP_REVISION + 1)), got ${BUDGET_APPLIED_REVISION}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+TRIP_REVISION="${BUDGET_APPLIED_REVISION}"
+
+echo "Confirming budget optimization proposal cannot be applied twice..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals/${BUDGET_PROPOSAL_ID}/apply" "${ACCESS_TOKEN}" "$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+assert_status "Reapply budget optimization proposal" "400"
+
+echo "Confirming budget summary is still available after budget optimization apply..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
+assert_2xx "Budget summary after budget optimization"
+if ! jq -e '.tripBudget == 300 and (.byDay | length > 0)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Budget summary after optimization was not shaped as expected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Creating a second budget proposal to confirm stale apply conflicts..."
+SECOND_BUDGET_OPTIMIZATION_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{
+  scope:"day",
+  dayNumber:1,
+  targetReductionAmount:10,
+  currency:"EUR",
+  expectedItineraryRevision:$revision
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-jobs" "${ACCESS_TOKEN}" "${SECOND_BUDGET_OPTIMIZATION_PAYLOAD}"
+assert_status "Create second budget optimization job" "202"
+SECOND_BUDGET_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+poll_generation_job "Second budget optimization" "${TRIP_ID}" "${SECOND_BUDGET_JOB_ID}" "${ACCESS_TOKEN}"
+if [[ "$(jq -r '.job.status // empty' <<<"${LAST_BODY}")" != "completed" ]]; then
+  echo "Second budget optimization job did not complete successfully." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals?status=pending&limit=20" "${ACCESS_TOKEN}"
+assert_2xx "List second pending budget optimization proposal"
+SECOND_BUDGET_PROPOSAL_ID="$(jq -r '.proposals[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${SECOND_BUDGET_PROPOSAL_ID}" ]]; then
+  echo "Second budget optimization did not create a pending proposal." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+STALE_BUDGET_APPLY_PAYLOAD="$(jq -nc --argjson revision "$((TRIP_REVISION - 1))" '{expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals/${SECOND_BUDGET_PROPOSAL_ID}/apply" "${ACCESS_TOKEN}" "${STALE_BUDGET_APPLY_PAYLOAD}"
+assert_status "Stale budget optimization apply" "409"
+if ! jq -e '.error == "itinerary_conflict"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Stale budget optimization apply did not return itinerary_conflict." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals/${SECOND_BUDGET_PROPOSAL_ID}/discard" "${ACCESS_TOKEN}"
+assert_2xx "Discard second budget optimization proposal"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch trip after budget optimization"
+COMPLETED_TRIP_BODY="${LAST_BODY}"
+
 echo "Editing an item cost through the revision-checked itinerary update..."
 UPDATED_ITINERARY="$(jq -c \
   '.itinerary | .days[0].items[0].estimatedCost = {amount:10000,currency:"JPY",category:"activity",confidence:"high",source:"manual",note:"smoke multi-currency"}' \
@@ -1546,6 +1660,10 @@ echo "Confirming public share token cannot open the private activity stream..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_status "Public share activity stream access" "401"
 
+echo "Confirming public share token cannot access budget optimization proposals..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share budget optimization proposal access" "401"
+
 PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${PUBLIC_TRIP_BODY}")"
 PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${PUBLIC_TRIP_BODY}")"
 if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; then
@@ -1940,6 +2058,9 @@ assert_activity_has "Owner activity feed" "collaborator_invited"
 assert_activity_has "Owner activity feed" "collaborator_accepted"
 assert_activity_has "Owner activity feed" "collaborator_removed"
 assert_activity_has "Owner activity feed" "share_created"
+assert_activity_has "Owner activity feed" "budget_optimization_proposed"
+assert_activity_has "Owner activity feed" "budget_optimization_applied"
+assert_activity_has "Owner activity feed" "budget_optimization_discarded"
 
 echo "Paging the activity feed one event at a time via the opaque cursor..."
 ACTIVITY_CURSOR=""

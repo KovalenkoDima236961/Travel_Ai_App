@@ -15,9 +15,16 @@ import type { Trip } from "@/types/trip";
 type BudgetPanelProps = {
   trip: Trip;
   canEdit: boolean;
+  optimizationDisabled?: boolean;
+  onOpenBudgetOptimization?: (dayNumber: number) => void;
 };
 
-export function BudgetPanel({ trip, canEdit }: BudgetPanelProps) {
+export function BudgetPanel({
+  trip,
+  canEdit,
+  optimizationDisabled = false,
+  onOpenBudgetOptimization
+}: BudgetPanelProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -81,6 +88,8 @@ export function BudgetPanel({ trip, canEdit }: BudgetPanelProps) {
         <BudgetSummaryView
           currency={currency}
           isLoading={summaryQuery.isLoading}
+          onOpenBudgetOptimization={canEdit ? onOpenBudgetOptimization : undefined}
+          optimizationDisabled={optimizationDisabled}
           summary={summary ?? null}
         />
       )}
@@ -91,11 +100,15 @@ export function BudgetPanel({ trip, canEdit }: BudgetPanelProps) {
 function BudgetSummaryView({
   summary,
   currency,
-  isLoading
+  isLoading,
+  optimizationDisabled,
+  onOpenBudgetOptimization
 }: {
   summary: BudgetSummary | null;
   currency: string;
   isLoading: boolean;
+  optimizationDisabled: boolean;
+  onOpenBudgetOptimization?: (dayNumber: number) => void;
 }) {
   if (isLoading) {
     return <p className="mt-4 text-sm text-slate-500">Loading budget summary…</p>;
@@ -106,6 +119,9 @@ function BudgetSummaryView({
 
   const overBudget = (summary.overBudgetBy ?? 0) > 0;
   const hasBudget = summary.tripBudget != null;
+  const suggestedOptimizationDayNumber = getSuggestedOptimizationDay(summary);
+  const canOptimize =
+    suggestedOptimizationDayNumber != null && Boolean(onOpenBudgetOptimization);
 
   return (
     <div className="mt-4 space-y-4 text-sm">
@@ -129,8 +145,22 @@ function BudgetSummaryView({
 
       {overBudget ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          This trip is estimated to go over budget by{" "}
-          {formatApproxMoney(summary.overBudgetBy, currency)}.
+          <p>
+            This trip is estimated to go over budget by{" "}
+            {formatApproxMoney(summary.overBudgetBy, currency)}.
+          </p>
+          {canOptimize ? (
+            <Button
+              className="mt-3"
+              disabled={optimizationDisabled}
+              onClick={() => onOpenBudgetOptimization?.(suggestedOptimizationDayNumber)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Optimize Day {suggestedOptimizationDayNumber} for budget
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
@@ -211,6 +241,18 @@ function BudgetSummaryView({
               );
             })}
           </ul>
+          {!overBudget && canOptimize ? (
+            <Button
+              className="mt-3"
+              disabled={optimizationDisabled}
+              onClick={() => onOpenBudgetOptimization?.(suggestedOptimizationDayNumber)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Optimize Day {suggestedOptimizationDayNumber} for budget
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
@@ -236,6 +278,24 @@ function BudgetSummaryView({
       ) : null}
     </div>
   );
+}
+
+function getSuggestedOptimizationDay(summary: BudgetSummary): number | null {
+  if (summary.byDay.length === 0) {
+    return null;
+  }
+  const overBudgetDay = [...summary.byDay]
+    .filter((day) => (day.overDailyBudgetBy ?? 0) > 0)
+    .sort((left, right) => (right.overDailyBudgetBy ?? 0) - (left.overDailyBudgetBy ?? 0))[0];
+  if (overBudgetDay) {
+    return overBudgetDay.dayNumber;
+  }
+  if ((summary.overBudgetBy ?? 0) <= 0) {
+    return null;
+  }
+  return [...summary.byDay].sort(
+    (left, right) => right.estimatedTotal - left.estimatedTotal
+  )[0].dayNumber;
 }
 
 function SummaryRow({

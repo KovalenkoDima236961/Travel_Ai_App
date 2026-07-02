@@ -144,17 +144,19 @@ func TestUpdatePreferencesValidation(t *testing.T) {
 
 func TestCategoryForNotificationType(t *testing.T) {
 	cases := map[string]string{
-		notifications.TypeCollaborationInvited:   CategoryCollaboration,
-		notifications.TypeCollaborationAccepted:  CategoryCollaboration,
-		notifications.TypeCommentCreated:         CategoryComments,
-		notifications.TypeCollaboratorRoleChange: CategoryRoleChanges,
-		notifications.TypeCollaboratorRemoved:    CategoryRoleChanges,
-		notifications.TypeItineraryUpdated:       CategoryTripUpdates,
-		notifications.TypeItineraryGenerated:     CategoryTripUpdates,
-		notifications.TypeDayRegenerated:         CategoryTripUpdates,
-		notifications.TypeItemRegenerated:        CategoryTripUpdates,
-		notifications.TypeVersionRestored:        CategoryTripUpdates,
-		notifications.TypeGenerationJobFailed:    CategoryTripUpdates,
+		notifications.TypeCollaborationInvited:     CategoryCollaboration,
+		notifications.TypeCollaborationAccepted:    CategoryCollaboration,
+		notifications.TypeCommentCreated:           CategoryComments,
+		notifications.TypeCollaboratorRoleChange:   CategoryRoleChanges,
+		notifications.TypeCollaboratorRemoved:      CategoryRoleChanges,
+		notifications.TypeItineraryUpdated:         CategoryTripUpdates,
+		notifications.TypeItineraryGenerated:       CategoryTripUpdates,
+		notifications.TypeDayRegenerated:           CategoryTripUpdates,
+		notifications.TypeItemRegenerated:          CategoryTripUpdates,
+		notifications.TypeVersionRestored:          CategoryTripUpdates,
+		notifications.TypeGenerationJobFailed:      CategoryTripUpdates,
+		notifications.TypeBudgetOptimizationReady:  CategoryTripUpdates,
+		notifications.TypeBudgetOptimizationFailed: CategoryTripUpdates,
 	}
 
 	for typ, expected := range cases {

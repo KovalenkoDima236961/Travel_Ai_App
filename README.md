@@ -174,6 +174,17 @@ manual costs by default. v1 has no real ticket booking/checkout provider,
 historical rates, crypto rates, or financial accuracy guarantees, and never
 exposes the private trip budget or provider review metadata on the public share
 page.
+Advanced AI Budget Optimization v1 lets owners/editors request a day-level
+cheaper-itinerary proposal from AI without automatically overwriting the trip.
+Trip Service queues a `budget_optimization_day` job, sends the selected day plus
+budget, accommodation, weather, route, and preference context to AI Planning
+Service `/optimize-budget/day`, stores the validated proposal in
+`budget_optimization_proposals`, and shows it in the Web App for explicit review.
+Applying a proposal uses `expectedItineraryRevision`, replaces only that day,
+increments the revision once, and creates version/activity records; discarding
+does not change the itinerary. Accepted viewers can read private proposals but
+cannot create/apply/discard them, and public shares expose none of this UI or
+API surface.
 Accommodation Planning v1 adds one private structured stay location per trip.
 Owners/editors can add, edit, or remove an accommodation with name/type/address,
 optional attached place coordinates, check-in/check-out dates, notes, and an

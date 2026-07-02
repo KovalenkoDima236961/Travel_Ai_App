@@ -327,7 +327,6 @@ export function getBudgetIssues({
             instructionHint: "Add or estimate ticket costs for paid attractions.",
             metadata: { itemType: item.type ?? null, priceEnrichment: item.priceEnrichment ?? null }
           });
-          continue;
         }
         if (itemLikelyNeedsCost(item.type)) {
           missingInDay += 1;

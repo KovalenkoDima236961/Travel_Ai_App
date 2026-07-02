@@ -14,7 +14,7 @@ import (
 )
 
 const GenerationJobColumns = "id, trip_id, requested_by_user_id, job_type, status, " +
-	"expected_itinerary_revision, instruction, day_number, item_index, error_code, " +
+	"expected_itinerary_revision, instruction, day_number, item_index, payload, error_code, " +
 	"error_message, result_itinerary_revision, created_at, started_at, completed_at, " +
 	"cancelled_at, updated_at"
 
@@ -29,6 +29,7 @@ func GenerationJobInsertColumns() []string {
 		"instruction",
 		"day_number",
 		"item_index",
+		"payload",
 	}
 }
 
@@ -43,6 +44,7 @@ func GenerationJobInsertValues(job *entity.GenerationJob) []any {
 		toPgTextPtr(job.Instruction),
 		toPgIntPtr(job.DayNumber),
 		toPgIntPtr(job.ItemIndex),
+		rawJSONArg(job.Payload),
 	}
 }
 
@@ -54,6 +56,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		instruction                   pgtype.Text
 		dayNumber                     pgtype.Int4
 		itemIndex                     pgtype.Int4
+		payloadRaw                    []byte
 		errorCode                     pgtype.Text
 		errorMessage                  pgtype.Text
 		resultRevision                pgtype.Int4
@@ -74,6 +77,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		&instruction,
 		&dayNumber,
 		&itemIndex,
+		&payloadRaw,
 		&errorCode,
 		&errorMessage,
 		&resultRevision,
@@ -100,6 +104,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		Instruction:               fromPgText(instruction),
 		DayNumber:                 fromPgIntPtr(dayNumber),
 		ItemIndex:                 fromPgIntPtr(itemIndex),
+		Payload:                   payloadRaw,
 		ErrorCode:                 fromPgText(errorCode),
 		ErrorMessage:              fromPgText(errorMessage),
 		ResultItineraryRevision:   fromPgIntPtr(resultRevision),
@@ -109,6 +114,13 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		CancelledAt:               fromPgTimestampPtr(cancelledAt),
 		UpdatedAt:                 updatedAt.Time,
 	}, nil
+}
+
+func rawJSONArg(raw []byte) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	return raw
 }
 
 func ScanGenerationJobRows(rows pgx.Rows) ([]entity.GenerationJob, error) {

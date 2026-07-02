@@ -13,12 +13,17 @@ const (
 	EventAccommodationRemoved = "accommodation_removed"
 
 	// Itinerary.
-	EventItineraryGenerated  = "itinerary_generated"
-	EventItineraryUpdated    = "itinerary_updated"
-	EventDayRegenerated      = "day_regenerated"
-	EventItemRegenerated     = "item_regenerated"
-	EventVersionRestored     = "version_restored"
-	EventGenerationJobFailed = "generation_job_failed"
+	EventItineraryGenerated          = "itinerary_generated"
+	EventItineraryUpdated            = "itinerary_updated"
+	EventDayRegenerated              = "day_regenerated"
+	EventItemRegenerated             = "item_regenerated"
+	EventVersionRestored             = "version_restored"
+	EventGenerationJobFailed         = "generation_job_failed"
+	EventBudgetOptimizationRequested = "budget_optimization_requested"
+	EventBudgetOptimizationProposed  = "budget_optimization_proposed"
+	EventBudgetOptimizationApplied   = "budget_optimization_applied"
+	EventBudgetOptimizationDiscarded = "budget_optimization_discarded"
+	EventBudgetOptimizationFailed    = "budget_optimization_failed"
 
 	// Comments.
 	EventCommentCreated = "comment_created"
@@ -62,33 +67,38 @@ const (
 // knownEventTypes is the set of event types this version recognises. Recording
 // an unknown type is allowed (forward-compat) but is logged so typos surface.
 var knownEventTypes = map[string]struct{}{
-	EventTripCreated:             {},
-	EventTripBudgetUpdated:       {},
-	EventAccommodationAdded:      {},
-	EventAccommodationUpdated:    {},
-	EventAccommodationRemoved:    {},
-	EventItineraryGenerated:      {},
-	EventItineraryUpdated:        {},
-	EventDayRegenerated:          {},
-	EventItemRegenerated:         {},
-	EventVersionRestored:         {},
-	EventGenerationJobFailed:     {},
-	EventCommentCreated:          {},
-	EventCommentUpdated:          {},
-	EventCommentDeleted:          {},
-	EventCollaboratorInvited:     {},
-	EventCollaboratorAccepted:    {},
-	EventCollaboratorDeclined:    {},
-	EventCollaboratorRoleChanged: {},
-	EventCollaboratorRemoved:     {},
-	EventShareCreated:            {},
-	EventShareUpdated:            {},
-	EventShareDisabled:           {},
-	EventSharePasswordEnabled:    {},
-	EventSharePasswordDisabled:   {},
-	EventShareExpirationUpdated:  {},
-	EventCalendarSynced:          {},
-	EventCalendarSyncRemoved:     {},
+	EventTripCreated:                 {},
+	EventTripBudgetUpdated:           {},
+	EventAccommodationAdded:          {},
+	EventAccommodationUpdated:        {},
+	EventAccommodationRemoved:        {},
+	EventItineraryGenerated:          {},
+	EventItineraryUpdated:            {},
+	EventDayRegenerated:              {},
+	EventItemRegenerated:             {},
+	EventVersionRestored:             {},
+	EventGenerationJobFailed:         {},
+	EventBudgetOptimizationRequested: {},
+	EventBudgetOptimizationProposed:  {},
+	EventBudgetOptimizationApplied:   {},
+	EventBudgetOptimizationDiscarded: {},
+	EventBudgetOptimizationFailed:    {},
+	EventCommentCreated:              {},
+	EventCommentUpdated:              {},
+	EventCommentDeleted:              {},
+	EventCollaboratorInvited:         {},
+	EventCollaboratorAccepted:        {},
+	EventCollaboratorDeclined:        {},
+	EventCollaboratorRoleChanged:     {},
+	EventCollaboratorRemoved:         {},
+	EventShareCreated:                {},
+	EventShareUpdated:                {},
+	EventShareDisabled:               {},
+	EventSharePasswordEnabled:        {},
+	EventSharePasswordDisabled:       {},
+	EventShareExpirationUpdated:      {},
+	EventCalendarSynced:              {},
+	EventCalendarSyncRemoved:         {},
 }
 
 // IsKnownEventType reports whether the event type is part of the recognised

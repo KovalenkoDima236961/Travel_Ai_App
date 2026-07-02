@@ -179,7 +179,9 @@ and `(user_id, channel)`.
 
 `collaboration_invited`, `collaboration_accepted`, `collaborator_role_changed`,
 `collaborator_removed`, `comment_created`, `itinerary_updated`,
-`itinerary_generated`, `day_regenerated`, `item_regenerated`, `version_restored`.
+`itinerary_generated`, `day_regenerated`, `item_regenerated`,
+`version_restored`, `generation_job_failed`, `budget_optimization_ready`,
+`budget_optimization_failed`.
 
 Unknown types are accepted for forward compatibility and use the preference
 fallbacks documented below: in-app allowed, email blocked.
@@ -200,7 +202,9 @@ Categories and type mapping:
 - `comments`: `comment_created`
 - `role_changes`: `collaborator_role_changed`, `collaborator_removed`
 - `trip_updates`: `itinerary_updated`, `itinerary_generated`,
-  `day_regenerated`, `item_regenerated`, `version_restored`
+  `day_regenerated`, `item_regenerated`, `version_restored`,
+  `generation_job_failed`, `budget_optimization_ready`,
+  `budget_optimization_failed`
 
 Defaults for a user with no stored rows:
 

@@ -93,9 +93,11 @@ service methods, and saves only through the existing revision-aware itinerary
 update path.
 
 Job types are `full_generation`, `day_regeneration`, `item_regeneration`,
-`quality_improvement_day`, and `quality_improvement_item`. Statuses are
-`queued`, `running`, `completed`, `failed`, and `cancelled`. If the itinerary
-changes while a job is queued or running, the job fails with
+`quality_improvement_day`, `quality_improvement_item`, and
+`budget_optimization_day`. Statuses are `queued`, `running`, `completed`,
+`failed`, and `cancelled`. For budget optimization, `completed` means a pending
+proposal was stored for review; it does not mean the itinerary changed. If the
+itinerary changes while a job is queued or running, the job fails with
 `itinerary_conflict` and does not overwrite the newer itinerary. Failed jobs are
 visible through the job API; Trip Service also records a `generation_job_failed`
 activity event and sends a requester-only in-app notification.
@@ -111,6 +113,65 @@ Service process stops; stale running jobs older than
 `GENERATION_JOB_MAX_RUNNING_SECONDS` are marked failed on startup with
 `worker_restarted`. `GENERATION_JOB_WORKER_MAX_CONCURRENT` is documented for
 future use; the v1 worker processes sequentially.
+
+## Advanced AI Budget Optimization v1
+
+Budget optimization creates reviewable day-level proposals for cheaper itinerary
+alternatives. It is fail-safe by design: generating a proposal never mutates the
+itinerary, and only an explicit apply request can replace the selected day.
+
+The feature uses:
+
+- `trip_generation_jobs.job_type = budget_optimization_day`.
+- `trip_generation_jobs.payload JSONB` for optimization-specific target and
+  constraint fields.
+- `budget_optimization_proposals` for stored proposals. Rows include
+  `trip_id`, nullable `job_id`, `created_by_user_id`, `scope`, `day_number`,
+  `expected_itinerary_revision`, `base_itinerary_revision`, `status`,
+  `currency`, optional target/savings amounts, stable `proposal_json`, applied
+  revision, and timestamps. Status values are `pending`, `applied`,
+  `discarded`, `expired`, and `failed`.
+
+Endpoints:
+
+| Method | Path                                                            | Who                     |
+| ------ | --------------------------------------------------------------- | ----------------------- |
+| POST   | `/trips/{id}/budget-optimization-jobs`                          | owner / editor          |
+| GET    | `/trips/{id}/budget-optimization-proposals?status=&limit=`      | owner / editor / viewer |
+| GET    | `/trips/{id}/budget-optimization-proposals/{proposalId}`        | owner / editor / viewer |
+| POST   | `/trips/{id}/budget-optimization-proposals/{proposalId}/apply`  | owner / editor          |
+| POST   | `/trips/{id}/budget-optimization-proposals/{proposalId}/discard`| owner / editor          |
+
+`POST /trips/{id}/budget-optimization-jobs` requires
+`expectedItineraryRevision`, `scope: "day"`, and `dayNumber`; optional fields
+include `targetReductionAmount`, `currency`, `instruction`, and constraints such
+as `preserveMustSeeItems`, `maxWalkingIncreaseKm`, `keepMealCount`, and
+`avoidReplacingManualCosts`. The worker verifies the requester still has
+owner/editor access, rebuilds budget context from the current itinerary,
+budget summary, accommodation, weather, and user context, calls AI Planning
+Service `/optimize-budget/day`, validates the result, and stores a pending
+proposal.
+
+Applying a proposal:
+
+- Requires owner/editor access and `expectedItineraryRevision`.
+- Rejects stale requests with `409 itinerary_conflict`.
+- Expires a pending proposal when its `baseItineraryRevision` no longer matches
+  the current trip revision.
+- Replaces only the selected day from `proposal_json.proposedDay`.
+- Increments `itineraryRevision` exactly once through the existing atomic save
+  path.
+- Creates an itinerary version with source `BUDGET_OPTIMIZATION_APPLIED` and a
+  `budget_optimization_applied` activity event.
+
+Proposal generation records `budget_optimization_proposed` activity and sends a
+requester-only `budget_optimization_ready` notification. Discard records
+`budget_optimization_discarded`. Public share endpoints never expose budget
+optimization jobs or proposals.
+
+Limitations: day-level only, one proposal per job, no auto-apply, no full-trip
+merge, no booking/purchasing, no financial guarantee, and proposals can become
+stale after any itinerary change.
 
 ## Budget Tracking v1
 

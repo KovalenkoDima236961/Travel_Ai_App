@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 )
@@ -157,6 +158,20 @@ func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entit
 			safeInstruction(job),
 			job.ExpectedItineraryRevision,
 		)
+	case entity.GenerationJobTypeBudgetOptimizationDay:
+		if job.DayNumber == nil {
+			return nil, apperrs.NewInvalidInput("dayNumber is required")
+		}
+		return w.trips.OptimizeBudgetDayForActor(
+			ctx,
+			job.TripID,
+			job.RequestedByUserID,
+			&job.ID,
+			*job.DayNumber,
+			safeInstruction(job),
+			job.ExpectedItineraryRevision,
+			budgetoptimization.DecodeJobPayload(job.Payload),
+		)
 	default:
 		return nil, apperrs.NewInvalidInput("jobType is invalid")
 	}
@@ -221,6 +236,9 @@ func classifyJobError(err error) (string, string) {
 	case errors.As(err, &invalid), errors.Is(err, apperrs.ErrExpectedItineraryRevisionRequired):
 		return ErrorValidationFailed, err.Error()
 	case errors.As(err, &dependency):
+		if strings.Contains(dependency.Error(), ErrorNoOptimizationFound) {
+			return ErrorNoOptimizationFound, "No useful lower-cost proposal was found."
+		}
 		return ErrorAIGeneration, dependency.Error()
 	case errors.Is(err, apperrs.ErrForbidden):
 		return ErrorPermissionDenied, "You no longer have permission to modify this trip."

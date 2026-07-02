@@ -29,7 +29,9 @@ type TripQualityChecksProps = {
     itemIndex: number,
     instruction: string
   ) => Promise<void>;
+  onOptimizeDayForBudget?: (dayNumber: number) => void;
   isImproving?: boolean;
+  isOptimizingBudget?: boolean;
   isEditing?: boolean;
 };
 
@@ -51,7 +53,9 @@ export function TripQualityChecks({
   budgetSummary,
   onImproveDay,
   onImproveItem,
+  onOptimizeDayForBudget,
   isImproving = false,
+  isOptimizingBudget = false,
   isEditing = false
 }: TripQualityChecksProps) {
   const itinerary = trip.itinerary;
@@ -93,6 +97,7 @@ export function TripQualityChecks({
   const visibleIssues = allIssues.slice(0, DEFAULT_VISIBLE_ISSUE_COUNT);
   const hasHiddenIssues = allIssues.length > DEFAULT_VISIBLE_ISSUE_COUNT;
   const canImprove = Boolean(onImproveDay && onImproveItem);
+  const canOptimizeBudget = Boolean(onOptimizeDayForBudget);
   const tripIssues = summary.tripIssues;
   const highestCostDayNumber =
     budgetSummary && budgetSummary.byDay.length > 0
@@ -162,15 +167,30 @@ export function TripQualityChecks({
               {canImprove &&
               issue.type === "trip_budget_exceeded" &&
               highestCostDayNumber != null ? (
-                <Button
-                  disabled={isEditing || isImproving}
-                  onClick={improveHighestCostDay}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  {isImproving ? "Improving..." : `Improve day ${highestCostDayNumber}`}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {canOptimizeBudget ? (
+                    <Button
+                      disabled={isEditing || isOptimizingBudget}
+                      onClick={() => onOptimizeDayForBudget?.(highestCostDayNumber)}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      {isOptimizingBudget
+                        ? "Optimizing..."
+                        : `Optimize Day ${highestCostDayNumber}`}
+                    </Button>
+                  ) : null}
+                  <Button
+                    disabled={isEditing || isImproving}
+                    onClick={improveHighestCostDay}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {isImproving ? "Improving..." : `Improve day ${highestCostDayNumber}`}
+                  </Button>
+                </div>
               ) : null}
             </div>
           ))}
@@ -186,11 +206,14 @@ export function TripQualityChecks({
         <div className="mt-5 space-y-4">
           <IssueGroups
             canImprove={canImprove}
+            canOptimizeBudget={canOptimizeBudget}
             disabled={isEditing || isImproving}
+            isOptimizingBudget={isOptimizingBudget}
             isImproving={isImproving}
             issues={visibleIssues}
             onImproveDay={improveDay}
             onImproveItem={improveItem}
+            onOptimizeDayForBudget={onOptimizeDayForBudget}
           />
 
           {hasHiddenIssues ? (
@@ -201,11 +224,14 @@ export function TripQualityChecks({
               <div className="mt-4">
                 <IssueGroups
                   canImprove={canImprove}
+                  canOptimizeBudget={canOptimizeBudget}
                   disabled={isEditing || isImproving}
+                  isOptimizingBudget={isOptimizingBudget}
                   isImproving={isImproving}
                   issues={allIssues}
                   onImproveDay={improveDay}
                   onImproveItem={improveItem}
+                  onOptimizeDayForBudget={onOptimizeDayForBudget}
                 />
               </div>
             </details>
@@ -219,23 +245,29 @@ export function TripQualityChecks({
 type IssueGroupsProps = {
   issues: QualityIssue[];
   canImprove: boolean;
+  canOptimizeBudget: boolean;
   disabled: boolean;
   isImproving: boolean;
+  isOptimizingBudget: boolean;
   onImproveDay: (dayNumber: number, issues: QualityIssue[]) => Promise<void>;
   onImproveItem: (
     dayNumber: number,
     itemIndex: number,
     issues: QualityIssue[]
   ) => Promise<void>;
+  onOptimizeDayForBudget?: (dayNumber: number) => void;
 };
 
 function IssueGroups({
   issues,
   canImprove,
+  canOptimizeBudget,
   disabled,
   isImproving,
+  isOptimizingBudget,
   onImproveDay,
-  onImproveItem
+  onImproveItem,
+  onOptimizeDayForBudget
 }: IssueGroupsProps) {
   const groups = groupIssuesByDay(issues);
 
@@ -248,22 +280,36 @@ function IssueGroups({
             (issue.severity === "critical" || issue.severity === "warning")
         );
         const itemActionGroups = getActionableItemGroups(dayIssues);
+        const hasBudgetIssue = dayIssues.some(isBudgetOptimizationIssue);
 
         return (
           <section className="py-4 first:pt-0 last:pb-0" key={dayNumber}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-sm font-semibold text-slate-950">Day {dayNumber}</h3>
-              {canImprove && dayActionIssues.length > 0 ? (
-                <Button
-                  disabled={disabled}
-                  onClick={() => onImproveDay(dayNumber, dayIssues)}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  {isImproving ? "Improving..." : "Improve day"}
-                </Button>
-              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {canOptimizeBudget && hasBudgetIssue ? (
+                  <Button
+                    disabled={disabled || isOptimizingBudget}
+                    onClick={() => onOptimizeDayForBudget?.(dayNumber)}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {isOptimizingBudget ? "Optimizing..." : "Optimize for budget"}
+                  </Button>
+                ) : null}
+                {canImprove && dayActionIssues.length > 0 ? (
+                  <Button
+                    disabled={disabled}
+                    onClick={() => onImproveDay(dayNumber, dayIssues)}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {isImproving ? "Improving..." : "Improve day"}
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             <ul className="mt-3 space-y-3">
@@ -292,6 +338,14 @@ function IssueGroups({
         );
       })}
     </div>
+  );
+}
+
+function isBudgetOptimizationIssue(issue: QualityIssue) {
+  return (
+    issue.type === "day_budget_high" ||
+    issue.type === "high_ticket_cost" ||
+    issue.type === "expensive_item"
   );
 }
 

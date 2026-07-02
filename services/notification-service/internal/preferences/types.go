@@ -73,17 +73,19 @@ func IsKnownCategory(category string) bool {
 // It mirrors the Notification Service notification vocabulary; adding a new type
 // there should also add it here so it is governed by a category.
 var typeToCategory = map[string]string{
-	notifications.TypeCollaborationInvited:   CategoryCollaboration,
-	notifications.TypeCollaborationAccepted:  CategoryCollaboration,
-	notifications.TypeCommentCreated:         CategoryComments,
-	notifications.TypeCollaboratorRoleChange: CategoryRoleChanges,
-	notifications.TypeCollaboratorRemoved:    CategoryRoleChanges,
-	notifications.TypeItineraryUpdated:       CategoryTripUpdates,
-	notifications.TypeItineraryGenerated:     CategoryTripUpdates,
-	notifications.TypeDayRegenerated:         CategoryTripUpdates,
-	notifications.TypeItemRegenerated:        CategoryTripUpdates,
-	notifications.TypeVersionRestored:        CategoryTripUpdates,
-	notifications.TypeGenerationJobFailed:    CategoryTripUpdates,
+	notifications.TypeCollaborationInvited:     CategoryCollaboration,
+	notifications.TypeCollaborationAccepted:    CategoryCollaboration,
+	notifications.TypeCommentCreated:           CategoryComments,
+	notifications.TypeCollaboratorRoleChange:   CategoryRoleChanges,
+	notifications.TypeCollaboratorRemoved:      CategoryRoleChanges,
+	notifications.TypeItineraryUpdated:         CategoryTripUpdates,
+	notifications.TypeItineraryGenerated:       CategoryTripUpdates,
+	notifications.TypeDayRegenerated:           CategoryTripUpdates,
+	notifications.TypeItemRegenerated:          CategoryTripUpdates,
+	notifications.TypeVersionRestored:          CategoryTripUpdates,
+	notifications.TypeGenerationJobFailed:      CategoryTripUpdates,
+	notifications.TypeBudgetOptimizationReady:  CategoryTripUpdates,
+	notifications.TypeBudgetOptimizationFailed: CategoryTripUpdates,
 }
 
 // CategoryForNotificationType maps a notification type to its preference

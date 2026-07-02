@@ -4,17 +4,19 @@ package notifications
 // Service recognises (it rejects unknown types), so they are defined here as the
 // single source of truth for the values Trip Service sends.
 const (
-	TypeCollaborationInvited   = "collaboration_invited"
-	TypeCollaborationAccepted  = "collaboration_accepted"
-	TypeCollaboratorRoleChange = "collaborator_role_changed"
-	TypeCollaboratorRemoved    = "collaborator_removed"
-	TypeCommentCreated         = "comment_created"
-	TypeItineraryUpdated       = "itinerary_updated"
-	TypeItineraryGenerated     = "itinerary_generated"
-	TypeDayRegenerated         = "day_regenerated"
-	TypeItemRegenerated        = "item_regenerated"
-	TypeVersionRestored        = "version_restored"
-	TypeGenerationJobFailed    = "generation_job_failed"
+	TypeCollaborationInvited     = "collaboration_invited"
+	TypeCollaborationAccepted    = "collaboration_accepted"
+	TypeCollaboratorRoleChange   = "collaborator_role_changed"
+	TypeCollaboratorRemoved      = "collaborator_removed"
+	TypeCommentCreated           = "comment_created"
+	TypeItineraryUpdated         = "itinerary_updated"
+	TypeItineraryGenerated       = "itinerary_generated"
+	TypeDayRegenerated           = "day_regenerated"
+	TypeItemRegenerated          = "item_regenerated"
+	TypeVersionRestored          = "version_restored"
+	TypeGenerationJobFailed      = "generation_job_failed"
+	TypeBudgetOptimizationReady  = "budget_optimization_ready"
+	TypeBudgetOptimizationFailed = "budget_optimization_failed"
 )
 
 // Entity type constants describe the kind of object a notification refers to.

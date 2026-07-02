@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -193,6 +194,85 @@ func (g *MockItineraryGenerator) RegenerateItem(_ context.Context, input applica
 	}, nil
 }
 
+// OptimizeBudgetDay returns a deterministic reviewable cheaper-day proposal.
+func (g *MockItineraryGenerator) OptimizeBudgetDay(_ context.Context, input budgetoptimization.OptimizeDayInput) (*budgetoptimization.ProposalContent, error) {
+	if input.DayNumber < 1 {
+		return nil, fmt.Errorf("day number must be at least 1")
+	}
+
+	trip := input.Trip
+	g.logger.Info("optimizing mock itinerary day budget",
+		zap.String("trip_id", trip.ID.String()),
+		zap.Int("day_number", input.DayNumber),
+		zap.Bool("instruction_present", input.Instruction != ""),
+	)
+
+	proposed := input.CurrentDay
+	oldIndex := mostExpensiveItemIndex(proposed.Items)
+	if oldIndex < 0 {
+		oldIndex = 0
+	}
+	oldItem := proposed.Items[oldIndex]
+	currency := input.BudgetContext.Currency
+	if currency == "" {
+		currency = mockTripCurrency(trip)
+	}
+
+	cheapAmount := 8.0
+	if oldItem.EstimatedCost != nil && oldItem.EstimatedCost.Amount != nil && *oldItem.EstimatedCost.Amount > 0 {
+		cheapAmount = maxFloat(0, *oldItem.EstimatedCost.Amount-35)
+	}
+	proposed.Items[oldIndex] = aggregate.ItineraryItem{
+		Time: oldItem.Time,
+		Type: "activity",
+		Name: fmt.Sprintf("Budget-friendly %s alternative", trip.Destination),
+		Note: "Mock budget optimization keeps the day theme while lowering estimated cost.",
+		EstimatedCost: &aggregate.EstimatedCost{
+			Amount:     &cheapAmount,
+			Currency:   currency,
+			Category:   "activity",
+			Confidence: "medium",
+			Source:     "ai",
+			Note:       "Approximate budget alternative estimate",
+		},
+	}
+
+	baseTotal := input.BudgetContext.DayEstimatedTotal
+	proposedTotal := mockDayTotal(proposed, currency)
+	savings := maxFloat(1, baseTotal-proposedTotal)
+	if proposedTotal <= 0 || proposedTotal >= baseTotal {
+		proposedTotal = maxFloat(0, baseTotal-savings)
+	}
+
+	return &budgetoptimization.ProposalContent{
+		Summary:                   fmt.Sprintf("Reduced estimated Day %d cost by about %.0f %s with one cheaper alternative.", input.DayNumber, savings, currency),
+		Scope:                     budgetoptimization.ScopeDay,
+		DayNumber:                 input.DayNumber,
+		Currency:                  currency,
+		BaseDayEstimatedTotal:     baseTotal,
+		ProposedDayEstimatedTotal: proposedTotal,
+		EstimatedSavingsAmount:    savings,
+		Confidence:                budgetoptimization.ConfidenceMedium,
+		Changes: []budgetoptimization.ProposalChange{{
+			Type:                   budgetoptimization.ChangeReplaceItem,
+			OldItemIndex:           intPtr(oldIndex),
+			OldItemName:            oldItem.Name,
+			NewItemName:            proposed.Items[oldIndex].Name,
+			Reason:                 "Replaces the most expensive stop with a lower-cost option.",
+			EstimatedSavingsAmount: &savings,
+			Currency:               currency,
+		}},
+		PreservedItems: []budgetoptimization.PreservedItem{{
+			ItemIndex: 0,
+			ItemName:  proposed.Items[0].Name,
+			Reason:    "Preserved to keep the basic day structure.",
+		}},
+		Tradeoffs:   []string{"The replacement is less premium but keeps the day practical."},
+		Warnings:    []string{"Savings and prices are approximate estimates for review."},
+		ProposedDay: proposed,
+	}, nil
+}
+
 func weatherForDay(forecast *weathercontext.WeatherForecast, dayNumber int) *weathercontext.WeatherDay {
 	if forecast == nil || dayNumber < 1 || dayNumber > len(forecast.Days) {
 		return nil
@@ -211,6 +291,50 @@ func weatherAwareNote(base string, weatherDay *weathercontext.WeatherDay) string
 		return base + " High heat expected; avoid long outdoor walks at midday."
 	}
 	return base
+}
+
+func mostExpensiveItemIndex(items []aggregate.ItineraryItem) int {
+	index := -1
+	maxAmount := -1.0
+	for i := range items {
+		cost := items[i].EstimatedCost
+		if cost == nil || cost.Amount == nil {
+			continue
+		}
+		if *cost.Amount > maxAmount {
+			maxAmount = *cost.Amount
+			index = i
+		}
+	}
+	return index
+}
+
+func mockDayTotal(day aggregate.ItineraryDay, currency string) float64 {
+	total := 0.0
+	for _, item := range day.Items {
+		if item.EstimatedCost == nil || item.EstimatedCost.Amount == nil {
+			continue
+		}
+		itemCurrency := strings.ToUpper(strings.TrimSpace(item.EstimatedCost.Currency))
+		if itemCurrency == "" {
+			itemCurrency = currency
+		}
+		if itemCurrency == currency {
+			total += *item.EstimatedCost.Amount
+		}
+	}
+	return total
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func intPtr(v int) *int {
+	return &v
 }
 
 // titleCase upper-cases the first rune of s.

@@ -1,6 +1,7 @@
 package generationjobs
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ type CreateRequest struct {
 	Instruction               *string                  `json:"instruction"`
 	DayNumber                 *int                     `json:"dayNumber"`
 	ItemIndex                 *int                     `json:"itemIndex"`
+	Payload                   json.RawMessage          `json:"payload,omitempty"`
 }
 
 type JobEnvelope struct {
@@ -35,6 +37,7 @@ type JobResponse struct {
 	Instruction               *string                    `json:"instruction"`
 	DayNumber                 *int                       `json:"dayNumber"`
 	ItemIndex                 *int                       `json:"itemIndex"`
+	Payload                   json.RawMessage            `json:"payload,omitempty"`
 	ErrorCode                 *string                    `json:"errorCode"`
 	ErrorMessage              *string                    `json:"errorMessage"`
 	ResultItineraryRevision   *int                       `json:"resultItineraryRevision"`
@@ -68,6 +71,7 @@ func NewJobResponse(job *entity.GenerationJob) JobResponse {
 		Instruction:               job.Instruction,
 		DayNumber:                 job.DayNumber,
 		ItemIndex:                 job.ItemIndex,
+		Payload:                   job.Payload,
 		ErrorCode:                 job.ErrorCode,
 		ErrorMessage:              job.ErrorMessage,
 		ResultItineraryRevision:   job.ResultItineraryRevision,

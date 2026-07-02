@@ -8,6 +8,8 @@ import { AccommodationPanel } from "@/components/accommodation/AccommodationPane
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { BudgetOptimizationProposalCard } from "@/components/budget-optimization/BudgetOptimizationProposalCard";
+import { BudgetOptimizationRequestDialog } from "@/components/budget-optimization/BudgetOptimizationRequestDialog";
 import { CalendarSyncPanel } from "@/components/calendar/CalendarSyncPanel";
 import { EditLockStatus } from "@/components/edit-locks/EditLockStatus";
 import { SoftEditLockWarningDialog } from "@/components/edit-locks/SoftEditLockWarningDialog";
@@ -45,6 +47,12 @@ import { Card } from "@/components/ui/Card";
 import { activityKeys } from "@/lib/api/activity";
 import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
 import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
+import {
+  applyBudgetOptimizationProposal,
+  budgetOptimizationKeys,
+  createBudgetOptimizationJob,
+  discardBudgetOptimizationProposal
+} from "@/lib/api/budget-optimization";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
 import { isItineraryConflictError } from "@/lib/api/client";
 import {
@@ -67,6 +75,7 @@ import {
 } from "@/lib/api/trips";
 import { getMyPreferences, userKeys } from "@/lib/api/user";
 import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
+import { useBudgetOptimizationProposals } from "@/lib/hooks/useBudgetOptimizationProposals";
 import { useGenerationJob } from "@/lib/hooks/useGenerationJob";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import { useTripEditLock } from "@/lib/edit-locks/use-trip-edit-lock";
@@ -75,9 +84,14 @@ import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
 import {
   formatBudget,
   formatDate,
+  getErrorMessage,
   formatInterestLabel,
   formatPaceLabel
 } from "@/lib/utils";
+import type {
+  BudgetOptimizationJobRequest,
+  BudgetOptimizationProposal
+} from "@/types/budget-optimization";
 import type { RouteEstimate } from "@/types/route";
 import type { EditLockView } from "@/types/edit-locks";
 import type {
@@ -116,6 +130,11 @@ function TripDetailPageContent() {
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
   const [activeGenerationJobId, setActiveGenerationJobId] = useState<string | null>(null);
   const [optimizingDayNumber, setOptimizingDayNumber] = useState<number | null>(null);
+  const [budgetOptimizationDialogOpen, setBudgetOptimizationDialogOpen] = useState(false);
+  const [budgetOptimizationDefaultDayNumber, setBudgetOptimizationDefaultDayNumber] = useState<
+    number | null
+  >(null);
+  const [budgetOptimizationError, setBudgetOptimizationError] = useState<string | null>(null);
   const [lockWarning, setLockWarning] = useState<EditLockView | null>(null);
 
   const tripQuery = useQuery({
@@ -148,6 +167,21 @@ function TripDetailPageContent() {
 
   const createGenerationJobMutation = useMutation({
     mutationFn: (input: CreateGenerationJobRequest) => createGenerationJob(tripId, input)
+  });
+
+  const createBudgetOptimizationMutation = useMutation({
+    mutationFn: (input: BudgetOptimizationJobRequest) =>
+      createBudgetOptimizationJob(tripId, input)
+  });
+
+  const applyBudgetOptimizationMutation = useMutation({
+    mutationFn: (proposal: BudgetOptimizationProposal) =>
+      applyBudgetOptimizationProposal(tripId, proposal.id, tripQuery.data?.itineraryRevision ?? 0)
+  });
+
+  const discardBudgetOptimizationMutation = useMutation({
+    mutationFn: (proposal: BudgetOptimizationProposal) =>
+      discardBudgetOptimizationProposal(tripId, proposal.id)
   });
 
   const cancelGenerationJobMutation = useMutation({
@@ -212,6 +246,11 @@ function TripDetailPageContent() {
   // private trip (owner/editor/viewer) may read and add comments. Counts power
   // the per-item badges. The public share page never mounts this page.
   const tripAccess = tripQuery.data?.access;
+  const budgetOptimizationProposalsQuery = useBudgetOptimizationProposals({
+    tripId,
+    status: "pending",
+    enabled: Boolean(tripId) && Boolean(tripAccess)
+  });
   const generationJobsQuery = useQuery({
     queryKey: generationJobKeys.list(tripId),
     queryFn: () => listGenerationJobs(tripId),
@@ -274,6 +313,7 @@ function TripDetailPageContent() {
     enabled: presenceEnabled,
     onActivityCreated: () => {
       void queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
+      void queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) });
     }
   });
   const setPresenceState = useTripPresenceState(tripId, presenceEnabled);
@@ -571,6 +611,95 @@ function TripDetailPageContent() {
     }
   }
 
+  function openBudgetOptimization(dayNumber?: number | null) {
+    if (!canMutateTrip || !trip.itinerary) {
+      return;
+    }
+    setBudgetOptimizationDefaultDayNumber(dayNumber ?? null);
+    setBudgetOptimizationError(null);
+    setBudgetOptimizationDialogOpen(true);
+  }
+
+  async function createBudgetOptimization(input: BudgetOptimizationJobRequest) {
+    if (hasActiveGenerationJob) {
+      setBudgetOptimizationError("Wait for the current generation job to finish.");
+      return;
+    }
+
+    try {
+      setBudgetOptimizationError(null);
+      setRegenerationError(null);
+      setSuccessMessage(null);
+      const job = await createBudgetOptimizationMutation.mutateAsync(input);
+      handleGenerationJobCreated(job);
+      setBudgetOptimizationDialogOpen(false);
+      setSuccessMessage("Budget optimization queued.");
+      await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
+    } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setBudgetOptimizationError(
+          "This itinerary changed. Reload latest version before optimizing the budget."
+        );
+        await tripQuery.refetch();
+        return;
+      }
+      setBudgetOptimizationError(
+        getErrorMessage(error, "Could not start budget optimization.")
+      );
+    }
+  }
+
+  async function applyBudgetOptimization(proposal: BudgetOptimizationProposal) {
+    try {
+      setBudgetOptimizationError(null);
+      setRegenerationError(null);
+      setSuccessMessage(null);
+      const result = await applyBudgetOptimizationMutation.mutateAsync(proposal);
+      queryClient.setQueryData(tripKeys.detail(tripId), result.trip);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
+        queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+        queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
+      ]);
+      await tripQuery.refetch();
+      setSuccessMessage(
+        `Budget proposal applied to Day ${proposal.dayNumber ?? proposal.proposal.dayNumber}.`
+      );
+    } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setBudgetOptimizationError(
+          "This proposal is outdated because the itinerary changed. Generate a new optimization."
+        );
+        await queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) });
+        await tripQuery.refetch();
+        return;
+      }
+      setBudgetOptimizationError(getErrorMessage(error, "Could not apply proposal."));
+    }
+  }
+
+  async function discardBudgetOptimization(proposal: BudgetOptimizationProposal) {
+    if (!window.confirm("Discard this budget optimization proposal?")) {
+      return;
+    }
+
+    try {
+      setBudgetOptimizationError(null);
+      await discardBudgetOptimizationMutation.mutateAsync(proposal);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
+      ]);
+      setSuccessMessage("Budget optimization proposal discarded.");
+    } catch (error) {
+      setBudgetOptimizationError(getErrorMessage(error, "Could not discard proposal."));
+    }
+  }
+
   function handleGenerationJobCreated(job: GenerationJob) {
     setActiveGenerationJobId(job.id);
     setSuccessMessage(null);
@@ -579,6 +708,12 @@ function TripDetailPageContent() {
   }
 
   async function handleGenerationJobCompleted(job: GenerationJob) {
+    if (job.jobType === "budget_optimization_day") {
+      await refreshAfterBudgetOptimizationJob();
+      setRegenerationError(null);
+      setSuccessMessage("Budget optimization proposal ready.");
+      return;
+    }
     await refreshTripAfterGenerationJob();
     setRegenerationError(null);
     setSuccessMessage(successMessageForGenerationJob(job));
@@ -586,6 +721,9 @@ function TripDetailPageContent() {
 
   async function handleGenerationJobFailed(job: GenerationJob) {
     await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
+    if (job.jobType === "budget_optimization_day") {
+      await queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) });
+    }
     if (job.errorCode === "itinerary_conflict") {
       await tripQuery.refetch();
     }
@@ -607,10 +745,19 @@ function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) }),
+      queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
     ]);
     await tripQuery.refetch();
+  }
+
+  async function refreshAfterBudgetOptimizationJob() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) })
+    ]);
   }
 
   async function cancelActiveGenerationJob() {
@@ -736,7 +883,16 @@ function TripDetailPageContent() {
             </div>
           </Card>
 
-          <BudgetPanel canEdit={canMutateTrip} trip={trip} />
+          <BudgetPanel
+            canEdit={canMutateTrip}
+            onOpenBudgetOptimization={openBudgetOptimization}
+            optimizationDisabled={
+              isEditing ||
+              createBudgetOptimizationMutation.isPending ||
+              hasActiveGenerationJob
+            }
+            trip={trip}
+          />
           <AccommodationPanel canEdit={canMutateTrip} trip={trip} />
 
           {presenceEnabled ? (
@@ -803,12 +959,28 @@ function TripDetailPageContent() {
                 fallbackDistanceSummaries={fallbackDistanceSummaries}
                 isEditing={isEditing}
                 isImproving={createGenerationJobMutation.isPending || hasActiveGenerationJob}
+                isOptimizingBudget={
+                  createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
+                }
                 maxWalkingKmPerDay={maxWalkingKmPerDay}
                 onImproveDay={canMutateTrip ? improveDay : undefined}
                 onImproveItem={canMutateTrip ? improveItem : undefined}
+                onOptimizeDayForBudget={canMutateTrip ? openBudgetOptimization : undefined}
                 routeEstimatesByDay={routeEstimatesByDay}
                 trip={trip}
                 weatherForecast={weatherForecastQuery.data ?? null}
+              />
+
+              <BudgetOptimizationProposalsPanel
+                canMutate={canMutateTrip}
+                currentItinerary={trip.itinerary}
+                error={budgetOptimizationError}
+                isApplying={applyBudgetOptimizationMutation.isPending}
+                isDiscarding={discardBudgetOptimizationMutation.isPending}
+                isLoading={budgetOptimizationProposalsQuery.isLoading}
+                onApply={applyBudgetOptimization}
+                onDiscard={discardBudgetOptimization}
+                proposals={budgetOptimizationProposalsQuery.data ?? []}
               />
 
               <PresenceEditingWarning
@@ -1017,12 +1189,98 @@ function TripDetailPageContent() {
           onContinue={continueAfterEditLockWarning}
         />
       ) : null}
+      <BudgetOptimizationRequestDialog
+        budgetSummary={budgetSummaryQuery.data ?? null}
+        defaultDayNumber={budgetOptimizationDefaultDayNumber}
+        disabled={createBudgetOptimizationMutation.isPending}
+        error={budgetOptimizationError}
+        onClose={() => setBudgetOptimizationDialogOpen(false)}
+        onSubmit={createBudgetOptimization}
+        open={budgetOptimizationDialogOpen}
+        trip={trip}
+      />
     </PageContainer>
+  );
+}
+
+function BudgetOptimizationProposalsPanel({
+  proposals,
+  currentItinerary,
+  canMutate,
+  error,
+  isLoading,
+  isApplying,
+  isDiscarding,
+  onApply,
+  onDiscard
+}: {
+  proposals: BudgetOptimizationProposal[];
+  currentItinerary: Itinerary | null;
+  canMutate: boolean;
+  error: string | null;
+  isLoading: boolean;
+  isApplying: boolean;
+  isDiscarding: boolean;
+  onApply: (proposal: BudgetOptimizationProposal) => Promise<void>;
+  onDiscard: (proposal: BudgetOptimizationProposal) => Promise<void>;
+}) {
+  if (!isLoading && proposals.length === 0 && !error) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-950">
+          Budget Optimization Proposals
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Review cheaper day plans before applying them to the itinerary.
+        </p>
+      </div>
+
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {error}
+        </div>
+      ) : null}
+
+      {isLoading ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          Loading budget optimization proposals...
+        </div>
+      ) : null}
+
+      {proposals.map((proposal) => (
+        <BudgetOptimizationProposalCard
+          canMutate={canMutate}
+          currentDay={findProposalCurrentDay(currentItinerary, proposal)}
+          isApplying={isApplying}
+          isDiscarding={isDiscarding}
+          key={proposal.id}
+          onApply={onApply}
+          onDiscard={onDiscard}
+          proposal={proposal}
+        />
+      ))}
+    </section>
   );
 }
 
 function findActiveGenerationJob(jobs: GenerationJob[]) {
   return jobs.find(isActiveGenerationJob) ?? null;
+}
+
+function findProposalCurrentDay(
+  itinerary: Itinerary | null,
+  proposal: BudgetOptimizationProposal
+) {
+  const dayNumber = proposal.dayNumber ?? proposal.proposal.dayNumber;
+  return (
+    (itinerary?.days ?? []).find(
+      (day, index) => (day.day || index + 1) === dayNumber
+    ) ?? null
+  );
 }
 
 function isActiveGenerationJob(job: GenerationJob) {
@@ -1050,6 +1308,9 @@ function successMessageForGenerationJob(job: GenerationJob) {
   if (job.jobType === "full_generation") {
     return "Itinerary generated.";
   }
+  if (job.jobType === "budget_optimization_day") {
+    return "Budget optimization proposal ready.";
+  }
   if (
     (job.jobType === "item_regeneration" || job.jobType === "quality_improvement_item") &&
     job.dayNumber != null &&
@@ -1066,6 +1327,12 @@ function successMessageForGenerationJob(job: GenerationJob) {
 function failureMessageForGenerationJob(job: GenerationJob) {
   if (job.errorCode === "itinerary_conflict") {
     return "Generation stopped because the itinerary changed while the job was running. Reload latest version and try again.";
+  }
+  if (job.errorCode === "no_optimization_found") {
+    return "Budget optimization could not find a useful cheaper alternative for that day.";
+  }
+  if (job.jobType === "budget_optimization_day") {
+    return job.errorMessage ?? "Budget optimization failed. The itinerary was not changed.";
   }
   return job.errorMessage ?? "Generation failed. The itinerary was not changed.";
 }

@@ -23,6 +23,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -1486,10 +1487,11 @@ func newAuthTestRouterWithOptions(t *testing.T, authCfg config.AuthConfig, extra
 	t.Helper()
 
 	repo := &routeTestRepo{
-		trips:             map[uuid.UUID]entity.Trip{},
-		collaboratorsByID: map[uuid.UUID]entity.TripCollaborator{},
-		sharesByTrip:      map[uuid.UUID]entity.TripShare{},
-		sharesByToken:     map[string]entity.TripShare{},
+		trips:                       map[uuid.UUID]entity.Trip{},
+		collaboratorsByID:           map[uuid.UUID]entity.TripCollaborator{},
+		sharesByTrip:                map[uuid.UUID]entity.TripShare{},
+		sharesByToken:               map[string]entity.TripShare{},
+		budgetOptimizationProposals: []entity.BudgetOptimizationProposal{},
 	}
 	gen := routeTestGenerator{}
 	opts := []service.Option{
@@ -1523,15 +1525,16 @@ func newAuthTestRouterWithOptions(t *testing.T, authCfg config.AuthConfig, extra
 }
 
 type routeTestRepo struct {
-	trips             map[uuid.UUID]entity.Trip
-	versions          []entity.ItineraryVersion
-	collaboratorsByID map[uuid.UUID]entity.TripCollaborator
-	sharesByTrip      map[uuid.UUID]entity.TripShare
-	sharesByToken     map[string]entity.TripShare
-	created           *entity.Trip
-	comments          []entity.ItineraryComment
-	activityEvents    []entity.TripActivityEvent
-	calendarSyncs     []entity.TripCalendarSync
+	trips                       map[uuid.UUID]entity.Trip
+	versions                    []entity.ItineraryVersion
+	collaboratorsByID           map[uuid.UUID]entity.TripCollaborator
+	sharesByTrip                map[uuid.UUID]entity.TripShare
+	sharesByToken               map[string]entity.TripShare
+	created                     *entity.Trip
+	comments                    []entity.ItineraryComment
+	activityEvents              []entity.TripActivityEvent
+	calendarSyncs               []entity.TripCalendarSync
+	budgetOptimizationProposals []entity.BudgetOptimizationProposal
 }
 
 func (r *routeTestRepo) CreateTripActivityEvent(_ context.Context, event *entity.TripActivityEvent) (*entity.TripActivityEvent, error) {
@@ -2134,6 +2137,106 @@ func (r *routeTestRepo) MarkAllTripCalendarSyncsDeleted(_ context.Context, tripI
 	return nil
 }
 
+func (r *routeTestRepo) CreateBudgetOptimizationProposal(_ context.Context, proposal *entity.BudgetOptimizationProposal) (*entity.BudgetOptimizationProposal, error) {
+	out := *proposal
+	now := time.Now().UTC()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	r.budgetOptimizationProposals = append(r.budgetOptimizationProposals, out)
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetBudgetOptimizationProposalByIDAndTrip(_ context.Context, id, tripID uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range r.budgetOptimizationProposals {
+		proposal := r.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.TripID == tripID {
+			return &proposal, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListBudgetOptimizationProposalsByTrip(_ context.Context, tripID uuid.UUID, status *entity.BudgetOptimizationProposalStatus, limit int) ([]entity.BudgetOptimizationProposal, error) {
+	out := make([]entity.BudgetOptimizationProposal, 0)
+	for _, proposal := range r.budgetOptimizationProposals {
+		if proposal.TripID != tripID {
+			continue
+		}
+		if status != nil && proposal.Status != *status {
+			continue
+		}
+		out = append(out, proposal)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) ListPendingBudgetOptimizationProposalsByTrip(ctx context.Context, tripID uuid.UUID, limit int) ([]entity.BudgetOptimizationProposal, error) {
+	status := entity.BudgetOptimizationProposalStatusPending
+	return r.ListBudgetOptimizationProposalsByTrip(ctx, tripID, &status, limit)
+}
+
+func (r *routeTestRepo) MarkBudgetOptimizationProposalApplied(_ context.Context, id uuid.UUID, appliedItineraryRevision int) (*entity.BudgetOptimizationProposal, error) {
+	for i := range r.budgetOptimizationProposals {
+		proposal := &r.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.Status == entity.BudgetOptimizationProposalStatusPending {
+			now := time.Now().UTC()
+			proposal.Status = entity.BudgetOptimizationProposalStatusApplied
+			proposal.AppliedItineraryRevision = &appliedItineraryRevision
+			proposal.AppliedAt = &now
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) MarkBudgetOptimizationProposalDiscarded(_ context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range r.budgetOptimizationProposals {
+		proposal := &r.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.Status == entity.BudgetOptimizationProposalStatusPending {
+			now := time.Now().UTC()
+			proposal.Status = entity.BudgetOptimizationProposalStatusDiscarded
+			proposal.DiscardedAt = &now
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) MarkBudgetOptimizationProposalExpired(_ context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range r.budgetOptimizationProposals {
+		proposal := &r.budgetOptimizationProposals[i]
+		if proposal.ID == id && proposal.Status == entity.BudgetOptimizationProposalStatusPending {
+			now := time.Now().UTC()
+			proposal.Status = entity.BudgetOptimizationProposalStatusExpired
+			proposal.ExpiredAt = &now
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) MarkBudgetOptimizationProposalFailed(_ context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error) {
+	for i := range r.budgetOptimizationProposals {
+		proposal := &r.budgetOptimizationProposals[i]
+		if proposal.ID == id {
+			proposal.Status = entity.BudgetOptimizationProposalStatusFailed
+			proposal.UpdatedAt = time.Now().UTC()
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
 func routeTestNextVersionNumber(versions []entity.ItineraryVersion, tripID uuid.UUID) int {
 	next := 1
 	for _, version := range versions {
@@ -2186,6 +2289,41 @@ func (routeTestGenerator) RegenerateDay(_ context.Context, input application.Reg
 
 func (routeTestGenerator) RegenerateItem(_ context.Context, input application.RegenerateItemInput) (*aggregate.ItineraryItem, error) {
 	return &aggregate.ItineraryItem{Time: "12:30", Type: "food", Name: "Regenerated Item"}, nil
+}
+
+func (routeTestGenerator) OptimizeBudgetDay(_ context.Context, input budgetoptimization.OptimizeDayInput) (*budgetoptimization.ProposalContent, error) {
+	savings := 10.0
+	proposedTotal := input.BudgetContext.DayEstimatedTotal - savings
+	if proposedTotal < 0 {
+		proposedTotal = 0
+	}
+	proposedDay := input.CurrentDay
+	if len(proposedDay.Items) > 0 {
+		amount := 0.0
+		proposedDay.Items[0].EstimatedCost = &aggregate.EstimatedCost{
+			Amount:     &amount,
+			Currency:   input.BudgetContext.Currency,
+			Category:   "activity",
+			Confidence: "medium",
+			Source:     "ai",
+		}
+	}
+	return &budgetoptimization.ProposalContent{
+		Summary:                   "Reduced day cost with a cheaper option.",
+		Scope:                     budgetoptimization.ScopeDay,
+		DayNumber:                 input.DayNumber,
+		Currency:                  input.BudgetContext.Currency,
+		BaseDayEstimatedTotal:     input.BudgetContext.DayEstimatedTotal,
+		ProposedDayEstimatedTotal: proposedTotal,
+		EstimatedSavingsAmount:    savings,
+		Confidence:                budgetoptimization.ConfidenceMedium,
+		Changes: []budgetoptimization.ProposalChange{{
+			Type:                   budgetoptimization.ChangeReplaceItem,
+			EstimatedSavingsAmount: &savings,
+			Currency:               input.BudgetContext.Currency,
+		}},
+		ProposedDay: proposedDay,
+	}, nil
 }
 
 func validCreateTripJSON() string {

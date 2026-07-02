@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -87,6 +88,20 @@ type aiPlanningRegenerateDayResponse struct {
 
 type aiPlanningRegenerateItemResponse struct {
 	Item aggregate.ItineraryItem `json:"item"`
+}
+
+type aiPlanningOptimizeBudgetDayRequest struct {
+	Trip             aiPlanningTripRequest            `json:"trip"`
+	CurrentItinerary aggregate.Itinerary              `json:"currentItinerary"`
+	DayNumber        int                              `json:"dayNumber"`
+	CurrentDay       aggregate.ItineraryDay           `json:"currentDay"`
+	BudgetContext    budgetoptimization.BudgetContext `json:"budgetContext"`
+	Constraints      budgetoptimization.Constraints   `json:"constraints"`
+	Instruction      string                           `json:"instruction,omitempty"`
+	UserProfile      *usercontext.UserProfile         `json:"userProfile,omitempty"`
+	UserPreferences  *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
+	WeatherForecast  *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
+	Accommodation    *aggregate.Accommodation         `json:"accommodation,omitempty"`
 }
 
 // NewAIPlanningHTTPGenerator constructs an HTTP generator with a validated base
@@ -231,6 +246,30 @@ func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input appl
 		return nil, err
 	}
 	return &result.Item, nil
+}
+
+// OptimizeBudgetDay calls AI Planning Service v1 to produce a reviewable cheaper-day proposal.
+func (g *AIPlanningHTTPGenerator) OptimizeBudgetDay(ctx context.Context, input budgetoptimization.OptimizeDayInput) (*budgetoptimization.ProposalContent, error) {
+	trip := input.Trip
+	payload := aiPlanningOptimizeBudgetDayRequest{
+		Trip:             newAIPlanningTripRequest(trip, input.UserProfile),
+		CurrentItinerary: input.CurrentItinerary,
+		DayNumber:        input.DayNumber,
+		CurrentDay:       input.CurrentDay,
+		BudgetContext:    input.BudgetContext,
+		Constraints:      input.Constraints,
+		Instruction:      input.Instruction,
+		UserProfile:      input.UserProfile,
+		UserPreferences:  input.UserPreferences,
+		WeatherForecast:  input.WeatherForecast,
+		Accommodation:    trip.Accommodation,
+	}
+
+	var result budgetoptimization.ProposalContent
+	if err := g.postJSON(ctx, trip.ID, "optimize-budget/day", payload, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPlanningGenerateRequest {

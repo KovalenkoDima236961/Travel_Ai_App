@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ const (
 	GenerationJobTypeItemRegeneration       GenerationJobType = "item_regeneration"
 	GenerationJobTypeQualityImprovementDay  GenerationJobType = "quality_improvement_day"
 	GenerationJobTypeQualityImprovementItem GenerationJobType = "quality_improvement_item"
+	GenerationJobTypeBudgetOptimizationDay  GenerationJobType = "budget_optimization_day"
 )
 
 type GenerationJobStatus string
@@ -36,6 +38,7 @@ type GenerationJob struct {
 	Instruction               *string
 	DayNumber                 *int
 	ItemIndex                 *int
+	Payload                   json.RawMessage
 	ErrorCode                 *string
 	ErrorMessage              *string
 	ResultItineraryRevision   *int

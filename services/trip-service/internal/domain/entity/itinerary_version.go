@@ -11,11 +11,12 @@ import (
 type ItineraryVersionSource string
 
 const (
-	ItineraryVersionSourceGenerated      ItineraryVersionSource = "GENERATED"
-	ItineraryVersionSourceManualEdit     ItineraryVersionSource = "MANUAL_EDIT"
-	ItineraryVersionSourceRegenerateDay  ItineraryVersionSource = "REGENERATE_DAY"
-	ItineraryVersionSourceRegenerateItem ItineraryVersionSource = "REGENERATE_ITEM"
-	ItineraryVersionSourceRestored       ItineraryVersionSource = "RESTORED"
+	ItineraryVersionSourceGenerated                 ItineraryVersionSource = "GENERATED"
+	ItineraryVersionSourceManualEdit                ItineraryVersionSource = "MANUAL_EDIT"
+	ItineraryVersionSourceRegenerateDay             ItineraryVersionSource = "REGENERATE_DAY"
+	ItineraryVersionSourceRegenerateItem            ItineraryVersionSource = "REGENERATE_ITEM"
+	ItineraryVersionSourceBudgetOptimizationApplied ItineraryVersionSource = "BUDGET_OPTIMIZATION_APPLIED"
+	ItineraryVersionSourceRestored                  ItineraryVersionSource = "RESTORED"
 )
 
 // ItineraryVersion is a full JSONB snapshot of a trip itinerary at one point in

@@ -16,6 +16,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
@@ -107,6 +109,11 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/generation-jobs", h.ListGenerationJobs)
 		r.Get("/{id}/generation-jobs/{jobId}", h.GetGenerationJob)
 		r.Post("/{id}/generation-jobs/{jobId}/cancel", h.CancelGenerationJob)
+		r.Post("/{id}/budget-optimization-jobs", h.CreateBudgetOptimizationJob)
+		r.Get("/{id}/budget-optimization-proposals", h.ListBudgetOptimizationProposals)
+		r.Get("/{id}/budget-optimization-proposals/{proposalId}", h.GetBudgetOptimizationProposal)
+		r.Post("/{id}/budget-optimization-proposals/{proposalId}/apply", h.ApplyBudgetOptimizationProposal)
+		r.Post("/{id}/budget-optimization-proposals/{proposalId}/discard", h.DiscardBudgetOptimizationProposal)
 		r.Put("/{id}/itinerary", h.UpdateItinerary)
 		r.Get("/{id}/itinerary/versions", h.ListItineraryVersions)
 		r.Get("/{id}/itinerary/versions/{versionId}", h.GetItineraryVersion)
@@ -709,6 +716,119 @@ func (h *Handler) CancelGenerationJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, generationjobs.NewJobEnvelope(job))
+}
+
+func (h *Handler) CreateBudgetOptimizationJob(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	if h.generationJobs == nil {
+		writeError(w, http.StatusServiceUnavailable, "generation jobs are not configured")
+		return
+	}
+
+	var req budgetoptimization.CreateJobRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	_, payload, err := req.NormalizeAndPayload()
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	job, err := h.generationJobs.Create(r.Context(), id, generationjobs.CreateRequest{
+		JobType:                   entity.GenerationJobTypeBudgetOptimizationDay,
+		ExpectedItineraryRevision: req.ExpectedItineraryRevision,
+		Instruction:               req.Instruction,
+		DayNumber:                 req.DayNumber,
+		Payload:                   payload,
+	})
+	if err != nil {
+		h.writeGenerationJobError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, generationjobs.NewJobEnvelope(job))
+}
+
+func (h *Handler) ListBudgetOptimizationProposals(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseQueryInt(w, r, "limit")
+	if !ok {
+		return
+	}
+	status := r.URL.Query().Get("status")
+	proposals, appliedLimit, err := h.svc.ListBudgetOptimizationProposals(r.Context(), id, status, limit)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, budgetoptimization.NewListResponse(proposals, appliedLimit))
+}
+
+func (h *Handler) GetBudgetOptimizationProposal(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	proposalID, ok := parseUUIDParam(w, r, "proposalId", "invalid budget optimization proposal id")
+	if !ok {
+		return
+	}
+	proposal, err := h.svc.GetBudgetOptimizationProposal(r.Context(), id, proposalID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, budgetoptimization.NewProposalEnvelope(proposal))
+}
+
+func (h *Handler) ApplyBudgetOptimizationProposal(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	proposalID, ok := parseUUIDParam(w, r, "proposalId", "invalid budget optimization proposal id")
+	if !ok {
+		return
+	}
+	var req budgetoptimization.ApplyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	trip, proposal, err := h.svc.ApplyBudgetOptimizationProposal(r.Context(), id, proposalID, req.ExpectedItineraryRevision)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"trip":     response.NewTrip(trip),
+		"proposal": budgetoptimization.NewProposalResponse(proposal),
+	})
+}
+
+func (h *Handler) DiscardBudgetOptimizationProposal(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	proposalID, ok := parseUUIDParam(w, r, "proposalId", "invalid budget optimization proposal id")
+	if !ok {
+		return
+	}
+	proposal, err := h.svc.DiscardBudgetOptimizationProposal(r.Context(), id, proposalID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, budgetoptimization.NewProposalEnvelope(proposal))
 }
 
 // UpdateItinerary handles PUT /trips/{id}/itinerary.

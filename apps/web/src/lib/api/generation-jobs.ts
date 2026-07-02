@@ -67,6 +67,7 @@ function cleanCreatePayload(input: CreateGenerationJobRequest) {
     expectedItineraryRevision: input.expectedItineraryRevision,
     ...(instruction ? { instruction } : {}),
     ...(input.dayNumber != null ? { dayNumber: input.dayNumber } : {}),
-    ...(input.itemIndex != null ? { itemIndex: input.itemIndex } : {})
+    ...(input.itemIndex != null ? { itemIndex: input.itemIndex } : {}),
+    ...(input.payload != null ? { payload: input.payload } : {})
   };
 }

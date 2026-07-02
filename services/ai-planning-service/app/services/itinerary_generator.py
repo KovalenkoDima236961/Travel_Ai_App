@@ -2,10 +2,14 @@ from decimal import Decimal
 from typing import Protocol
 
 from app.schemas.itinerary import (
+    BudgetOptimizationChange,
+    BudgetOptimizationPreservedItem,
+    BudgetOptimizationProposalResponse,
     GenerateItineraryRequest,
     ItineraryDay,
     ItineraryItem,
     ItineraryResponse,
+    OptimizeBudgetDayRequest,
     RegenerateDayRequest,
     RegenerateDayResponse,
     RegenerateItemRequest,
@@ -18,6 +22,9 @@ class ItineraryGenerator(Protocol):
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse: ...
     def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse: ...
     def regenerate_item(self, request: RegenerateItemRequest) -> RegenerateItemResponse: ...
+    def optimize_budget_day(
+        self, request: OptimizeBudgetDayRequest
+    ) -> BudgetOptimizationProposalResponse: ...
 
 
 class MockItineraryGenerator:
@@ -118,6 +125,73 @@ class MockItineraryGenerator:
         )
         _finalize_item_costs([item], request.trip.budget_currency)
         return RegenerateItemResponse(item=item)
+
+    def optimize_budget_day(
+        self, request: OptimizeBudgetDayRequest
+    ) -> BudgetOptimizationProposalResponse:
+        currency = request.budget_context.currency
+        proposed_day = ItineraryDay.model_validate(
+            request.current_day.model_dump(by_alias=True, exclude_none=True)
+        )
+        expensive_index = _most_expensive_item_index(proposed_day.items)
+        if expensive_index < 0:
+            expensive_index = 0
+
+        old_item = proposed_day.items[expensive_index]
+        old_amount = _cost_amount(old_item)
+        new_amount = max(Decimal("0"), old_amount - Decimal("35"))
+        proposed_day.items[expensive_index] = ItineraryItem(
+            time=old_item.time,
+            type="activity",
+            name="Self-guided low-cost alternative",
+            note="Keeps the day theme but avoids the highest estimated cost.",
+            estimated_cost={
+                "amount": new_amount,
+                "currency": currency,
+                "category": "activity",
+                "confidence": "medium",
+                "source": "ai",
+            },
+        )
+
+        base_total = request.budget_context.day_estimated_total
+        savings = max(Decimal("1"), old_amount - new_amount)
+        proposed_total = max(Decimal("0"), base_total - savings)
+
+        return BudgetOptimizationProposalResponse(
+            summary=(
+                f"Reduced estimated Day {request.day_number} cost by about "
+                f"{savings} {currency} with a cheaper activity alternative."
+            ),
+            scope="day",
+            dayNumber=request.day_number,
+            currency=currency,
+            baseDayEstimatedTotal=base_total,
+            proposedDayEstimatedTotal=proposed_total,
+            estimatedSavingsAmount=savings,
+            confidence="medium",
+            changes=[
+                BudgetOptimizationChange(
+                    type="replace_item",
+                    oldItemIndex=expensive_index,
+                    oldItemName=old_item.name,
+                    newItemName=proposed_day.items[expensive_index].name,
+                    reason="Replaces the highest-cost item with a lower-cost option.",
+                    estimatedSavingsAmount=savings,
+                    currency=currency,
+                )
+            ],
+            preservedItems=[
+                BudgetOptimizationPreservedItem(
+                    itemIndex=0,
+                    itemName=proposed_day.items[0].name,
+                    reason="Preserved to keep the day structure recognizable.",
+                )
+            ],
+            tradeoffs=["The replacement is less premium but keeps the route and theme practical."],
+            warnings=["Estimated savings are approximate and should be reviewed."],
+            proposedDay=proposed_day,
+        )
 
     def _title_for_day(self, request: GenerateItineraryRequest, day_number: int) -> str:
         interests = self._personalized_interests(request)
@@ -390,6 +464,23 @@ def _mentions(value: str | None, *terms: str) -> bool:
         return False
     normalized = value.casefold()
     return any(term in normalized for term in terms)
+
+
+def _most_expensive_item_index(items: list[ItineraryItem]) -> int:
+    best_index = -1
+    best_amount = Decimal("-1")
+    for index, item in enumerate(items):
+        amount = _cost_amount(item)
+        if amount > best_amount:
+            best_amount = amount
+            best_index = index
+    return best_index
+
+
+def _cost_amount(item: ItineraryItem) -> Decimal:
+    if item.estimated_cost is None or item.estimated_cost.amount is None:
+        return Decimal("0")
+    return item.estimated_cost.amount
 
 
 def _weather_day_for_number(days: list[WeatherDay], day_number: int) -> WeatherDay | None:

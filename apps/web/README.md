@@ -16,9 +16,11 @@ returns `409 itinerary_conflict`, the page shows a conflict panel with
 `Reload latest` and `Cancel my changes` actions instead of retrying or forcing an
 overwrite. Generate and regenerate actions create Trip Service background jobs
 with the latest displayed revision and poll job status until completion.
-Restore, place review, and route optimization actions still save directly with
-the latest displayed revision. On conflict, the page shows a readable message
-and refetches the trip.
+Budget optimization actions also create background jobs, but job completion only
+adds a reviewable proposal; the itinerary changes only when an owner/editor
+clicks `Apply` on the proposal. Restore, place review, and route optimization
+actions still save directly with the latest displayed revision. On conflict, the
+page shows a readable message and refetches the trip.
 
 Before manual itinerary edit mode starts, the page attempts to acquire Trip
 Service's advisory soft edit lock. If another owner/editor currently owns the
@@ -88,6 +90,11 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /trips/{id}/generation-jobs`
 - `GET /trips/{id}/generation-jobs/{jobId}`
 - `POST /trips/{id}/generation-jobs/{jobId}/cancel`
+- `POST /trips/{id}/budget-optimization-jobs`
+- `GET /trips/{id}/budget-optimization-proposals`
+- `GET /trips/{id}/budget-optimization-proposals/{proposalId}`
+- `POST /trips/{id}/budget-optimization-proposals/{proposalId}/apply`
+- `POST /trips/{id}/budget-optimization-proposals/{proposalId}/discard`
 - `POST /trips/{id}/generate` (legacy synchronous compatibility)
 - `PUT /trips/{id}/itinerary`
 - `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate` (legacy synchronous compatibility)
@@ -126,6 +133,29 @@ The frontend calls the protected Trip Service endpoints:
 - `GET /public/trips/{shareToken}/status` without Authorization for public share pages
 - `POST /public/trips/{shareToken}/unlock` without Authorization to unlock protected shares
 - `GET /public/trips/{shareToken}` without Authorization for unprotected shares or with `Authorization: Bearer <publicShareAccessToken>` for protected shares
+
+## Budget Optimization UI
+
+Private completed trip pages can show `Optimize Day N for budget` from the
+Budget panel and budget-related Trip Quality Checks. The request dialog lets an
+owner/editor choose a day, target reduction amount, constraints, max walking
+increase, and an optional instruction. Creating the request queues a
+`budget_optimization_day` job and reuses the existing generation job status
+card.
+
+When the job completes, the page refetches pending proposals and shows proposal
+cards with approximate savings, base/proposed day totals, confidence, change
+reasons, tradeoffs, warnings, and a simple current-vs-proposed day preview. The
+proposal card has explicit `Apply` and `Discard` actions. Applying sends the
+current `itineraryRevision`; stale proposals or stale apply requests show an
+outdated-proposal conflict message and refetch the trip/proposals. Successful
+apply refetches trip details, budget summary, route estimates, version history,
+activity, and trip lists.
+
+Accepted viewers can read private proposals but cannot create, apply, or
+discard them. Public share pages do not mount budget optimization UI and cannot
+call private proposal endpoints. AI savings are displayed as approximate
+estimates, not guaranteed prices.
 
 The frontend calls External Integrations Service v1 directly for place search,
 route estimates, and weather forecasts:

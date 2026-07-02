@@ -125,6 +125,14 @@ type tripRepository interface {
 	GetActiveTripCalendarSyncByKey(ctx context.Context, tripID, userID uuid.UUID, provider, syncKey string) (*entity.TripCalendarSync, error)
 	MarkTripCalendarSyncDeleted(ctx context.Context, tripID, userID uuid.UUID, provider, syncKey string) error
 	MarkAllTripCalendarSyncsDeleted(ctx context.Context, tripID, userID uuid.UUID, provider string) error
+	CreateBudgetOptimizationProposal(ctx context.Context, proposal *entity.BudgetOptimizationProposal) (*entity.BudgetOptimizationProposal, error)
+	GetBudgetOptimizationProposalByIDAndTrip(ctx context.Context, id, tripID uuid.UUID) (*entity.BudgetOptimizationProposal, error)
+	ListBudgetOptimizationProposalsByTrip(ctx context.Context, tripID uuid.UUID, status *entity.BudgetOptimizationProposalStatus, limit int) ([]entity.BudgetOptimizationProposal, error)
+	ListPendingBudgetOptimizationProposalsByTrip(ctx context.Context, tripID uuid.UUID, limit int) ([]entity.BudgetOptimizationProposal, error)
+	MarkBudgetOptimizationProposalApplied(ctx context.Context, id uuid.UUID, appliedItineraryRevision int) (*entity.BudgetOptimizationProposal, error)
+	MarkBudgetOptimizationProposalDiscarded(ctx context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error)
+	MarkBudgetOptimizationProposalExpired(ctx context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error)
+	MarkBudgetOptimizationProposalFailed(ctx context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error)
 }
 
 type userContextProvider interface {

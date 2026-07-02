@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.schemas.itinerary import (
+    BudgetOptimizationProposalResponse,
     ItineraryItem,
     ItineraryResponse,
     RegenerateDayResponse,
@@ -13,6 +14,21 @@ from app.schemas.itinerary import (
 _TOP_LEVEL_KEYS = {"days"}
 _DAY_RESPONSE_KEYS = {"day"}
 _ITEM_RESPONSE_KEYS = {"item"}
+_BUDGET_OPTIMIZATION_KEYS = {
+    "summary",
+    "scope",
+    "dayNumber",
+    "currency",
+    "baseDayEstimatedTotal",
+    "proposedDayEstimatedTotal",
+    "estimatedSavingsAmount",
+    "confidence",
+    "changes",
+    "preservedItems",
+    "tradeoffs",
+    "warnings",
+    "proposedDay",
+}
 _DAY_KEYS = {"day", "title", "items"}
 _ITEM_KEYS = {"time", "type", "name", "note", "estimatedCost"}
 _ITEM_TYPES = {"place", "food", "activity", "transport", "rest"}
@@ -79,6 +95,35 @@ def parse_regenerate_item_response(response_text: str) -> RegenerateItemResponse
         raise LLMResponseParseError("LLM response did not match item replacement schema") from exc
 
     _ensure_item_values_valid(response.item, "Replacement item")
+    return response
+
+
+def parse_budget_optimization_response(
+    response_text: str,
+    expected_day_number: int,
+) -> BudgetOptimizationProposalResponse:
+    parsed = _parse_json(response_text)
+    _ensure_exact_budget_optimization_shape(parsed)
+
+    try:
+        response = BudgetOptimizationProposalResponse.model_validate(parsed)
+    except ValidationError as exc:
+        raise LLMResponseParseError(
+            "LLM response did not match budget optimization proposal schema"
+        ) from exc
+
+    if response.day_number != expected_day_number:
+        raise LLMResponseParseError(
+            f"Expected optimization day {expected_day_number}, received {response.day_number}"
+        )
+    if response.proposed_day.day != expected_day_number:
+        raise LLMResponseParseError("Proposed day number does not match selected day")
+    if response.estimated_savings_amount <= 0:
+        raise LLMResponseParseError("Budget optimization proposal must estimate positive savings")
+    if not response.changes:
+        raise LLMResponseParseError("Budget optimization proposal must include changes")
+    for index, item in enumerate(response.proposed_day.items, start=1):
+        _ensure_item_values_valid(item, f"Proposed day item {index}")
     return response
 
 
@@ -208,6 +253,22 @@ def _ensure_exact_item_response_shape(parsed: Any) -> None:
     if set(parsed.keys()) != _ITEM_RESPONSE_KEYS:
         raise LLMResponseParseError("LLM response must contain only the top-level 'item' field")
     _ensure_exact_item_shape(parsed["item"], "Replacement item")
+
+
+def _ensure_exact_budget_optimization_shape(parsed: Any) -> None:
+    if not isinstance(parsed, dict):
+        raise LLMResponseParseError("LLM response must be a JSON object")
+    if set(parsed.keys()) != _BUDGET_OPTIMIZATION_KEYS:
+        raise LLMResponseParseError("LLM response must contain exactly the proposal fields")
+    proposed_day = parsed["proposedDay"]
+    if not isinstance(proposed_day, dict):
+        raise LLMResponseParseError("proposedDay must be a JSON object")
+    if set(proposed_day.keys()) != _DAY_KEYS:
+        raise LLMResponseParseError("proposedDay must contain only day, title, and items")
+    if not isinstance(proposed_day["items"], list):
+        raise LLMResponseParseError("proposedDay.items must be a list")
+    for item_index, item in enumerate(proposed_day["items"], start=1):
+        _ensure_exact_item_shape(item, f"Proposed day item {item_index}")
 
 
 def _ensure_exact_item_shape(item: Any, label: str) -> None:

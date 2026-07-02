@@ -53,35 +53,38 @@ const dateTimeFormat: Intl.DateTimeFormatOptions = {
 };
 
 function getStatusCopy(job: GenerationJob) {
+  const budgetOptimization = job.jobType === "budget_optimization_day";
   switch (job.status) {
     case "queued":
       return {
-        title: "Generation queued...",
+        title: budgetOptimization ? "Budget optimization queued..." : "Generation queued...",
         message: describeTarget(job),
         className: "mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900"
       };
     case "running":
       return {
-        title: "Generating itinerary...",
+        title: budgetOptimization ? "Optimizing budget..." : "Generating itinerary...",
         message: describeTarget(job),
         className: "mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900"
       };
     case "completed":
       return {
-        title: "Generation completed",
-        message: "The itinerary has been updated.",
+        title: budgetOptimization ? "Budget proposal ready" : "Generation completed",
+        message: budgetOptimization
+          ? "Review the proposal before applying it to the itinerary."
+          : "The itinerary has been updated.",
         className:
           "mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
       };
     case "failed":
       return {
-        title: "Generation failed",
+        title: budgetOptimization ? "Budget optimization failed" : "Generation failed",
         message: conflictMessage(job) ?? "The itinerary was not changed.",
         className: "mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800"
       };
     case "cancelled":
       return {
-        title: "Generation cancelled",
+        title: budgetOptimization ? "Budget optimization cancelled" : "Generation cancelled",
         message: "The queued job was cancelled before it started.",
         className: "mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-700"
       };
@@ -91,6 +94,9 @@ function getStatusCopy(job: GenerationJob) {
 function describeTarget(job: GenerationJob) {
   if (job.jobType === "full_generation") {
     return "Building a full itinerary in the background.";
+  }
+  if (job.jobType === "budget_optimization_day" && job.dayNumber != null) {
+    return `Creating a budget optimization proposal for Day ${job.dayNumber}.`;
   }
   if (job.dayNumber != null && job.itemIndex != null) {
     return `Updating Day ${job.dayNumber}, item ${job.itemIndex + 1}.`;
@@ -102,6 +108,9 @@ function describeTarget(job: GenerationJob) {
 }
 
 function conflictMessage(job: GenerationJob) {
+  if (job.errorCode === "no_optimization_found") {
+    return "No useful cheaper alternative was found for that day. Try a different target or instruction.";
+  }
   if (job.errorCode !== "itinerary_conflict") {
     return null;
   }
