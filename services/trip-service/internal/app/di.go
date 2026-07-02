@@ -24,6 +24,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -108,6 +110,28 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			FailOpen:          cfg.PlaceEnrichment.FailOpen,
 		})
 	}
+	var priceEnrichmentSvc interface {
+		EnrichItinerary(context.Context, priceenrichment.EnrichItineraryInput) (*priceenrichment.EnrichItineraryResult, error)
+	}
+	if cfg.PriceEnrichment.Enabled {
+		priceClient, err := priceclient.New(priceclient.Config{
+			BaseURL:        cfg.PriceEnrichment.ExternalIntegrationsServiceURL,
+			Token:          cfg.PriceEnrichment.InternalServiceToken,
+			TimeoutSeconds: cfg.PriceEnrichment.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init price client: %w", err)
+		}
+		priceEnrichmentSvc = priceenrichment.New(priceClient, priceenrichment.Config{
+			Enabled:              cfg.PriceEnrichment.Enabled,
+			FailOpen:             cfg.PriceEnrichment.FailOpen,
+			OverwriteAICosts:     cfg.PriceEnrichment.OverwriteAICosts,
+			OverwriteManualCosts: cfg.PriceEnrichment.OverwriteManualCosts,
+			MinMatchConfidence:   cfg.PriceEnrichment.MinMatchConfidence,
+			MaxItems:             cfg.PriceEnrichment.MaxItems,
+			DefaultCurrency:      cfg.PriceEnrichment.DefaultCurrency,
+		})
+	}
 	userLookupClient, err := users.New(users.Config{
 		BaseURL:        cfg.UserLookup.AuthServiceURL,
 		TimeoutSeconds: cfg.UserLookup.TimeoutSeconds,
@@ -152,6 +176,11 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			placeEnrichmentSvc,
 			cfg.PlaceEnrichment.Enabled,
 			cfg.PlaceEnrichment.FailOpen,
+		),
+		service.WithPriceEnrichment(
+			priceEnrichmentSvc,
+			cfg.PriceEnrichment.Enabled,
+			cfg.PriceEnrichment.FailOpen,
 		),
 		service.WithPublicSharing(
 			cfg.PublicSharing.Enabled,

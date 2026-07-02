@@ -17,6 +17,7 @@ import (
 	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
 	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
 	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
 )
 
 func TestHealthReturnsOK(t *testing.T) {
@@ -225,12 +226,15 @@ func newTestRouter() http.Handler {
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, zap.NewNop())
 	exchangeRateSvc := appservice.NewExchangeRateService(exchangerateprovider.NewMockExchangeRateProvider(), zap.NewNop())
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateSvc, zap.NewNop())
+	priceSvc := prices.NewService(prices.NewMockPriceProvider(), zap.NewNop())
+	priceHandler := prices.NewHandler(priceSvc, zap.NewNop(), "EUR")
 	return NewRouter(
 		zap.NewNop(),
 		placesHandler,
 		routesHandler,
 		weatherHandler,
 		exchangeRateHandler,
+		priceHandler,
 		nil,
 		nil,
 		NewReadinessHandler(zap.NewNop()),
@@ -250,6 +254,8 @@ func testConfig() *config.Config {
 		RouteProvider:        config.RouteProviderConfig{Provider: "mock"},
 		WeatherProvider:      config.WeatherProviderConfig{Provider: "mock"},
 		ExchangeRateProvider: config.ExchangeRateProviderConfig{Provider: "mock"},
+		PriceProvider:        config.PriceProviderConfig{Provider: "mock", DefaultCurrency: "EUR"},
+		Internal:             config.InternalConfig{ServiceToken: "dev-internal-service-token"},
 		CORS: config.CORSConfig{
 			AllowedOrigins: "http://localhost:3000",
 			AllowedMethods: "GET,POST,DELETE,OPTIONS",

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  costSourceLabel,
   costBadgeLabel,
   formatApproxMoney,
   formatMoney,
   getCostAmount,
   getCostCurrency,
-  isManualCost
+  isManualCost,
+  isProviderCost
 } from "@/lib/budget/format";
 
 describe("formatMoney", () => {
@@ -51,11 +53,23 @@ describe("cost helpers", () => {
     expect(isManualCost({ amount: 5, source: "manual" })).toBe(true);
     expect(isManualCost({ amount: 5, source: "ai" })).toBe(false);
   });
+
+  it("detects provider source and formats source labels", () => {
+    expect(isProviderCost({ amount: 18, source: "provider" })).toBe(true);
+    expect(costSourceLabel({ amount: 18, source: "provider" })).toBe("Provider estimate");
+    expect(costSourceLabel({ amount: 18, source: "ai" })).toBe("AI estimate");
+  });
 });
 
 describe("costBadgeLabel", () => {
   it("renders a compact badge with category", () => {
     expect(costBadgeLabel({ amount: 18, currency: "EUR", category: "ticket" })).toBe("€18 ticket");
+  });
+
+  it("labels provider ticket costs as estimates", () => {
+    expect(
+      costBadgeLabel({ amount: 18, currency: "EUR", category: "ticket", source: "provider" })
+    ).toBe("€18 estimated ticket");
   });
 
   it("adds approx for low confidence and uses the fallback currency", () => {

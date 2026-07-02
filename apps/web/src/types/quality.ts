@@ -16,6 +16,9 @@ export type QualityIssueType =
   | "day_budget_high"
   | "expensive_item"
   | "missing_cost_estimate"
+  | "missing_ticket_price"
+  | "high_ticket_cost"
+  | "provider_price_low_confidence"
   | "conversion_unavailable";
 
 export type QualityIssue = {

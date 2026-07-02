@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { getCostAmount } from "@/lib/budget/format";
+import { costSourceLabel, getCostAmount } from "@/lib/budget/format";
 import { COST_CATEGORIES, COST_CONFIDENCES } from "@/types/budget";
 import type { CostCategory, CostConfidence, EstimatedCost } from "@/types/budget";
 
@@ -32,6 +32,7 @@ export function ItemCostEditor({
   const category = (cost?.category ?? "other") as CostCategory;
   const confidence = (cost?.confidence ?? "medium") as CostConfidence;
   const note = cost?.note ?? "";
+  const sourceLabel = costSourceLabel(cost);
 
   function emit(next: Partial<EstimatedCost> & { amount?: number | null }) {
     const merged: EstimatedCost = {
@@ -48,6 +49,12 @@ export function ItemCostEditor({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
+      {sourceLabel ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 sm:col-span-2">
+          Source: <span className="font-medium text-slate-800">{sourceLabel}</span>
+        </div>
+      ) : null}
+
       <div className="grid gap-1">
         <label className="text-sm font-medium text-slate-700" htmlFor={`${idPrefix}-amount`}>
           Cost amount

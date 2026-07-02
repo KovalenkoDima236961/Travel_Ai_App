@@ -78,6 +78,26 @@ export function isManualCost(cost: RawCost): boolean {
   return typeof cost === "object" && cost != null && cost.source === "manual";
 }
 
+export function isProviderCost(cost: RawCost): boolean {
+  return typeof cost === "object" && cost != null && cost.source === "provider";
+}
+
+export function costSourceLabel(cost: RawCost): string | null {
+  if (typeof cost !== "object" || cost == null) {
+    return null;
+  }
+  if (cost.source === "manual") {
+    return "Manual";
+  }
+  if (cost.source === "provider") {
+    return "Provider estimate";
+  }
+  if (cost.source === "ai") {
+    return "AI estimate";
+  }
+  return null;
+}
+
 const CATEGORY_LABELS: Record<CostCategory, string> = {
   food: "food",
   transport: "transport",
@@ -100,7 +120,10 @@ export function costBadgeLabel(cost: RawCost, fallbackCurrency?: string | null):
   const currency = getCostCurrency(cost) ?? fallbackCurrency ?? null;
   const money = formatMoney(amount, currency);
   const category = getCostCategory(cost);
-  const label = category ? ` ${CATEGORY_LABELS[category]}` : "";
+  const providerPrefix = isProviderCost(cost) && (category === "ticket" || category === "activity")
+    ? " estimated"
+    : "";
+  const label = category ? `${providerPrefix} ${CATEGORY_LABELS[category]}` : "";
   const approx =
     typeof cost === "object" && cost != null && cost.confidence === "low" ? " (approx.)" : "";
   return `${money}${label}${approx}`;

@@ -37,6 +37,7 @@ type ItineraryItem struct {
 	EstimatedCost   *EstimatedCost       `json:"estimatedCost,omitempty"`
 	Place           *PlaceRef            `json:"place,omitempty"`
 	PlaceEnrichment *PlaceEnrichmentMeta `json:"placeEnrichment,omitempty"`
+	PriceEnrichment *PriceEnrichmentMeta `json:"priceEnrichment,omitempty"`
 }
 
 // EstimatedCost is the structured, item-level cost estimate stored on an
@@ -116,4 +117,16 @@ type PlaceEnrichmentMeta struct {
 	Provider     string  `json:"provider,omitempty"`
 	MatchedAt    string  `json:"matchedAt,omitempty"`
 	Reason       string  `json:"reason,omitempty"`
+}
+
+// PriceEnrichmentMeta describes automatic attraction/ticket price estimation
+// for an itinerary item. It is optional and preserved with itinerary snapshots.
+type PriceEnrichmentMeta struct {
+	Status          string  `json:"status"`
+	Provider        string  `json:"provider,omitempty"`
+	MatchConfidence float64 `json:"matchConfidence,omitempty"`
+	PriceType       string  `json:"priceType,omitempty"`
+	ReviewStatus    string  `json:"reviewStatus,omitempty"`
+	UpdatedAt       string  `json:"updatedAt,omitempty"`
+	Reason          string  `json:"reason,omitempty"`
 }

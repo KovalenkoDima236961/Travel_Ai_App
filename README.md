@@ -116,7 +116,8 @@ optional and fail-open by default. Access tokens and full preference payloads
 should not be logged.
 External Integrations Service v1 lives in
 `services/external-integrations-service` and owns place search/details, route
-estimation, weather forecast, and exchange-rate provider boundaries.
+estimation, weather forecast, exchange-rate, and attraction/ticket price provider
+boundaries.
 Place search/details use the deterministic mock provider by default and can
 optionally use Foursquare via `PLACE_PROVIDER=foursquare`; mock remains the local
 no-key default. Routing and weather likewise support real providers behind clean
@@ -127,17 +128,21 @@ provider abstractions while keeping the `POST /routes/estimate` and
 fail-open fallback. Exchange-rate v1 exposes deterministic mock
 `GET /exchange-rates/latest` and `GET /exchange-rates/convert` endpoints used by
 Trip Service budget summaries; real exchange-rate provider names are reserved
-for future adapters. Results are cached in a small in-memory TTL cache, and
-provider API keys never reach the Web App. The Web App calls this service when
+for future adapters. Attraction/ticket price v1 exposes an internal deterministic
+mock `POST /prices/estimate` endpoint used by Trip Service price enrichment; real
+price provider fields are placeholders for future adapters. Results are cached in
+a small in-memory TTL cache, and provider API keys never reach the Web App. The
+Web App calls this service when
 attaching optional place metadata to itinerary items, estimating per-day routes
 via `POST /routes/estimate`, and showing trip weather via
-`GET /weather/forecast`; Trip Service calls it for budget conversion. Route,
-weather, and exchange-rate data are read-only; attached places can also carry
-optional local `openingHours` intervals (`dayOfWeek` 1 Monday through 7 Sunday,
-`HH:mm` local time). The Web App shows advisory closed-place warnings when hours
-are available and handles missing real provider fields gracefully. No real Google
-Places provider, real opening-hours provider, Google Maps routing, historical
-exchange rates, or trading-grade rate accuracy is enabled yet.
+`GET /weather/forecast`; Trip Service calls it for budget conversion and
+generated-item ticket estimates. Route, weather, exchange-rate, and price data
+are read-only; attached places can also carry optional local `openingHours`
+intervals (`dayOfWeek` 1 Monday through 7 Sunday, `HH:mm` local time). The Web
+App shows advisory closed-place warnings when hours are available and handles
+missing real provider fields gracefully. No real Google Places provider, real
+opening-hours provider, Google Maps routing, historical exchange rates, real
+ticket booking/checkout provider, or trading-grade rate accuracy is enabled yet.
 Calendar Sync v1 is implemented inside External Integrations Service rather
 than a separate Calendar Service. Users can connect one Google Calendar account
 through server-side OAuth, tokens are encrypted at rest, and Trip Service can
@@ -160,12 +165,15 @@ currency with External Integrations Service exchange rates, preserves original
 currency totals, and reports conversion warnings when a cost cannot be
 converted. The Web App shows a `BudgetPanel`, item cost badges, approximate
 converted totals, and budget-aware quality warnings (over-budget trip/day,
-expensive items, missing estimates, conversion gaps). AI generation/regeneration
-prefers the trip/preferred currency but may use local currencies when natural;
-the backend conversion is the source of truth for budget totals. v1 has no real
-ticket-price/booking provider, historical rates, crypto rates, or financial
-accuracy guarantees, and never exposes the private trip budget on the public
-share page.
+expensive items, missing estimates, conversion gaps, and provider ticket-price
+review hints). AI generation/regeneration prefers the trip/preferred currency but
+may use local currencies when natural; the backend conversion is the source of
+truth for budget totals. Trip Service can enrich likely ticketed attractions with
+deterministic provider `estimatedCost` values after generation while preserving
+manual costs by default. v1 has no real ticket booking/checkout provider,
+historical rates, crypto rates, or financial accuracy guarantees, and never
+exposes the private trip budget or provider review metadata on the public share
+page.
 Accommodation Planning v1 adds one private structured stay location per trip.
 Owners/editors can add, edit, or remove an accommodation with name/type/address,
 optional attached place coordinates, check-in/check-out dates, notes, and an

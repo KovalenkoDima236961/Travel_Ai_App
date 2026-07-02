@@ -78,6 +78,16 @@ exchange_rate_provider:
   cache_enabled: true
   cache_ttl_seconds: 21600
 
+price_provider:
+  provider: mock
+  fallback_to_mock: true
+  timeout_seconds: 8
+  cache_enabled: true
+  cache_ttl_seconds: 86400
+  default_currency: EUR
+  base_url: ""
+  api_key: ""
+
 calendar:
   enabled: true
   provider: mock

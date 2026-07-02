@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
@@ -22,6 +23,7 @@ func NewRouter(
 	routesHandler *handler.RoutesHandler,
 	weatherHandler *handler.WeatherHandler,
 	exchangeRateHandler *handler.ExchangeRateHandler,
+	priceHandler *prices.Handler,
 	calendarHandler *handler.CalendarHandler,
 	internalCalendarHandler *handler.InternalCalendarHandler,
 	readinessHandler http.Handler,
@@ -46,6 +48,12 @@ func NewRouter(
 	weatherHandler.RegisterRoutes(r)
 	if exchangeRateHandler != nil {
 		exchangeRateHandler.RegisterRoutes(r)
+	}
+	if priceHandler != nil {
+		r.Group(func(r chi.Router) {
+			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+			priceHandler.RegisterRoutes(r)
+		})
 	}
 	if calendarHandler != nil {
 		r.Get("/calendar/google/callback", calendarHandler.Callback)

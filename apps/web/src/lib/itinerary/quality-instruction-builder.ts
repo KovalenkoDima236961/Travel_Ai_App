@@ -70,7 +70,10 @@ function formatDayIssueBullet(issue: QualityIssue): string {
     issue.type === "place_match_low_confidence" ||
     issue.type === "place_no_confident_match" ||
     issue.type === "missing_place_coordinates" ||
-    issue.type === "conversion_unavailable"
+    issue.type === "conversion_unavailable" ||
+    issue.type === "missing_ticket_price" ||
+    issue.type === "high_ticket_cost" ||
+    issue.type === "provider_price_low_confidence"
   ) {
     return issue.instructionHint;
   }
@@ -105,6 +108,18 @@ function formatItemIssueBullet(issue: QualityIssue): string {
 
   if (issue.type === "conversion_unavailable") {
     return "Suggest manual currency or cost correction; do not invent exchange rates.";
+  }
+
+  if (issue.type === "missing_ticket_price") {
+    return "Add or estimate ticket costs for paid attractions.";
+  }
+
+  if (issue.type === "high_ticket_cost") {
+    return "Suggest a cheaper or free alternative to this paid attraction.";
+  }
+
+  if (issue.type === "provider_price_low_confidence") {
+    return "Verify this attraction cost and suggest alternatives if uncertain.";
   }
 
   return issue.instructionHint;

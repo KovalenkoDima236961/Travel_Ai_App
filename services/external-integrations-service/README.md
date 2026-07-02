@@ -2,10 +2,10 @@
 
 External Integrations Service owns third-party integration boundaries for the
 travel app. v1 exposes place search/details, route estimates, weather forecasts,
-and exchange-rate conversion through stable application APIs so the Web App and
-Trip Service can use integration-shaped data without calling third-party APIs
-directly. Mock providers remain the local default; place search/details can
-optionally use Foursquare.
+exchange-rate conversion, and attraction/ticket price estimates through stable
+application APIs so the Web App and Trip Service can use integration-shaped data
+without calling third-party APIs directly. Mock providers remain the local
+default; place search/details can optionally use Foursquare.
 Calendar Sync v1 also lives here: the service owns Google OAuth, encrypted token
 storage, and Google Calendar event create/update/delete calls for Trip Service.
 
@@ -52,6 +52,7 @@ external-integrations-service/
 - `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
 - `GET /exchange-rates/latest?base=EUR`
 - `GET /exchange-rates/convert?amount=2500&from=JPY&to=EUR`
+- `POST /prices/estimate` (internal service-token route)
 - `GET /calendar/google/status`
 - `POST /calendar/google/connect`
 - `GET /calendar/google/callback`
@@ -101,6 +102,15 @@ curl "http://localhost:8084/places/search?query=Colosseum&destination=Rome"
   providers. API keys are server-side only and must not be exposed to the Web App.
 - `EXCHANGE_RATE_CACHE_ENABLED` defaults to `true`;
   `EXCHANGE_RATE_CACHE_TTL_SECONDS` defaults to `21600` (6 hours).
+- `PRICE_PROVIDER` defaults to `mock`. Reserved real-provider name: `api`.
+- `PRICE_PROVIDER_FALLBACK_TO_MOCK` defaults to `true`.
+- `PRICE_PROVIDER_TIMEOUT_SECONDS` defaults to `8`.
+- `PRICE_CACHE_ENABLED` defaults to `true`; `PRICE_CACHE_TTL_SECONDS` defaults to
+  `86400` (24 hours).
+- `PRICE_ENRICHMENT_DEFAULT_CURRENCY` supplies the default currency for price
+  estimates and defaults to `EUR`.
+- `PRICE_API_BASE_URL` and `PRICE_API_KEY` are reserved for real price providers.
+  API keys are server-side only and must not be exposed to the Web App.
 - `CORS_ALLOWED_ORIGINS` defaults to `http://localhost:3000`
 - `CORS_ALLOWED_METHODS` defaults to `GET,POST,DELETE,OPTIONS`
 - `CORS_ALLOWED_HEADERS` defaults to `Content-Type,Authorization`
@@ -131,9 +141,9 @@ Documented for future providers, but unused in v1:
 - `OPEN_METEO_BASE_URL`
 - `WEATHER_API_KEY`
 
-Unsupported `PLACE_PROVIDER`, `ROUTE_PROVIDER`, `WEATHER_PROVIDER`, or
-`EXCHANGE_RATE_PROVIDER` values
-fail startup with a clear error. Providers are selected independently.
+Unsupported `PLACE_PROVIDER`, `ROUTE_PROVIDER`, `WEATHER_PROVIDER`,
+`EXCHANGE_RATE_PROVIDER`, or `PRICE_PROVIDER` values fail startup with a clear
+error. Providers are selected independently.
 
 ## Exchange Rates v1
 
@@ -165,6 +175,70 @@ currency. Errors are not cached, and the cache is cleared on service restart.
 Limitations: conversions are approximate, no historical rates are supported, no
 crypto rates are supported, and the API must not be used for financial advice or
 trading.
+
+## Attraction / Ticket Price API v1
+
+`POST /prices/estimate` is an internal endpoint used by Trip Service price
+enrichment after itinerary generation. It requires `X-Internal-Service-Token`
+and returns either a provider `estimatedCost` or a no-match result. The Web App
+does not call this endpoint directly.
+
+Request:
+
+```bash
+curl -X POST "http://localhost:8084/prices/estimate" \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Service-Token: dev-internal-service-token" \
+  -d '{
+    "destination": "Rome",
+    "currency": "EUR",
+    "date": "2026-08-10",
+    "place": {
+      "provider": "mock",
+      "providerPlaceId": "mock-colosseum",
+      "name": "Colosseum",
+      "category": "landmark",
+      "lat": 41.8902,
+      "lng": 12.4922
+    },
+    "itemContext": {
+      "name": "Colosseum visit",
+      "type": "attraction"
+    }
+  }'
+```
+
+Matched response:
+
+```json
+{
+  "estimatedCost": {
+    "amount": 19,
+    "currency": "EUR",
+    "category": "ticket",
+    "confidence": "high",
+    "source": "provider",
+    "note": "Estimated entry ticket"
+  },
+  "provider": "mock",
+  "fallbackUsed": false,
+  "priceType": "ticket",
+  "matched": true,
+  "matchConfidence": 0.82,
+  "metadata": { "reason": "Known mock attraction category" }
+}
+```
+
+The mock provider is deterministic and approximate. It supports `EUR`, `USD`,
+`GBP`, `CZK`, and `JPY`, returns no-match for likely free/public/non-ticket
+items, and classifies likely paid museums, galleries, landmarks, towers, tours,
+theme parks, palaces, castles, aquariums, and zoos into `ticket` or `activity`
+costs. Unsupported currencies return `400` with `{"error":"unsupported_currency"}`.
+
+`PRICE_PROVIDER=api` is a placeholder for a future real adapter. With fallback
+enabled, startup and runtime API-provider failures fall back to the deterministic
+mock provider; with fallback disabled, the endpoint returns `502` with
+`{"error":"price_provider_unavailable"}`.
 
 ## Google Calendar Sync v1
 
@@ -494,8 +568,8 @@ Limitations:
 
 ## Provider Caching
 
-Route and weather responses are cached in a small, process-local TTL cache to cut
-repeated upstream calls:
+Route, weather, exchange-rate, and price responses are cached in a small,
+process-local TTL cache to cut repeated upstream calls:
 
 - **In-memory only** — concurrency-safe, no Redis, no database; cleared on restart.
 - **Route cache key:** `route:<provider>:<mode>:<lat,lng|...>` with coordinates
@@ -503,6 +577,12 @@ repeated upstream calls:
 - **Weather cache key:** `weather:<provider>:<destination>:<startDate>:<days>:<units>`
   (`WEATHER_CACHE_TTL_SECONDS`, default 1h). A weather cache hit skips both the
   geocoding and forecast upstream calls.
+- **Exchange-rate cache key:** `exchange-rate:<provider>:<base>`
+  (`EXCHANGE_RATE_CACHE_TTL_SECONDS`, default 6h).
+- **Price cache key:** `price:<provider>:<destination>:<currency>:<date>:<place>`
+  with provider/id/name/category context (`PRICE_CACHE_TTL_SECONDS`, default
+  24h). No-match results are cached too because they represent a successful
+  provider answer.
 - Only successful, non-fallback results are cached; provider errors and fallback
   results are never cached, so a transient outage is retried rather than pinned.
 - Each lookup logs `cacheHit`, `provider`, and the endpoint type.
@@ -513,4 +593,6 @@ repeated upstream calls:
 - ORS route estimates depend on the configured profile; no Google Maps yet.
 - OpenWeatherMap free tier covers ~5 days; out-of-range trip dates use the mock
   fallback, and destination geocoding may be approximate.
+- Price estimates are approximate ticket/activity hints only; no booking,
+  checkout, inventory, or guaranteed real-time attraction pricing is supported.
 - The mock providers remain the default and the fail-open fallback.

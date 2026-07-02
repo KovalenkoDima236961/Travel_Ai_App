@@ -24,6 +24,7 @@ type Config struct {
 	UserContext        UserContextConfig        `yaml:"user_context"`
 	WeatherContext     WeatherContextConfig     `yaml:"weather_context"`
 	PlaceEnrichment    PlaceEnrichmentConfig    `yaml:"place_enrichment"`
+	PriceEnrichment    PriceEnrichmentConfig    `yaml:"price_enrichment"`
 	UserLookup         UserLookupConfig         `yaml:"user_lookup"`
 	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
 	Notifications      NotificationsConfig      `yaml:"notifications"`
@@ -157,6 +158,21 @@ type PlaceEnrichmentConfig struct {
 	MinConfidence                  float64 `yaml:"min_confidence" env:"PLACE_ENRICHMENT_MIN_CONFIDENCE" env-default:"0.75" validate:"min=0,max=1"`
 	MaxItems                       int     `yaml:"max_items" env:"PLACE_ENRICHMENT_MAX_ITEMS" env-default:"20" validate:"min=1"`
 	OverwriteExisting              bool    `yaml:"overwrite_existing" env:"PLACE_ENRICHMENT_OVERWRITE_EXISTING" env-default:"false"`
+}
+
+// PriceEnrichmentConfig controls optional automatic provider ticket/attraction
+// price estimates after generated items have been place-enriched.
+type PriceEnrichmentConfig struct {
+	Enabled                        bool    `yaml:"enabled" env:"PRICE_ENRICHMENT_ENABLED" env-default:"true"`
+	ExternalIntegrationsServiceURL string  `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
+	InternalServiceToken           string  `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	FailOpen                       bool    `yaml:"fail_open" env:"PRICE_ENRICHMENT_FAIL_OPEN" env-default:"true"`
+	TimeoutSeconds                 int     `yaml:"timeout_seconds" env:"PRICE_ENRICHMENT_TIMEOUT_SECONDS" env-default:"8" validate:"min=1"`
+	OverwriteAICosts               bool    `yaml:"overwrite_ai_costs" env:"PRICE_ENRICHMENT_OVERWRITE_AI_COSTS" env-default:"false"`
+	OverwriteManualCosts           bool    `yaml:"overwrite_manual_costs" env:"PRICE_ENRICHMENT_OVERWRITE_MANUAL_COSTS" env-default:"false"`
+	MinMatchConfidence             float64 `yaml:"min_match_confidence" env:"PRICE_ENRICHMENT_MIN_MATCH_CONFIDENCE" env-default:"0.55" validate:"min=0,max=1"`
+	MaxItems                       int     `yaml:"max_items" env:"PRICE_ENRICHMENT_MAX_ITEMS" env-default:"30" validate:"min=1"`
+	DefaultCurrency                string  `yaml:"default_currency" env:"PRICE_ENRICHMENT_DEFAULT_CURRENCY" env-default:"EUR"`
 }
 
 // UserLookupConfig controls exact-email registered-user lookup for trip invites.

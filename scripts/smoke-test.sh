@@ -8,6 +8,7 @@ AI_PLANNING_SERVICE_URL="${SMOKE_AI_PLANNING_SERVICE_URL:-${AI_PLANNING_SERVICE_
 EXTERNAL_INTEGRATIONS_SERVICE_URL="${SMOKE_EXTERNAL_INTEGRATIONS_SERVICE_URL:-${NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL:-http://localhost:8084}}"
 NOTIFICATION_SERVICE_URL="${SMOKE_NOTIFICATION_SERVICE_URL:-${NOTIFICATION_SERVICE_URL:-http://localhost:8086}}"
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
+INTERNAL_SERVICE_TOKEN_FOR_SMOKE="${SMOKE_INTERNAL_SERVICE_TOKEN:-${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}}"
 
 if [[ "${USER_SERVICE_URL}" == "http://user-service:8083" ]]; then
   USER_SERVICE_URL="http://localhost:${USER_SERVICE_PORT:-8083}"
@@ -462,6 +463,54 @@ fi
 echo "Checking unsupported exchange-rate currency is rejected..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/exchange-rates/convert?amount=10&from=XXX&to=EUR"
 assert_status "Unsupported exchange-rate currency" "400"
+
+echo "Checking internal attraction price estimate endpoint..."
+PRICE_ESTIMATE_PAYLOAD='{
+  "destination": "Rome",
+  "currency": "EUR",
+  "date": "2026-08-10",
+  "place": {
+    "provider": "mock",
+    "providerPlaceId": "mock-colosseum",
+    "name": "Colosseum",
+    "category": "landmark",
+    "lat": 41.8902,
+    "lng": 12.4922
+  },
+  "itemContext": {
+    "name": "Visit the Colosseum",
+    "type": "attraction"
+  }
+}'
+request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/prices/estimate" "${PRICE_ESTIMATE_PAYLOAD}"
+assert_status "Price estimate requires internal token" "401"
+request_with_internal_token POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/prices/estimate" "${INTERNAL_SERVICE_TOKEN_FOR_SMOKE}" "${PRICE_ESTIMATE_PAYLOAD}"
+assert_2xx "Price estimate"
+if ! jq -e '.matched == true and .estimatedCost.source == "provider" and .estimatedCost.currency == "EUR" and (.estimatedCost.amount > 0) and (.matchConfidence >= 0.55)' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Price estimate did not return an expected provider cost." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+PRICE_NO_MATCH_PAYLOAD='{
+  "destination": "Paris",
+  "currency": "EUR",
+  "place": {
+    "name": "Luxembourg Gardens",
+    "category": "park"
+  },
+  "itemContext": {
+    "name": "Walk through Luxembourg Gardens",
+    "type": "walk"
+  }
+}'
+request_with_internal_token POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/prices/estimate" "${INTERNAL_SERVICE_TOKEN_FOR_SMOKE}" "${PRICE_NO_MATCH_PAYLOAD}"
+assert_2xx "Price estimate no-match"
+if ! jq -e '.matched == false and .estimatedCost == null and (.matchConfidence >= 0)' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Price estimate no-match response was not shaped as expected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 # Optional real-provider checks. These only run when the operator has opted into
 # a real provider AND supplied an API key in the shell environment. Missing keys
@@ -1509,6 +1558,11 @@ if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comment
   echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
 fi
+if jq -e '[.. | objects | select(has("priceEnrichment"))] | length > 0' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
+  echo "Public shared trip exposed price enrichment metadata." >&2
+  echo "${PUBLIC_TRIP_BODY}" >&2
+  exit 1
+fi
 
 echo "Deleting accommodation and confirming it clears budget summary."
 request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${ACCESS_TOKEN}"
@@ -1578,6 +1632,21 @@ if [[ "${AUTO_MATCHED_GENERATED_ITEMS}" -gt 0 ]]; then
   echo "Generated itinerary has ${AUTO_MATCHED_GENERATED_ITEMS} auto-matched place item(s)."
 else
   echo "Generated itinerary has no high-confidence auto-matched places; continuing because AI wording can vary."
+fi
+
+PROVIDER_PRICED_ITEMS="$(jq '[.itinerary.days[]?.items[]? | select(.estimatedCost.source == "provider")] | length' <<<"${COMPLETED_TRIP_BODY}")"
+if [[ "${PROVIDER_PRICED_ITEMS}" -gt 0 ]]; then
+  if ! jq -e '
+    [.itinerary.days[]?.items[]? | select(.estimatedCost.source == "provider")]
+    | all(.[]; (.estimatedCost.amount // 0) > 0 and (.estimatedCost.currency // "") != "" and (.priceEnrichment.status // "") == "matched" and (.priceEnrichment.matchConfidence // 0) >= 0.55)
+  ' >/dev/null <<<"${COMPLETED_TRIP_BODY}"; then
+    echo "Generated itinerary provider price metadata is incomplete." >&2
+    echo "${COMPLETED_TRIP_BODY}" >&2
+    exit 1
+  fi
+  echo "Generated itinerary has ${PROVIDER_PRICED_ITEMS} provider-priced item(s)."
+else
+  echo "Generated itinerary has no provider-priced items; direct price endpoint checks already passed."
 fi
 
 echo "Listing itinerary versions after generation..."

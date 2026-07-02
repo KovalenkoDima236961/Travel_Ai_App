@@ -20,6 +20,20 @@ export type PlaceEnrichmentMeta = {
 
 export type PlaceEnrichment = PlaceEnrichmentMeta;
 
+export type PriceEnrichmentReviewStatus = "pending" | "accepted" | "changed" | "removed";
+
+export type PriceEnrichmentMeta = {
+  status: "matched" | "no_match" | "skipped" | "failed";
+  provider?: string | null;
+  matchConfidence?: number | null;
+  priceType?: string | null;
+  reviewStatus?: PriceEnrichmentReviewStatus | null;
+  updatedAt?: string | null;
+  reason?: string | null;
+};
+
+export type PriceEnrichment = PriceEnrichmentMeta;
+
 export type ItineraryItem = {
   time: string;
   type: "place" | "food" | "activity" | "transport" | "rest" | string;
@@ -28,6 +42,7 @@ export type ItineraryItem = {
   estimatedCost?: EstimatedCost | null;
   place?: Place | null;
   placeEnrichment?: PlaceEnrichment | null;
+  priceEnrichment?: PriceEnrichment | null;
 };
 
 export type ItineraryDay = {

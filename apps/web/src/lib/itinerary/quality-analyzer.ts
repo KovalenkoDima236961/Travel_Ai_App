@@ -1,7 +1,7 @@
 import { getOpeningStatus, getTripItemDate } from "@/lib/itinerary/opening-hours-utils";
 import { getEffectiveReviewStatus } from "@/lib/itinerary/place-enrichment-review-utils";
 import { isValidCoordinate } from "@/lib/itinerary/map-utils";
-import { getCostAmount } from "@/lib/budget/format";
+import { getCostAmount, getCostCategory, getCostCurrency } from "@/lib/budget/format";
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import type { TripAccommodation } from "@/types/accommodation";
@@ -28,6 +28,7 @@ type AnalyzeItineraryQualityParams = {
 // Default absolute threshold (in the trip currency) above which a single paid
 // item is flagged as expensive when no budget-relative threshold applies.
 const DEFAULT_EXPENSIVE_ITEM_THRESHOLD = 150;
+const DEFAULT_HIGH_TICKET_COST_THRESHOLD = 50;
 const DAY_BUDGET_OVERRUN_RATIO = 1.25;
 const TRIP_BUDGET_CRITICAL_RATIO = 1.2;
 
@@ -48,6 +49,21 @@ const paidItemTypeTerms = [
   "tour"
 ];
 const freeItemTypeTerms = ["walk", "viewpoint", "rest", "break", "free", "note", "check"];
+const paidAttractionTypeTerms = [
+  "museum",
+  "gallery",
+  "landmark",
+  "attraction",
+  "activity",
+  "tour",
+  "theme_park",
+  "historical",
+  "palace",
+  "castle",
+  "aquarium",
+  "zoo",
+  "ticket"
+];
 const MISSING_ESTIMATE_GROUP_THRESHOLD = 3;
 
 type DistanceForDay = {
@@ -281,6 +297,10 @@ export function getBudgetIssues({
   // C) Individual expensive items, and D) likely-paid items missing an estimate.
   const absoluteThreshold = expensiveItemThreshold ?? DEFAULT_EXPENSIVE_ITEM_THRESHOLD;
   const budgetShareThreshold = budgetAmount != null ? budgetAmount * 0.3 : null;
+  const dailyTicketThreshold =
+    budgetAmount != null && budgetAmount > 0 && (itinerary.days?.length ?? 0) > 0
+      ? (budgetAmount / (itinerary.days?.length ?? 1)) * 0.25
+      : null;
 
   for (const [dayIndex, day] of (itinerary.days ?? []).entries()) {
     const dayNumber = day.day || dayIndex + 1;
@@ -289,8 +309,26 @@ export function getBudgetIssues({
 
     for (const [itemIndex, item] of (day.items ?? []).entries()) {
       const amount = getCostAmount(item.estimatedCost);
+      const category = getCostCategory(item.estimatedCost);
+      const costCurrency = getCostCurrency(item.estimatedCost);
 
       if (amount == null) {
+        if (itemLikelyNeedsTicketPrice(item)) {
+          issues.push({
+            id: `day-${dayNumber}-item-${itemIndex}-missing-ticket-price`,
+            type: "missing_ticket_price",
+            severity: "info",
+            scope: "item",
+            dayNumber,
+            itemIndex,
+            title: "Missing ticket price",
+            message: "This attraction may require a ticket, but no price estimate is available.",
+            suggestion: "Add or estimate ticket costs for paid attractions.",
+            instructionHint: "Add or estimate ticket costs for paid attractions.",
+            metadata: { itemType: item.type ?? null, priceEnrichment: item.priceEnrichment ?? null }
+          });
+          continue;
+        }
         if (itemLikelyNeedsCost(item.type)) {
           missingInDay += 1;
           missingItems.push(itemIndex);
@@ -313,6 +351,47 @@ export function getBudgetIssues({
           instructionHint:
             "Reduce expensive paid activities and suggest lower-cost alternatives.",
           metadata: { amount, threshold: budgetShareThreshold ?? absoluteThreshold }
+        });
+      }
+
+      if (category === "ticket" || category === "activity") {
+        const comparableCurrencyMissing = !costCurrency || costCurrency === currency;
+        const highTicketThreshold = dailyTicketThreshold ?? DEFAULT_HIGH_TICKET_COST_THRESHOLD;
+        if (comparableCurrencyMissing && amount > highTicketThreshold) {
+          issues.push({
+            id: `day-${dayNumber}-item-${itemIndex}-high-ticket-cost`,
+            type: "high_ticket_cost",
+            severity: amount > highTicketThreshold * 1.5 ? "warning" : "info",
+            scope: "item",
+            dayNumber,
+            itemIndex,
+            title: "High ticket cost",
+            message: `${item.name || "This paid attraction"} is estimated at ${money(amount, currency)}.`,
+            suggestion: "Suggest a cheaper or free alternative to this paid attraction.",
+            instructionHint: "Suggest a cheaper or free alternative to this paid attraction.",
+            metadata: { amount, threshold: highTicketThreshold, category }
+          });
+        }
+      }
+
+      if (
+        typeof item.estimatedCost === "object" &&
+        item.estimatedCost != null &&
+        item.estimatedCost.source === "provider" &&
+        item.estimatedCost.confidence === "low"
+      ) {
+        issues.push({
+          id: `day-${dayNumber}-item-${itemIndex}-provider-price-low-confidence`,
+          type: "provider_price_low_confidence",
+          severity: "info",
+          scope: "item",
+          dayNumber,
+          itemIndex,
+          title: "Low-confidence ticket price",
+          message: "This ticket price estimate has low confidence.",
+          suggestion: "Verify this attraction cost and suggest alternatives if uncertain.",
+          instructionHint: "Verify this attraction cost and suggest alternatives if uncertain.",
+          metadata: { provider: item.priceEnrichment?.provider ?? null }
         });
       }
     }
@@ -362,6 +441,17 @@ function itemLikelyNeedsCost(itemType: string | null | undefined): boolean {
     return false;
   }
   return paidItemTypeTerms.some((term) => normalized.includes(term));
+}
+
+function itemLikelyNeedsTicketPrice(item: ItineraryItem): boolean {
+  const type = (item.type ?? "").toLowerCase();
+  const category = (item.place?.category ?? "").toLowerCase();
+  const name = (item.name ?? "").toLowerCase();
+  const haystack = `${type} ${category} ${name}`;
+  if (freeItemTypeTerms.some((term) => haystack.includes(term))) {
+    return false;
+  }
+  return paidAttractionTypeTerms.some((term) => haystack.includes(term));
 }
 
 function money(amount: number, currency: string): string {

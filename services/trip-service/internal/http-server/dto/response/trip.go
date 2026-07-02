@@ -339,15 +339,31 @@ func NewPublicTrip(t *entity.Trip, sharedAt time.Time) PublicTrip {
 
 // sanitizePublicItinerary strips the trip-level budget (totalBudget) from the
 // shared itinerary so the owner's private budget is not exposed publicly, while
-// preserving everything else (including item-level estimated costs). If the
-// payload cannot be parsed it is dropped entirely to fail closed.
+// preserving item-level estimated costs. Provider debug/review metadata such as
+// priceEnrichment is removed. If the payload cannot be parsed it is dropped
+// entirely to fail closed.
 func sanitizePublicItinerary(raw json.RawMessage) any {
 	var generic map[string]any
 	if err := json.Unmarshal(raw, &generic); err != nil {
 		return nil
 	}
 	delete(generic, "totalBudget")
+	stripPublicItineraryMetadata(generic)
 	return generic
+}
+
+func stripPublicItineraryMetadata(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		delete(typed, "priceEnrichment")
+		for _, child := range typed {
+			stripPublicItineraryMetadata(child)
+		}
+	case []any:
+		for _, child := range typed {
+			stripPublicItineraryMetadata(child)
+		}
+	}
 }
 
 // NewTrip maps a domain Trip to its API representation.

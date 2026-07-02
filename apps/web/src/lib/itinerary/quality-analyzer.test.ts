@@ -317,4 +317,79 @@ describe("analyzeItineraryQuality", () => {
 
     expect(summary.total).toBe(0);
   });
+
+  it("detects missing ticket prices for likely paid attractions", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: itinerary([
+        item({
+          type: "museum",
+          name: "City Museum",
+          place: null,
+          estimatedCost: null
+        })
+      ]),
+      budgetSummary: {
+        currency: "EUR",
+        estimatedTotal: 0,
+        missingEstimateCount: 1,
+        estimatedItemCount: 0,
+        byDay: [],
+        byCategory: []
+      }
+    });
+
+    expect(summary.itemIssues.some((issue) => issue.type === "missing_ticket_price")).toBe(true);
+  });
+
+  it("detects high ticket costs", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: itinerary([
+        item({
+          type: "museum",
+          name: "Premium Museum",
+          estimatedCost: { amount: 80, currency: "EUR", category: "ticket", source: "provider" }
+        })
+      ]),
+      tripBudget: { amount: 200, currency: "EUR" },
+      budgetSummary: {
+        currency: "EUR",
+        tripBudget: 200,
+        estimatedTotal: 80,
+        missingEstimateCount: 0,
+        estimatedItemCount: 1,
+        byDay: [],
+        byCategory: []
+      }
+    });
+
+    expect(summary.itemIssues.some((issue) => issue.type === "high_ticket_cost")).toBe(true);
+  });
+
+  it("detects low-confidence provider prices", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: itinerary([
+        item({
+          type: "museum",
+          name: "Uncertain Museum",
+          estimatedCost: {
+            amount: 18,
+            currency: "EUR",
+            category: "ticket",
+            source: "provider",
+            confidence: "low"
+          }
+        })
+      ]),
+      budgetSummary: {
+        currency: "EUR",
+        estimatedTotal: 18,
+        missingEstimateCount: 0,
+        estimatedItemCount: 1,
+        byDay: [],
+        byCategory: []
+      }
+    });
+
+    expect(summary.itemIssues.some((issue) => issue.type === "provider_price_low_confidence")).toBe(true);
+  });
 });

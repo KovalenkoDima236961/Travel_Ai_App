@@ -140,9 +140,11 @@ route estimates, and weather forecasts:
 - `POST /calendar/google/connect`
 - `DELETE /calendar/google/disconnect`
 
-The Web App does not call third-party place, route, weather, exchange-rate, or
-calendar APIs directly. It also does not call Google Calendar directly. The
-private trip detail page renders `CalendarSyncPanel` for completed trips; owners
+The Web App does not call third-party place, route, weather, exchange-rate,
+ticket-price, or calendar APIs directly. It also does not call Google Calendar
+directly. Trip Service calls the internal `POST /prices/estimate` endpoint after
+generation and returns provider `estimatedCost` values as part of itinerary
+items. The private trip detail page renders `CalendarSyncPanel` for completed trips; owners
 and editors can connect Google Calendar, sync/update itinerary events using the
 latest `itineraryRevision`, remove synced events, or disconnect the account.
 Viewers see a disabled message, and public share pages never render calendar
@@ -156,16 +158,21 @@ change — the Web App keeps calling `POST /routes/estimate` and
 `GET /weather/forecast` and receives the same canonical response shape. Real
 provider keys stay server-side; the browser never calls OpenRouteService or
 OpenWeatherMap directly. Trip Service uses the same service for budget
-conversion, so exchange-rate keys also stay server-side. Responses may include an
-optional `fallbackUsed` flag and a `provider` label (`mock`, `ors`,
-`openweathermap`, or `identity`); the UI treats these as advisory developer
-hints.
+conversion and ticket-price enrichment, so exchange-rate and provider-price keys
+also stay server-side. Responses may include an optional `fallbackUsed` flag and
+a `provider` label (`mock`, `ors`, `openweathermap`, `identity`, or a future
+provider); the UI treats these as advisory developer hints.
 
 Automatic place enrichment after AI generation is owned by Trip Service. The Web
 App does not call enrichment directly; it renders returned `place` metadata and
 shows an `Auto-matched place` confidence badge when an item has
 `placeEnrichment.status === "matched"`. Manual place changes/removals in the
 editor clear `placeEnrichment` so stale auto-match labels are not saved.
+
+Automatic price enrichment is also owned by Trip Service. The Web App renders
+provider costs as `provider estimate` badges, shows a subtle no-estimate hint for
+provider no-match results, and marks provider review metadata as changed or
+removed when an editor changes or clears that item's cost.
 
 ## Background Generation Jobs
 
@@ -609,9 +616,11 @@ service signals:
 - weather forecast rain and heat thresholds
 - place opening hours at the scheduled item time
 - place enrichment confidence and review state
+- provider ticket-price enrichment confidence and review state
 - missing map-ready place coordinates for enriched itinerary items
 - budget signals (see Budget Tracking v1): over-budget trip/day, expensive items,
-  and likely-paid items missing a cost estimate
+  likely-paid items missing a cost estimate, high ticket/activity costs, and
+  provider low-confidence estimates
 
 The checks are advisory and never regenerate automatically. Users stay in
 control: `Improve day` and `Improve item` buttons build concise AI instructions
@@ -639,19 +648,21 @@ trip budget through `PUT /trips/{id}/budget` (viewers see a read-only panel).
 Updating the budget does not change the itinerary revision.
 
 Itinerary items show a compact cost badge (for example `€18 ticket`, with
-`(approx.)` for low-confidence and a small `manual` marker for hand-edited
-costs). Item costs are edited through the existing itinerary editor: the
+`(approx.)` for low-confidence and a small source marker for hand-edited or
+provider-estimated costs). Item costs are edited through the existing itinerary editor: the
 `ItemCostEditor` sets a structured `estimatedCost` (amount, currency, category,
 confidence, note) with `source: "manual"`, and the editor saves with
 `expectedItineraryRevision`, so conflict detection and version history apply
 unchanged. A stale cost edit returns `409 itinerary_conflict`.
 
 Budget-aware quality checks (`trip_budget_exceeded`, `day_budget_high`,
-`expensive_item`, `missing_cost_estimate`, `conversion_unavailable`) appear in
-the Trip Quality Checks card. `Improve day` instructions ask the AI to reduce
-cost; for a whole-trip overrun the card offers an `Improve day N` action
-targeting the highest-cost day. Conversion warnings ask for manual currency or
-cost correction and do not ask the AI to invent exchange rates.
+`expensive_item`, `missing_cost_estimate`, `missing_ticket_price`,
+`high_ticket_cost`, `provider_price_low_confidence`, `conversion_unavailable`)
+appear in the Trip Quality Checks card. `Improve day` instructions ask the AI to
+reduce cost or replace/clarify likely ticketed stops; for a whole-trip overrun
+the card offers an `Improve day N` action targeting the highest-cost day.
+Conversion warnings ask for manual currency or cost correction and do not ask the
+AI to invent exchange rates.
 
 Private PDF export can include the backend budget summary (trip budget,
 approximate estimated total, remaining/over, original currency totals, and

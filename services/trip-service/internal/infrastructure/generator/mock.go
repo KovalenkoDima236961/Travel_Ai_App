@@ -75,10 +75,10 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 					EstimatedCost: mockCost(15, "food", currency, "medium", "Approximate lunch price"),
 				},
 				{
-					Time:          "15:00",
-					Type:          "ticket",
-					Name:          fmt.Sprintf("%s city museum", titleCase(trip.Destination)),
-					EstimatedCost: mockCost(18, "ticket", currency, "medium", "Standard adult admission"),
+					Time: "15:00",
+					Type: "ticket",
+					Name: fmt.Sprintf("%s city museum", titleCase(trip.Destination)),
+					Note: "Provider price enrichment can fill this likely ticketed stop.",
 				},
 				{
 					Time:          "17:30",

@@ -7,7 +7,7 @@ import {
   getTripItemDate
 } from "@/lib/itinerary/opening-hours-utils";
 import { formatDate, formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
-import { costBadgeLabel, isManualCost } from "@/lib/budget/format";
+import { costBadgeLabel, isManualCost, isProviderCost } from "@/lib/budget/format";
 import { Button } from "@/components/ui/Button";
 import { CommentButton } from "@/components/comments/CommentButton";
 import { makeCommentItemKey } from "@/lib/comments/comment-counts";
@@ -205,7 +205,12 @@ export function ItineraryView({
                         {isManualCost(item.estimatedCost) ? (
                           <span className="ml-1 text-xs font-normal text-slate-400">manual</span>
                         ) : null}
+                        {isProviderCost(item.estimatedCost) ? (
+                          <span className="ml-1 text-xs font-normal text-slate-400">provider estimate</span>
+                        ) : null}
                       </div>
+                    ) : item.priceEnrichment?.status === "no_match" ? (
+                      <div className="text-xs font-medium text-slate-400">No ticket estimate</div>
                     ) : (
                       <span className="hidden sm:block" />
                     )}

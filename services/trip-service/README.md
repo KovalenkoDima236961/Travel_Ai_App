@@ -235,15 +235,16 @@ itinerary JSON is unchanged) and does not require `expectedItineraryRevision`.
 
 The public share response never exposes the private trip budget: the flat budget
 fields are removed and the itinerary's `totalBudget` is stripped. Item-level
-`estimatedCost` values remain visible because they are part of the shared plan.
+`estimatedCost` values remain visible because they are part of the shared plan,
+but provider review metadata such as `priceEnrichment` is stripped.
 
 ### Limitations
 
 - One trip summary currency; item/accommodation estimates may use other
   supported currencies and are converted approximately.
 - No historical rates and no currency minor-unit perfection in v1.
-- AI costs are approximate estimates, not real prices.
-- No real ticket-price/booking provider integration.
+- AI and provider costs are approximate estimates, not guaranteed real prices.
+- No real ticket booking/checkout integration.
 
 ## Accommodation Planning v1
 
@@ -410,12 +411,12 @@ flowchart TD
     PG[("PostgreSQL\ntrips table")]
 AI{{"AI Planning Service v1\nFastAPI / HTTP"}}
     US{{"User Service v1\nProfile / Preferences"}}
-    EX{{"External Integrations Service v1\nWeather forecast"}}
+    EX{{"External Integrations Service v1\nWeather / Places / Prices"}}
 
     Client -->|"REST / JSON"| RT --> TH --> SV --> RP --> PGPKG -->|"pgxpool"| PG
     SV --> GEN
     SV -.->|"GET /users/me/profile + /preferences\nforward user JWT"| US
-    SV -.->|"GET /weather/forecast\nfail-open by default"| EX
+    SV -.->|"GET /weather/forecast, /places/search,\nPOST /prices/estimate\nfail-open by default"| EX
     GEN -.->|"POST /generate-itinerary\nwhen mode=http"| AI
 
     subgraph BOOT["internal/app (composition root)"]
@@ -488,6 +489,14 @@ Key environment variables:
 | `PLACE_ENRICHMENT_MIN_CONFIDENCE` | `0.75` | Minimum deterministic match score required before attaching a place. |
 | `PLACE_ENRICHMENT_MAX_ITEMS` | `20` | Maximum generated itinerary items to search per enrichment run. |
 | `PLACE_ENRICHMENT_OVERWRITE_EXISTING` | `false` | Preserve existing item `place` metadata by default. |
+| `PRICE_ENRICHMENT_ENABLED` | `true` | Try to attach provider ticket/activity estimates after generated itinerary payloads. |
+| `PRICE_ENRICHMENT_FAIL_OPEN` | `true` | Continue generation without price estimates when External Integrations Service fails. Set `false` to fail generation with a price-enrichment error. |
+| `PRICE_ENRICHMENT_TIMEOUT_SECONDS` | `8` | HTTP client timeout for each price estimate request. |
+| `PRICE_ENRICHMENT_OVERWRITE_AI_COSTS` | `false` | Preserve existing AI costs by default. |
+| `PRICE_ENRICHMENT_OVERWRITE_MANUAL_COSTS` | `false` | Preserve user-edited manual costs by default. |
+| `PRICE_ENRICHMENT_MIN_MATCH_CONFIDENCE` | `0.55` | Minimum provider match confidence before attaching a cost. |
+| `PRICE_ENRICHMENT_MAX_ITEMS` | `30` | Maximum generated itinerary items to evaluate per enrichment run. |
+| `PRICE_ENRICHMENT_DEFAULT_CURRENCY` | `EUR` | Fallback currency when the trip/user/itinerary does not provide one. |
 | `PUBLIC_WEB_BASE_URL` | `http://localhost:3000` | Base URL used to build owner-facing `/share/{token}` links. |
 | `PUBLIC_SHARING_ENABLED` | `true` | Enables owner-managed public read-only trip share links. |
 | `SHARE_TOKEN_BYTES` | `32` | Number of cryptographically random bytes used before base64url encoding share tokens. Minimum 32. |
@@ -536,6 +545,19 @@ normalized item and place names, then adds small bonuses for destination/address
 fit, category fit, valid coordinates, and rating. Generated version history
 stores the final enriched itinerary snapshot; no separate enrichment version is
 created.
+
+Price enrichment is optional and fail-open by default. After place enrichment,
+Trip Service sends likely paid attraction items to External Integrations Service
+`POST /prices/estimate` with the shared `X-Internal-Service-Token`. Candidate
+items include museums, galleries, landmarks, attractions, tours, viewpoints,
+theme parks, historical sites, palaces, castles, aquariums, and zoos; transport,
+food, rest/free-time, accommodation, and shopping-style items are skipped. The
+service writes provider `estimatedCost` values only when the provider returns a
+match above `PRICE_ENRICHMENT_MIN_MATCH_CONFIDENCE`. Manual and AI costs are
+preserved unless the overwrite flags are enabled, while existing provider costs
+can be refreshed. `priceEnrichment` metadata records matched/no-match/skipped or
+failed status, provider, confidence, review state, and timestamp for private
+clients; public share responses strip that metadata.
 
 ## Collaborative Planning v1
 

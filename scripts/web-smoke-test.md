@@ -123,7 +123,8 @@ http://localhost:3000
 3. Confirm it shows the trip budget, an estimated total, and remaining amount,
    plus daily and category totals.
 4. Confirm itinerary item cards show cost badges (for example `€18 ticket`), with
-   `(approx.)` on low-confidence costs.
+   `(approx.)` on low-confidence costs and `provider estimate` on provider-filled
+   ticket/activity costs when price enrichment matched.
 5. Click `Edit` in the `Budget` panel, change the amount, and `Save budget`.
 6. Confirm the panel refreshes with the new budget and the itinerary revision is
    unchanged (no conflict warning, version history not affected).
@@ -137,14 +138,15 @@ http://localhost:3000
 10. Edit the budget to an amount **below** the estimated total and save.
 11. Confirm the `Budget` panel switches to an over-budget warning style.
 12. Open `Trip Quality Checks` and confirm budget issues appear (over budget,
-    day over budget, expensive item, or missing cost estimates).
+    day over budget, expensive item, missing cost estimates, missing ticket
+    prices, high ticket costs, or low-confidence provider estimates).
 13. For the trip-level over-budget issue, click `Improve day N`, confirm a
     generation job starts, and that the resulting day is budget-aware.
 14. Export a private PDF and confirm the budget summary uses approximate
     converted totals and includes original currency totals when present.
 15. Create a public share link, open `/share/{shareToken}` in a logged-out
-    window, and confirm the private trip budget is **not** shown (item cost
-    badges may still appear).
+    window, and confirm the private trip budget and provider price review
+    metadata are **not** shown (item cost badges may still appear).
 
 ## Accommodation Planning
 

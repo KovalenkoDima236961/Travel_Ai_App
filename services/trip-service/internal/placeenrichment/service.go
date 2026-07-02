@@ -220,6 +220,10 @@ func copyItinerary(in aggregate.Itinerary) aggregate.Itinerary {
 				meta := *item.PlaceEnrichment
 				item.PlaceEnrichment = &meta
 			}
+			if item.PriceEnrichment != nil {
+				meta := *item.PriceEnrichment
+				item.PriceEnrichment = &meta
+			}
 			out.Days[dayIndex].Items[itemIndex] = item
 		}
 	}

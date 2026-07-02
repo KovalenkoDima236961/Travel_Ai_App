@@ -197,6 +197,23 @@ export function ItineraryEditor({
     updateItem(attachTarget.dayIndex, attachTarget.itemIndex, { place, placeEnrichment: null });
   }
 
+  function updateItemCost(
+    dayIndex: number,
+    itemIndex: number,
+    estimatedCost: ItineraryItem["estimatedCost"]
+  ) {
+    const current = days[dayIndex]?.items[itemIndex]?.priceEnrichment;
+    updateItem(dayIndex, itemIndex, {
+      estimatedCost,
+      priceEnrichment: current
+        ? {
+            ...current,
+            reviewStatus: estimatedCost ? "changed" : "removed"
+          }
+        : current
+    });
+  }
+
   return (
     <div className="space-y-5">
       <AttachPlaceDialog
@@ -345,9 +362,7 @@ export function ItineraryEditor({
                     cost={item.estimatedCost}
                     disabled={disabled}
                     idPrefix={`item-cost-${dayIndex}-${itemIndex}`}
-                    onChange={(estimatedCost) =>
-                      updateItem(dayIndex, itemIndex, { estimatedCost })
-                    }
+                    onChange={(estimatedCost) => updateItemCost(dayIndex, itemIndex, estimatedCost)}
                     tripCurrency={tripCurrency}
                   />
                 </div>

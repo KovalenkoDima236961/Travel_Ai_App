@@ -22,6 +22,8 @@ const (
 	ExchangeRateProviderHost              = "exchangerate_host"
 	ExchangeRateProviderOpenExchangeRates = "openexchangerates"
 	ExchangeRateProviderAPI               = "exchangerate_api"
+	PriceProviderMock                     = "mock"
+	PriceProviderAPI                      = "api"
 	CalendarProviderGoogle                = "google"
 	CalendarProviderMock                  = "mock"
 
@@ -42,6 +44,7 @@ type Config struct {
 	RouteProvider        RouteProviderConfig        `yaml:"route_provider" validate:"required"`
 	WeatherProvider      WeatherProviderConfig      `yaml:"weather_provider" validate:"required"`
 	ExchangeRateProvider ExchangeRateProviderConfig `yaml:"exchange_rate_provider" validate:"required"`
+	PriceProvider        PriceProviderConfig        `yaml:"price_provider" validate:"required"`
 	Calendar             CalendarConfig             `yaml:"calendar" validate:"required"`
 }
 
@@ -128,6 +131,20 @@ type ExchangeRateProviderConfig struct {
 	APIKey          string `yaml:"api_key" env:"EXCHANGE_RATE_API_KEY"`
 	CacheEnabled    bool   `yaml:"cache_enabled" env:"EXCHANGE_RATE_CACHE_ENABLED" env-default:"true"`
 	CacheTTLSeconds int    `yaml:"cache_ttl_seconds" env:"EXCHANGE_RATE_CACHE_TTL_SECONDS" env-default:"21600"`
+}
+
+// PriceProviderConfig selects the attraction/ticket price provider adapter.
+// Mock is the v1 default. The API fields are placeholders for future real
+// providers and are intentionally server-side only.
+type PriceProviderConfig struct {
+	Provider        string `yaml:"provider" env:"PRICE_PROVIDER" env-default:"mock"`
+	FallbackToMock  bool   `yaml:"fallback_to_mock" env:"PRICE_PROVIDER_FALLBACK_TO_MOCK" env-default:"true"`
+	TimeoutSeconds  int    `yaml:"timeout_seconds" env:"PRICE_PROVIDER_TIMEOUT_SECONDS" env-default:"8"`
+	CacheEnabled    bool   `yaml:"cache_enabled" env:"PRICE_CACHE_ENABLED" env-default:"true"`
+	CacheTTLSeconds int    `yaml:"cache_ttl_seconds" env:"PRICE_CACHE_TTL_SECONDS" env-default:"86400"`
+	DefaultCurrency string `yaml:"default_currency" env:"PRICE_ENRICHMENT_DEFAULT_CURRENCY" env-default:"EUR"`
+	BaseURL         string `yaml:"base_url" env:"PRICE_API_BASE_URL"`
+	APIKey          string `yaml:"api_key" env:"PRICE_API_KEY"`
 }
 
 type CalendarConfig struct {
@@ -280,6 +297,23 @@ func Load(path string) (*Config, error) {
 	if cfg.ExchangeRateProvider.CacheTTLSeconds <= 0 {
 		cfg.ExchangeRateProvider.CacheTTLSeconds = 21600
 	}
+
+	cfg.PriceProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.PriceProvider.Provider))
+	if cfg.PriceProvider.Provider == "" {
+		cfg.PriceProvider.Provider = PriceProviderMock
+	}
+	if cfg.PriceProvider.TimeoutSeconds <= 0 {
+		cfg.PriceProvider.TimeoutSeconds = 8
+	}
+	if cfg.PriceProvider.CacheTTLSeconds <= 0 {
+		cfg.PriceProvider.CacheTTLSeconds = 86400
+	}
+	cfg.PriceProvider.DefaultCurrency = strings.ToUpper(strings.TrimSpace(cfg.PriceProvider.DefaultCurrency))
+	if cfg.PriceProvider.DefaultCurrency == "" {
+		cfg.PriceProvider.DefaultCurrency = "EUR"
+	}
+	cfg.PriceProvider.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.PriceProvider.BaseURL), "/")
+	cfg.PriceProvider.APIKey = strings.TrimSpace(cfg.PriceProvider.APIKey)
 
 	cfg.Calendar.Provider = strings.ToLower(strings.TrimSpace(cfg.Calendar.Provider))
 	if cfg.Calendar.Provider == "" {

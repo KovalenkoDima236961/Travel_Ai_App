@@ -58,6 +58,18 @@ place_enrichment:
   max_items: 20
   overwrite_existing: false
 
+price_enrichment:
+  enabled: true
+  external_integrations_service_url: http://localhost:8084
+  internal_service_token: dev-internal-service-token
+  fail_open: true
+  timeout_seconds: 8
+  overwrite_ai_costs: false
+  overwrite_manual_costs: false
+  min_match_confidence: 0.55
+  max_items: 30
+  default_currency: EUR
+
 user_lookup:
   auth_service_url: http://localhost:8081
   timeout_seconds: 5
