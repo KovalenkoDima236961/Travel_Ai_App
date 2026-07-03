@@ -49,6 +49,7 @@ or tighter path filtering, such as notification and calendar OAuth calls.
 | Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
 | Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
 | Export | Browser-generated PDF and `.ics` downloads for private and public views. |
+| Offline | Previously opened private trips can be viewed from IndexedDB, edited as offline itinerary drafts, and synced later with revision conflict recovery. |
 
 ## Source Layout
 
@@ -184,6 +185,56 @@ Current v1 limitations:
   reorders are harder to recover when generated items do not have stable IDs.
 - The backend revision check remains authoritative, and every merged save still
   sends the latest `expectedItineraryRevision`.
+
+## Offline Trip Mode
+
+Offline Trip Mode v1 is frontend-only and scoped to private authenticated trip
+detail pages. After a successful online trip load, the web app stores a sanitized
+snapshot in IndexedDB database `travel-ai-offline-v1`:
+
+- `cachedTrips`: trip detail, cached budget summary when available,
+  accommodation basics, `itineraryRevision`, `cachedAt`, and `userId`.
+- `pendingMutations`: one coalesced `update_itinerary` mutation per trip/user,
+  including `baseRevision`, `baseItinerary`, `draftItinerary`, status, attempts,
+  and user-visible error fields.
+- `syncMetadata`: reserved for future sync bookkeeping.
+
+When the browser is offline or the trip fetch fails with a network-like error,
+the trip page falls back to the cached snapshot for that user. Cached pages are
+marked as saved copies and online-only actions are disabled or hidden: AI jobs,
+budget optimization, place search/review writes, comments, collaborators,
+sharing, calendar sync, activity/presence streams, and push subscription changes
+still require internet access.
+
+Offline itinerary saves create or update the local pending mutation, keep the
+original `baseRevision`, update the cached trip optimistically, and show a
+pending offline change indicator. When the app is online again, the sync queue
+replays pending itinerary updates through `PUT /trips/{id}/itinerary` with
+`expectedItineraryRevision`. A `409 itinerary_conflict` keeps the local draft,
+fetches the latest trip, and opens the existing three-way diff/merge dialog.
+
+The existing `public/sw.js` still owns push notification events. It also caches a
+small app shell fallback (`/offline`) and static Next.js assets conservatively;
+API response data remains in IndexedDB, not the Cache API. The app manifest is
+available at `/manifest.json`.
+
+Privacy notes:
+
+- Offline data is stored in this browser and can include private itinerary
+  details.
+- Access tokens, refresh tokens, OAuth tokens, API keys, push secrets, and raw AI
+  prompts are not stored by the offline module.
+- Logging out clears cached trips and queued mutations for the current user.
+- On shared devices, log out to remove device-local offline data.
+
+Current v1 limitations:
+
+- Only previously opened private trips are available offline.
+- Only itinerary edits are supported offline.
+- Comments, calendar sync, AI jobs, place search, route/weather refreshes, and
+  collaboration management need internet access.
+- Multi-device offline merge, CRDTs, native mobile offline storage, offline AI
+  generation, and encrypted IndexedDB are out of scope.
 
 ## Notifications And Push
 

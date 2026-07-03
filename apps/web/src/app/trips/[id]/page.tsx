@@ -19,6 +19,8 @@ import { MergeConflictDialog } from "@/components/itinerary/merge/MergeConflictD
 import { ItemCommentsPanel } from "@/components/comments/ItemCommentsPanel";
 import { TripCommentsSummary } from "@/components/comments/TripCommentsSummary";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { OfflineBanner } from "@/components/offline/OfflineBanner";
+import { PendingOfflineChangesPanel } from "@/components/offline/PendingOfflineChangesPanel";
 import {
   PresenceEditingWarning,
   TripPresenceIndicator
@@ -78,10 +80,23 @@ import { getMyPreferences, userKeys } from "@/lib/api/user";
 import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
 import { useBudgetOptimizationProposals } from "@/lib/hooks/useBudgetOptimizationProposals";
 import { useGenerationJob } from "@/lib/hooks/useGenerationJob";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import { applyConflictResolutions, mergeItineraries } from "@/lib/itinerary/diff-merge/merge";
 import { cloneItinerary } from "@/lib/itinerary/diff-merge/normalize";
 import { useTripEditLock } from "@/lib/edit-locks/use-trip-edit-lock";
+import { isOfflineLikeError } from "@/lib/offline/network";
+import {
+  cacheTripSnapshot,
+  getCachedTrip,
+  updateCachedTripItinerary
+} from "@/lib/offline/trip-cache";
+import {
+  discardMutation,
+  enqueueItineraryUpdate,
+  markMutationSynced
+} from "@/lib/offline/sync-queue";
 import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
 import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
 import {
@@ -107,12 +122,18 @@ import type {
   ConflictResolutionMap,
   ItineraryMergeResult
 } from "@/lib/itinerary/diff-merge/types";
+import type {
+  CachedTripRecord,
+  PendingItineraryMutation,
+  SyncResult
+} from "@/lib/offline/types";
 import type { Itinerary, Trip } from "@/types/trip";
 
 type MergeRecoveryState = {
   latestTrip: Trip;
   mergeResult: ItineraryMergeResult;
   resolutions: ConflictResolutionMap;
+  offlineMutation?: PendingItineraryMutation;
 };
 
 export default function TripDetailPage() {
@@ -129,6 +150,7 @@ function TripDetailPageContent() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const currentUserId = user?.id;
+  const networkStatus = useNetworkStatus();
   const [isEditing, setIsEditing] = useState(false);
   const [commentTarget, setCommentTarget] = useState<{
     dayNumber: number;
@@ -153,13 +175,22 @@ function TripDetailPageContent() {
   >(null);
   const [budgetOptimizationError, setBudgetOptimizationError] = useState<string | null>(null);
   const [lockWarning, setLockWarning] = useState<EditLockView | null>(null);
+  const [cachedTripRecord, setCachedTripRecord] = useState<CachedTripRecord | null>(null);
+  const [offlineCacheLoading, setOfflineCacheLoading] = useState(false);
+  const [offlineUnavailable, setOfflineUnavailable] = useState(false);
+
+  const offlineSync = useOfflineSync({
+    userId: currentUserId,
+    enabled: Boolean(currentUserId),
+    onSyncResults: handleOfflineSyncResults
+  });
 
   const tripQuery = useQuery({
     queryKey: tripKeys.detail(tripId),
     queryFn: () => getTrip(tripId),
-    enabled: Boolean(tripId),
+    enabled: Boolean(tripId) && networkStatus.online,
     refetchInterval: (query) =>
-      query.state.data?.status === "PROCESSING" ? 3000 : false
+      networkStatus.online && query.state.data?.status === "PROCESSING" ? 3000 : false
   });
 
   // Preferences power the walking-distance warning. They are intentionally
@@ -168,6 +199,7 @@ function TripDetailPageContent() {
   const preferencesQuery = useQuery({
     queryKey: userKeys.preferences(),
     queryFn: getMyPreferences,
+    enabled: networkStatus.online,
     staleTime: 5 * 60 * 1000
   });
   const maxWalkingKmPerDay = preferencesQuery.data?.maxWalkingKmPerDay ?? null;
@@ -210,11 +242,23 @@ function TripDetailPageContent() {
     }
   });
 
-  const currentItinerary = tripQuery.data?.itinerary ?? null;
+  const pendingOfflineMutation =
+    offlineSync.mutations.find((mutation) => mutation.tripId === tripId) ?? null;
+  const sourceTrip = tripQuery.data ?? cachedTripRecord?.trip ?? null;
+  const displayedTrip = sourceTrip
+    ? withPendingOfflineItinerary(sourceTrip, pendingOfflineMutation)
+    : null;
+  const isUsingCachedTrip = Boolean(cachedTripRecord) && (!tripQuery.data || !networkStatus.online);
+  const hasPendingOfflineChanges = Boolean(pendingOfflineMutation);
+  const offlineDataMode = isUsingCachedTrip || !networkStatus.online || hasPendingOfflineChanges;
+  const onlineActionsEnabled =
+    networkStatus.online && !isUsingCachedTrip && !hasPendingOfflineChanges;
+  const cachedBudgetSummary = cachedTripRecord?.budgetSummary ?? null;
+  const currentItinerary = displayedTrip?.itinerary ?? null;
   const routeEstimateStates = useRouteEstimates(
     currentItinerary,
-    tripQuery.data?.status === "COMPLETED" && Boolean(currentItinerary),
-    tripQuery.data?.accommodation ?? null
+    onlineActionsEnabled && displayedTrip?.status === "COMPLETED" && Boolean(currentItinerary),
+    displayedTrip?.accommodation ?? null
   );
   const routeEstimatesByDay = useMemo<Record<number, RouteEstimate | null>>(() => {
     const estimates: Record<number, RouteEstimate | null> = {};
@@ -229,16 +273,16 @@ function TripDetailPageContent() {
         ? getDayDistanceSummaries(
             currentItinerary,
             maxWalkingKmPerDay,
-            tripQuery.data?.accommodation ?? null
+            displayedTrip?.accommodation ?? null
           )
         : [],
-    [currentItinerary, maxWalkingKmPerDay, tripQuery.data?.accommodation]
+    [currentItinerary, displayedTrip?.accommodation, maxWalkingKmPerDay]
   );
 
   const weatherParams = {
-    destination: tripQuery.data?.destination ?? "",
-    startDate: tripQuery.data?.startDate ?? "",
-    days: tripQuery.data?.days ?? 0
+    destination: displayedTrip?.destination ?? "",
+    startDate: displayedTrip?.startDate ?? "",
+    days: displayedTrip?.days ?? 0
   };
   const canFetchWeather =
     Boolean(weatherParams.destination.trim()) &&
@@ -247,7 +291,7 @@ function TripDetailPageContent() {
   const weatherForecastQuery = useQuery({
     queryKey: weatherKeys.forecast(weatherParams),
     queryFn: () => getWeatherForecast(weatherParams),
-    enabled: canFetchWeather,
+    enabled: canFetchWeather && onlineActionsEnabled,
     staleTime: 10 * 60 * 1000,
     retry: 1
   });
@@ -256,29 +300,33 @@ function TripDetailPageContent() {
   // also feeds budget-aware quality checks.
   const budgetSummaryQuery = useQuery({
     queryKey: budgetKeys.summary(tripId),
-    queryFn: () => getTripBudgetSummary(tripId)
+    queryFn: () => getTripBudgetSummary(tripId),
+    enabled: onlineActionsEnabled
   });
 
   // Comments are a private collaboration feature: anyone who can view this
   // private trip (owner/editor/viewer) may read and add comments. Counts power
   // the per-item badges. The public share page never mounts this page.
-  const tripAccess = tripQuery.data?.access;
+  const tripAccess = displayedTrip?.access;
   const budgetOptimizationProposalsQuery = useBudgetOptimizationProposals({
     tripId,
     status: "pending",
-    enabled: Boolean(tripId) && Boolean(tripAccess)
+    enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess)
   });
   const generationJobsQuery = useQuery({
     queryKey: generationJobKeys.list(tripId),
     queryFn: () => listGenerationJobs(tripId),
-    enabled: Boolean(tripId) && Boolean(tripAccess),
+    enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess),
     refetchInterval: (query) => (findActiveGenerationJob(query.state.data ?? []) ? 3000 : false)
   });
   const latestActiveGenerationJob = findActiveGenerationJob(generationJobsQuery.data ?? []);
   const generationJobPoll = useGenerationJob({
     tripId,
     jobId: activeGenerationJobId ?? latestActiveGenerationJob?.id,
-    enabled: Boolean(tripId) && Boolean(activeGenerationJobId ?? latestActiveGenerationJob?.id),
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      Boolean(activeGenerationJobId ?? latestActiveGenerationJob?.id),
     onCompleted: (job) => {
       void handleGenerationJobCompleted(job);
     },
@@ -297,22 +345,25 @@ function TripDetailPageContent() {
     activeGenerationJob && isActiveGenerationJob(activeGenerationJob)
       ? targetFromGenerationJob(activeGenerationJob)
       : null;
-  const canComment =
+  const canUsePrivateCollaboration =
     !tripAccess ||
     tripAccess.role === "owner" ||
     tripAccess.role === "editor" ||
     tripAccess.role === "viewer";
+  const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
   const commentsEnabled =
+    onlineActionsEnabled &&
     Boolean(tripId) &&
     canComment &&
-    tripQuery.data?.status === "COMPLETED" &&
-    Boolean(tripQuery.data?.itinerary);
+    displayedTrip?.status === "COMPLETED" &&
+    Boolean(displayedTrip?.itinerary);
   const commentCountsQuery = useQuery({
     queryKey: commentKeys.counts(tripId),
     queryFn: () => listTripCommentCounts(tripId),
     enabled: commentsEnabled
   });
   const presenceEnabled =
+    onlineActionsEnabled &&
     Boolean(tripId) &&
     Boolean(currentUserId) &&
     Boolean(
@@ -335,6 +386,7 @@ function TripDetailPageContent() {
   });
   const setPresenceState = useTripPresenceState(tripId, presenceEnabled);
   const editLocksEnabled =
+    onlineActionsEnabled &&
     Boolean(tripId) &&
     Boolean(currentUserId) &&
     Boolean(
@@ -346,11 +398,11 @@ function TripDetailPageContent() {
   const canEditLoadedItinerary =
     Boolean(tripQuery.data) &&
     (tripAccess?.canEdit ?? true) &&
-    tripQuery.data?.status === "COMPLETED" &&
-    Boolean(tripQuery.data?.itinerary);
+    displayedTrip?.status === "COMPLETED" &&
+    Boolean(displayedTrip?.itinerary);
   const editLock = useTripEditLock({
     tripId,
-    enabled: editLocksEnabled,
+    enabled: onlineActionsEnabled && editLocksEnabled,
     canEdit: canEditLoadedItinerary,
     onLockConflict: setLockWarning
   });
@@ -397,37 +449,126 @@ function TripDetailPageContent() {
   );
   const exportTrip = useMemo(
     () =>
-      tripQuery.data
-        ? toExportTripFromPrivateTrip(tripQuery.data, {
+      displayedTrip
+        ? toExportTripFromPrivateTrip(displayedTrip, {
             weatherSummary: toExportWeatherSummary(weatherForecastQuery.data ?? null),
             distanceSummary: toExportDistanceSummary(
               fallbackDistanceSummaries,
               routeEstimatesByDay
             ),
-            budgetSummary: budgetSummaryQuery.data ?? null
+            budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null
           })
         : null,
     [
+      cachedBudgetSummary,
       budgetSummaryQuery.data,
+      displayedTrip,
       fallbackDistanceSummaries,
       routeEstimatesByDay,
-      tripQuery.data?.accommodation,
-      tripQuery.data,
       weatherForecastQuery.data
     ]
   );
 
-  if (tripQuery.isPending) {
+  useEffect(() => {
+    const shouldLoadCachedTrip =
+      Boolean(tripId) &&
+      Boolean(currentUserId) &&
+      (!networkStatus.online ||
+        (tripQuery.isError && isOfflineLikeError(tripQuery.error)));
+
+    if (!shouldLoadCachedTrip || !currentUserId) {
+      return;
+    }
+
+    let cancelled = false;
+    setOfflineCacheLoading(true);
+    setOfflineUnavailable(false);
+
+    getCachedTrip(tripId, currentUserId)
+      .then((record) => {
+        if (cancelled) {
+          return;
+        }
+        setCachedTripRecord(record);
+        setOfflineUnavailable(!record);
+        if (record?.budgetSummary) {
+          queryClient.setQueryData(budgetKeys.summary(tripId), record.budgetSummary);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCachedTripRecord(null);
+          setOfflineUnavailable(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOfflineCacheLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUserId,
+    networkStatus.online,
+    queryClient,
+    tripId,
+    tripQuery.error,
+    tripQuery.isError
+  ]);
+
+  useEffect(() => {
+    if (
+      !currentUserId ||
+      !networkStatus.online ||
+      !tripQuery.data ||
+      pendingOfflineMutation
+    ) {
+      return;
+    }
+
+    setCachedTripRecord(null);
+    setOfflineUnavailable(false);
+    void cacheTripSnapshot({
+      userId: currentUserId,
+      trip: tripQuery.data,
+      budgetSummary: budgetSummaryQuery.data ?? null,
+      accommodation: tripQuery.data.accommodation ?? null
+    });
+  }, [
+    budgetSummaryQuery.data,
+    currentUserId,
+    networkStatus.online,
+    pendingOfflineMutation,
+    tripQuery.data
+  ]);
+
+  if (!displayedTrip && (tripQuery.isPending || offlineCacheLoading)) {
     return (
       <PageContainer>
         <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          Loading trip...
+          {offlineCacheLoading ? "Loading saved trip..." : "Loading trip..."}
         </div>
       </PageContainer>
     );
   }
 
-  if (tripQuery.isError) {
+  if (!displayedTrip && offlineUnavailable) {
+    return (
+      <PageContainer>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+          This trip is not available offline yet. Open it once while online.
+        </div>
+        <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/trips">
+          Back to trips
+        </Link>
+      </PageContainer>
+    );
+  }
+
+  if (!displayedTrip && tripQuery.isError) {
     return (
       <PageContainer>
         <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800">
@@ -440,14 +581,27 @@ function TripDetailPageContent() {
     );
   }
 
-  const trip = tripQuery.data;
+  if (!displayedTrip) {
+    return (
+      <PageContainer>
+        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          Could not load trip.
+        </div>
+      </PageContainer>
+    );
+  }
+
+  const trip = displayedTrip;
   const access = trip.access;
-  const canMutateTrip = access?.canEdit ?? true;
-  const canManageShare = access?.canManageShare ?? true;
-  const canManageCollaborators = access?.canManageCollaborators ?? true;
-  const canRestoreVersion = access?.canRestoreVersion ?? canMutateTrip;
+  const canEditTripAccess = access?.canEdit ?? true;
+  const canMutateTrip = canEditTripAccess && onlineActionsEnabled;
+  const canManageShare = (access?.canManageShare ?? true) && onlineActionsEnabled;
+  const canManageCollaborators =
+    (access?.canManageCollaborators ?? true) && onlineActionsEnabled;
+  const canRestoreVersion = (access?.canRestoreVersion ?? canEditTripAccess) && onlineActionsEnabled;
   const canGenerate = canMutateTrip && (trip.status === "DRAFT" || trip.status === "FAILED");
-  const canEditItinerary = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
+  const canEditItinerary =
+    canEditTripAccess && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const canSyncCalendar = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const editingRevisionChanged =
     isEditing &&
@@ -478,8 +632,32 @@ function TripDetailPageContent() {
     void setPresenceState("editing");
   }
 
+  function enterEditModeFromOfflineMutation(mutation: PendingItineraryMutation) {
+    setBaseItinerary(cloneItinerary(mutation.baseItinerary));
+    setDraftItinerary(cloneItinerary(mutation.draftItinerary));
+    setBaseItineraryRevision(mutation.baseRevision);
+    setEditorErrors([]);
+    setItineraryConflictMessage(null);
+    setMergeRecovery(null);
+    setMergeApplyError(null);
+    setRegenerationError(null);
+    setSuccessMessage("Offline edit: changes will sync when you are back online.");
+    setIsEditing(true);
+  }
+
   async function startEditing() {
     if (!canEditItinerary) {
+      return;
+    }
+
+    if (pendingOfflineMutation) {
+      enterEditModeFromOfflineMutation(pendingOfflineMutation);
+      return;
+    }
+
+    if (!networkStatus.online || isUsingCachedTrip) {
+      enterEditMode();
+      setSuccessMessage("Offline edit: changes will sync when you are back online.");
       return;
     }
 
@@ -525,6 +703,50 @@ function TripDetailPageContent() {
       setEditorErrors([]);
       setItineraryConflictMessage(null);
       setRegenerationError(null);
+
+      if (!networkStatus.online || isUsingCachedTrip || pendingOfflineMutation) {
+        if (!currentUserId || !baseItinerary || baseItineraryRevision == null) {
+          setEditorErrors(["Could not save offline draft. Reload this trip while online."]);
+          return;
+        }
+
+        await enqueueItineraryUpdate({
+          tripId,
+          userId: currentUserId,
+          baseRevision: baseItineraryRevision,
+          baseItinerary,
+          draftItinerary: normalized
+        });
+
+        let nextCachedRecord = await updateCachedTripItinerary({
+          tripId,
+          userId: currentUserId,
+          itinerary: normalized
+        });
+
+        if (!nextCachedRecord) {
+          await cacheTripSnapshot({
+            userId: currentUserId,
+            trip: {
+              ...trip,
+              itinerary: normalized,
+              itineraryRevision: baseItineraryRevision
+            },
+            budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null,
+            accommodation: trip.accommodation ?? null
+          });
+          nextCachedRecord = await getCachedTrip(tripId, currentUserId);
+        }
+
+        if (nextCachedRecord) {
+          setCachedTripRecord(nextCachedRecord);
+        }
+        await offlineSync.refresh();
+        clearEditSession();
+        setSuccessMessage("Saved offline. Will sync when you are back online.");
+        return;
+      }
+
       const updated = await updateMutation.mutateAsync({
         itinerary: normalized,
         expectedRevision: baseItineraryRevision ?? trip.itineraryRevision
@@ -551,6 +773,14 @@ function TripDetailPageContent() {
   }
 
   async function cancelLocalChangesAfterConflict() {
+    if (mergeRecovery?.offlineMutation) {
+      await discardOfflineMutationWithCache(
+        mergeRecovery.offlineMutation,
+        mergeRecovery.latestTrip
+      );
+      return;
+    }
+
     await editLock.release();
     setItineraryConflictMessage(null);
     if (mergeRecovery?.latestTrip) {
@@ -602,6 +832,85 @@ function TripDetailPageContent() {
     }
   }
 
+  function handleOfflineSyncResults(results: SyncResult[]) {
+    const result = results.find((item) => item.mutation.tripId === tripId);
+    if (!result) {
+      return;
+    }
+
+    if (result.status === "synced") {
+      queryClient.setQueryData(tripKeys.detail(tripId), result.trip);
+      setCachedTripRecord(null);
+      setRegenerationError(null);
+      setSuccessMessage("Offline changes synced.");
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
+        queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+        queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
+      ]);
+      return;
+    }
+
+    if (result.status === "conflict") {
+      void prepareOfflineMergeRecovery(
+        result.mutation,
+        result.latestTrip ?? null,
+        result.currentItineraryRevision ?? null
+      );
+      return;
+    }
+
+    if (result.status === "failed" && !result.retryable) {
+      setRegenerationError(
+        result.errorMessage ?? "Offline draft could not be saved. Review or discard changes."
+      );
+    }
+  }
+
+  async function prepareOfflineMergeRecovery(
+    mutation: PendingItineraryMutation,
+    latestTripHint?: Trip | null,
+    latestRevisionHint?: number | null
+  ) {
+    try {
+      const latestTrip = latestTripHint ?? (await getTrip(tripId));
+      queryClient.setQueryData(tripKeys.detail(tripId), latestTrip);
+
+      if (!latestTrip.itinerary) {
+        setItineraryConflictMessage("The latest trip no longer has an itinerary.");
+        setMergeRecovery(null);
+        return;
+      }
+
+      const mergeResult = mergeItineraries(
+        mutation.baseItinerary,
+        mutation.draftItinerary,
+        latestTrip.itinerary,
+        {
+          baseRevision: mutation.baseRevision,
+          latestRevision: latestTrip.itineraryRevision ?? latestRevisionHint ?? mutation.baseRevision
+        }
+      );
+      setBaseItinerary(cloneItinerary(mutation.baseItinerary));
+      setDraftItinerary(cloneItinerary(mutation.draftItinerary));
+      setBaseItineraryRevision(mutation.baseRevision);
+      setMergeRecovery({
+        latestTrip,
+        mergeResult,
+        resolutions: defaultConflictResolutions(mergeResult),
+        offlineMutation: mutation
+      });
+      setItineraryConflictMessage(null);
+      setMergeApplyError("This trip changed while you were offline.");
+    } catch (fetchError) {
+      setItineraryConflictMessage(
+        getErrorMessage(fetchError, "Could not load the latest itinerary for merging.")
+      );
+      setMergeRecovery(null);
+    }
+  }
+
   async function applyMergeRecovery() {
     if (!mergeRecovery?.latestTrip.itinerary || !mergeRecovery.mergeResult.mergedItinerary) {
       return;
@@ -625,18 +934,37 @@ function TripDetailPageContent() {
     try {
       setMergeApplyError(null);
       setEditorErrors([]);
+      const offlineMutation = mergeRecovery.offlineMutation;
       const updated = await updateMutation.mutateAsync({
         itinerary: normalized,
         expectedRevision: mergeRecovery.latestTrip.itineraryRevision
       });
-      await completeItinerarySave(updated, "Your changes were merged successfully.");
+      if (offlineMutation) {
+        await markMutationSynced(offlineMutation.mutationId);
+        await completeItinerarySave(updated, "Offline changes synced.");
+      } else {
+        await completeItinerarySave(updated, "Your changes were merged successfully.");
+      }
     } catch (error) {
       if (isItineraryConflictError(error)) {
-        await prepareMergeRecovery(
-          normalized,
-          error.currentItineraryRevision,
-          "The itinerary changed again while merging. Reload latest and try again."
-        );
+        if (mergeRecovery.offlineMutation && mergeRecovery.latestTrip.itinerary) {
+          await prepareOfflineMergeRecovery(
+            {
+              ...mergeRecovery.offlineMutation,
+              baseRevision: mergeRecovery.latestTrip.itineraryRevision,
+              baseItinerary: mergeRecovery.latestTrip.itinerary,
+              draftItinerary: normalized
+            },
+            null,
+            error.currentItineraryRevision
+          );
+        } else {
+          await prepareMergeRecovery(
+            normalized,
+            error.currentItineraryRevision,
+            "The itinerary changed again while merging. Reload latest and try again."
+          );
+        }
         return;
       }
       setMergeApplyError(getErrorMessage(error, "Could not apply merged itinerary."));
@@ -667,8 +995,97 @@ function TripDetailPageContent() {
     await cancelLocalChangesAfterConflict();
   }
 
+  function reviewPendingOfflineChanges() {
+    if (!pendingOfflineMutation) {
+      return;
+    }
+
+    if (pendingOfflineMutation.status === "conflict" && networkStatus.online) {
+      void prepareOfflineMergeRecovery(pendingOfflineMutation);
+      return;
+    }
+
+    enterEditModeFromOfflineMutation(pendingOfflineMutation);
+  }
+
+  async function discardPendingOfflineChanges() {
+    if (!pendingOfflineMutation) {
+      return;
+    }
+    if (!window.confirm("Discard offline itinerary changes?")) {
+      return;
+    }
+
+    await discardOfflineMutationWithCache(pendingOfflineMutation);
+  }
+
+  async function discardOfflineMutationWithCache(
+    mutation: PendingItineraryMutation,
+    latestTripHint?: Trip | null
+  ) {
+    await discardMutation(mutation.mutationId);
+    let restoredFromServer = false;
+
+    if (latestTripHint) {
+      queryClient.setQueryData(tripKeys.detail(tripId), latestTripHint);
+      if (currentUserId) {
+        await cacheTripSnapshot({
+          userId: currentUserId,
+          trip: latestTripHint,
+          budgetSummary: budgetSummaryQuery.data ?? null,
+          accommodation: latestTripHint.accommodation ?? null
+        });
+      }
+      setCachedTripRecord(null);
+      restoredFromServer = true;
+    } else if (networkStatus.online) {
+      try {
+        const latestTrip = await getTrip(tripId);
+        queryClient.setQueryData(tripKeys.detail(tripId), latestTrip);
+        if (currentUserId) {
+          await cacheTripSnapshot({
+            userId: currentUserId,
+            trip: latestTrip,
+            budgetSummary: budgetSummaryQuery.data ?? null,
+            accommodation: latestTrip.accommodation ?? null
+          });
+        }
+        setCachedTripRecord(null);
+        restoredFromServer = true;
+      } catch {
+        // Fall back to restoring the saved base below.
+      }
+    }
+
+    if (!restoredFromServer && currentUserId) {
+      const restored = await updateCachedTripItinerary({
+        tripId,
+        userId: currentUserId,
+        itinerary: mutation.baseItinerary
+      });
+      setCachedTripRecord(restored);
+    }
+
+    await offlineSync.refresh();
+    clearEditSession();
+    setMergeRecovery(null);
+    setMergeApplyError(null);
+    setItineraryConflictMessage(null);
+    setSuccessMessage("Offline itinerary changes discarded.");
+  }
+
   async function completeItinerarySave(updated: Trip, message: string) {
     queryClient.setQueryData(tripKeys.detail(tripId), updated);
+    if (currentUserId) {
+      await cacheTripSnapshot({
+        userId: currentUserId,
+        trip: updated,
+        budgetSummary: budgetSummaryQuery.data ?? null,
+        accommodation: updated.accommodation ?? null
+      });
+      setCachedTripRecord(null);
+      await offlineSync.refresh();
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
@@ -963,6 +1380,17 @@ function TripDetailPageContent() {
 
   return (
     <PageContainer>
+      <OfflineBanner
+        cachedAt={cachedTripRecord?.cachedAt}
+        className="mb-6"
+        conflictCount={offlineSync.conflicts.length}
+        failedCount={offlineSync.failed.length}
+        offlineCopy={isUsingCachedTrip}
+        online={networkStatus.online}
+        pendingCount={offlineSync.pendingCount}
+        syncing={offlineSync.syncing}
+      />
+
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Link className="text-sm font-medium text-primary-700 hover:text-primary-600" href="/trips">
@@ -1022,6 +1450,8 @@ function TripDetailPageContent() {
 
           <BudgetPanel
             canEdit={canMutateTrip}
+            offline={offlineDataMode}
+            offlineSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
             onOpenBudgetOptimization={openBudgetOptimization}
             optimizationDisabled={
               isEditing ||
@@ -1041,20 +1471,36 @@ function TripDetailPageContent() {
           ) : null}
 
           {canManageShare ? <ShareTripPanel tripId={trip.id} /> : null}
-          {trip.status === "COMPLETED" && trip.itinerary ? (
+          {onlineActionsEnabled && trip.status === "COMPLETED" && trip.itinerary ? (
             <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />
           ) : null}
-          <CollaboratorsPanel
-            canManageCollaborators={canManageCollaborators}
-            tripId={trip.id}
-          />
+          {onlineActionsEnabled ? (
+            <CollaboratorsPanel
+              canManageCollaborators={canManageCollaborators}
+              tripId={trip.id}
+            />
+          ) : null}
         </aside>
 
         <section className="min-w-0">
+          {pendingOfflineMutation ? (
+            <div className="mb-4">
+            <PendingOfflineChangesPanel
+              mutation={pendingOfflineMutation}
+              online={networkStatus.online}
+              onDiscard={discardPendingOfflineChanges}
+              onReview={reviewPendingOfflineChanges}
+              onSyncNow={offlineSync.syncNow}
+              syncing={offlineSync.syncing}
+            />
+            </div>
+          ) : null}
+
           <WeatherForecastCard
             className="mb-4"
             days={trip.days}
             destination={trip.destination}
+            offline={!networkStatus.online || isUsingCachedTrip}
             startDate={trip.startDate}
           />
 
@@ -1092,7 +1538,7 @@ function TripDetailPageContent() {
           {trip.status === "COMPLETED" && trip.itinerary ? (
             <div className="space-y-4">
               <TripQualityChecks
-                budgetSummary={budgetSummaryQuery.data ?? null}
+                budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
                 fallbackDistanceSummaries={fallbackDistanceSummaries}
                 isEditing={isEditing}
                 isImproving={createGenerationJobMutation.isPending || hasActiveGenerationJob}
@@ -1136,6 +1582,11 @@ function TripDetailPageContent() {
                   {editingRevisionChanged ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                       This itinerary has newer changes. Saving may require merge.
+                    </div>
+                  ) : null}
+                  {offlineDataMode ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      Offline edit: changes will sync when you are back online.
                     </div>
                   ) : null}
                   {itineraryConflictMessage && !mergeRecovery ? (
@@ -1212,7 +1663,7 @@ function TripDetailPageContent() {
                     </div>
                   ) : null}
                   <PlaceEnrichmentReviewPanel
-                    readOnly={!canMutateTrip}
+                    readOnly={!canMutateTrip || offlineDataMode}
                     onTripUpdated={handlePlaceReviewUpdated}
                     trip={trip}
                   />
@@ -1247,14 +1698,16 @@ function TripDetailPageContent() {
                     maxWalkingKmPerDay={maxWalkingKmPerDay}
                     onOptimizeDay={canMutateTrip ? setOptimizingDayNumber : undefined}
                   />
-                  <ItineraryVersionHistory
-                    canRestore={canRestoreVersion}
-                    currency={trip.budgetCurrency}
-                    itineraryRevision={trip.itineraryRevision}
-                    onRestored={handleVersionRestored}
-                    restoreDisabled={isEditing || !canRestoreVersion}
-                    tripId={trip.id}
-                  />
+                  {onlineActionsEnabled ? (
+                    <ItineraryVersionHistory
+                      canRestore={canRestoreVersion}
+                      currency={trip.budgetCurrency}
+                      itineraryRevision={trip.itineraryRevision}
+                      onRestored={handleVersionRestored}
+                      restoreDisabled={isEditing || !canRestoreVersion}
+                      tripId={trip.id}
+                    />
+                  ) : null}
                   {trip.itinerary && optimizingDay ? (
                     <OptimizeDayOrderDialog
                       day={optimizingDay}
@@ -1329,6 +1782,11 @@ function TripDetailPageContent() {
       {mergeRecovery ? (
         <MergeConflictDialog
           applying={updateMutation.isPending}
+          description={
+            mergeRecovery.offlineMutation
+              ? "Review your offline draft against the latest saved itinerary before syncing."
+              : undefined
+          }
           error={mergeApplyError}
           latestRevision={mergeRecovery.latestTrip.itineraryRevision}
           mergeResult={mergeRecovery.mergeResult}
@@ -1341,10 +1799,15 @@ function TripDetailPageContent() {
           onResolutionChange={updateConflictResolution}
           onViewLatest={viewLatestFromMerge}
           resolutions={mergeRecovery.resolutions}
+          title={
+            mergeRecovery.offlineMutation
+              ? "This trip changed while you were offline"
+              : undefined
+          }
         />
       ) : null}
       <BudgetOptimizationRequestDialog
-        budgetSummary={budgetSummaryQuery.data ?? null}
+        budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
         defaultDayNumber={budgetOptimizationDefaultDayNumber}
         disabled={createBudgetOptimizationMutation.isPending}
         error={budgetOptimizationError}
@@ -1366,6 +1829,21 @@ function defaultConflictResolutions(
       conflict.resolution ?? "keep_latest"
     ])
   );
+}
+
+function withPendingOfflineItinerary(
+  trip: Trip,
+  mutation: PendingItineraryMutation | null
+): Trip {
+  if (!mutation || mutation.tripId !== trip.id) {
+    return trip;
+  }
+
+  return {
+    ...trip,
+    itinerary: mutation.draftItinerary,
+    itineraryRevision: mutation.baseRevision
+  };
 }
 
 function BudgetOptimizationProposalsPanel({

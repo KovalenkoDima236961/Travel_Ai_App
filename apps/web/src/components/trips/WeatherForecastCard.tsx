@@ -11,6 +11,7 @@ type WeatherForecastCardProps = {
   destination: string;
   startDate?: string | null;
   days: number;
+  offline?: boolean;
   className?: string;
 };
 
@@ -18,6 +19,7 @@ export function WeatherForecastCard({
   destination,
   startDate,
   days,
+  offline = false,
   className
 }: WeatherForecastCardProps) {
   const canFetch = Boolean(destination.trim()) && Boolean(startDate) && days > 0;
@@ -30,7 +32,7 @@ export function WeatherForecastCard({
   const forecastQuery = useQuery({
     queryKey: weatherKeys.forecast(params),
     queryFn: () => getWeatherForecast(params),
-    enabled: canFetch,
+    enabled: canFetch && !offline,
     staleTime: 10 * 60 * 1000,
     retry: 1
   });
@@ -58,13 +60,19 @@ export function WeatherForecastCard({
         <ProviderBadge provider={forecastQuery.data?.provider} />
       </div>
 
-      {forecastQuery.isPending ? (
+      {offline ? (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Weather refresh requires an internet connection.
+        </div>
+      ) : null}
+
+      {!offline && forecastQuery.isPending ? (
         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
           Loading weather forecast...
         </div>
       ) : null}
 
-      {forecastQuery.isError ? (
+      {!offline && forecastQuery.isError ? (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Weather forecast unavailable.
         </div>

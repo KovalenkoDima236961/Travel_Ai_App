@@ -183,6 +183,43 @@ Manual test discard:
 2. Click `Discard my changes`.
 3. Confirm the latest itinerary is shown and the local draft is discarded.
 
+## Offline Trip Mode
+
+Manual offline cache and sync test:
+
+1. Start the full stack.
+2. Log in.
+3. Open a private trip online and confirm it loads.
+4. Confirm the trip has an itinerary. Generate one first if needed.
+5. Turn off network in browser devtools.
+6. Reload the trip detail URL.
+7. Confirm the cached trip appears with the offline banner and saved timestamp.
+8. Click `Edit itinerary`.
+9. Modify one itinerary item.
+10. Click `Save`.
+11. Confirm the pending offline change indicator appears.
+12. Turn network back on.
+13. Click `Sync now` or wait for auto-sync.
+14. Confirm the pending indicator disappears and the change persists after refresh.
+
+Manual offline conflict test:
+
+1. Open the same private trip in browser A and browser B.
+2. Browser A loads the trip online, then goes offline.
+3. Browser A edits Day 2 and saves offline.
+4. Browser B stays online, edits the same Day 2 item, and saves.
+5. Browser A goes online and syncs.
+6. Confirm the merge/conflict dialog opens with offline recovery copy.
+7. Choose either latest or local resolution and apply.
+8. Confirm the final itinerary matches the selected resolution.
+
+Manual no-cache test:
+
+1. Clear browser site data.
+2. Go offline.
+3. Open a private trip detail URL.
+4. Confirm the page says the trip is not available offline yet.
+
 ## Observability
 
 1. Open Prometheus at `http://localhost:9090`.

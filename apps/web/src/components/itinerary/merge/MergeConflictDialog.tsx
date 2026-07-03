@@ -16,6 +16,8 @@ type MergeConflictDialogProps = {
   resolutions: ConflictResolutionMap;
   applying?: boolean;
   error?: string | null;
+  title?: string;
+  description?: string;
   onApplyMerged: () => void;
   onDiscardLocal: () => void;
   onViewLatest: () => void;
@@ -29,6 +31,8 @@ export function MergeConflictDialog({
   resolutions,
   applying = false,
   error = null,
+  title = "This itinerary changed while you were editing",
+  description,
   onApplyMerged,
   onDiscardLocal,
   onViewLatest,
@@ -55,10 +59,10 @@ export function MergeConflictDialog({
       <div className="flex max-h-full w-full max-w-4xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
         <div className="border-b border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-950">
-            This itinerary changed while you were editing
+            {title}
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {messageForSafety(mergeResult.safety)}
+            {description ?? messageForSafety(mergeResult.safety)}
           </p>
           <p className="mt-2 text-xs font-medium text-slate-500">
             Base revision {mergeResult.baseRevision} · Latest revision {latestRevision}

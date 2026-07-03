@@ -101,6 +101,9 @@ Key product capabilities:
 - Optimistic concurrency through `itineraryRevision` and explicit
   `expectedItineraryRevision` writes, plus Advanced Collaborative Diff/Merge v1
   for safe day/item-level recovery of stale itinerary drafts.
+- Offline Trip Mode v1 for previously opened private trips: IndexedDB cached
+  trip snapshots, cached itinerary/budget/accommodation viewing, queued offline
+  itinerary edits, and revision-safe sync with the same diff/merge recovery.
 - Asynchronous full generation, day/item regeneration, quality improvement, and
   budget optimization jobs.
 - Version history, restore, comments, activity feed, presence, and advisory edit

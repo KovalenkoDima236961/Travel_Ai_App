@@ -7,7 +7,8 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Travel AI Planner",
-  description: "Create AI-assisted travel plans and generate itineraries."
+  description: "Create AI-assisted travel plans and generate itineraries.",
+  manifest: "/manifest.json"
 };
 
 type RootLayoutProps = {

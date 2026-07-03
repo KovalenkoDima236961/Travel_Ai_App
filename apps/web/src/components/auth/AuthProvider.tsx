@@ -23,6 +23,7 @@ import {
   getRefreshToken,
   saveTokens
 } from "@/lib/auth/token-storage";
+import { clearOfflineData } from "@/lib/offline/trip-cache";
 import type { AuthUser, TokenResponse } from "@/types/auth";
 
 type AuthContextValue = {
@@ -107,6 +108,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     function handleSessionExpired() {
       clearTokens();
+      void clearOfflineData();
       setUser(null);
     }
 
@@ -132,6 +134,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = useCallback(async () => {
     const refreshToken = getRefreshToken();
+    const userId = user?.id;
     try {
       if (refreshToken) {
         await logoutRequest(refreshToken);
@@ -139,10 +142,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch {
       // Local logout should still complete if Auth Service is unreachable.
     } finally {
+      await clearOfflineData(userId);
       clearTokens();
       setUser(null);
     }
-  }, []);
+  }, [user?.id]);
 
   const refresh = useCallback(async () => {
     const refreshToken = getRefreshToken();

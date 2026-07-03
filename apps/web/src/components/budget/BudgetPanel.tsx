@@ -15,6 +15,8 @@ import type { Trip } from "@/types/trip";
 type BudgetPanelProps = {
   trip: Trip;
   canEdit: boolean;
+  offline?: boolean;
+  offlineSummary?: BudgetSummary | null;
   optimizationDisabled?: boolean;
   onOpenBudgetOptimization?: (dayNumber: number) => void;
 };
@@ -22,6 +24,8 @@ type BudgetPanelProps = {
 export function BudgetPanel({
   trip,
   canEdit,
+  offline = false,
+  offlineSummary,
   optimizationDisabled = false,
   onOpenBudgetOptimization
 }: BudgetPanelProps) {
@@ -32,7 +36,8 @@ export function BudgetPanel({
 
   const summaryQuery = useQuery({
     queryKey: budgetKeys.summary(trip.id),
-    queryFn: () => getTripBudgetSummary(trip.id)
+    queryFn: () => getTripBudgetSummary(trip.id),
+    enabled: !offline
   });
 
   const updateMutation = useMutation({
@@ -52,7 +57,7 @@ export function BudgetPanel({
     }
   });
 
-  const summary = summaryQuery.data;
+  const summary = offline ? offlineSummary : summaryQuery.data;
   const currency = summary?.currency ?? trip.budget?.currency ?? trip.budgetCurrency ?? "EUR";
   const currentBudget: Budget | null = trip.budget ?? null;
 
@@ -87,7 +92,7 @@ export function BudgetPanel({
       ) : (
         <BudgetSummaryView
           currency={currency}
-          isLoading={summaryQuery.isLoading}
+          isLoading={!offline && summaryQuery.isLoading}
           onOpenBudgetOptimization={canEdit ? onOpenBudgetOptimization : undefined}
           optimizationDisabled={optimizationDisabled}
           summary={summary ?? null}
