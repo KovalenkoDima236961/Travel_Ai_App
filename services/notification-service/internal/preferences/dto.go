@@ -1,7 +1,7 @@
 package preferences
 
 // MaxUpdateItems caps how many preference items a single update request may
-// carry. Two channels times four categories is eight; the cap leaves headroom
+// carry. Three channels times four categories is twelve; the cap leaves headroom
 // while bounding the request.
 const MaxUpdateItems = 20
 
@@ -23,7 +23,7 @@ type PreferenceItem struct {
 }
 
 // PreferencesResult is the full effective preference matrix for a user. It
-// always contains len(AllChannels) * len(AllCategories) items (8 in v1), in a
+// always contains len(AllChannels) * len(AllCategories) items (12 in v1), in a
 // stable channel-then-category order.
 type PreferencesResult struct {
 	Items []PreferenceItem

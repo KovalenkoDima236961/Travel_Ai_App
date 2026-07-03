@@ -741,11 +741,34 @@ assert_2xx "Get default notification preferences"
 NOTIFICATION_PREF_COUNT="$(jq '.items | length' <<<"${LAST_BODY}")"
 DEFAULT_IN_APP_COMMENTS="$(jq -r '.items[] | select(.channel == "in_app" and .category == "comments") | .enabled' <<<"${LAST_BODY}")"
 DEFAULT_EMAIL_TRIP_UPDATES="$(jq -r '.items[] | select(.channel == "email" and .category == "trip_updates") | .enabled' <<<"${LAST_BODY}")"
-if [[ "${NOTIFICATION_PREF_COUNT}" -ne 8 || "${DEFAULT_IN_APP_COMMENTS}" != "true" || "${DEFAULT_EMAIL_TRIP_UPDATES}" != "false" ]]; then
+DEFAULT_PUSH_TRIP_UPDATES="$(jq -r '.items[] | select(.channel == "push" and .category == "trip_updates") | .enabled' <<<"${LAST_BODY}")"
+if [[ "${NOTIFICATION_PREF_COUNT}" -ne 12 || "${DEFAULT_IN_APP_COMMENTS}" != "true" || "${DEFAULT_EMAIL_TRIP_UPDATES}" != "false" || "${DEFAULT_PUSH_TRIP_UPDATES}" != "true" ]]; then
   echo "Default notification preferences did not match expected values." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+
+echo "Checking Web Push endpoint plumbing..."
+request GET "${NOTIFICATION_SERVICE_URL}/notifications/push/public-key"
+assert_2xx "Get push public key"
+PUSH_ENABLED="$(jq -r '.enabled' <<<"${LAST_BODY}")"
+FAKE_PUSH_ENDPOINT="https://push.example.test/smoke/${RUN_ID:-manual}"
+FAKE_PUSH_SUBSCRIPTION="$(jq -nc --arg endpoint "${FAKE_PUSH_ENDPOINT}" '{subscription:{endpoint:$endpoint,keys:{p256dh:"smoke-p256dh",auth:"smoke-auth"}},userAgent:"smoke-test",browser:"Smoke",deviceLabel:"Smoke test"}')"
+request_with_bearer POST "${NOTIFICATION_SERVICE_URL}/notifications/push/subscribe" "${ACCESS_TOKEN}" "${FAKE_PUSH_SUBSCRIPTION}"
+assert_2xx "Subscribe push endpoint"
+PUSH_SUBSCRIBED="$(jq -r '.subscribed' <<<"${LAST_BODY}")"
+request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/push/status" "${ACCESS_TOKEN}"
+assert_2xx "Push status"
+if [[ "${PUSH_ENABLED}" == "true" && "${PUSH_SUBSCRIBED}" == "true" ]]; then
+  if ! jq -e '.activeSubscriptions >= 1' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Expected at least one active push subscription after subscribe." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+fi
+FAKE_PUSH_UNSUBSCRIBE="$(jq -nc --arg endpoint "${FAKE_PUSH_ENDPOINT}" '{endpoint:$endpoint}')"
+request_with_bearer DELETE "${NOTIFICATION_SERVICE_URL}/notifications/push/unsubscribe" "${ACCESS_TOKEN}" "${FAKE_PUSH_UNSUBSCRIBE}"
+assert_2xx "Unsubscribe push endpoint"
 
 echo "Checking optional AI Planning destination context endpoint..."
 if request GET "${AI_PLANNING_SERVICE_URL}/destination-context"; then

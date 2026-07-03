@@ -15,6 +15,7 @@ import (
 	notificationrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/push"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/closer"
@@ -89,8 +90,28 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		Types:            cfg.EmailNotificationTypes(),
 	}, userLookup, emailSender, log)
 
-	notificationHandler := handler.New(svc, log, preferenceSvc).EnableStream(streamManager, streamCfg)
-	internalHandler := handler.NewInternal(svc, emailSvc, log, preferenceSvc).EnableStream(streamManager)
+	pushCfg := push.Config{
+		Enabled:         cfg.WebPush.Enabled,
+		VAPIDPublicKey:  cfg.WebPush.VAPIDPublicKey,
+		VAPIDPrivateKey: cfg.WebPush.VAPIDPrivateKey,
+		Subject:         cfg.WebPush.Subject,
+		Timeout:         cfg.WebPushTimeout(),
+		TTLSeconds:      cfg.WebPush.TTLSeconds,
+		Urgency:         cfg.WebPush.Urgency,
+		FailOpen:        cfg.WebPush.FailOpen,
+	}
+	pushSender, err := push.NewSender(pushCfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("init web push sender: %w", err)
+	}
+	pushSvc := push.New(pushCfg, repo, pushSender, log)
+
+	notificationHandler := handler.New(svc, log, preferenceSvc).
+		EnableStream(streamManager, streamCfg).
+		EnablePush(pushSvc)
+	internalHandler := handler.NewInternal(svc, emailSvc, log, preferenceSvc).
+		EnableStream(streamManager).
+		EnablePush(pushSvc)
 	readinessHandler := httpserver.NewReadinessHandler(db, log)
 
 	router := httpserver.NewRouter(

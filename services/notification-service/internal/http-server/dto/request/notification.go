@@ -36,6 +36,31 @@ type UpdateNotificationPreferences struct {
 	Items []NotificationPreferenceItem `json:"items"`
 }
 
+// SubscribePush is the body of POST /notifications/push/subscribe.
+type SubscribePush struct {
+	Subscription PushSubscription `json:"subscription"`
+	UserAgent    *string          `json:"userAgent"`
+	Browser      *string          `json:"browser"`
+	DeviceLabel  *string          `json:"deviceLabel"`
+}
+
+// PushSubscription mirrors the browser PushSubscription JSON shape.
+type PushSubscription struct {
+	Endpoint string               `json:"endpoint"`
+	Keys     PushSubscriptionKeys `json:"keys"`
+}
+
+// PushSubscriptionKeys holds the browser-generated key material.
+type PushSubscriptionKeys struct {
+	P256DH string `json:"p256dh"`
+	Auth   string `json:"auth"`
+}
+
+// UnsubscribePush is the body of DELETE /notifications/push/unsubscribe.
+type UnsubscribePush struct {
+	Endpoint string `json:"endpoint"`
+}
+
 // NotificationPreferenceItem is one requested channel/category setting. Enabled
 // is a pointer so omission is distinguishable from false and can be rejected.
 type NotificationPreferenceItem struct {
@@ -138,4 +163,17 @@ func (u UpdateNotificationPreferences) ToInputs() ([]preferences.PreferenceInput
 		})
 	}
 	return inputs, nil
+}
+
+// NormalizeOptionalString trims optional metadata and returns nil for empty
+// values so persistence stores NULL rather than blank strings.
+func NormalizeOptionalString(raw *string) *string {
+	if raw == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*raw)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }

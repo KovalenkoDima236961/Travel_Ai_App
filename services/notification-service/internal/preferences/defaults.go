@@ -21,6 +21,12 @@ var defaultMatrix = map[string]map[string]bool{
 		CategoryRoleChanges:   true,
 		CategoryTripUpdates:   false,
 	},
+	ChannelPush: {
+		CategoryCollaboration: true,
+		CategoryComments:      true,
+		CategoryRoleChanges:   true,
+		CategoryTripUpdates:   true,
+	},
 }
 
 // defaultEnabled returns the default enabled state for a (channel, category)

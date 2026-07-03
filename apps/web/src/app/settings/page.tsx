@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { PushNotificationSettings } from "@/components/notifications/PushNotificationSettings";
 import { NotificationPreferencesSection } from "@/components/settings/NotificationPreferencesSection";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { ProfileForm } from "@/components/settings/ProfileForm";
@@ -102,6 +103,8 @@ function SettingsPageContent() {
             successMessage={preferencesMutation.isSuccess ? "Preferences saved." : null}
             onSubmit={(values) => preferencesMutation.mutate(values)}
           />
+
+          <PushNotificationSettings />
 
           <NotificationPreferencesSection />
         </div>

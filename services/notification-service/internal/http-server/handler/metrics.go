@@ -15,6 +15,18 @@ var (
 		prometheus.CounterOpts{Name: "notifications_email_sent_total", Help: "Total notification email send outcomes."},
 		[]string{"type", "result"},
 	)
+	notificationsPushSent = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "push_notifications_sent_total", Help: "Total notification push send outcomes."},
+		[]string{"type", "category", "result"},
+	)
+	notificationsPushFailed = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "push_notifications_failed_total", Help: "Total notification push failures."},
+		[]string{"type", "category", "error_code"},
+	)
+	notificationsPushSubscriptionsDisabled = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "push_subscriptions_disabled_total", Help: "Total browser push subscriptions disabled."},
+		[]string{"reason"},
+	)
 	notificationsSSEConnections = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "notifications_sse_connections", Help: "Notification SSE connections."},
 		[]string{"status"},
@@ -34,6 +46,9 @@ func init() {
 		notificationsCreated,
 		notificationsFailed,
 		notificationsEmailSent,
+		notificationsPushSent,
+		notificationsPushFailed,
+		notificationsPushSubscriptionsDisabled,
 		notificationsSSEConnections,
 		notificationsSSEEventsSent,
 		notificationsSSEEventsDropped,
@@ -53,6 +68,19 @@ func recordNotificationEmail(typeLabel, result string, count int) {
 		return
 	}
 	notificationsEmailSent.WithLabelValues(typeLabel, result).Add(float64(count))
+}
+
+func recordNotificationPush(typeLabel, category, result string, count int) {
+	if count <= 0 {
+		return
+	}
+	notificationsPushSent.WithLabelValues(typeLabel, category, result).Add(float64(count))
+	if result == "failed" {
+		notificationsPushFailed.WithLabelValues(typeLabel, category, "send_failed").Add(float64(count))
+	}
+	if result == "disabled" {
+		notificationsPushSubscriptionsDisabled.WithLabelValues("gone_or_invalid").Add(float64(count))
+	}
 }
 
 func recordNotificationSSEConnection(status string, delta float64) {

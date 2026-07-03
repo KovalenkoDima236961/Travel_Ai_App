@@ -1,8 +1,8 @@
 // Package preferences holds the Notification Service use case for per-user
 // notification preferences. Preferences are global per user and category-based.
-// They are split across two independent channels (in-app and email) so a user
-// can, for example, keep in-app collaboration notifications while turning off
-// the matching emails.
+// They are split across independent channels (in-app, email, and push) so a
+// user can, for example, keep in-app collaboration notifications while turning
+// off the matching emails or browser push notifications.
 //
 // Preferences only gate the creation of future notifications: disabling a
 // category never deletes existing notifications, never touches the activity
@@ -18,6 +18,8 @@ const (
 	ChannelInApp = "in_app"
 	// ChannelEmail controls whether an email is sent.
 	ChannelEmail = "email"
+	// ChannelPush controls whether a browser Web Push notification is sent.
+	ChannelPush = "push"
 )
 
 // Category constants. Notification types are grouped into a small set of
@@ -31,7 +33,7 @@ const (
 
 // AllChannels lists the channels in display order. Range over this (never a map)
 // when building the full preference matrix so the output order is deterministic.
-var AllChannels = []string{ChannelInApp, ChannelEmail}
+var AllChannels = []string{ChannelInApp, ChannelEmail, ChannelPush}
 
 // AllCategories lists the categories in display order. Range over this (never a
 // map) when building the full preference matrix so the output order is stable.
@@ -48,6 +50,7 @@ var (
 	knownChannels = map[string]struct{}{
 		ChannelInApp: {},
 		ChannelEmail: {},
+		ChannelPush:  {},
 	}
 	knownCategories = map[string]struct{}{
 		CategoryCollaboration: {},

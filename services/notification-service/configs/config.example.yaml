@@ -51,6 +51,18 @@ email:
     from_name: "AI Travel Planner"
     use_tls: true
 
+# Browser Web Push notifications using VAPID. Leave disabled unless a local
+# VAPID key pair is configured. Never commit a real private key.
+web_push:
+  enabled: false
+  vapid_public_key: ""
+  vapid_private_key: ""
+  subject: "mailto:support@example.com"
+  timeout_seconds: 8
+  ttl_seconds: 3600
+  urgency: "normal"
+  fail_open: true
+
 # Service that owns recipient identity. In v1 Auth Service owns email; the
 # user-lookup client calls AUTH_SERVICE_URL and presents the internal token.
 users:
@@ -66,5 +78,5 @@ sse:
 
 cors:
   allowed_origins: "http://localhost:3000"
-  allowed_methods: "GET,PUT,PATCH,OPTIONS"
+  allowed_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
   allowed_headers: "Content-Type,Authorization"

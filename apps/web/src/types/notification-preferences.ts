@@ -1,4 +1,4 @@
-export type NotificationChannel = "in_app" | "email";
+export type NotificationChannel = "in_app" | "email" | "push";
 
 export type NotificationCategory =
   | "collaboration"

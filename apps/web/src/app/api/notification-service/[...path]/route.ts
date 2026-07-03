@@ -19,6 +19,14 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   return proxyNotificationServiceRequest(request, context);
 }
 
+export async function POST(request: NextRequest, context: RouteContext) {
+  return proxyNotificationServiceRequest(request, context);
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  return proxyNotificationServiceRequest(request, context);
+}
+
 // Only user-facing methods are proxied. The internal batch-create endpoint is
 // intentionally not reachable from the browser.
 async function proxyNotificationServiceRequest(request: NextRequest, context: RouteContext) {

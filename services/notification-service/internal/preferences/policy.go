@@ -62,6 +62,27 @@ func (e *EffectiveSet) AllowEmail(userID uuid.UUID, notificationType string) boo
 	return e.allow(ChannelEmail, userID, notificationType)
 }
 
+// AllowPush reports whether a browser push notification for the given type
+// should be sent to the user. Unknown types are not pushed so new event types do
+// not unexpectedly appear on a user's lock screen before they have an explicit
+// payload policy.
+func (e *EffectiveSet) AllowPush(userID uuid.UUID, notificationType string) bool {
+	category, ok := CategoryForNotificationType(notificationType)
+	if !ok {
+		return false
+	}
+	if e != nil {
+		if matrix, ok := e.byUser[userID]; ok {
+			if byCategory, ok := matrix[ChannelPush]; ok {
+				if enabled, ok := byCategory[category]; ok {
+					return enabled
+				}
+			}
+		}
+	}
+	return defaultEnabled(ChannelPush, category)
+}
+
 // Matrix returns the full merged channel/category matrix for a single user. It
 // falls back to defaults for a user not present in the set so callers always get
 // a complete matrix.

@@ -69,6 +69,8 @@ func (s *Service) IsEnabled(ctx context.Context, userID uuid.UUID, channel strin
 	switch channel {
 	case ChannelEmail:
 		return set.AllowEmail(userID, notificationType), nil
+	case ChannelPush:
+		return set.AllowPush(userID, notificationType), nil
 	default:
 		return set.AllowInApp(userID, notificationType), nil
 	}

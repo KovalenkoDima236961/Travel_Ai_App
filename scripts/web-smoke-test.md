@@ -405,6 +405,25 @@ Use local Grafana credentials `admin` / `admin`.
 10. Confirm no new in-app `comment_created` notification appears.
 11. Re-enable both comment preferences and save.
 
+## Browser Push Notifications
+
+1. Generate local VAPID keys with `npx web-push generate-vapid-keys`.
+2. Set `WEB_PUSH_ENABLED=true`, `WEB_PUSH_VAPID_PUBLIC_KEY`,
+   `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_SUBJECT=mailto:dev@example.com`
+   in `infra/.env`, then restart Notification Service and the web app.
+3. Log in with a supported browser and open `/settings`.
+4. Confirm `Push notifications` appears above the notification preference
+   matrix.
+5. Click `Enable push notifications` and accept the browser permission prompt.
+6. Confirm the UI says push notifications are enabled on this device.
+7. Trigger a notification from another account, for example by adding a comment
+   on a shared trip or completing an itinerary generation job.
+8. Confirm a system notification appears.
+9. Click the system notification and confirm the app opens the related trip or
+   `/notifications`.
+10. Return to `/settings`, click `Disable on this device`, then trigger another
+    notification and confirm that device no longer receives push notifications.
+
 ## Real-time Notifications
 
 1. Start the full stack and open `http://localhost:3000`.

@@ -13,7 +13,9 @@ export type NotificationType =
   | "day_regenerated"
   | "item_regenerated"
   | "version_restored"
-  | "generation_job_failed";
+  | "generation_job_failed"
+  | "budget_optimization_ready"
+  | "budget_optimization_failed";
 
 export type AppNotification = {
   id: string;

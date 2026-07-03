@@ -18,7 +18,8 @@ import { Card } from "@/components/ui/Card";
 
 const channels: Array<{ value: NotificationChannel; title: string }> = [
   { value: "in_app", title: "In-app notifications" },
-  { value: "email", title: "Email notifications" }
+  { value: "email", title: "Email notifications" },
+  { value: "push", title: "Push notifications" }
 ];
 
 const categories: Array<{
@@ -126,7 +127,8 @@ export function NotificationPreferencesSection() {
       </div>
 
       {preferencesQuery.isPending ? (
-        <div className="mt-6 grid gap-5 md:grid-cols-2">
+        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+          <PreferenceSkeleton />
           <PreferenceSkeleton />
           <PreferenceSkeleton />
         </div>
@@ -146,7 +148,7 @@ export function NotificationPreferencesSection() {
             preferencesMutation.mutate(orderedPreferences(draft));
           }}
         >
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 lg:grid-cols-3">
             {channels.map((channel) => (
               <fieldset
                 key={channel.value}

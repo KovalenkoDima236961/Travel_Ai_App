@@ -66,6 +66,25 @@ internal hostname `http://notification-service:8086`.
 `EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL` is used by the server-side
 external-integrations proxy for authenticated Google Calendar OAuth calls.
 
+## Browser Push Notifications
+
+The app serves a service worker at `/sw.js` from `public/sw.js`. Authenticated
+settings render `PushNotificationSettings`, which checks browser support,
+requests notification permission only after the user clicks enable, registers
+the service worker, subscribes `PushManager` with the Notification Service VAPID
+public key, and stores the subscription through:
+
+- `GET /notifications/push/public-key`
+- `POST /notifications/push/subscribe`
+- `DELETE /notifications/push/unsubscribe`
+- `GET /notifications/push/status`
+
+Push requires a browser/platform that supports Service Workers, PushManager, and
+Notifications. Denied browser permission must be changed in site settings. Local
+testing requires `WEB_PUSH_ENABLED=true` plus VAPID keys in `infra/.env`; the
+private key stays server-side in Notification Service and is never exposed to
+the Web App.
+
 ## Backend
 
 Start the repository backend services first, then run the web app. The frontend calls Auth Service endpoints:

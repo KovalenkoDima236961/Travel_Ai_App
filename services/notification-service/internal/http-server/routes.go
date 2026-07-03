@@ -47,6 +47,7 @@ func NewRouter(
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
 	r.Handle("/metrics", observability.MetricsHandler(nil))
+	notificationHandler.RegisterPublicRoutes(r)
 
 	// User-facing routes: require a valid access token.
 	r.Group(func(r chi.Router) {

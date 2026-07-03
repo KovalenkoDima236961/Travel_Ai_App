@@ -54,6 +54,29 @@ type NotificationPreferences struct {
 	Items []NotificationPreference `json:"items"`
 }
 
+// PushPublicKey exposes the VAPID public key when browser push is enabled.
+type PushPublicKey struct {
+	Enabled   bool    `json:"enabled"`
+	PublicKey *string `json:"publicKey"`
+}
+
+// PushSubscribe acknowledges a subscribe attempt.
+type PushSubscribe struct {
+	Subscribed bool `json:"subscribed"`
+	Enabled    bool `json:"enabled"`
+}
+
+// PushUnsubscribe acknowledges a device unsubscribe attempt.
+type PushUnsubscribe struct {
+	Unsubscribed bool `json:"unsubscribed"`
+}
+
+// PushStatus reports browser push state for the current user.
+type PushStatus struct {
+	Enabled             bool `json:"enabled"`
+	ActiveSubscriptions int  `json:"activeSubscriptions"`
+}
+
 // NewNotification maps a domain notification to its API representation.
 func NewNotification(n entity.Notification) Notification {
 	metadata := n.Metadata

@@ -25,6 +25,7 @@ import (
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/push"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 )
 
@@ -137,6 +138,42 @@ func (f *fakePreferenceService) EffectiveForUsers(_ context.Context, userIDs []u
 	return preferences.BuildEffectiveSet(userIDs, nil), nil
 }
 
+type fakePushService struct {
+	publicKey     push.PublicKeyResult
+	status        push.StatusResult
+	subUser       uuid.UUID
+	subInput      push.SubscribeInput
+	unsubUser     uuid.UUID
+	unsubEndpoint string
+	err           error
+}
+
+func (f *fakePushService) PublicKey() push.PublicKeyResult {
+	return f.publicKey
+}
+
+func (f *fakePushService) Subscribe(_ context.Context, input push.SubscribeInput) (bool, error) {
+	f.subUser = input.UserID
+	f.subInput = input
+	if f.err != nil {
+		return false, f.err
+	}
+	return true, nil
+}
+
+func (f *fakePushService) Unsubscribe(_ context.Context, userID uuid.UUID, endpoint string) error {
+	f.unsubUser = userID
+	f.unsubEndpoint = endpoint
+	return f.err
+}
+
+func (f *fakePushService) Status(_ context.Context, _ uuid.UUID) (*push.StatusResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &f.status, nil
+}
+
 func (f *fakeService) List(_ context.Context, in notifications.ListInput) (*notifications.ListResult, error) {
 	f.listedUser = in.UserID
 	return &notifications.ListResult{Notifications: []entity.Notification{}}, nil
@@ -215,6 +252,20 @@ func newTestRouterFullWithStream(
 	}
 	userHandler.EnableStream(streamManager, streamCfg)
 
+	return NewRouter(
+		zap.NewNop(),
+		userHandler,
+		internal,
+		nil,
+		config.CORSConfig{AllowedOrigins: "http://localhost:3000"},
+		config.JWTConfig{AccessSecret: testJWTSecret, HeaderName: "Authorization"},
+		config.InternalConfig{ServiceToken: testInternalToken},
+	)
+}
+
+func newTestRouterWithPush(svc *fakeService, pushSvc *fakePushService) http.Handler {
+	internal := handler.NewInternal(svc, nil, zap.NewNop())
+	userHandler := handler.New(svc, zap.NewNop()).EnablePush(pushSvc)
 	return NewRouter(
 		zap.NewNop(),
 		userHandler,
@@ -373,6 +424,106 @@ func TestPutNotificationPreferencesRejectsMissingEnabled(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPushPublicKeyDoesNotRequireJWT(t *testing.T) {
+	key := "public-key"
+	router := newTestRouterWithPush(&fakeService{}, &fakePushService{
+		publicKey: push.PublicKeyResult{Enabled: true, PublicKey: &key},
+	})
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/notifications/push/public-key", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Enabled   bool    `json:"enabled"`
+		PublicKey *string `json:"publicKey"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !body.Enabled || body.PublicKey == nil || *body.PublicKey != key {
+		t.Fatalf("unexpected public key body %+v", body)
+	}
+}
+
+func TestSubscribePushRequiresJWT(t *testing.T) {
+	router := newTestRouterWithPush(&fakeService{}, &fakePushService{})
+	rec := httptest.NewRecorder()
+	body := []byte(`{"subscription":{"endpoint":"https://push.example.test/1","keys":{"p256dh":"p256dh","auth":"auth"}}}`)
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/notifications/push/subscribe", bytes.NewReader(body)))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", rec.Code)
+	}
+}
+
+func TestSubscribePushUsesTokenSubject(t *testing.T) {
+	pushSvc := &fakePushService{}
+	router := newTestRouterWithPush(&fakeService{}, pushSvc)
+	userID := uuid.New()
+	body := []byte(`{"subscription":{"endpoint":"https://push.example.test/1","keys":{"p256dh":"p256dh","auth":"auth"}},"userAgent":"Chrome Test","browser":"Chrome","deviceLabel":"Mac"}`)
+	req := httptest.NewRequest(http.MethodPost, "/notifications/push/subscribe", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if pushSvc.subUser != userID || pushSvc.subInput.Endpoint != "https://push.example.test/1" {
+		t.Fatalf("expected subscribe scoped to token subject, got user=%s input=%+v", pushSvc.subUser, pushSvc.subInput)
+	}
+}
+
+func TestUnsubscribePushUsesTokenSubject(t *testing.T) {
+	pushSvc := &fakePushService{}
+	router := newTestRouterWithPush(&fakeService{}, pushSvc)
+	userID := uuid.New()
+	body := []byte(`{"endpoint":"https://push.example.test/1"}`)
+	req := httptest.NewRequest(http.MethodDelete, "/notifications/push/unsubscribe", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if pushSvc.unsubUser != userID || pushSvc.unsubEndpoint != "https://push.example.test/1" {
+		t.Fatalf("expected unsubscribe scoped to token subject, got user=%s endpoint=%q", pushSvc.unsubUser, pushSvc.unsubEndpoint)
+	}
+}
+
+func TestPushStatusUsesTokenSubject(t *testing.T) {
+	router := newTestRouterWithPush(&fakeService{}, &fakePushService{
+		status: push.StatusResult{Enabled: true, ActiveSubscriptions: 2},
+	})
+	userID := uuid.New()
+	req := httptest.NewRequest(http.MethodGet, "/notifications/push/status", nil)
+	req.Header.Set("Authorization", "Bearer "+mintAccessToken(t, testJWTSecret, userID, time.Hour))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Enabled             bool `json:"enabled"`
+		ActiveSubscriptions int  `json:"activeSubscriptions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !body.Enabled || body.ActiveSubscriptions != 2 {
+		t.Fatalf("unexpected status body %+v", body)
 	}
 }
 

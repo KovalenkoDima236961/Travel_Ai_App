@@ -8,8 +8,11 @@ It is intentionally small and replaceable: Trip Service calls it **synchronously
 after a successful action, and the web app opens an authenticated
 Server-Sent Events stream for new in-app notifications while keeping polling as
 a fallback. There is no message broker and no WebSocket. It can **optionally send
-email** for selected notification types after the in-app rows are created — see
-[Email notifications (v1)](#email-notifications-v1) and [Limitations](#limitations).
+email** for selected notification types and browser Web Push notifications for
+important events after the in-app rows are created — see
+[Email notifications (v1)](#email-notifications-v1),
+[Web Push notifications (v1)](#web-push-notifications-v1), and
+[Limitations](#limitations).
 
 ## Architecture
 
@@ -32,16 +35,20 @@ Same stack and layout as the other Go services in this repo (Auth/Trip):
 | GET    | `/health` | none | Liveness. Always 200 when the process is up. |
 | GET    | `/ready`  | none | Readiness. 200 only when Postgres is reachable. |
 
-### User-facing (require a valid Auth Service access token)
-All routes derive `user_id` from the token `sub` claim, so a user can only ever
-see their own notifications.
+### User-facing (require a valid Auth Service access token except public key)
+Authenticated routes derive `user_id` from the token `sub` claim, so a user can
+only ever see or change their own notifications and push subscriptions.
 
 | Method | Path                          | Description |
 |--------|-------------------------------|-------------|
 | GET    | `/notifications?limit=&cursor=` | Current user's notifications, newest first, cursor-paginated. |
 | GET    | `/notifications/unread-count`   | `{ "count": N }` of unread notifications. |
 | GET    | `/notifications/stream`         | Authenticated SSE stream for real-time notification updates. |
-| GET    | `/notifications/preferences`     | Full effective in-app/email preference matrix for the current user. |
+| GET    | `/notifications/push/public-key` | VAPID public key and enabled state. No JWT required. |
+| POST   | `/notifications/push/subscribe`  | Store or refresh the current browser's push subscription. |
+| DELETE | `/notifications/push/unsubscribe` | Disable the current user's push subscription endpoint. |
+| GET    | `/notifications/push/status`     | Push enabled state and active subscription count. |
+| GET    | `/notifications/preferences`     | Full effective in-app/email/push preference matrix for the current user. |
 | PUT    | `/notifications/preferences`     | Upsert the current user's notification preferences. |
 | PATCH  | `/notifications/{id}/read`      | Mark one notification read (idempotent). |
 | PATCH  | `/notifications/read-all`       | Mark all of the user's unread notifications read. |
@@ -84,7 +91,7 @@ For the private service network only — never exposed to browsers.
 
 | Method | Path                            | Description |
 |--------|---------------------------------|-------------|
-| POST   | `/internal/notifications/batch` | Create up to 100 notifications. Skips any where `userId == actorUserId`, applies in-app preferences, then fans out email independently for allowlisted/preference-enabled types. |
+| POST   | `/internal/notifications/batch` | Create up to 100 notifications. Skips any where `userId == actorUserId`, applies in-app preferences, then fans out email and push independently for allowlisted/preference-enabled types. |
 
 Example response:
 
@@ -100,6 +107,14 @@ Example response:
     "skipped": 4,
     "skippedByPreference": 3,
     "failed": 0
+  },
+  "push": {
+    "attempted": 2,
+    "sent": 2,
+    "skipped": 3,
+    "skippedByPreference": 1,
+    "failed": 0,
+    "subscriptionsDisabled": 0
   }
 }
 ```
@@ -107,6 +122,8 @@ Example response:
 In-app rows are created **first** and are never rolled back because of an email
 failure. Email is evaluated separately from in-app preferences: a user can
 disable in-app comments while keeping comment emails enabled, or the reverse.
+Push is also evaluated as an independent channel. Expired or invalid push
+subscriptions are soft-disabled automatically.
 When email is fail-open (or disabled) a send failure is reported only in
 `email.failed` with HTTP 201; when email is fail-closed and a send fails the rows
 still exist but the endpoint returns **502** so the caller can observe the
@@ -166,7 +183,7 @@ Stores sparse per-user overrides for future notifications. Missing rows mean
 |--------------|---------------|-------|
 | `id`         | UUID PK       | `gen_random_uuid()` |
 | `user_id`    | UUID NOT NULL | owner of the preference |
-| `channel`    | TEXT NOT NULL | `in_app` or `email` |
+| `channel`    | TEXT NOT NULL | `in_app`, `email`, or `push` |
 | `category`   | TEXT NOT NULL | `collaboration`, `comments`, `trip_updates`, or `role_changes` |
 | `enabled`    | BOOLEAN NOT NULL | channel/category state |
 | `created_at` | TIMESTAMP NOT NULL DEFAULT NOW() | |
@@ -174,6 +191,25 @@ Stores sparse per-user overrides for future notifications. Missing rows mean
 
 Constrained by `UNIQUE (user_id, channel, category)` and indexed on `user_id`
 and `(user_id, channel)`.
+
+### `push_subscriptions`
+
+Stores one row per browser Push API subscription. Multiple active subscriptions
+per user are supported.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | `gen_random_uuid()` |
+| `user_id` | UUID NOT NULL | owner |
+| `endpoint` | TEXT NOT NULL UNIQUE | push-service endpoint; do not log in full |
+| `p256dh` / `auth` | TEXT NOT NULL | browser key material; do not log |
+| `user_agent` / `browser` / `device_label` | TEXT NULL | device metadata |
+| `status` | TEXT NOT NULL | `active` or `disabled` |
+| `created_at` / `updated_at` | TIMESTAMP NOT NULL | |
+| `last_used_at` | TIMESTAMP NULL | last successful send |
+| `disabled_at` / `disable_reason` | TIMESTAMP/TEXT NULL | cleanup/audit state |
+
+Indexed on `user_id`, `status`, and `(user_id, status)`.
 
 ## Notification types
 
@@ -195,6 +231,7 @@ Channels:
 
 - `in_app`
 - `email`
+- `push`
 
 Categories and type mapping:
 
@@ -208,21 +245,22 @@ Categories and type mapping:
 
 Defaults for a user with no stored rows:
 
-| Category | In-app | Email |
-|----------|--------|-------|
-| `collaboration` | enabled | enabled |
-| `comments` | enabled | enabled |
-| `role_changes` | enabled | enabled |
-| `trip_updates` | enabled | disabled |
+| Category | In-app | Email | Push |
+|----------|--------|-------|------|
+| `collaboration` | enabled | enabled | enabled |
+| `comments` | enabled | enabled | enabled |
+| `role_changes` | enabled | enabled | enabled |
+| `trip_updates` | enabled | disabled | enabled |
 
-`GET /notifications/preferences` returns all 8 channel/category combinations
+`GET /notifications/preferences` returns all 12 channel/category combinations
 after merging stored rows over these defaults:
 
 ```json
 {
   "items": [
     { "channel": "in_app", "category": "collaboration", "enabled": true },
-    { "channel": "email", "category": "trip_updates", "enabled": false }
+    { "channel": "email", "category": "trip_updates", "enabled": false },
+    { "channel": "push", "category": "trip_updates", "enabled": true }
   ]
 }
 ```
@@ -238,6 +276,8 @@ comments, collaborator roles, activity feed rows, and existing notifications are
 unchanged. If in-app collaboration invitations are disabled, the invitation still
 exists in the Trips page invitation flow; only the notification row is skipped.
 Unknown notification types are allowed in-app by default and are not emailed.
+Unknown notification types are also not pushed until they have an explicit
+lock-screen-safe payload policy.
 
 ## Authentication
 
@@ -305,6 +345,53 @@ itinerary payloads, private preferences, or comment bodies (only day/item).
 `SMTP_PASSWORD` is never logged and bodies are never logged at info level;
 recipient addresses are masked in logs (`an***@example.com`).
 
+## Web Push notifications (v1)
+
+Browser push uses VAPID and the standard Push API. There is no Firebase Cloud
+Messaging, APNS, native mobile push, SMS, or paid push vendor.
+
+User flow:
+
+1. The web app reads `GET /notifications/push/public-key`.
+2. After an explicit user click, the browser asks for notification permission,
+   registers `/sw.js`, and subscribes `PushManager` with the VAPID public key.
+3. `POST /notifications/push/subscribe` stores the endpoint/key material for the
+   authenticated user. Re-subscribing the same endpoint refreshes the keys,
+   metadata, and active status.
+4. Internal notification batches evaluate push preferences independently from
+   in-app and email preferences, then send to all active subscriptions.
+5. `404`/`410` and invalid-subscription responses disable the subscription so it
+   is not retried forever.
+6. `DELETE /notifications/push/unsubscribe` soft-disables the current user's
+   endpoint and succeeds even when the row is already absent.
+
+Only selected lock-screen-safe types are pushed by default:
+`collaboration_invited`, `collaboration_accepted`,
+`collaborator_role_changed`, `collaborator_removed`, `comment_created`,
+`itinerary_generated`, `generation_job_failed`, `budget_optimization_ready`, and
+`budget_optimization_failed`. Payloads are short and contain no full comments,
+full itineraries, tokens, private notes, OAuth data, or API keys. Click URLs are
+relative app URLs such as `/trips/{tripId}` or `/notifications`.
+
+Generate local VAPID keys with:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Then set:
+
+```bash
+WEB_PUSH_ENABLED=true
+WEB_PUSH_VAPID_PUBLIC_KEY=...
+WEB_PUSH_VAPID_PRIVATE_KEY=...
+WEB_PUSH_SUBJECT=mailto:dev@example.com
+```
+
+The public key is safe to expose to browsers. The private key is a secret and
+must not be committed or logged. Online VAPID key generators are not recommended
+for real environments.
+
 ## Configuration
 
 Loaded from a YAML file (`-config ./configs/config.yaml`) or environment.
@@ -335,6 +422,14 @@ Loaded from a YAML file (`-config ./configs/config.yaml`) or environment.
 | `SMTP_FROM_EMAIL` | `no-reply@localhost` | From address (required when provider=smtp) |
 | `SMTP_FROM_NAME` | `AI Travel Planner` | From display name |
 | `SMTP_USE_TLS` | `true` | Reserved/STARTTLS hint |
+| `WEB_PUSH_ENABLED` | `false` | Enable browser Web Push when VAPID keys are configured |
+| `WEB_PUSH_VAPID_PUBLIC_KEY` | empty | Browser-visible VAPID public key |
+| `WEB_PUSH_VAPID_PRIVATE_KEY` | empty | Secret VAPID private key |
+| `WEB_PUSH_SUBJECT` | `mailto:support@example.com` | VAPID subject |
+| `WEB_PUSH_TIMEOUT_SECONDS` | `8` | Per-subscription send timeout |
+| `WEB_PUSH_TTL_SECONDS` | `3600` | Push message TTL |
+| `WEB_PUSH_URGENCY` | `normal` | Web Push urgency (`very-low`, `low`, `normal`, `high`) |
+| `WEB_PUSH_FAIL_OPEN` | `true` | Log push errors instead of failing the batch |
 | `POSTGRES_DB` | `notification_service` | Database name |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` | `postgres` | Credentials |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5432` | Host/port |
@@ -361,6 +456,8 @@ make lint          # golangci-lint
   `http_request_duration_seconds`, and `http_requests_in_flight`.
 - Notification metrics include `notifications_created_total`,
   `notifications_failed_total`, `notifications_email_sent_total`,
+  `push_notifications_sent_total`, `push_notifications_failed_total`,
+  `push_subscriptions_disabled_total`,
   `notifications_sse_connections`, `notifications_sse_events_sent_total`, and
   `notifications_sse_events_dropped_total`.
 - The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
@@ -377,7 +474,10 @@ make lint          # golangci-lint
 - No cross-instance fanout guarantee.
 - No replay stream; clients recover missed events through `GET /notifications`
   and unread-count polling.
-- No push notifications.
+- Browser Web Push only; no native mobile push, FCM, APNS, SMS, or paid push
+  vendor.
+- Push delivery is best-effort and depends on browser/platform permission and
+  push-service behavior.
 - No per-trip notification preferences.
 - No unsubscribe links.
 - No quiet hours.

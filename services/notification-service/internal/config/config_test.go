@@ -124,3 +124,48 @@ func TestSMTPProviderRequiresHostAndFrom(t *testing.T) {
 		t.Fatalf("expected valid smtp config to load, got %v", err)
 	}
 }
+
+func TestWebPushDefaultsAndVAPIDKeyNormalization(t *testing.T) {
+	setBaseEnv(t)
+	setDevSecrets(t)
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WebPush.Enabled {
+		t.Fatal("expected web push disabled without VAPID keys")
+	}
+	if cfg.WebPush.TimeoutSeconds != 8 || cfg.WebPush.TTLSeconds != 3600 || cfg.WebPush.Urgency != "normal" || !cfg.WebPush.FailOpen {
+		t.Fatalf("unexpected web push defaults: %+v", cfg.WebPush)
+	}
+
+	t.Setenv("WEB_PUSH_VAPID_PUBLIC_KEY", " public ")
+	t.Setenv("WEB_PUSH_VAPID_PRIVATE_KEY", " private ")
+	cfg, err = Load("")
+	if err != nil {
+		t.Fatalf("Load with VAPID keys returned error: %v", err)
+	}
+	if !cfg.WebPush.Enabled || cfg.WebPush.VAPIDPublicKey != "public" || cfg.WebPush.VAPIDPrivateKey != "private" {
+		t.Fatalf("expected VAPID keys to enable and trim web push, got %+v", cfg.WebPush)
+	}
+
+	t.Setenv("WEB_PUSH_ENABLED", "false")
+	cfg, err = Load("")
+	if err != nil {
+		t.Fatalf("Load with explicitly disabled Web Push returned error: %v", err)
+	}
+	if cfg.WebPush.Enabled {
+		t.Fatal("expected explicit WEB_PUSH_ENABLED=false to keep web push disabled")
+	}
+}
+
+func TestWebPushRejectsPartialVAPIDKeyPair(t *testing.T) {
+	setBaseEnv(t)
+	setDevSecrets(t)
+	t.Setenv("WEB_PUSH_VAPID_PUBLIC_KEY", "public")
+
+	if _, err := Load(""); err == nil {
+		t.Fatal("expected partial VAPID key pair to be rejected")
+	}
+}

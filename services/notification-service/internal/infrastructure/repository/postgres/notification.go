@@ -278,3 +278,192 @@ func (r *Repository) UpsertNotificationPreferencesBatch(ctx context.Context, use
 	}
 	return nil
 }
+
+// UpsertPushSubscription creates or refreshes a browser push subscription. A
+// repeated endpoint reactivates the row and updates its key/material metadata.
+func (r *Repository) UpsertPushSubscription(ctx context.Context, subscription entity.PushSubscription) (*entity.PushSubscription, error) {
+	if subscription.ID == uuid.Nil {
+		subscription.ID = uuid.New()
+	}
+	query, args, err := r.db.Builder.
+		Insert("push_subscriptions").
+		Columns(dto.PushSubscriptionInsertColumns()...).
+		Values(dto.PushSubscriptionInsertValues(&subscription)...).
+		Suffix(`
+ON CONFLICT (endpoint) DO UPDATE SET
+    user_id = EXCLUDED.user_id,
+    p256dh = EXCLUDED.p256dh,
+    auth = EXCLUDED.auth,
+    user_agent = EXCLUDED.user_agent,
+    browser = EXCLUDED.browser,
+    device_label = EXCLUDED.device_label,
+    status = 'active',
+    updated_at = NOW(),
+    disabled_at = NULL,
+    disable_reason = NULL
+RETURNING ` + dto.PushSubscriptionColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build upsert push subscription: %w", err)
+	}
+	row, err := dto.ScanPushSubscription(r.db.QueryRow(ctx, query, args...))
+	if err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
+// GetPushSubscriptionByEndpoint loads a subscription by its endpoint.
+func (r *Repository) GetPushSubscriptionByEndpoint(ctx context.Context, endpoint string) (*entity.PushSubscription, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.PushSubscriptionColumns).
+		From("push_subscriptions").
+		Where(sq.Eq{"endpoint": endpoint}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get push subscription by endpoint: %w", err)
+	}
+	return dto.ScanPushSubscription(r.db.QueryRow(ctx, query, args...))
+}
+
+// ListActivePushSubscriptionsByUserID returns active subscriptions for one user.
+func (r *Repository) ListActivePushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]entity.PushSubscription, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.PushSubscriptionColumns).
+		From("push_subscriptions").
+		Where(sq.Eq{
+			"user_id": dto.IDArg(userID),
+			"status":  entity.PushSubscriptionStatusActive,
+		}).
+		OrderBy("created_at ASC", "id ASC").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list active push subscriptions: %w", err)
+	}
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query active push subscriptions: %w", err)
+	}
+	defer rows.Close()
+	return dto.ScanPushSubscriptionRows(rows)
+}
+
+// ListPushSubscriptionsByUserID returns all subscriptions for one user.
+func (r *Repository) ListPushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]entity.PushSubscription, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.PushSubscriptionColumns).
+		From("push_subscriptions").
+		Where(sq.Eq{"user_id": dto.IDArg(userID)}).
+		OrderBy("created_at DESC", "id DESC").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list push subscriptions: %w", err)
+	}
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query push subscriptions: %w", err)
+	}
+	defer rows.Close()
+	return dto.ScanPushSubscriptionRows(rows)
+}
+
+// CountActivePushSubscriptionsByUserID returns active subscription count for
+// status UI.
+func (r *Repository) CountActivePushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	query, args, err := r.db.Builder.
+		Select("COUNT(*)").
+		From("push_subscriptions").
+		Where(sq.Eq{
+			"user_id": dto.IDArg(userID),
+			"status":  entity.PushSubscriptionStatusActive,
+		}).
+		ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("build count active push subscriptions: %w", err)
+	}
+	var count int
+	if err := r.db.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count active push subscriptions: %w", err)
+	}
+	return count, nil
+}
+
+// DisablePushSubscriptionByEndpoint soft-disables a subscription owned by a
+// user. Missing rows are treated as success so unsubscribe is idempotent.
+func (r *Repository) DisablePushSubscriptionByEndpoint(ctx context.Context, userID uuid.UUID, endpoint, reason string) error {
+	query, args, err := r.db.Builder.
+		Update("push_subscriptions").
+		Set("status", entity.PushSubscriptionStatusDisabled).
+		Set("disabled_at", sq.Expr("NOW()")).
+		Set("disable_reason", reason).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"user_id":  dto.IDArg(userID),
+			"endpoint": endpoint,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build disable push subscription by endpoint: %w", err)
+	}
+	if _, err := r.db.Exec(ctx, query, args...); err != nil {
+		return fmt.Errorf("disable push subscription by endpoint: %w", err)
+	}
+	return nil
+}
+
+// DisablePushSubscriptionByID soft-disables a subscription by id after a push
+// service reports it as gone/invalid.
+func (r *Repository) DisablePushSubscriptionByID(ctx context.Context, id uuid.UUID, reason string) error {
+	query, args, err := r.db.Builder.
+		Update("push_subscriptions").
+		Set("status", entity.PushSubscriptionStatusDisabled).
+		Set("disabled_at", sq.Expr("NOW()")).
+		Set("disable_reason", reason).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{"id": dto.IDArg(id)}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build disable push subscription by id: %w", err)
+	}
+	if _, err := r.db.Exec(ctx, query, args...); err != nil {
+		return fmt.Errorf("disable push subscription by id: %w", err)
+	}
+	return nil
+}
+
+// DeletePushSubscriptionByEndpoint deletes a subscription owned by a user. The
+// service currently uses soft-disable, but this method is available for future
+// hard-delete cleanup.
+func (r *Repository) DeletePushSubscriptionByEndpoint(ctx context.Context, userID uuid.UUID, endpoint string) error {
+	query, args, err := r.db.Builder.
+		Delete("push_subscriptions").
+		Where(sq.Eq{
+			"user_id":  dto.IDArg(userID),
+			"endpoint": endpoint,
+		}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build delete push subscription by endpoint: %w", err)
+	}
+	if _, err := r.db.Exec(ctx, query, args...); err != nil {
+		return fmt.Errorf("delete push subscription by endpoint: %w", err)
+	}
+	return nil
+}
+
+// UpdatePushSubscriptionLastUsed records a successful push delivery timestamp.
+func (r *Repository) UpdatePushSubscriptionLastUsed(ctx context.Context, id uuid.UUID) error {
+	query, args, err := r.db.Builder.
+		Update("push_subscriptions").
+		Set("last_used_at", sq.Expr("NOW()")).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{"id": dto.IDArg(id)}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build update push subscription last used: %w", err)
+	}
+	if _, err := r.db.Exec(ctx, query, args...); err != nil {
+		return fmt.Errorf("update push subscription last used: %w", err)
+	}
+	return nil
+}

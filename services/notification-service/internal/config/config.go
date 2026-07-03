@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -35,6 +36,7 @@ type Config struct {
 	Internal   InternalConfig  `yaml:"internal" validate:"required"`
 	CORS       CORSConfig      `yaml:"cors" validate:"required"`
 	Email      EmailConfig     `yaml:"email" validate:"required"`
+	WebPush    WebPushConfig   `yaml:"web_push" validate:"required"`
 	Users      UsersConfig     `yaml:"users" validate:"required"`
 	SSE        SSEConfig       `yaml:"sse" validate:"required"`
 }
@@ -68,6 +70,28 @@ type SMTPConfig struct {
 	FromEmail string `yaml:"from_email" env:"SMTP_FROM_EMAIL" env-default:"no-reply@localhost"`
 	FromName  string `yaml:"from_name" env:"SMTP_FROM_NAME" env-default:"AI Travel Planner"`
 	UseTLS    bool   `yaml:"use_tls" env:"SMTP_USE_TLS" env-default:"true"`
+}
+
+// WebPushConfig controls browser Web Push delivery using VAPID. The private
+// key must never be exposed to the Web App or logs.
+type WebPushConfig struct {
+	// Enabled turns browser push delivery on/off globally. It is normalized to
+	// false when the VAPID key pair is incomplete.
+	Enabled bool `yaml:"enabled" env:"WEB_PUSH_ENABLED" env-default:"false"`
+	// VAPIDPublicKey is safe to expose to browsers for PushManager.subscribe.
+	VAPIDPublicKey string `yaml:"vapid_public_key" env:"WEB_PUSH_VAPID_PUBLIC_KEY" env-default:""`
+	// VAPIDPrivateKey signs VAPID JWTs and must remain secret.
+	VAPIDPrivateKey string `yaml:"vapid_private_key" env:"WEB_PUSH_VAPID_PRIVATE_KEY" env-default:""`
+	// Subject identifies the application server to push services.
+	Subject string `yaml:"subject" env:"WEB_PUSH_SUBJECT" env-default:"mailto:support@example.com"`
+	// TimeoutSeconds bounds each push-service request.
+	TimeoutSeconds int `yaml:"timeout_seconds" env:"WEB_PUSH_TIMEOUT_SECONDS" env-default:"8" validate:"min=1"`
+	// TTLSeconds is the push-service message TTL.
+	TTLSeconds int `yaml:"ttl_seconds" env:"WEB_PUSH_TTL_SECONDS" env-default:"3600" validate:"min=0"`
+	// Urgency is forwarded as the Web Push Urgency header.
+	Urgency string `yaml:"urgency" env:"WEB_PUSH_URGENCY" env-default:"normal"`
+	// FailOpen controls whether push failures fail the internal batch endpoint.
+	FailOpen bool `yaml:"fail_open" env:"WEB_PUSH_FAIL_OPEN" env-default:"true"`
 }
 
 // UsersConfig points at the service that owns user identity. In v1 Auth Service
@@ -121,7 +145,7 @@ type InternalConfig struct {
 // CORSConfig controls browser access to the Notification Service API.
 type CORSConfig struct {
 	AllowedOrigins string `yaml:"allowed_origins" env:"CORS_ALLOWED_ORIGINS" env-default:"http://localhost:3000"`
-	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,PUT,PATCH,OPTIONS"`
+	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,PUT,PATCH,DELETE,OPTIONS"`
 	AllowedHeaders string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
 }
 
@@ -164,6 +188,9 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validateEmail(); err != nil {
 		return nil, err
 	}
+	if err := cfg.validateWebPush(); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
@@ -196,15 +223,31 @@ func (c *Config) SSEWriteTimeout() time.Duration {
 	return time.Duration(c.SSE.WriteTimeoutSeconds) * time.Second
 }
 
+// WebPushTimeout returns the per-push request timeout.
+func (c *Config) WebPushTimeout() time.Duration {
+	return time.Duration(c.WebPush.TimeoutSeconds) * time.Second
+}
+
 func (c *Config) applyDefaults() {
 	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && c.Env == "development" {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
-		c.CORS.AllowedMethods = "GET,PUT,PATCH,OPTIONS"
+		c.CORS.AllowedMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
 	}
 	if strings.TrimSpace(c.CORS.AllowedHeaders) == "" {
 		c.CORS.AllowedHeaders = "Content-Type,Authorization"
+	}
+	c.WebPush.VAPIDPublicKey = strings.TrimSpace(c.WebPush.VAPIDPublicKey)
+	c.WebPush.VAPIDPrivateKey = strings.TrimSpace(c.WebPush.VAPIDPrivateKey)
+	c.WebPush.Subject = strings.TrimSpace(c.WebPush.Subject)
+	c.WebPush.Urgency = strings.ToLower(strings.TrimSpace(c.WebPush.Urgency))
+	if c.WebPush.Urgency == "" {
+		c.WebPush.Urgency = "normal"
+	}
+	_, webPushEnabledExplicit := os.LookupEnv("WEB_PUSH_ENABLED")
+	if !webPushEnabledExplicit && c.WebPush.VAPIDPublicKey != "" && c.WebPush.VAPIDPrivateKey != "" {
+		c.WebPush.Enabled = true
 	}
 }
 
@@ -251,6 +294,30 @@ func (c *Config) validateEmail() error {
 		if strings.TrimSpace(c.Email.SMTP.FromEmail) == "" {
 			return fmt.Errorf("SMTP_FROM_EMAIL is required when EMAIL_PROVIDER=smtp")
 		}
+	}
+	return nil
+}
+
+// validateWebPush enforces VAPID-key consistency. A missing full key pair keeps
+// push disabled; a partial key pair is considered a configuration error because
+// it almost always indicates a typo or incomplete secret rollout.
+func (c *Config) validateWebPush() error {
+	hasPublic := c.WebPush.VAPIDPublicKey != ""
+	hasPrivate := c.WebPush.VAPIDPrivateKey != ""
+	if hasPublic != hasPrivate {
+		return fmt.Errorf("WEB_PUSH_VAPID_PUBLIC_KEY and WEB_PUSH_VAPID_PRIVATE_KEY must be configured together")
+	}
+	if !hasPublic || !hasPrivate {
+		c.WebPush.Enabled = false
+		return nil
+	}
+	switch c.WebPush.Urgency {
+	case "very-low", "low", "normal", "high":
+	default:
+		return fmt.Errorf("WEB_PUSH_URGENCY must be one of very-low, low, normal, high")
+	}
+	if c.WebPush.Enabled && strings.TrimSpace(c.WebPush.Subject) == "" {
+		return fmt.Errorf("WEB_PUSH_SUBJECT is required when web push is enabled")
 	}
 	return nil
 }

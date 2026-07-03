@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/push"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 )
 
@@ -30,6 +31,12 @@ type emailDispatcher interface {
 	SendEmailsForNotifications(ctx context.Context, notifications []entity.Notification, gates ...emailnotifications.EmailPreferenceGate) (emailnotifications.EmailSendResult, error)
 }
 
+// pushDispatcher sends browser push for selected notification types after the
+// batch has been validated and in-app rows have been created/skipped.
+type pushDispatcher interface {
+	SendPushForNotifications(ctx context.Context, notifications []entity.Notification, gates ...push.PreferenceGate) (push.BatchResult, error)
+}
+
 // internalPreferenceService loads effective recipient preferences for an
 // internal batch. The preferences.Service satisfies it.
 type internalPreferenceService interface {
@@ -42,6 +49,7 @@ type internalPreferenceService interface {
 type InternalHandler struct {
 	svc         internalService
 	emails      emailDispatcher
+	pushes      pushDispatcher
 	preferences internalPreferenceService
 	streams     stream.Manager
 	log         *zap.Logger
@@ -70,6 +78,12 @@ func (h *InternalHandler) EnableStream(manager stream.Manager) *InternalHandler 
 	return h
 }
 
+// EnablePush wires optional browser push fanout after batch creation.
+func (h *InternalHandler) EnablePush(pushes pushDispatcher) *InternalHandler {
+	h.pushes = pushes
+	return h
+}
+
 // RegisterRoutes mounts the internal routes. The caller wraps these in the
 // internal service-token middleware.
 func (h *InternalHandler) RegisterRoutes(r chi.Router) {
@@ -86,16 +100,17 @@ type batchResponse struct {
 	Skipped             int                                `json:"skipped"`
 	SkippedByPreference int                                `json:"skippedByPreference"`
 	Email               emailnotifications.EmailSendResult `json:"email"`
+	Push                push.BatchResult                   `json:"push"`
 }
 
 // CreateBatch handles POST /internal/notifications/batch. It trusts the caller
 // to provide recipient user ids; it skips self-notifications, creates the in-app
-// rows, then fans out email for selected types.
+// rows, then fans out email and push for selected types.
 //
 // In-app notification creation always happens first and is never rolled back
-// because of an email failure. When email is fail-open (or disabled), a send
-// failure is reported in the response's email.failed count with HTTP 201. When
-// email is fail-closed and a send fails, the rows still exist but the endpoint
+// because of an email or push failure. When a channel is fail-open (or
+// disabled), send failures are reported in response stats with HTTP 201. When a
+// channel is fail-closed and a send fails, the rows still exist but the endpoint
 // returns 502 so the caller can observe the degraded delivery.
 func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 	var req request.CreateNotificationsBatch
@@ -142,16 +157,34 @@ func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 	recordNotificationEmail("batch", "sent", emailResult.Sent)
 	recordNotificationEmail("batch", "failed", emailResult.Failed)
 	recordNotificationEmail("batch", "skipped", emailResult.Skipped)
+
+	pushResult := push.BatchResult{Skipped: len(batchResult.EmailCandidates)}
+	var pushErr error
+	if h.pushes != nil {
+		pushResult, pushErr = h.pushes.SendPushForNotifications(r.Context(), batchResult.EmailCandidates, preferenceSet)
+		recordNotificationPush("batch", "batch", "sent", pushResult.Sent)
+		recordNotificationPush("batch", "batch", "failed", pushResult.Failed)
+		recordNotificationPush("batch", "batch", "skipped", pushResult.Skipped)
+		recordNotificationPush("batch", "batch", "disabled", pushResult.SubscriptionsDisabled)
+	}
 	if emailErr != nil {
 		recordNotificationFailed("batch", "email", "send_failed")
-		// Fail-closed: rows are committed but email delivery failed. Surface a
-		// 502 so the caller can observe degraded delivery; details are logged.
 		h.log.Warn("email delivery failed for created notifications (fail-closed)",
 			zap.Int("created", len(batchResult.Created)),
 			zap.Int("email_failed", emailResult.Failed),
 			zap.Error(emailErr),
 		)
 		writeError(w, http.StatusBadGateway, "notifications created but email delivery failed")
+		return
+	}
+	if pushErr != nil {
+		recordNotificationFailed("batch", "push", "send_failed")
+		h.log.Warn("push delivery failed for created notifications (fail-closed)",
+			zap.Int("created", len(batchResult.Created)),
+			zap.Int("push_failed", pushResult.Failed),
+			zap.Error(pushErr),
+		)
+		writeError(w, http.StatusBadGateway, "notifications created but push delivery failed")
 		return
 	}
 
@@ -161,6 +194,7 @@ func (h *InternalHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		Skipped:             batchResult.Skipped,
 		SkippedByPreference: batchResult.SkippedByPreference,
 		Email:               emailResult,
+		Push:                pushResult,
 	})
 }
 

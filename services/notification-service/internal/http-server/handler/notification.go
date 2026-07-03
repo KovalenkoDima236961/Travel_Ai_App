@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/push"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/stream"
 )
 
@@ -37,11 +38,20 @@ type preferenceService interface {
 	UpdatePreferences(ctx context.Context, userID uuid.UUID, items []preferences.PreferenceInput) (*preferences.PreferencesResult, error)
 }
 
+// pushService is the user-facing browser push port.
+type pushService interface {
+	PublicKey() push.PublicKeyResult
+	Subscribe(ctx context.Context, input push.SubscribeInput) (bool, error)
+	Unsubscribe(ctx context.Context, userID uuid.UUID, endpoint string) error
+	Status(ctx context.Context, userID uuid.UUID) (*push.StatusResult, error)
+}
+
 // Handler serves a user's own notifications. All routes it registers must be
 // mounted behind JWT auth so user_id always comes from a validated token.
 type Handler struct {
 	svc         notificationService
 	preferences preferenceService
+	push        pushService
 	streams     stream.Manager
 	streamCfg   stream.Config
 	log         *zap.Logger
@@ -57,6 +67,12 @@ func New(svc notificationService, log *zap.Logger, preferenceSvc ...preferenceSe
 		prefs = preferenceSvc[0]
 	}
 	return &Handler{svc: svc, preferences: prefs, log: log}
+}
+
+// EnablePush wires browser push endpoints onto the handler.
+func (h *Handler) EnablePush(pushSvc pushService) *Handler {
+	h.push = pushSvc
+	return h
 }
 
 // EnableStream wires the optional SSE stream endpoint onto the handler.
@@ -79,8 +95,111 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/preferences", h.GetPreferences)
 			r.Put("/preferences", h.UpdatePreferences)
 		}
+		if h.push != nil {
+			r.Post("/push/subscribe", h.SubscribePush)
+			r.Delete("/push/unsubscribe", h.UnsubscribePush)
+			r.Get("/push/status", h.PushStatus)
+		}
 		r.Patch("/read-all", h.MarkAllRead)
 		r.Patch("/{id}/read", h.MarkRead)
+	})
+}
+
+// RegisterPublicRoutes mounts notification routes that do not require user
+// authentication. VAPID public keys are safe to expose.
+func (h *Handler) RegisterPublicRoutes(r chi.Router) {
+	if h.push != nil {
+		r.Get("/notifications/push/public-key", h.PushPublicKey)
+	}
+}
+
+// PushPublicKey handles GET /notifications/push/public-key.
+func (h *Handler) PushPublicKey(w http.ResponseWriter, _ *http.Request) {
+	if h.push == nil {
+		writeJSON(w, http.StatusOK, response.PushPublicKey{Enabled: false})
+		return
+	}
+	result := h.push.PublicKey()
+	writeJSON(w, http.StatusOK, response.PushPublicKey{
+		Enabled:   result.Enabled,
+		PublicKey: result.PublicKey,
+	})
+}
+
+// SubscribePush handles POST /notifications/push/subscribe.
+func (h *Handler) SubscribePush(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if h.push == nil {
+		writeJSON(w, http.StatusOK, response.PushSubscribe{Subscribed: false, Enabled: false})
+		return
+	}
+
+	var req request.SubscribePush
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	subscribed, err := h.push.Subscribe(r.Context(), push.SubscribeInput{
+		UserID:      user.ID,
+		Endpoint:    strings.TrimSpace(req.Subscription.Endpoint),
+		P256DH:      strings.TrimSpace(req.Subscription.Keys.P256DH),
+		Auth:        strings.TrimSpace(req.Subscription.Keys.Auth),
+		UserAgent:   request.NormalizeOptionalString(req.UserAgent),
+		Browser:     request.NormalizeOptionalString(req.Browser),
+		DeviceLabel: request.NormalizeOptionalString(req.DeviceLabel),
+	})
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.PushSubscribe{Subscribed: subscribed, Enabled: subscribed})
+}
+
+// UnsubscribePush handles DELETE /notifications/push/unsubscribe.
+func (h *Handler) UnsubscribePush(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if h.push == nil {
+		writeJSON(w, http.StatusOK, response.PushUnsubscribe{Unsubscribed: true})
+		return
+	}
+
+	var req request.UnsubscribePush
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := h.push.Unsubscribe(r.Context(), user.ID, strings.TrimSpace(req.Endpoint)); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.PushUnsubscribe{Unsubscribed: true})
+}
+
+// PushStatus handles GET /notifications/push/status.
+func (h *Handler) PushStatus(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if h.push == nil {
+		writeJSON(w, http.StatusOK, response.PushStatus{Enabled: false})
+		return
+	}
+	status, err := h.push.Status(r.Context(), user.ID)
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.PushStatus{
+		Enabled:             status.Enabled,
+		ActiveSubscriptions: status.ActiveSubscriptions,
 	})
 }
 

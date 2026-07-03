@@ -94,17 +94,21 @@ selected types (collaboration invited, comment created, collaborator role
 changed/removed by default) it resolves the recipient's email from Auth Service
 (internal `POST /internal/users/batch`) and sends a short email after the in-app
 rows are created. Notification Preferences v1 lets each authenticated user
-control global category preferences for in-app and email delivery through
+control global category preferences for in-app, email, and browser push delivery through
 `GET/PUT /notifications/preferences`; missing rows use defaults where in-app
-categories are enabled and email trip updates are disabled. Email is behind a
-provider switch (`EMAIL_PROVIDER=mock` by default — sends nothing externally;
-`smtp` for real delivery) and is fail-open by default, so an email failure never
-affects in-app notification creation. Real-time notification delivery uses
+and push categories are enabled and email trip updates are disabled. Email is
+behind a provider switch (`EMAIL_PROVIDER=mock` by default — sends nothing
+externally; `smtp` for real delivery) and is fail-open by default, so an email
+failure never affects in-app notification creation. Web Push Notifications v1
+uses VAPID browser Push API subscriptions, stores multiple subscriptions per
+user, sends short lock-screen-safe payloads for important events, and disables
+expired/gone subscriptions automatically. Real-time notification delivery uses
 authenticated Server-Sent Events from Notification Service with an in-memory,
-single-instance connection manager; polling remains the recovery path. No push,
-WebSockets, RabbitMQ, background workers, per-trip notification preferences,
-quiet hours, unsubscribe links, or digests in v1 — the synchronous HTTP design
-is deliberately simple and replaceable by an event bus / async worker later.
+single-instance connection manager; polling remains the recovery path. No native
+mobile push, FCM/APNS, WebSockets, RabbitMQ, background workers, per-trip
+notification preferences, quiet hours, unsubscribe links, or digests in v1 — the
+synchronous HTTP design is deliberately simple and replaceable by an event bus /
+async worker later.
 User/Profile Service v1 lives in `services/user-service` and owns travel
 profiles/preferences for authenticated users, also scoped by the JWT `sub`.
 AI Planning Service owns itinerary generation and local travel knowledge.
