@@ -226,6 +226,7 @@ function OpsDashboard() {
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Error</th>
                 <th className="py-2 pr-4">Trip</th>
+                <th className="py-2 pr-4">Scope</th>
                 <th className="py-2 pr-4">Created</th>
                 <th className="py-2 pr-4">Correlation</th>
                 <th className="py-2 pr-4">Actions</th>
@@ -239,6 +240,7 @@ function OpsDashboard() {
                   <td className="py-3 pr-4"><StatusPill status={job.status} /></td>
                   <td className="py-3 pr-4">{job.errorCode ?? "-"}</td>
                   <td className="py-3 pr-4 font-mono text-xs">{shortId(job.tripId)}</td>
+                  <td className="py-3 pr-4">{job.scope ?? "-"}</td>
                   <td className="py-3 pr-4">{formatDate(job.createdAt)}</td>
                   <td className="py-3 pr-4 font-mono text-xs">{shortId(job.correlationId)}</td>
                   <td className="py-3 pr-4">
@@ -602,6 +604,8 @@ function JobDetails({ job }: { job: OpsJob }) {
   const rows = [
     ["Job ID", job.id],
     ["Trip ID", job.tripId],
+    ["Workspace ID", job.workspaceId ?? "-"],
+    ["Scope", job.scope ?? "-"],
     ["Requested by", job.requestedByUserId],
     ["Status", job.status],
     ["Expected revision", String(job.expectedItineraryRevision)],

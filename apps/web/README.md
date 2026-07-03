@@ -1,9 +1,9 @@
 # Travel AI Planner Web
 
 Next.js App Router frontend for the Travel AI App. The web app owns the browser
-experience for authentication, trip planning, itinerary editing, collaboration,
-notifications, exports, calendar sync controls, maps, weather, budgets, and
-ticket/activity availability checks.
+experience for authentication, workspace planning, trip planning, itinerary
+editing, collaboration, notifications, exports, calendar sync controls, maps,
+weather, budgets, and ticket/activity availability checks.
 
 ## Frontend Boundary
 
@@ -16,11 +16,12 @@ flowchart LR
 
     API --> Auth["Auth Service :8082"]
     API --> Trip["Trip Service :8080"]
-    API --> User["User Service :8083"]
+    API --> UserProxy["Next API proxy<br/>/api/user-service/*"]
     API --> External["External Integrations :8084"]
     API --> NotifyProxy["Next API proxy<br/>/api/notification-service/*"]
     API --> ExternalProxy["Next API proxy<br/>/api/external-integrations/*"]
 
+    UserProxy --> User["User Service :8083"]
     NotifyProxy --> Notify["Notification Service :8086"]
     ExternalProxy --> External
 
@@ -31,7 +32,8 @@ flowchart LR
 
 The browser calls public service URLs for normal JSON APIs. Same-origin Next.js
 API proxy routes are used where a browser flow needs an internal Docker hostname
-or tighter path filtering, such as notification and calendar OAuth calls.
+or tighter path filtering, such as User Service workspace/profile calls,
+notification streams, and calendar OAuth calls.
 
 ## Capabilities
 
@@ -39,17 +41,18 @@ or tighter path filtering, such as notification and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
+| Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
-| Budget | Trip budget, item costs, accommodation cost, summaries, optimization proposals. |
+| Budget | Trip budget, item costs, accommodation cost, summaries, cost analytics dashboards, optimization proposals. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
 | Availability | Per-item availability checks, provider prices, external booking links, and apply-price updates. |
 | Context | Weather cards, route/distance estimates, accommodation routing anchors. |
 | Sharing | Public read-only share links, expiration, password unlock, sanitized exports. |
 | Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
 | Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
-| Export | Browser-generated PDF and `.ics` downloads for private and public views. |
+| Export | Browser-generated PDF, CSV cost reports, and `.ics` downloads for private and public views. |
 | Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip cache, offline itinerary drafts, and revision conflict recovery. |
 
 ## Source Layout
@@ -96,6 +99,7 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 | `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` | Browser-facing Notification Service URL. |
 | `NEXT_PUBLIC_WORKER_SERVICE_URL` | Browser-facing Worker Service URL for local ops checks. |
 | `TRIP_SERVICE_INTERNAL_URL` | Server-side URL for Next route handlers inside Docker. |
+| `USER_SERVICE_INTERNAL_URL` | Server-side User Service proxy URL. |
 | `NOTIFICATION_SERVICE_INTERNAL_URL` | Server-side notification proxy URL. |
 | `EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL` | Server-side external-integrations proxy URL. |
 | `WORKER_SERVICE_INTERNAL_URL` | Server-side worker proxy URL. |
@@ -110,6 +114,7 @@ NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084
 NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:8086
 NEXT_PUBLIC_WORKER_SERVICE_URL=http://localhost:8090
 TRIP_SERVICE_INTERNAL_URL=http://localhost:8080
+USER_SERVICE_INTERNAL_URL=http://localhost:8083
 NOTIFICATION_SERVICE_INTERNAL_URL=http://localhost:8086
 EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL=http://localhost:8084
 WORKER_SERVICE_INTERNAL_URL=http://localhost:8090
@@ -141,7 +146,13 @@ flowchart TD
     Home["/"] --> Login["/login"]
     Home --> Register["/register"]
     Home --> Trips["/trips"]
+    Home --> Workspaces["/workspaces"]
+    Workspaces --> WorkspaceDetail["/workspaces/{workspaceId}"]
+    WorkspaceDetail --> WorkspaceAnalytics["/workspaces/{workspaceId}/analytics"]
+    Workspaces --> WorkspaceSettings["/workspaces/{workspaceId}/settings"]
+    Workspaces --> WorkspaceInvites["/workspace-invitations"]
     Trips --> TripDetail["/trips/{id}"]
+    TripDetail --> TripAnalytics["/trips/{id}/analytics"]
     Trips --> Invitations["Pending invitations"]
     TripDetail --> Edit["Itinerary edit mode"]
     TripDetail --> Versions["Version preview / restore"]
@@ -159,6 +170,7 @@ flowchart TD
 | ------- | ------------- |
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
 | Trip list/detail | `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}` |
+| Workspaces | `/workspaces`, `/workspaces/{id}`, `/workspaces/{id}/members*`, `/workspace-invitations*` through `/api/user-service` |
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Itinerary writes | `PUT /trips/{id}/itinerary`, version restore, day/item regeneration compatibility routes |
 | Collaboration | `/trips/{id}/collaborators`, `/collaboration/invitations` |
@@ -166,6 +178,7 @@ flowchart TD
 | Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |
 | Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, budget optimization job/proposal routes |
+| Cost analytics | `/trips/{id}/analytics/costs`, `/workspaces/{workspaceId}/analytics/costs`; browser-generated CSV/PDF reports |
 | Places/routes/weather | `/places/search`, `/places/{placeId}`, `/routes/estimate`, `/weather/forecast` |
 | Availability | `POST /availability/search` through the External Integrations API/proxy |
 | Calendar | `/calendar/google/*`, `/trips/{id}/calendar-sync/google/*` |
@@ -214,6 +227,30 @@ Current v1 limitations:
 - The backend revision check remains authoritative, and every merged save still
   sends the latest `expectedItineraryRevision`.
 
+## Cost Analytics Dashboard
+
+Trip cost analytics live at `/trips/{id}/analytics` and workspace rollups live at
+`/workspaces/{workspaceId}/analytics`. The dashboards show approximate estimated
+totals, budget utilization, missing and uncertain estimates, cost by
+day/category/source/confidence, expensive items, warnings, and actionable links
+back to the itinerary or workspace trip.
+
+Workspace analytics supports a target currency selector plus all-trips,
+this-year, next-12-months, and custom date filters. Viewer roles can read
+analytics and export reports; edit-oriented actions are shown only when the
+current role can edit trips.
+
+Reports are generated in the browser:
+
+- CSV sections include summary, day/trip rollups, category/source/month tables,
+  expensive items, and warnings.
+- PDF reports reuse the existing lightweight text PDF generator and include the
+  same planning-purpose disclaimer.
+
+Limitations: costs are estimates for planning only; provider prices,
+availability, exchange rates, and booking costs may change; analytics are not
+accounting, tax, invoice, payment, debt-splitting, or financial-advice reports.
+
 ## Offline Trip Mode
 
 Offline Trip Mode v1 is frontend-only and scoped to private authenticated trip
@@ -221,7 +258,8 @@ detail pages. After a successful online trip load, the web app stores a sanitize
 snapshot in IndexedDB database `travel-ai-offline-v1`:
 
 - `cachedTrips`: trip detail, cached budget summary when available,
-  accommodation basics, `itineraryRevision`, `cachedAt`, and `userId`.
+  accommodation basics, workspace metadata already present on the trip DTO,
+  `itineraryRevision`, `cachedAt`, and `userId`.
 - `pendingMutations`: one coalesced `update_itinerary` mutation per trip/user,
   including `baseRevision`, `baseItinerary`, `draftItinerary`, status, attempts,
   and user-visible error fields.

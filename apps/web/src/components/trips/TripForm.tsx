@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { createTrip, tripKeys } from "@/lib/api/trips";
 import { getErrorMessage } from "@/lib/utils";
+import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 
 const interestOptions = [
   { value: "food", label: "Food" },
@@ -32,6 +33,7 @@ const paceOptions = [
 
 const tripFormSchema = z.object({
   destination: z.string().trim().min(1, "Destination is required"),
+  workspaceId: z.string().optional(),
   startDate: z.string().optional(),
   days: z.number().int().min(1, "Days must be at least 1").max(30, "Days must be 30 or fewer"),
   budgetAmount: z.number().min(0, "Budget must be zero or greater").optional(),
@@ -49,11 +51,13 @@ type TripFormValues = z.infer<typeof tripFormSchema>;
 export function TripForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { currentScope, currentWorkspace, editableWorkspaces } = useWorkspaces();
 
   const form = useForm<TripFormValues>({
     resolver: zodResolver(tripFormSchema),
     defaultValues: {
       destination: "",
+      workspaceId: "",
       startDate: "",
       days: 4,
       budgetCurrency: "EUR",
@@ -74,12 +78,24 @@ export function TripForm() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors }
   } = form;
+
+  useEffect(() => {
+    if (
+      currentScope === "workspace" &&
+      currentWorkspace &&
+      editableWorkspaces.some((workspace) => workspace.id === currentWorkspace.id)
+    ) {
+      setValue("workspaceId", currentWorkspace.id);
+    }
+  }, [currentScope, currentWorkspace, editableWorkspaces, setValue]);
 
   function onSubmit(values: TripFormValues) {
     createMutation.mutate({
       destination: values.destination,
+      workspaceId: values.workspaceId || undefined,
       startDate: values.startDate || undefined,
       days: values.days,
       budgetAmount: values.budgetAmount,
@@ -101,6 +117,17 @@ export function TripForm() {
               aria-invalid={Boolean(errors.destination)}
               {...register("destination")}
             />
+          </Field>
+
+          <Field label="Trip scope" error={errors.workspaceId?.message}>
+            <Select id="workspaceId" aria-invalid={Boolean(errors.workspaceId)} {...register("workspaceId")}>
+              <option value="">Personal trip</option>
+              {editableWorkspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </Select>
           </Field>
 
           <Field label="Start date" error={errors.startDate?.message}>

@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -191,6 +192,89 @@ func (r *Repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, of
 	}
 
 	return trips, nil
+}
+
+func (r *Repository) ListAccessible(
+	ctx context.Context,
+	userID uuid.UUID,
+	workspaceIDs []uuid.UUID,
+	scope appdto.TripListScope,
+	workspaceID *uuid.UUID,
+	limit, offset int,
+) ([]entity.Trip, error) {
+	builder := r.db.Builder.
+		Select(dto.Columns).
+		From("trips")
+
+	switch scope {
+	case appdto.TripListScopePersonal:
+		builder = builder.Where(sq.Eq{"user_id": dto.IDArg(userID)}).Where("workspace_id IS NULL")
+	case appdto.TripListScopeWorkspace:
+		ids := filterWorkspaceIDs(workspaceIDs, workspaceID)
+		if len(ids) == 0 {
+			return []entity.Trip{}, nil
+		}
+		builder = builder.Where(sq.Eq{"workspace_id": ids})
+	default:
+		ids := filterWorkspaceIDs(workspaceIDs, workspaceID)
+		if workspaceID != nil && len(ids) == 0 {
+			return []entity.Trip{}, nil
+		}
+		conditions := sq.Or{sq.And{sq.Eq{"user_id": dto.IDArg(userID)}, sq.Expr("workspace_id IS NULL")}}
+		if len(ids) > 0 {
+			conditions = append(conditions, sq.Eq{"workspace_id": ids})
+		}
+		builder = builder.Where(conditions)
+	}
+
+	query, args, err := builder.
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64(offset)).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build accessible trips list: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query accessible trips: %w", err)
+	}
+	defer rows.Close()
+
+	trips := make([]entity.Trip, 0)
+	for rows.Next() {
+		t, err := dto.Scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		trips = append(trips, *t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate accessible trips: %w", err)
+	}
+
+	return trips, nil
+}
+
+func filterWorkspaceIDs(workspaceIDs []uuid.UUID, requested *uuid.UUID) []any {
+	allowed := make(map[uuid.UUID]struct{}, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		if id != uuid.Nil {
+			allowed[id] = struct{}{}
+		}
+	}
+	if requested != nil {
+		if _, ok := allowed[*requested]; !ok {
+			return []any{}
+		}
+		return []any{dto.IDArg(*requested)}
+	}
+	out := make([]any, 0, len(allowed))
+	for id := range allowed {
+		out = append(out, dto.IDArg(id))
+	}
+	return out
 }
 
 // UpdateStatusByUserID transitions a trip only when it belongs to the user.

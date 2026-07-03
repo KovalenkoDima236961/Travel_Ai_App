@@ -1,9 +1,10 @@
 # Notification Service
 
-Go service for private, per-user notifications. Trip Service calls it after
-successful collaboration, comment, generation, version, and budget events. It
-stores in-app rows first, then optionally fans out email and browser Web Push
-notifications according to server policy and user preferences.
+Go service for private, per-user notifications. Trip Service and User Service
+call it after successful collaboration, workspace, comment, generation, version,
+and budget events. It stores in-app rows first, then optionally fans out email
+and browser Web Push notifications according to server policy and user
+preferences.
 
 The v1 design is synchronous HTTP and intentionally replaceable by a future
 event bus or worker.
@@ -112,7 +113,8 @@ Preference categories:
 - `trip_updates`
 
 Default behavior enables in-app and push for all categories, enables email for
-collaboration/comments/role changes, and disables email for trip updates.
+collaboration/comments/role changes plus key workspace invitations/member
+changes, and disables email for trip updates.
 
 ## Notification Types
 
@@ -131,6 +133,18 @@ Current known types include:
 - `generation_job_failed`
 - `budget_optimization_ready`
 - `budget_optimization_failed`
+- `workspace_invited`
+- `workspace_invitation_accepted`
+- `workspace_invitation_declined`
+- `workspace_member_removed`
+- `workspace_role_changed`
+- `workspace_trip_created`
+
+Workspace invitations and accepted/declined events use the `collaboration`
+category, role/removal events use `role_changes`, and optional workspace trip
+created events use `trip_updates`. Email templates link workspace invites to
+`/workspace-invitations`, role changes to `/workspaces/{workspaceId}`, and never
+include secrets or full metadata.
 
 Unknown types are accepted for forward compatibility. They are allowed in-app by
 default, but are not emailed or pushed unless policy explicitly allows them.

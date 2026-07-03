@@ -36,6 +36,7 @@ type Config struct {
 	PlaceEnrichment    PlaceEnrichmentConfig    `yaml:"place_enrichment"`
 	PriceEnrichment    PriceEnrichmentConfig    `yaml:"price_enrichment"`
 	UserLookup         UserLookupConfig         `yaml:"user_lookup"`
+	Workspaces         WorkspacesConfig         `yaml:"workspaces"`
 	PublicSharing      PublicSharingConfig      `yaml:"public_sharing"`
 	Notifications      NotificationsConfig      `yaml:"notifications"`
 	Presence           PresenceConfig           `yaml:"presence"`
@@ -45,6 +46,15 @@ type Config struct {
 	CalendarSync       CalendarSyncConfig       `yaml:"calendar_sync"`
 	BudgetConversion   BudgetConversionConfig   `yaml:"budget_conversion"`
 	Ops                OpsConfig                `yaml:"ops"`
+}
+
+// WorkspacesConfig controls service-to-service checks against User Service for
+// workspace membership and role resolution.
+type WorkspacesConfig struct {
+	Enabled        bool   `yaml:"enabled" env:"WORKSPACES_ENABLED" env-default:"true"`
+	UserServiceURL string `yaml:"user_service_url" env:"USER_SERVICE_URL" env-default:"http://user-service:8083"`
+	ServiceToken   string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	TimeoutSeconds int    `yaml:"timeout_seconds" env:"WORKSPACE_ACCESS_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
 }
 
 // NotificationsConfig controls synchronous in-app notification fan-out to the
@@ -426,6 +436,7 @@ func (c *Config) validateServiceURLs() error {
 	}{
 		{"AI_PLANNING_SERVICE_URL", c.ItineraryGenerator.AIPlanningServiceURL, strings.TrimSpace(c.ItineraryGenerator.Mode) == "http", false},
 		{"USER_SERVICE_URL", c.UserContext.UserServiceURL, c.UserContext.Enabled, false},
+		{"USER_SERVICE_URL", c.Workspaces.UserServiceURL, c.Workspaces.Enabled, false},
 		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.WeatherContext.ExternalIntegrationsServiceURL, c.WeatherContext.Enabled, false},
 		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.PlaceEnrichment.ExternalIntegrationsServiceURL, c.PlaceEnrichment.Enabled, false},
 		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.PriceEnrichment.ExternalIntegrationsServiceURL, c.PriceEnrichment.Enabled, false},
@@ -490,6 +501,7 @@ func (c *Config) validateInternalTokens() error {
 		{"INTERNAL_SERVICE_TOKEN", c.CalendarSync.InternalServiceToken, c.CalendarSync.Enabled},
 		{"INTERNAL_SERVICE_TOKEN", c.BudgetConversion.InternalServiceToken, c.BudgetConversion.Enabled},
 		{"NOTIFICATION_SERVICE_TOKEN", c.Notifications.NotificationServiceToken, c.Notifications.Enabled},
+		{"INTERNAL_SERVICE_TOKEN", c.Workspaces.ServiceToken, c.Workspaces.Enabled},
 	}
 	for _, token := range tokens {
 		if !token.enabled {

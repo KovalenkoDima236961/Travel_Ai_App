@@ -74,6 +74,12 @@ user_lookup:
   auth_service_url: http://localhost:8081
   timeout_seconds: 5
 
+workspaces:
+  enabled: true
+  user_service_url: http://localhost:8083
+  service_token: dev-internal-service-token
+  timeout_seconds: 5
+
 public_sharing:
   enabled: true
   public_web_base_url: http://localhost:3000

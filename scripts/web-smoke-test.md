@@ -373,6 +373,53 @@ on (`OPS_DASHBOARD_ENABLED=true`, `OPS_ADMIN_EMAILS` includes your login,
     provider price review metadata are **not** shown (item cost badges may still
     appear).
 
+## Cost Analytics Dashboard
+
+Trip dashboard:
+
+1. Open a private trip with a budget, itinerary item costs, and accommodation
+   cost.
+2. From the trip detail page, click `View cost analytics`.
+3. Confirm `/trips/{id}/analytics` shows summary cards for estimated total,
+   budget usage, missing estimates, and low-confidence/provider-estimate risk.
+4. Confirm cost-by-day, category, source, and confidence sections render with
+   totals in the selected currency.
+5. Confirm the expensive-items table includes itinerary/accommodation costs and
+   links back to the relevant trip day or trip detail page.
+6. Change the currency selector and confirm totals refresh without losing the
+   current trip context.
+7. Click a budget-related insight such as `Optimize Day N` and confirm it opens
+   the trip planning flow for that trip.
+8. Export CSV and PDF reports and confirm each includes summary, rollup,
+   expensive item, warning, and planning-disclaimer content.
+9. Log in as an accepted viewer collaborator and confirm the analytics page is
+   readable, exports are available, and edit-oriented actions are hidden.
+10. Open the public share URL in a logged-out window and confirm there is no
+    link to private cost analytics.
+
+Workspace dashboard:
+
+1. Create or open a workspace with at least two trips, including one over budget
+   or close to budget and one with incomplete/missing item estimates.
+2. Open `/workspaces/{workspaceId}/analytics` from the workspace page.
+3. Confirm the summary cards show workspace estimated total, trip count,
+   over-budget trips, missing estimates, and low-confidence/provider risk.
+4. Confirm the trips table lists both trips with budget utilization and links
+   back to each trip.
+5. Confirm category, source, and month charts render and reflect the selected
+   workspace trips.
+6. Change date filters between all trips, this year, next 12 months, and a
+   custom range; confirm the trip table and totals update.
+7. Change the currency selector and confirm rollups refresh in the selected
+   currency.
+8. Export CSV and PDF reports and confirm they include workspace summary,
+   trip rollups, category/source/month sections, expensive items, warnings, and
+   the planning disclaimer.
+9. Log in as a workspace viewer and confirm the dashboard is readable while
+   edit-oriented actions remain hidden.
+10. Remove that viewer from the workspace and confirm the analytics URL returns
+    an access-denied state.
+
 ## Real Availability Layer
 
 1. Open a private trip as owner or editor with at least one museum, landmark,
@@ -840,6 +887,29 @@ so newly persisted activity can refetch into the feed without a page refresh.
     session/browser.
 15. Confirm there is no activity panel on the public page and no live private
     activity stream data is exposed.
+
+## Workspaces (User Service + Trip Service + Web)
+
+Use two browsers (or one normal + one private window): workspace owner A and
+member B.
+
+1. Login as A and open `/workspaces`.
+2. Create a workspace, then confirm the header switcher includes **All trips**,
+   **Personal**, and the new workspace.
+3. Open workspace settings and invite B as `member`.
+4. Login as B in the second browser, open `/workspace-invitations`, and accept.
+5. In browser A, switch to the workspace and create a trip. Confirm the trip
+   card and detail page show a workspace badge.
+6. In browser B, switch to the workspace and confirm the workspace trip appears.
+7. As B, edit the workspace trip itinerary or queue a generation action.
+8. As A, change B's role to `viewer`.
+9. As B, confirm the trip still opens but edit/generation controls are hidden or
+   blocked by the API.
+10. As A, remove B from the workspace.
+11. As B, confirm the workspace disappears from the switcher and the workspace
+    trip no longer opens unless B is separately invited as a trip collaborator.
+12. Confirm A's personal trips still appear under **Personal**, and public share
+    links remain anonymous read-only.
 
 ## Notifications (Notification Service)
 

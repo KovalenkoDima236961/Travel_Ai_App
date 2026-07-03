@@ -54,10 +54,10 @@ flowchart LR
 
 | Area | Path | Port | Responsibility |
 | ---- | ---- | ---- | -------------- |
-| Web app | [apps/web](apps/web/README.md) | `3000` | Trip UX, collaboration, exports, notifications, calendar controls, PWA install/offline experience. |
+| Web app | [apps/web](apps/web/README.md) | `3000` | Workspace/trip UX, collaboration, exports, notifications, calendar controls, PWA install/offline experience. |
 | Auth | [services/auth-service](services/auth-service/README.md) | `8082` | Email/password auth, JWT access tokens, refresh-token rotation, internal user lookup. |
-| Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Trip ownership, collaborators, itinerary revisions, jobs, budgets, comments, shares, activity. |
-| Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile and preference data scoped by Auth JWT `sub`. |
+| Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Personal/workspace trip ownership, collaborators, itinerary revisions, jobs, budgets, comments, shares, activity. |
+| Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile, preferences, workspace membership, and invitations scoped by Auth JWT `sub`. |
 | External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, weather, exchange rates, price estimates, Google Calendar integration boundary. Central per-provider rate-limit and daily-quota enforcement (Provider Quota & Rate-Limit Management v1). |
 | Notifications | [services/notification-service](services/notification-service/README.md) | `8086` | In-app notifications, SSE, preferences, optional email and browser push. |
 | Worker | [services/worker-service](services/worker-service/README.md) | `8090` | RabbitMQ consumer for slow generation and budget optimization jobs. |
@@ -98,6 +98,9 @@ sequenceDiagram
 Key product capabilities:
 
 - Authenticated trip planning with private ownership and collaborator roles.
+- Multi-Tenant / Team Workspace v1: users can create workspaces, invite members,
+  accept/decline invitations, switch between Personal/All/workspace scopes, and
+  create workspace-owned trips governed by owner/admin/member/viewer roles.
 - Optimistic concurrency through `itineraryRevision` and explicit
   `expectedItineraryRevision` writes, plus Advanced Collaborative Diff/Merge v1
   for safe day/item-level recovery of stale itinerary drafts.
@@ -114,6 +117,9 @@ Key product capabilities:
 - Public read-only share links with optional expiration and password unlock.
 - Budget summaries with multi-currency conversion, accommodation cost support,
   provider ticket estimates, and reviewable AI budget proposals.
+- Cost Analytics Dashboard v1 with trip and workspace cost rollups, expensive
+  item insights, missing estimate warnings, and browser-generated CSV/PDF cost
+  reports.
 - Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
   email, and browser push integrations behind mock-first provider boundaries.
 - Provider Quota & Rate-Limit Management v1: External Integrations Service

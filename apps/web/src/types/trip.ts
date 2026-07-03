@@ -6,6 +6,8 @@ export type TripStatus = "DRAFT" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export type Pace = "relaxed" | "balanced" | "packed" | "intensive" | string;
 
+export type TripScope = "personal" | "workspace";
+
 export type PlaceEnrichmentReviewStatus = "pending" | "accepted" | "changed" | "removed";
 
 export type PlaceEnrichmentMeta = {
@@ -66,6 +68,8 @@ export type Itinerary = {
 export type Trip = {
   id: string;
   userId?: string | null;
+  workspaceId?: string | null;
+  scope?: TripScope;
   destination: string;
   startDate?: string | null;
   days: number;
@@ -86,6 +90,7 @@ export type Trip = {
 
 export type TripAccess = {
   role: "owner" | "editor" | "viewer";
+  source?: "owner" | "workspace" | "collaborator" | "public";
   canEdit: boolean;
   canManageCollaborators: boolean;
   canManageShare: boolean;
@@ -101,6 +106,7 @@ export type TripsListResponse = {
 
 export type CreateTripInput = {
   destination: string;
+  workspaceId?: string | null;
   startDate?: string;
   days: number;
   budgetAmount?: number;

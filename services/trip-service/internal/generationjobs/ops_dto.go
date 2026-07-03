@@ -36,6 +36,8 @@ type OpsPayloadSummary struct {
 type OpsJobResponse struct {
 	ID                        uuid.UUID                  `json:"id"`
 	TripID                    uuid.UUID                  `json:"tripId"`
+	WorkspaceID               *uuid.UUID                 `json:"workspaceId,omitempty"`
+	Scope                     string                     `json:"scope,omitempty"`
 	RequestedByUserID         uuid.UUID                  `json:"requestedByUserId"`
 	JobType                   entity.GenerationJobType   `json:"jobType"`
 	Status                    entity.GenerationJobStatus `json:"status"`
@@ -59,6 +61,11 @@ type OpsJobResponse struct {
 	CanMarkFailed             bool                       `json:"canMarkFailed"`
 }
 
+type OpsTripMetadata struct {
+	TripID      uuid.UUID
+	WorkspaceID *uuid.UUID
+}
+
 type OpsJobSummaryResponse struct {
 	CountsByStatus    map[string]int     `json:"countsByStatus"`
 	CountsByType      map[string]int     `json:"countsByType"`
@@ -73,7 +80,7 @@ type OpsRecentFailure struct {
 	CreatedAt time.Time                `json:"createdAt"`
 }
 
-func NewOpsJobResponse(job *entity.GenerationJob, staleThreshold time.Duration, includePayload bool) OpsJobResponse {
+func NewOpsJobResponse(job *entity.GenerationJob, staleThreshold time.Duration, includePayload bool, metadata ...OpsTripMetadata) OpsJobResponse {
 	resp := OpsJobResponse{
 		ID:                        job.ID,
 		TripID:                    job.TripID,
@@ -97,6 +104,14 @@ func NewOpsJobResponse(job *entity.GenerationJob, staleThreshold time.Duration, 
 		CanRetry:                  job.Status == entity.GenerationJobStatusFailed || job.Status == entity.GenerationJobStatusCancelled,
 		CanCancel:                 job.Status == entity.GenerationJobStatusQueued,
 		CanMarkFailed:             canMarkFailed(job, staleThreshold),
+	}
+	if len(metadata) > 0 {
+		resp.WorkspaceID = metadata[0].WorkspaceID
+		if metadata[0].WorkspaceID != nil {
+			resp.Scope = "workspace"
+		} else {
+			resp.Scope = "personal"
+		}
 	}
 	if includePayload {
 		resp.PayloadSummary = summarizePayload(job)

@@ -30,9 +30,10 @@ const (
 // Cost sources. Generated output defaults to SourceAI; manual edits to
 // SourceManual.
 const (
-	SourceAI       = "ai"
-	SourceManual   = "manual"
-	SourceProvider = "provider"
+	SourceAI           = "ai"
+	SourceManual       = "manual"
+	SourceProvider     = "provider"
+	SourceAvailability = "availability"
 )
 
 // DefaultCurrency is the local-dev fallback when neither the trip budget nor the
@@ -57,7 +58,7 @@ var categoryOrder = []string{
 
 var validCategories = toSet(categoryOrder)
 var validConfidences = toSet([]string{ConfidenceLow, ConfidenceMedium, ConfidenceHigh})
-var validSources = toSet([]string{SourceAI, SourceManual, SourceProvider})
+var validSources = toSet([]string{SourceAI, SourceManual, SourceProvider, SourceAvailability})
 
 // NormalizeEstimatedCost validates and normalizes an item cost estimate in
 // place. It returns an error only for the two hard failures the product treats

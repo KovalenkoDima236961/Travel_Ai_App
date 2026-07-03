@@ -135,7 +135,11 @@ export function ItineraryView({
         const dayNumber = day.day || dayIndex + 1;
 
         return (
-          <section key={dayNumber} className="rounded-lg border border-slate-200 bg-white p-6">
+          <section
+            id={`day-${dayNumber}`}
+            key={dayNumber}
+            className="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-6"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <h3 className="text-lg font-semibold text-slate-950">
                 Day {dayNumber} — {day.title}
@@ -157,8 +161,9 @@ export function ItineraryView({
             <ol className="mt-5 divide-y divide-slate-100">
               {day.items.map((item, index) => (
                 <li
+                  id={`day-${dayNumber}-item-${index}`}
                   key={`${dayNumber}-${item.time}-${item.name}-${index}`}
-                  className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[6.5rem_minmax(0,1fr)_9rem]"
+                  className="grid scroll-mt-24 gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[6.5rem_minmax(0,1fr)_9rem]"
                 >
                   <div className="text-sm font-semibold text-slate-900">{item.time}</div>
                   <div className="min-w-0">

@@ -25,6 +25,14 @@ export function buildIcsFilename(exportTrip: ExportTrip): string {
   return `${buildBaseFilename(exportTrip)}.ics`;
 }
 
+export function buildTripCostReportFilename(title: string, extension: "csv" | "pdf"): string {
+  return `${slugifyForFilename(title || "trip")}-cost-report.${extension}`;
+}
+
+export function buildWorkspaceCostReportFilename(title: string, extension: "csv" | "pdf"): string {
+  return `${slugifyForFilename(title || "workspace")}-workspace-cost-report.${extension}`;
+}
+
 function buildBaseFilename(exportTrip: ExportTrip): string {
   const destination = slugifyForFilename(exportTrip.destination || "trip");
   const date = formatDateForFilename(exportTrip.startDate);

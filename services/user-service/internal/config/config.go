@@ -13,19 +13,24 @@ import (
 )
 
 const (
-	DefaultDevelopmentJWTSecret  = "change-me-in-development"
-	MinProductionJWTSecretLength = 32
-	MinProductionDBPassword      = 16
+	DefaultDevelopmentJWTSecret     = "change-me-in-development"
+	DefaultDevelopmentInternalToken = "dev-internal-service-token"
+	MinProductionJWTSecretLength    = 32
+	MinProductionTokenLength        = 32
+	MinProductionDBPassword         = 16
 )
 
 // Config is the root application configuration. It is loaded from a YAML file
 // with environment-variable overrides, then validated during bootstrap.
 type Config struct {
-	Env        string          `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
-	HTTPServer HTTPServer      `yaml:"http_server" validate:"required"`
-	Auth       AuthConfig      `yaml:"auth" validate:"required"`
-	CORS       CORSConfig      `yaml:"cors" validate:"required"`
-	Postgres   postgres.Config `yaml:"postgres" validate:"required"`
+	Env           string              `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
+	HTTPServer    HTTPServer          `yaml:"http_server" validate:"required"`
+	Auth          AuthConfig          `yaml:"auth" validate:"required"`
+	Internal      InternalConfig      `yaml:"internal" validate:"required"`
+	CORS          CORSConfig          `yaml:"cors" validate:"required"`
+	Postgres      postgres.Config     `yaml:"postgres" validate:"required"`
+	AuthUsers     AuthUsersConfig     `yaml:"auth_users" validate:"required"`
+	Notifications NotificationsConfig `yaml:"notifications" validate:"required"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -45,10 +50,32 @@ type AuthConfig struct {
 	DevUserID       string `yaml:"dev_user_id" env:"DEV_USER_ID" env-default:"00000000-0000-0000-0000-000000000001" validate:"required,uuid"`
 }
 
+// InternalConfig controls service-to-service endpoints such as workspace access
+// checks consumed by Trip Service.
+type InternalConfig struct {
+	ServiceToken string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
+}
+
+// AuthUsersConfig points at Auth Service for email/user lookup enrichment.
+type AuthUsersConfig struct {
+	AuthServiceURL string `yaml:"auth_service_url" env:"AUTH_SERVICE_URL" env-default:"http://auth-service:8082"`
+	TimeoutSeconds int    `yaml:"timeout_seconds" env:"AUTH_USER_LOOKUP_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
+}
+
+// NotificationsConfig controls workspace notification fan-out.
+type NotificationsConfig struct {
+	Enabled                  bool   `yaml:"enabled" env:"USER_WORKSPACE_NOTIFICATIONS_ENABLED" env-default:"true"`
+	FailOpen                 bool   `yaml:"fail_open" env:"USER_WORKSPACE_NOTIFICATIONS_FAIL_OPEN" env-default:"true"`
+	NotificationServiceURL   string `yaml:"notification_service_url" env:"NOTIFICATION_SERVICE_URL" env-default:"http://notification-service:8086"`
+	NotificationServiceToken string `yaml:"notification_service_token" env:"NOTIFICATION_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	PublicWebBaseURL         string `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
+	TimeoutSeconds           int    `yaml:"timeout_seconds" env:"NOTIFICATION_SERVICE_TIMEOUT_SECONDS" env-default:"3" validate:"min=1"`
+}
+
 // CORSConfig controls browser access to the User Service API.
 type CORSConfig struct {
 	AllowedOrigins string `yaml:"allowed_origins" env:"CORS_ALLOWED_ORIGINS" env-default:"http://localhost:3000"`
-	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,PUT,PATCH,OPTIONS"`
+	AllowedMethods string `yaml:"allowed_methods" env:"CORS_ALLOWED_METHODS" env-default:"GET,POST,PUT,PATCH,DELETE,OPTIONS"`
 	AllowedHeaders string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
 }
 
@@ -84,6 +111,12 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validateJWTSecret(); err != nil {
 		return nil, err
 	}
+	if err := cfg.validateInternalToken(); err != nil {
+		return nil, err
+	}
+	if err := cfg.validateServiceURLs(); err != nil {
+		return nil, err
+	}
 	if err := cfg.validatePostgres(); err != nil {
 		return nil, err
 	}
@@ -109,11 +142,70 @@ func (c *Config) applyDefaults() {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
-		c.CORS.AllowedMethods = "GET,PUT,PATCH,OPTIONS"
+		c.CORS.AllowedMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
 	}
 	if strings.TrimSpace(c.CORS.AllowedHeaders) == "" {
 		c.CORS.AllowedHeaders = "Content-Type,Authorization"
 	}
+}
+
+func (c *Config) validateInternalToken() error {
+	token := strings.TrimSpace(c.Internal.ServiceToken)
+	if token == "" {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN is required")
+	}
+	if c.IsStrictEnv() {
+		if isUnsafeSecret(token, DefaultDevelopmentInternalToken) {
+			return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use a development default in %s", c.Env)
+		}
+		if len(token) < MinProductionTokenLength {
+			return fmt.Errorf("INTERNAL_SERVICE_TOKEN must be at least %d characters in %s", MinProductionTokenLength, c.Env)
+		}
+	}
+	c.Internal.ServiceToken = token
+	return nil
+}
+
+func (c *Config) validateServiceURLs() error {
+	checks := []struct {
+		name         string
+		value        string
+		enabled      bool
+		requireHTTPS bool
+	}{
+		{"AUTH_SERVICE_URL", c.AuthUsers.AuthServiceURL, true, false},
+		{"NOTIFICATION_SERVICE_URL", c.Notifications.NotificationServiceURL, c.Notifications.Enabled, false},
+		{"PUBLIC_WEB_BASE_URL", c.Notifications.PublicWebBaseURL, c.Notifications.Enabled, c.IsProduction()},
+	}
+	for _, check := range checks {
+		if !check.enabled {
+			continue
+		}
+		if err := validateHTTPURL(check.name, check.value, check.requireHTTPS); err != nil {
+			if c.IsStrictEnv() || check.name == "PUBLIC_WEB_BASE_URL" {
+				return err
+			}
+		}
+	}
+	if c.Notifications.Enabled {
+		token := strings.TrimSpace(c.Notifications.NotificationServiceToken)
+		if token == "" {
+			return fmt.Errorf("NOTIFICATION_SERVICE_TOKEN is required when workspace notifications are enabled")
+		}
+		if c.IsStrictEnv() {
+			if isUnsafeSecret(token, DefaultDevelopmentInternalToken) {
+				return fmt.Errorf("NOTIFICATION_SERVICE_TOKEN must not use a development default in %s", c.Env)
+			}
+			if len(token) < MinProductionTokenLength {
+				return fmt.Errorf("NOTIFICATION_SERVICE_TOKEN must be at least %d characters in %s", MinProductionTokenLength, c.Env)
+			}
+		}
+		c.Notifications.NotificationServiceToken = token
+	}
+	c.AuthUsers.AuthServiceURL = strings.TrimRight(strings.TrimSpace(c.AuthUsers.AuthServiceURL), "/")
+	c.Notifications.NotificationServiceURL = strings.TrimRight(strings.TrimSpace(c.Notifications.NotificationServiceURL), "/")
+	c.Notifications.PublicWebBaseURL = strings.TrimRight(strings.TrimSpace(c.Notifications.PublicWebBaseURL), "/")
+	return nil
 }
 
 func (c *Config) validateJWTSecret() error {

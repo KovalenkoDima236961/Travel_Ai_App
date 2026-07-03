@@ -1655,6 +1655,39 @@ func (r *routeTestRepo) ListByUser(_ context.Context, userID uuid.UUID, _, _ int
 	return trips, nil
 }
 
+func (r *routeTestRepo) ListAccessible(_ context.Context, userID uuid.UUID, workspaceIDs []uuid.UUID, scope appdto.TripListScope, workspaceID *uuid.UUID, _, _ int) ([]entity.Trip, error) {
+	allowedWorkspaces := make(map[uuid.UUID]struct{}, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		allowedWorkspaces[id] = struct{}{}
+	}
+	trips := make([]entity.Trip, 0)
+	for _, trip := range r.trips {
+		personalOwner := trip.UserID != nil && *trip.UserID == userID && trip.WorkspaceID == nil
+		workspaceAllowed := false
+		if trip.WorkspaceID != nil {
+			_, workspaceAllowed = allowedWorkspaces[*trip.WorkspaceID]
+			if workspaceID != nil && *trip.WorkspaceID != *workspaceID {
+				workspaceAllowed = false
+			}
+		}
+		switch scope {
+		case appdto.TripListScopePersonal:
+			if personalOwner {
+				trips = append(trips, trip)
+			}
+		case appdto.TripListScopeWorkspace:
+			if workspaceAllowed {
+				trips = append(trips, trip)
+			}
+		default:
+			if personalOwner || workspaceAllowed {
+				trips = append(trips, trip)
+			}
+		}
+	}
+	return trips, nil
+}
+
 func (r *routeTestRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
 	trip, err := r.GetByIDAndUserID(context.Background(), id, userID)
 	if err != nil {

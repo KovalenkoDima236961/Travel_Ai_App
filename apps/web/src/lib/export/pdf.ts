@@ -22,9 +22,17 @@ export async function downloadTripPdf(exportTrip: ExportTrip): Promise<void> {
 }
 
 export function createTripPdfBlob(exportTrip: ExportTrip): Blob {
-  const pages = paginateLines(buildTripPdfLines(exportTrip));
+  return createPdfLinesBlob(buildTripPdfLines(exportTrip));
+}
+
+export function createPdfLinesBlob(lines: TripPdfLine[]): Blob {
+  const pages = paginateLines(lines);
   const pdf = buildPdfDocument(pages);
   return new Blob([pdf], { type: "application/pdf" });
+}
+
+export function downloadPdfLines(lines: TripPdfLine[], filename: string): void {
+  downloadBlob(createPdfLinesBlob(lines), filename);
 }
 
 function paginateLines(lines: TripPdfLine[]): RenderedLine[][] {

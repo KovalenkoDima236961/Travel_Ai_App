@@ -14,7 +14,7 @@ export type CostCategory =
 
 export type CostConfidence = "low" | "medium" | "high";
 
-export type CostSource = "ai" | "manual" | "provider";
+export type CostSource = "ai" | "manual" | "provider" | "availability";
 
 export type EstimatedCost = {
   amount?: number | null;

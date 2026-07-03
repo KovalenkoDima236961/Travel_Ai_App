@@ -39,6 +39,35 @@ describe("getNotificationHref", () => {
     ).toBe("/trips/trip-9");
   });
 
+  it("routes workspace invitations to the invitations page", () => {
+    expect(getNotificationHref(notification({ type: "workspace_invited" }))).toBe(
+      "/workspace-invitations"
+    );
+  });
+
+  it("routes workspace entity notifications to the workspace page", () => {
+    expect(
+      getNotificationHref(
+        notification({
+          type: "workspace_role_changed",
+          entityType: "workspace",
+          entityId: "workspace-1"
+        })
+      )
+    ).toBe("/workspaces/workspace-1");
+  });
+
+  it("honors safe app-relative notification urls", () => {
+    expect(
+      getNotificationHref(
+        notification({
+          type: "workspace_invitation_accepted",
+          metadata: { url: "/workspaces/workspace-2" }
+        })
+      )
+    ).toBe("/workspaces/workspace-2");
+  });
+
   it("falls back to the trips page when there is no tripId", () => {
     expect(getNotificationHref(notification({ type: "version_restored", tripId: null }))).toBe(
       "/trips"

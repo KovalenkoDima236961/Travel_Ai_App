@@ -8,6 +8,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
@@ -134,6 +135,57 @@ func (r *Repository) ListOpsGenerationJobs(
 	}
 	defer rows.Close()
 	return dto.ScanGenerationJobRows(rows)
+}
+
+func (r *Repository) ListOpsTripMetadata(
+	ctx context.Context,
+	tripIDs []uuid.UUID,
+) (map[uuid.UUID]generationjobs.OpsTripMetadata, error) {
+	out := make(map[uuid.UUID]generationjobs.OpsTripMetadata, len(tripIDs))
+	if len(tripIDs) == 0 {
+		return out, nil
+	}
+	argsIDs := make([]any, 0, len(tripIDs))
+	for _, id := range tripIDs {
+		argsIDs = append(argsIDs, dto.IDArg(id))
+	}
+	query, args, err := r.db.Builder.
+		Select("id", "workspace_id").
+		From("trips").
+		Where(sq.Eq{"id": argsIDs}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build ops trip metadata: %w", err)
+	}
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query ops trip metadata: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tripID pgtype.UUID
+		var workspaceID pgtype.UUID
+		if err := rows.Scan(&tripID, &workspaceID); err != nil {
+			return nil, fmt.Errorf("scan ops trip metadata: %w", err)
+		}
+		id := uuid.UUID(tripID.Bytes)
+		out[id] = generationjobs.OpsTripMetadata{
+			TripID:      id,
+			WorkspaceID: uuidPtrFromPg(workspaceID),
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ops trip metadata: %w", err)
+	}
+	return out, nil
+}
+
+func uuidPtrFromPg(value pgtype.UUID) *uuid.UUID {
+	if !value.Valid {
+		return nil
+	}
+	id := uuid.UUID(value.Bytes)
+	return &id
 }
 
 func (r *Repository) CountOpsJobsByStatus(ctx context.Context) (map[entity.GenerationJobStatus]int, error) {

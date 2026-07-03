@@ -24,6 +24,7 @@ const (
 type Trip struct {
 	ID                uuid.UUID
 	UserID            *uuid.UUID
+	WorkspaceID       *uuid.UUID
 	Destination       string
 	StartDate         *time.Time
 	Days              int32

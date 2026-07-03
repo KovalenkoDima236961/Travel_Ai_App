@@ -14,6 +14,11 @@ func setBaseEnv(t *testing.T) {
 	t.Setenv("POSTGRES_MAX_CONNS", "10")
 	t.Setenv("POSTGRES_MIG_PATH", "./migrations")
 	t.Setenv("JWT_ACCESS_SECRET", "a-strong-production-jwt-access-secret-value")
+	t.Setenv("INTERNAL_SERVICE_TOKEN", "a-strong-production-internal-service-token")
+	t.Setenv("NOTIFICATION_SERVICE_TOKEN", "a-strong-production-notification-token")
+	t.Setenv("AUTH_SERVICE_URL", "https://auth.example.com")
+	t.Setenv("NOTIFICATION_SERVICE_URL", "https://notifications.example.com")
+	t.Setenv("PUBLIC_WEB_BASE_URL", "https://app.example.com")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 }
 

@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
-import { getUserServiceUrl } from "@/lib/config";
+import { getUserApiBaseUrl } from "@/lib/config";
 import type {
   PatchUserPreferencesRequest,
   UpdateUserProfileRequest,
@@ -37,7 +37,7 @@ export function patchMyPreferences(data: PatchUserPreferencesRequest) {
 
 function userFetch<T>(path: string, init: RequestInit = {}) {
   return apiFetch<T>(path, init, {
-    baseUrl: getUserServiceUrl(),
+    baseUrl: getUserApiBaseUrl(),
     serviceName: "User Service"
   });
 }

@@ -16,11 +16,13 @@ import type {
   SharedTripSummary,
   TripCollaborator
 } from "@/types/collaboration";
-import type { CreateTripInput, Itinerary, Trip, TripsListResponse } from "@/types/trip";
+import type { CreateTripInput, Itinerary, Trip, TripScope, TripsListResponse } from "@/types/trip";
 
 type ListTripsParams = {
   limit?: number;
   offset?: number;
+  scope?: TripScope | "all";
+  workspaceId?: string | null;
 };
 
 export const tripKeys = {
@@ -50,6 +52,14 @@ export function listTrips(params: ListTripsParams = {}) {
 
   if (params.offset != null) {
     searchParams.set("offset", String(params.offset));
+  }
+
+  if (params.scope) {
+    searchParams.set("scope", params.scope);
+  }
+
+  if (params.workspaceId) {
+    searchParams.set("workspaceId", params.workspaceId);
   }
 
   const query = searchParams.toString();
@@ -252,6 +262,7 @@ export function getPublicTrip(shareToken: string, accessToken?: string | null) {
 function cleanCreateTripPayload(input: CreateTripInput) {
   return {
     destination: input.destination.trim(),
+    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
     ...(input.startDate ? { startDate: input.startDate } : {}),
     days: input.days,
     ...(input.budgetAmount != null ? { budgetAmount: input.budgetAmount } : {}),

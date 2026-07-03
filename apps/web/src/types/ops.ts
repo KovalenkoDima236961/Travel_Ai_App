@@ -13,6 +13,8 @@ export type OpsPayloadSummary = {
 export type OpsJob = {
   id: string;
   tripId: string;
+  workspaceId?: string | null;
+  scope?: "personal" | "workspace" | string;
   requestedByUserId: string;
   jobType: GenerationJobType;
   status: GenerationJobStatus;

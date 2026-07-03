@@ -143,6 +143,14 @@ func (f *fakeJobRepo) ListOpsGenerationJobs(context.Context, OpsJobListFilters) 
 	return []entity.GenerationJob{*f.job}, nil
 }
 
+func (f *fakeJobRepo) ListOpsTripMetadata(_ context.Context, tripIDs []uuid.UUID) (map[uuid.UUID]OpsTripMetadata, error) {
+	out := make(map[uuid.UUID]OpsTripMetadata, len(tripIDs))
+	for _, tripID := range tripIDs {
+		out[tripID] = OpsTripMetadata{TripID: tripID}
+	}
+	return out, nil
+}
+
 func (f *fakeJobRepo) CountOpsJobsByStatus(context.Context) (map[entity.GenerationJobStatus]int, error) {
 	out := map[entity.GenerationJobStatus]int{}
 	if f.job != nil {

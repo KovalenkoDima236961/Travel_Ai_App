@@ -58,8 +58,12 @@ func (s *Service) OpsList(ctx context.Context, filters OpsJobListFilters) (OpsJo
 		return OpsJobListResponse{}, err
 	}
 	items := make([]OpsJobResponse, 0, len(jobs))
+	metadata, err := s.opsTripMetadata(ctx, collectOpsTripIDs(jobs))
+	if err != nil {
+		return OpsJobListResponse{}, err
+	}
 	for i := range jobs {
-		items = append(items, NewOpsJobResponse(&jobs[i], 0, false))
+		items = append(items, NewOpsJobResponse(&jobs[i], 0, false, metadata[jobs[i].TripID]))
 	}
 	var nextOffset *int
 	if len(jobs) == filters.Limit {
@@ -74,7 +78,11 @@ func (s *Service) OpsGet(ctx context.Context, jobID uuid.UUID, staleThreshold ti
 	if err != nil {
 		return OpsJobEnvelope{}, err
 	}
-	return OpsJobEnvelope{Job: NewOpsJobResponse(job, staleThreshold, true)}, nil
+	metadata, err := s.opsTripMetadata(ctx, []uuid.UUID{job.TripID})
+	if err != nil {
+		return OpsJobEnvelope{}, err
+	}
+	return OpsJobEnvelope{Job: NewOpsJobResponse(job, staleThreshold, true, metadata[job.TripID])}, nil
 }
 
 func (s *Service) OpsSummary(ctx context.Context, staleThreshold time.Duration) (OpsJobSummaryResponse, error) {
@@ -186,7 +194,13 @@ func (s *Service) OpsRetry(ctx context.Context, jobID uuid.UUID, reason string) 
 		},
 	})
 	recordOpsJobAction("retry", "success", time.Since(startedAt))
-	return OpsRetryResponse{Retried: true, NewJob: NewOpsJobResponse(newJob, 0, false)}, nil
+	return OpsRetryResponse{
+		Retried: true,
+		NewJob: NewOpsJobResponse(newJob, 0, false, OpsTripMetadata{
+			TripID:      trip.ID,
+			WorkspaceID: trip.WorkspaceID,
+		}),
+	}, nil
 }
 
 func (s *Service) OpsCancel(ctx context.Context, jobID uuid.UUID, reason string) (OpsJobEnvelope, error) {
@@ -226,7 +240,11 @@ func (s *Service) OpsCancel(ctx context.Context, jobID uuid.UUID, reason string)
 	})
 	recordGenerationJobStatus(cancelled.JobType, cancelled.Status)
 	recordOpsJobAction("cancel", "success", time.Since(startedAt))
-	return OpsJobEnvelope{Job: NewOpsJobResponse(cancelled, 0, true)}, nil
+	metadata, err := s.opsTripMetadata(ctx, []uuid.UUID{cancelled.TripID})
+	if err != nil {
+		return OpsJobEnvelope{}, err
+	}
+	return OpsJobEnvelope{Job: NewOpsJobResponse(cancelled, 0, true, metadata[cancelled.TripID])}, nil
 }
 
 func (s *Service) OpsMarkFailed(ctx context.Context, jobID uuid.UUID, reason string, staleThreshold time.Duration) (OpsJobEnvelope, error) {
@@ -271,7 +289,11 @@ func (s *Service) OpsMarkFailed(ctx context.Context, jobID uuid.UUID, reason str
 	})
 	recordGenerationJobStatus(failed.JobType, failed.Status)
 	recordOpsJobAction("mark_failed", "success", time.Since(startedAt))
-	return OpsJobEnvelope{Job: NewOpsJobResponse(failed, staleThreshold, true)}, nil
+	metadata, err := s.opsTripMetadata(ctx, []uuid.UUID{failed.TripID})
+	if err != nil {
+		return OpsJobEnvelope{}, err
+	}
+	return OpsJobEnvelope{Job: NewOpsJobResponse(failed, staleThreshold, true, metadata[failed.TripID])}, nil
 }
 
 func (s *Service) dispatchOpsJob(ctx context.Context, job *entity.GenerationJob) error {
@@ -312,6 +334,32 @@ func normalizeOpsFilters(filters OpsJobListFilters) OpsJobListFilters {
 	}
 	filters.ErrorCode = strings.TrimSpace(filters.ErrorCode)
 	return filters
+}
+
+func (s *Service) opsTripMetadata(ctx context.Context, tripIDs []uuid.UUID) (map[uuid.UUID]OpsTripMetadata, error) {
+	metadata, err := s.repo.ListOpsTripMetadata(ctx, tripIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, tripID := range tripIDs {
+		if _, ok := metadata[tripID]; !ok {
+			metadata[tripID] = OpsTripMetadata{TripID: tripID}
+		}
+	}
+	return metadata, nil
+}
+
+func collectOpsTripIDs(jobs []entity.GenerationJob) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(jobs))
+	ids := make([]uuid.UUID, 0, len(jobs))
+	for i := range jobs {
+		if _, ok := seen[jobs[i].TripID]; ok {
+			continue
+		}
+		seen[jobs[i].TripID] = struct{}{}
+		ids = append(ids, jobs[i].TripID)
+	}
+	return ids
 }
 
 func normalizeOpsReason(reason string) (string, error) {

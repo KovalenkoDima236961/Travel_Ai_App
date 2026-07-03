@@ -30,7 +30,7 @@ const categories: Array<{
   {
     value: "collaboration",
     label: "Collaboration invitations",
-    description: "Invites and accepted collaboration requests."
+    description: "Trip and workspace invites plus accepted requests."
   },
   {
     value: "comments",
@@ -40,7 +40,7 @@ const categories: Array<{
   {
     value: "role_changes",
     label: "Role changes",
-    description: "When your collaborator role changes or you are removed from a trip."
+    description: "Trip collaborator and workspace role changes or removals."
   },
   {
     value: "trip_updates",

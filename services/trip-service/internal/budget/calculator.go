@@ -404,6 +404,13 @@ func itemCategory(cost *aggregate.EstimatedCost, itemType string) string {
 	return inferCategory(itemType)
 }
 
+// ItemCategory returns the category used by the budget calculator for an
+// itinerary item. It is exposed for read-only analytics that need to group the
+// same costs without reimplementing category inference.
+func ItemCategory(cost *aggregate.EstimatedCost, itemType string) string {
+	return itemCategory(cost, itemType)
+}
+
 func inferCategory(itemType string) string {
 	switch normalizeType(itemType) {
 	case "food", "restaurant", "cafe", "dining", "meal", "lunch", "dinner", "breakfast":
@@ -432,6 +439,12 @@ func itemNeedsCost(itemType string) bool {
 		return false
 	}
 	return paidItemTypes[t]
+}
+
+// ItemNeedsCost reports whether the budget calculator treats a missing estimate
+// on this item type as actionable.
+func ItemNeedsCost(itemType string) bool {
+	return itemNeedsCost(itemType)
 }
 
 func normalizeType(itemType string) string {

@@ -47,6 +47,7 @@ import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { activityKeys } from "@/lib/api/activity";
 import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
 import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
@@ -156,6 +157,7 @@ function TripDetailPageContent() {
   const tripId = params.id;
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { workspaces } = useWorkspaces();
   const currentUserId = user?.id;
   const networkStatus = useNetworkStatus();
   const [isEditing, setIsEditing] = useState(false);
@@ -181,6 +183,9 @@ function TripDetailPageContent() {
     number | null
   >(null);
   const [budgetOptimizationError, setBudgetOptimizationError] = useState<string | null>(null);
+  const [handledBudgetOptimizationDeepLink, setHandledBudgetOptimizationDeepLink] = useState<
+    string | null
+  >(null);
   const [availabilityResultsByItem, setAvailabilityResultsByItem] =
     useState<AvailabilityResultByItem>({});
   const [availabilityApplyError, setAvailabilityApplyError] = useState<string | null>(null);
@@ -565,6 +570,32 @@ function TripDetailPageContent() {
     }
   }, [displayedTrip?.id]);
 
+  useEffect(() => {
+    if (!displayedTrip || typeof window === "undefined") {
+      return;
+    }
+    const rawDay = new URLSearchParams(window.location.search).get("budgetOptimizeDay");
+    if (!rawDay || handledBudgetOptimizationDeepLink === rawDay) {
+      return;
+    }
+    const dayNumber = Number.parseInt(rawDay, 10);
+    if (!Number.isInteger(dayNumber) || dayNumber <= 0) {
+      setHandledBudgetOptimizationDeepLink(rawDay);
+      return;
+    }
+    const canOpen =
+      (displayedTrip.access?.canEdit ?? true) &&
+      onlineActionsEnabled &&
+      Boolean(displayedTrip.itinerary);
+    if (!canOpen) {
+      return;
+    }
+    setBudgetOptimizationDefaultDayNumber(dayNumber);
+    setBudgetOptimizationError(null);
+    setBudgetOptimizationDialogOpen(true);
+    setHandledBudgetOptimizationDeepLink(rawDay);
+  }, [displayedTrip, handledBudgetOptimizationDeepLink, onlineActionsEnabled]);
+
   if (!displayedTrip && (tripQuery.isPending || offlineCacheLoading)) {
     return (
       <PageContainer>
@@ -613,6 +644,10 @@ function TripDetailPageContent() {
 
   const trip = displayedTrip;
   const access = trip.access;
+  const workspaceName =
+    trip.workspaceId != null
+      ? workspaces.find((workspace) => workspace.id === trip.workspaceId)?.name ?? null
+      : null;
   const canEditTripAccess = access?.canEdit ?? true;
   const canMutateTrip = canEditTripAccess && onlineActionsEnabled;
   const canManageShare = (access?.canManageShare ?? true) && onlineActionsEnabled;
@@ -1506,6 +1541,23 @@ function TripDetailPageContent() {
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-semibold text-slate-950">{trip.destination}</h1>
             <TripStatusBadge status={trip.status} />
+            {trip.workspaceId ? (
+              <Link
+                className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-100"
+                href={`/workspaces/${trip.workspaceId}`}
+              >
+                {workspaceName ? `Workspace: ${workspaceName}` : "Workspace trip"}
+              </Link>
+            ) : (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                Personal trip
+              </span>
+            )}
+            {access?.source ? (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                Access: {formatAccessSource(access.source)}
+              </span>
+            ) : null}
           </div>
         </div>
         {canGenerate ? (
@@ -1553,6 +1605,12 @@ function TripDetailPageContent() {
                 )}
               </div>
             </div>
+            <Link
+              className={buttonStyles({ variant: "secondary", className: "mt-6 w-full" })}
+              href={`/trips/${trip.id}/analytics`}
+            >
+              View cost analytics
+            </Link>
           </Card>
 
           <BudgetPanel
@@ -1582,10 +1640,18 @@ function TripDetailPageContent() {
             <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />
           ) : null}
           {onlineActionsEnabled ? (
-            <CollaboratorsPanel
-              canManageCollaborators={canManageCollaborators}
-              tripId={trip.id}
-            />
+            <>
+              {trip.workspaceId ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                  Workspace members may already have access. Trip-specific collaborators
+                  can still be invited for exceptions.
+                </div>
+              ) : null}
+              <CollaboratorsPanel
+                canManageCollaborators={canManageCollaborators}
+                tripId={trip.id}
+              />
+            </>
           ) : null}
         </aside>
 
@@ -2112,6 +2178,22 @@ function availabilityCostCategory(item: {
     return "activity";
   }
   return "ticket";
+}
+
+function formatAccessSource(source: string) {
+  if (source === "owner") {
+    return "Owner";
+  }
+  if (source === "workspace") {
+    return "Workspace";
+  }
+  if (source === "collaborator") {
+    return "Trip collaborator";
+  }
+  if (source === "public") {
+    return "Public share";
+  }
+  return source;
 }
 
 type DetailRowProps = {

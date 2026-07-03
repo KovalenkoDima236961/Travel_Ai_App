@@ -192,7 +192,9 @@ func newAuthTestRouter(t *testing.T, authCfg config.AuthConfig) (http.Handler, *
 		w.WriteHeader(http.StatusOK)
 	})
 
-	return NewRouter(zap.NewNop(), userHandler, ready, config.CORSConfig{}, authCfg), repo
+	return NewRouter(zap.NewNop(), userHandler, nil, ready, config.CORSConfig{}, authCfg, config.InternalConfig{
+		ServiceToken: "test-internal-token",
+	}), repo
 }
 
 type routeTestRepo struct {

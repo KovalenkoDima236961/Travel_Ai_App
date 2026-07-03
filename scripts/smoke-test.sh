@@ -920,6 +920,126 @@ FAKE_PUSH_UNSUBSCRIBE="$(jq -nc --arg endpoint "${FAKE_PUSH_ENDPOINT}" '{endpoin
 request_with_bearer DELETE "${NOTIFICATION_SERVICE_URL}/notifications/push/unsubscribe" "${ACCESS_TOKEN}" "${FAKE_PUSH_UNSUBSCRIBE}"
 assert_2xx "Unsubscribe push endpoint"
 
+echo "Checking workspace create/invite/access flow..."
+WORKSPACE_PAYLOAD="$(jq -nc '{name:"Smoke Workspace",description:"Smoke test workspace"}')"
+request_with_bearer POST "${USER_SERVICE_URL}/workspaces" "${ACCESS_TOKEN}" "${WORKSPACE_PAYLOAD}"
+assert_2xx "Create workspace"
+WORKSPACE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${WORKSPACE_ID}" ]]; then
+  echo "Create workspace response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+WORKSPACE_INVITE_PAYLOAD="$(jq -nc --arg email "${COLLAB_EMAIL}" '{email:$email,role:"member"}')"
+request_with_bearer POST "${USER_SERVICE_URL}/workspaces/${WORKSPACE_ID}/members/invite" "${ACCESS_TOKEN}" "${WORKSPACE_INVITE_PAYLOAD}"
+assert_2xx "Invite workspace member"
+WORKSPACE_INVITATION_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${WORKSPACE_INVITATION_ID}" ]]; then
+  echo "Workspace invite response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Workspace invite notification" "${COLLAB_ACCESS_TOKEN}" "workspace_invited"
+
+request_with_bearer GET "${USER_SERVICE_URL}/workspace-invitations" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "List workspace invitations"
+if ! jq -e --arg id "${WORKSPACE_INVITATION_ID}" '.invitations | any(.id == $id and .status == "pending")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Pending workspace invitation was not visible to invited user." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${USER_SERVICE_URL}/workspace-invitations/${WORKSPACE_INVITATION_ID}/accept" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Accept workspace invitation"
+assert_notification_has "Workspace accepted notification" "${ACCESS_TOKEN}" "workspace_invitation_accepted"
+
+WORKSPACE_TRIP_PAYLOAD="$(jq -nc --arg workspaceId "${WORKSPACE_ID}" '{
+  destination:"Lisbon",
+  startDate:"2026-09-01",
+  days:2,
+  budgetAmount:700,
+  budgetCurrency:"EUR",
+  travelers:2,
+  interests:["food","culture"],
+  pace:"balanced",
+  workspaceId:$workspaceId
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips" "${ACCESS_TOKEN}" "${WORKSPACE_TRIP_PAYLOAD}"
+assert_2xx "Create workspace trip"
+WORKSPACE_TRIP_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+WORKSPACE_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+WORKSPACE_TRIP_SCOPE="$(jq -r '.scope // empty' <<<"${LAST_BODY}")"
+WORKSPACE_TRIP_WORKSPACE_ID="$(jq -r '.workspaceId // empty' <<<"${LAST_BODY}")"
+if [[ -z "${WORKSPACE_TRIP_ID}" || "${WORKSPACE_TRIP_SCOPE}" != "workspace" || "${WORKSPACE_TRIP_WORKSPACE_ID}" != "${WORKSPACE_ID}" ]]; then
+  echo "Workspace trip response did not include expected workspace metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips?scope=workspace&workspaceId=${WORKSPACE_ID}" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "List workspace trips as member"
+if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.items | any(.id == $id and .scope == "workspace")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Workspace member could not list the workspace trip." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Fetch workspace trip as member"
+WORKSPACE_MEMBER_CAN_EDIT="$(jq -r '.access.canEdit // false' <<<"${LAST_BODY}")"
+if [[ "${WORKSPACE_MEMBER_CAN_EDIT}" != "true" ]]; then
+  echo "Workspace member did not receive edit access." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+WORKSPACE_MEMBER_ITINERARY="$(jq -nc '{days:[{day:1,title:"Workspace smoke day",items:[{time:"10:00",type:"activity",name:"Workspace member edit",estimatedCost:{amount:80,currency:"EUR",category:"activity",confidence:"medium",source:"manual"}}]}]}')"
+WORKSPACE_MEMBER_EDIT_PAYLOAD="$(jq -nc --argjson itinerary "${WORKSPACE_MEMBER_ITINERARY}" --argjson revision "${WORKSPACE_TRIP_REVISION}" '{itinerary:$itinerary,expectedItineraryRevision:$revision}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${WORKSPACE_MEMBER_EDIT_PAYLOAD}"
+assert_2xx "Workspace member itinerary edit"
+WORKSPACE_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+
+request_with_bearer GET "${USER_SERVICE_URL}/workspaces/${WORKSPACE_ID}/members" "${ACCESS_TOKEN}"
+assert_2xx "List workspace members"
+WORKSPACE_MEMBER_ID="$(jq -r --arg userId "${COLLAB_USER_ID}" '.members[] | select(.userId == $userId) | .id' <<<"${LAST_BODY}")"
+if [[ -z "${WORKSPACE_MEMBER_ID}" ]]; then
+  echo "Accepted workspace member was not present in member list." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer PATCH "${USER_SERVICE_URL}/workspaces/${WORKSPACE_ID}/members/${WORKSPACE_MEMBER_ID}" "${ACCESS_TOKEN}" '{"role":"viewer"}'
+assert_2xx "Change workspace member to viewer"
+assert_notification_has "Workspace role changed notification" "${COLLAB_ACCESS_TOKEN}" "workspace_role_changed"
+
+WORKSPACE_VIEWER_EDIT_PAYLOAD="$(jq -nc --argjson itinerary "${WORKSPACE_MEMBER_ITINERARY}" --argjson revision "${WORKSPACE_TRIP_REVISION}" '{itinerary:$itinerary,expectedItineraryRevision:$revision}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${WORKSPACE_VIEWER_EDIT_PAYLOAD}"
+assert_status "Workspace viewer itinerary edit" "403"
+
+echo "Checking workspace viewer can read workspace cost analytics..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/analytics/costs?currency=EUR&from=2026-01-01&to=2026-12-31" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Workspace viewer cost analytics"
+if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.summary.tripCount >= 1 and (.byTrip | any(.tripId == $id)) and (.byCategory | length >= 1)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Workspace cost analytics did not include the expected workspace trip." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer DELETE "${USER_SERVICE_URL}/workspaces/${WORKSPACE_ID}/members/${WORKSPACE_MEMBER_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Remove workspace member"
+assert_notification_has "Workspace removed notification" "${COLLAB_ACCESS_TOKEN}" "workspace_member_removed"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
+if [[ "${LAST_STATUS}" != "403" && "${LAST_STATUS}" != "404" ]]; then
+  echo "Removed workspace member still had access to workspace trip; expected 403 or 404, got HTTP ${LAST_STATUS}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/analytics/costs?currency=EUR" "${COLLAB_ACCESS_TOKEN}"
+assert_status "Removed workspace member cost analytics" "403"
+
 echo "Checking optional AI Planning destination context endpoint..."
 if request GET "${AI_PLANNING_SERVICE_URL}/destination-context"; then
   if [[ "${LAST_STATUS}" =~ ^2 ]]; then
@@ -1314,6 +1434,15 @@ if [[ "${BUDGET_CONVERSION_ENABLED:-true}" != "false" ]]; then
   fi
 fi
 echo "Budget tracking checks passed."
+
+echo "Checking trip cost analytics reflects budget tracking data..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/analytics/costs?currency=EUR" "${ACCESS_TOKEN}"
+assert_2xx "Get trip cost analytics"
+if ! jq -e '.summary.estimatedTotal > 0 and (.byDay | length >= 1) and (.byCategory | length >= 1) and (.expensiveItems | length >= 1)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Trip cost analytics did not include expected totals and rollups." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 if [[ "${CALENDAR_PROVIDER:-mock}" == "mock" ]]; then
   echo "Checking mock Google Calendar connection and sync..."

@@ -22,7 +22,14 @@ export function TripCard({ trip }: TripCardProps) {
             <h2 className="truncate text-lg font-semibold text-slate-950">{trip.destination}</h2>
             <p className="mt-1 text-sm text-slate-500">Created {formatDate(trip.createdAt)}</p>
           </div>
-          <TripStatusBadge status={trip.status} />
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <TripStatusBadge status={trip.status} />
+            {trip.workspaceId ? (
+              <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">
+                Workspace
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm">

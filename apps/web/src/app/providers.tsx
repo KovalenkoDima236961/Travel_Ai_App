@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
 import { AppUpdateBanner } from "@/components/pwa/AppUpdateBanner";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
+import { WorkspaceProvider } from "@/components/workspaces/WorkspaceProvider";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { registerServiceWorker } from "@/lib/push/register-service-worker";
 
@@ -36,10 +37,12 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <OfflineSyncController />
-        <AppUpdateBanner />
-        <PwaInstallPrompt />
-        {children}
+        <WorkspaceProvider>
+          <OfflineSyncController />
+          <AppUpdateBanner />
+          <PwaInstallPrompt />
+          {children}
+        </WorkspaceProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

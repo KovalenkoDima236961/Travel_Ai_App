@@ -17,7 +17,7 @@ import (
 const TripCollaboratorColumns = "id, trip_id, user_id, role, status, invited_by_user_id, invited_at, accepted_at, removed_at, updated_at"
 
 const TripColumnsWithAlias = "t.id, t.user_id, t.destination, t.start_date, t.days, t.budget_amount, " +
-	"t.budget_currency, t.travelers, t.interests, t.pace, t.status, t.itinerary, t.itinerary_revision, t.accommodation, t.created_at, t.updated_at"
+	"t.budget_currency, t.travelers, t.interests, t.pace, t.status, t.itinerary, t.itinerary_revision, t.accommodation, t.workspace_id, t.created_at, t.updated_at"
 
 const TripCollaboratorColumnsWithAlias = "c.id, c.trip_id, c.user_id, c.role, c.status, c.invited_by_user_id, " +
 	"c.invited_at, c.accepted_at, c.removed_at, c.updated_at"
@@ -80,24 +80,24 @@ func ScanTripCollaboratorRows(rows pgx.Rows) ([]entity.TripCollaborator, error) 
 
 func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 	var (
-		tripID, tripUserID             pgtype.UUID
-		destination                    string
-		startDate                      pgtype.Date
-		days                           int32
-		budgetAmount                   pgtype.Numeric
-		budgetCurrency                 pgtype.Text
-		travelers                      pgtype.Int4
-		interestsRaw                   []byte
-		pace, tripStatus               string
-		itineraryRaw                   []byte
-		accommodationRaw               []byte
-		itineraryRevision              int32
-		tripCreatedAt, tripUpdatedAt   pgtype.Timestamp
-		id, collaboratorTripID, userID pgtype.UUID
-		role, status                   string
-		invitedByUserID                pgtype.UUID
-		invitedAt, acceptedAt          pgtype.Timestamp
-		removedAt, updatedAt           pgtype.Timestamp
+		tripID, tripUserID, workspaceID pgtype.UUID
+		destination                     string
+		startDate                       pgtype.Date
+		days                            int32
+		budgetAmount                    pgtype.Numeric
+		budgetCurrency                  pgtype.Text
+		travelers                       pgtype.Int4
+		interestsRaw                    []byte
+		pace, tripStatus                string
+		itineraryRaw                    []byte
+		accommodationRaw                []byte
+		itineraryRevision               int32
+		tripCreatedAt, tripUpdatedAt    pgtype.Timestamp
+		id, collaboratorTripID, userID  pgtype.UUID
+		role, status                    string
+		invitedByUserID                 pgtype.UUID
+		invitedAt, acceptedAt           pgtype.Timestamp
+		removedAt, updatedAt            pgtype.Timestamp
 	)
 
 	err := row.Scan(
@@ -115,6 +115,7 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 		&itineraryRaw,
 		&itineraryRevision,
 		&accommodationRaw,
+		&workspaceID,
 		&tripCreatedAt,
 		&tripUpdatedAt,
 		&id,
@@ -143,6 +144,7 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 	trip := entity.Trip{
 		ID:                uuid.UUID(tripID.Bytes),
 		UserID:            fromPgUUID(tripUserID),
+		WorkspaceID:       fromPgUUID(workspaceID),
 		Destination:       destination,
 		StartDate:         fromPgDate(startDate),
 		Days:              days,

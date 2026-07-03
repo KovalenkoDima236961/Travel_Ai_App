@@ -15,6 +15,8 @@ import (
 type Trip struct {
 	ID                uuid.UUID                `json:"id"`
 	UserID            *uuid.UUID               `json:"userId,omitempty"`
+	WorkspaceID       *uuid.UUID               `json:"workspaceId,omitempty"`
+	Scope             string                   `json:"scope"`
 	Destination       string                   `json:"destination"`
 	StartDate         *string                  `json:"startDate,omitempty"`
 	Days              int32                    `json:"days"`
@@ -35,6 +37,7 @@ type Trip struct {
 
 type TripAccess struct {
 	Role                   string `json:"role"`
+	Source                 string `json:"source"`
 	CanEdit                bool   `json:"canEdit"`
 	CanManageCollaborators bool   `json:"canManageCollaborators"`
 	CanManageShare         bool   `json:"canManageShare"`
@@ -371,6 +374,8 @@ func NewTrip(t *entity.Trip) Trip {
 	resp := Trip{
 		ID:                t.ID,
 		UserID:            t.UserID,
+		WorkspaceID:       t.WorkspaceID,
+		Scope:             tripScope(t),
 		Destination:       t.Destination,
 		Days:              t.Days,
 		BudgetAmount:      t.BudgetAmount,
@@ -406,16 +411,13 @@ func NewTripWithAccess(t *entity.Trip, access interface {
 	CanManageShare() bool
 	CanRestoreVersion() bool
 	CanDelete() bool
+	Role() string
+	SourceName() string
 }) Trip {
 	resp := NewTrip(t)
-	role := "viewer"
-	if access.CanManageCollaborators() {
-		role = "owner"
-	} else if access.CanEdit() {
-		role = "editor"
-	}
 	resp.Access = &TripAccess{
-		Role:                   role,
+		Role:                   access.Role(),
+		Source:                 access.SourceName(),
 		CanEdit:                access.CanEdit(),
 		CanManageCollaborators: access.CanManageCollaborators(),
 		CanManageShare:         access.CanManageShare(),
@@ -423,6 +425,13 @@ func NewTripWithAccess(t *entity.Trip, access interface {
 		CanDelete:              access.CanDelete(),
 	}
 	return resp
+}
+
+func tripScope(t *entity.Trip) string {
+	if t.WorkspaceID != nil {
+		return "workspace"
+	}
+	return "personal"
 }
 
 func metadataOrEmpty(metadata map[string]any) map[string]any {

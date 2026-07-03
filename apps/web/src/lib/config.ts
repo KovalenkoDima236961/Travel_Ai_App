@@ -65,6 +65,24 @@ export function getUserServiceUrl() {
   throw new Error("NEXT_PUBLIC_USER_SERVICE_URL is not configured.");
 }
 
+export function getUserServiceInternalUrl() {
+  const value = process.env.USER_SERVICE_INTERNAL_URL?.trim();
+
+  if (value) {
+    return value.replace(/\/+$/, "");
+  }
+
+  return getUserServiceUrl();
+}
+
+export function getUserApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return "/api/user-service";
+  }
+
+  return getUserServiceInternalUrl();
+}
+
 export function getExternalIntegrationsServiceUrl() {
   const value = process.env.NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL?.trim();
 

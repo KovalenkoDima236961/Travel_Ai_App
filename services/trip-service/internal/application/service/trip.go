@@ -28,6 +28,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
 )
 
 const (
@@ -74,6 +75,7 @@ type tripRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error)
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
+	ListAccessible(ctx context.Context, userID uuid.UUID, workspaceIDs []uuid.UUID, scope appdto.TripListScope, workspaceID *uuid.UUID, limit, offset int) ([]entity.Trip, error)
 	UpdateStatusByUserID(ctx context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error)
 	UpdateItineraryAndCreateVersion(
 		ctx context.Context,
@@ -166,6 +168,11 @@ type budgetConversionProvider interface {
 	Convert(ctx context.Context, amount float64, from string, to string) (*budget.CurrencyConversionResult, error)
 }
 
+type workspaceProvider interface {
+	AccessCheck(ctx context.Context, userID, workspaceID uuid.UUID) (*workspaces.Access, error)
+	ListForUser(ctx context.Context, userID uuid.UUID) ([]workspaces.UserWorkspace, error)
+}
+
 // Option customizes Service dependencies that are not required for the core
 // trip CRUD flow.
 type Option func(*Service)
@@ -233,6 +240,13 @@ func WithBudgetConversion(provider budgetConversionProvider, enabled bool, failO
 	}
 }
 
+func WithWorkspaces(provider workspaceProvider, enabled bool) Option {
+	return func(s *Service) {
+		s.workspaceProvider = provider
+		s.workspacesEnabled = enabled
+	}
+}
+
 // WithPublicSharing configures owner-managed public read-only trip links.
 func WithPublicSharing(
 	enabled bool,
@@ -279,6 +293,8 @@ type Service struct {
 	budgetConversionProvider     budgetConversionProvider
 	budgetConversionEnabled      bool
 	budgetConversionFailOpen     bool
+	workspaceProvider            workspaceProvider
+	workspacesEnabled            bool
 	activity                     activityService
 	notifier                     notifier
 	notificationsEnabled         bool
@@ -325,6 +341,11 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 	if in.Travelers < 1 {
 		return nil, apperrs.NewInvalidInput("travelers must be at least 1")
 	}
+	if in.WorkspaceID != nil {
+		if err := s.requireWorkspaceTripCreateAccess(ctx, user.ID, *in.WorkspaceID); err != nil {
+			return nil, err
+		}
+	}
 
 	currency := strings.ToUpper(strings.TrimSpace(in.BudgetCurrency))
 	if currency == "" {
@@ -351,6 +372,7 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 
 	created, err := s.repo.Create(ctx, &entity.Trip{
 		UserID:         &user.ID,
+		WorkspaceID:    in.WorkspaceID,
 		Destination:    destination,
 		StartDate:      startDate,
 		Days:           in.Days,
@@ -404,11 +426,17 @@ func (s *Service) GetWithAccess(ctx context.Context, id uuid.UUID) (*entity.Trip
 // pagination parameters: limit defaults to 20 (when 0) and must be 1..100;
 // offset must be >= 0.
 func (s *Service) List(ctx context.Context, limit, offset int) ([]entity.Trip, int, int, error) {
+	return s.ListWithFilters(ctx, appdto.ListTripsInput{Limit: limit, Offset: offset, Scope: appdto.TripListScopeAll})
+}
+
+func (s *Service) ListWithFilters(ctx context.Context, in appdto.ListTripsInput) ([]entity.Trip, int, int, error) {
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
+	limit := in.Limit
+	offset := in.Offset
 	if limit == 0 {
 		limit = defaultLimit
 	}
@@ -419,7 +447,11 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]entity.Trip, i
 		return nil, 0, 0, apperrs.NewInvalidInput("offset must be >= 0")
 	}
 
-	trips, err := s.repo.ListByUser(ctx, user.ID, limit, offset)
+	workspaceIDs, err := s.accessibleWorkspaceIDs(ctx, user.ID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	trips, err := s.repo.ListAccessible(ctx, user.ID, workspaceIDs, normalizeTripListScope(in.Scope), in.WorkspaceID, limit, offset)
 	if err != nil {
 		return nil, 0, 0, err
 	}

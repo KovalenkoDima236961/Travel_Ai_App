@@ -218,11 +218,18 @@ function OfflineTripCard({
           </h3>
           <p className="mt-1 text-sm text-slate-500">{tripDateSummary(record)}</p>
         </div>
-        {pendingMutation ? (
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
-            Pending changes
-          </span>
-        ) : null}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {record.trip.workspaceId ? (
+            <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">
+              Workspace
+            </span>
+          ) : null}
+          {pendingMutation ? (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+              Pending changes
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <dl className="grid grid-cols-2 gap-3 text-sm">

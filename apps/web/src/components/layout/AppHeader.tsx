@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button, buttonStyles } from "@/components/ui/Button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 
 export function AppHeader() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export function AppHeader() {
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/offline-trips">
                 Offline Trips
               </Link>
+              <WorkspaceSwitcher />
               <Link className={buttonStyles({ size: "sm" })} href="/trips/new">
                 Create Trip
               </Link>

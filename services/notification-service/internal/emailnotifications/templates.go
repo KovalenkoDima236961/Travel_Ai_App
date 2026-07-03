@@ -126,6 +126,56 @@ func BuildEmailForNotification(input BuildEmailInput) (email.EmailMessage, error
 			linkLabel: "Open the trip:",
 			linkURL:   tripLink(base, tripID),
 		}
+	case notifications.TypeWorkspaceInvited:
+		workspaceName := workspaceNameOr(meta, "a workspace")
+		c = emailContent{
+			subject:   "Workspace invitation",
+			greeting:  greeting,
+			body:      "You were invited to join " + workspaceName + roleSuffix(meta, "role") + ".",
+			linkLabel: "Open your workspace invitations:",
+			linkURL:   metadataURLOr(base, meta, "url", workspaceInvitationsLink(base)),
+		}
+	case notifications.TypeWorkspaceInvitationAccepted:
+		workspaceName := workspaceNameOr(meta, "your workspace")
+		c = emailContent{
+			subject:   "Workspace invitation accepted",
+			greeting:  greeting,
+			body:      "A teammate accepted your invitation to " + workspaceName + ".",
+			linkLabel: "Open the workspace:",
+			linkURL:   metadataURLOr(base, meta, "url", workspaceLink(base, workspaceIDFor(n, meta))),
+		}
+	case notifications.TypeWorkspaceInvitationDeclined:
+		workspaceName := workspaceNameOr(meta, "your workspace")
+		c = emailContent{
+			subject:  "Workspace invitation declined",
+			greeting: greeting,
+			body:     "A teammate declined your invitation to " + workspaceName + ".",
+		}
+	case notifications.TypeWorkspaceMemberRemoved:
+		workspaceName := workspaceNameOr(meta, "a workspace")
+		c = emailContent{
+			subject:  "Workspace access removed",
+			greeting: greeting,
+			body:     "You no longer have access to " + workspaceName + ".",
+		}
+	case notifications.TypeWorkspaceRoleChanged:
+		workspaceName := workspaceNameOr(meta, "a workspace")
+		c = emailContent{
+			subject:   "Workspace role changed",
+			greeting:  greeting,
+			body:      workspaceRoleChangeSentence(meta, workspaceName),
+			linkLabel: "Open the workspace:",
+			linkURL:   metadataURLOr(base, meta, "url", workspaceLink(base, workspaceIDFor(n, meta))),
+		}
+	case notifications.TypeWorkspaceTripCreated:
+		workspaceName := workspaceNameOr(meta, "a workspace")
+		c = emailContent{
+			subject:   "New workspace trip",
+			greeting:  greeting,
+			body:      "A new trip was created in " + workspaceName + ".",
+			linkLabel: "Open the trip:",
+			linkURL:   tripLink(base, tripID),
+		}
 	default:
 		return email.EmailMessage{}, fmt.Errorf("%w: %q", ErrNoTemplate, n.Type)
 	}
@@ -215,6 +265,40 @@ func invitationsLink(base string) string {
 	return base + "/trips?tab=invitations"
 }
 
+func workspaceInvitationsLink(base string) string {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	return base + "/workspace-invitations"
+}
+
+func workspaceIDFor(n entity.Notification, meta map[string]any) string {
+	if n.EntityType != nil && *n.EntityType == notifications.EntityWorkspace && n.EntityID != nil && *n.EntityID != uuid.Nil {
+		return n.EntityID.String()
+	}
+	return metaString(meta, "workspaceId")
+}
+
+func workspaceLink(base, workspaceID string) string {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if workspaceID == "" {
+		return base + "/workspaces"
+	}
+	return base + "/workspaces/" + workspaceID
+}
+
+func metadataURLOr(base string, meta map[string]any, key, fallback string) string {
+	raw := metaString(meta, key)
+	if raw == "" {
+		return fallback
+	}
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		return raw
+	}
+	if strings.HasPrefix(raw, "/") {
+		return strings.TrimRight(strings.TrimSpace(base), "/") + raw
+	}
+	return fallback
+}
+
 // --- sentence helpers ---
 
 func greetingLine(displayName string) string {
@@ -228,6 +312,13 @@ func greetingLine(displayName string) string {
 func destinationOr(meta map[string]any, fallback string) string {
 	if d := metaString(meta, "destination"); d != "" {
 		return d
+	}
+	return fallback
+}
+
+func workspaceNameOr(meta map[string]any, fallback string) string {
+	if name := metaString(meta, "workspaceName"); name != "" {
+		return name
 	}
 	return fallback
 }
@@ -251,6 +342,19 @@ func roleChangeSentence(meta map[string]any, destination string) string {
 		return "Your role for " + destination + " was changed to " + newRole + "."
 	default:
 		return "Your role for " + destination + " was changed."
+	}
+}
+
+func workspaceRoleChangeSentence(meta map[string]any, workspaceName string) string {
+	oldRole := metaString(meta, "oldRole")
+	newRole := metaString(meta, "newRole")
+	switch {
+	case oldRole != "" && newRole != "":
+		return "Your role for " + workspaceName + " was changed from " + oldRole + " to " + newRole + "."
+	case newRole != "":
+		return "Your role for " + workspaceName + " was changed to " + newRole + "."
+	default:
+		return "Your role for " + workspaceName + " was changed."
 	}
 }
 

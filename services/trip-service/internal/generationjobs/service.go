@@ -26,6 +26,7 @@ type Repository interface {
 	GetGenerationJobByIDAndTrip(ctx context.Context, id, tripID uuid.UUID) (*entity.GenerationJob, error)
 	ListGenerationJobsByTrip(ctx context.Context, tripID uuid.UUID, limit int) ([]entity.GenerationJob, error)
 	ListOpsGenerationJobs(ctx context.Context, filters OpsJobListFilters) ([]entity.GenerationJob, error)
+	ListOpsTripMetadata(ctx context.Context, tripIDs []uuid.UUID) (map[uuid.UUID]OpsTripMetadata, error)
 	CountOpsJobsByStatus(ctx context.Context) (map[entity.GenerationJobStatus]int, error)
 	CountOpsJobsByType(ctx context.Context) (map[entity.GenerationJobType]int, error)
 	ListRecentFailedOpsJobs(ctx context.Context, limit int) ([]entity.GenerationJob, error)

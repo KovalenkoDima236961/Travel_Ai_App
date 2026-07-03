@@ -23,13 +23,13 @@ import (
 // Columns is the canonical column order used by all SELECT/RETURNING statements
 // and the Scan helper.
 const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
-	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, created_at, updated_at"
+	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, workspace_id, created_at, updated_at"
 
 // InsertColumns returns the columns set on INSERT (DB-defaulted columns omitted),
 // in the same order as InsertValues.
 func InsertColumns() []string {
 	return []string{
-		"user_id", "destination", "start_date", "days", "budget_amount",
+		"user_id", "workspace_id", "destination", "start_date", "days", "budget_amount",
 		"budget_currency", "travelers", "interests", "pace", "status",
 	}
 }
@@ -41,7 +41,7 @@ func InsertValues(t *entity.Trip) ([]any, error) {
 		return nil, err
 	}
 	return []any{
-		toPgUUIDPtr(t.UserID), t.Destination, toPgDate(t.StartDate), t.Days,
+		toPgUUIDPtr(t.UserID), toPgUUIDPtr(t.WorkspaceID), t.Destination, toPgDate(t.StartDate), t.Days,
 		toPgNumeric(t.BudgetAmount), toPgText(t.BudgetCurrency), t.Travelers,
 		interests, t.Pace, string(t.Status),
 	}, nil
@@ -67,25 +67,25 @@ func TextArg(s string) pgtype.Text {
 // domain errs.ErrNotFound when the row is absent.
 func Scan(row pgx.Row) (*entity.Trip, error) {
 	var (
-		id, userID           pgtype.UUID
-		destination          string
-		startDate            pgtype.Date
-		days                 int32
-		budgetAmount         pgtype.Numeric
-		budgetCurrency       pgtype.Text
-		travelers            pgtype.Int4
-		interestsRaw         []byte
-		pace, status         string
-		itineraryRaw         []byte
-		accommodationRaw     []byte
-		itineraryRevision    int32
-		createdAt, updatedAt pgtype.Timestamp
+		id, userID, workspaceID pgtype.UUID
+		destination             string
+		startDate               pgtype.Date
+		days                    int32
+		budgetAmount            pgtype.Numeric
+		budgetCurrency          pgtype.Text
+		travelers               pgtype.Int4
+		interestsRaw            []byte
+		pace, status            string
+		itineraryRaw            []byte
+		accommodationRaw        []byte
+		itineraryRevision       int32
+		createdAt, updatedAt    pgtype.Timestamp
 	)
 
 	err := row.Scan(
 		&id, &userID, &destination, &startDate, &days, &budgetAmount,
 		&budgetCurrency, &travelers, &interestsRaw, &pace, &status,
-		&itineraryRaw, &itineraryRevision, &accommodationRaw, &createdAt, &updatedAt,
+		&itineraryRaw, &itineraryRevision, &accommodationRaw, &workspaceID, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if postgres.NoRowsFound(err) {
@@ -102,6 +102,7 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 	t := &entity.Trip{
 		ID:                uuid.UUID(id.Bytes),
 		UserID:            fromPgUUID(userID),
+		WorkspaceID:       fromPgUUID(workspaceID),
 		Destination:       destination,
 		StartDate:         fromPgDate(startDate),
 		Days:              days,

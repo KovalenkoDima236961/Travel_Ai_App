@@ -10,10 +10,19 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
+type TripListScope string
+
+const (
+	TripListScopeAll       TripListScope = "all"
+	TripListScopePersonal  TripListScope = "personal"
+	TripListScopeWorkspace TripListScope = "workspace"
+)
+
 // CreateTripInput is the validated, application-level representation of a create
 // request.
 type CreateTripInput struct {
 	Destination    string
+	WorkspaceID    *uuid.UUID
 	StartDate      string
 	Days           int32
 	BudgetAmount   *float64
@@ -21,6 +30,13 @@ type CreateTripInput struct {
 	Travelers      int32
 	Interests      []string
 	Pace           string
+}
+
+type ListTripsInput struct {
+	Limit       int
+	Offset      int
+	Scope       TripListScope
+	WorkspaceID *uuid.UUID
 }
 
 // UpdateItineraryInput is the application-level payload for replacing a trip's

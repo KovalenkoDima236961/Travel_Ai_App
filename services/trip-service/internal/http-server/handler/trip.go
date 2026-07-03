@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
@@ -84,6 +86,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Put("/{id}/accommodation", h.UpdateAccommodation)
 		r.Delete("/{id}/accommodation", h.DeleteAccommodation)
 		r.Get("/{id}/budget-summary", h.GetBudgetSummary)
+		r.Get("/{id}/analytics/costs", h.GetTripCostAnalytics)
 		r.Put("/{id}/budget", h.UpdateTripBudget)
 		r.Get("/{id}/share", h.GetShare)
 		r.Post("/{id}/share", h.CreateShare)
@@ -128,6 +131,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/activity", h.ListActivity)
 		r.Get("/{id}/activity/stream", h.StreamActivity)
 	})
+	r.Get("/workspaces/{workspaceId}/analytics/costs", h.GetWorkspaceCostAnalytics)
 }
 
 func (h *Handler) GetGoogleCalendarSyncStatus(w http.ResponseWriter, r *http.Request) {
@@ -216,8 +220,23 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	scope := appdto.TripListScope(strings.TrimSpace(r.URL.Query().Get("scope")))
+	var workspaceID *uuid.UUID
+	if rawWorkspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); rawWorkspaceID != "" {
+		parsed, err := uuid.Parse(rawWorkspaceID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid workspace id")
+			return
+		}
+		workspaceID = &parsed
+	}
 
-	trips, appliedLimit, appliedOffset, err := h.svc.List(r.Context(), limit, offset)
+	trips, appliedLimit, appliedOffset, err := h.svc.ListWithFilters(r.Context(), appdto.ListTripsInput{
+		Limit:       limit,
+		Offset:      offset,
+		Scope:       scope,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -312,6 +331,61 @@ func (h *Handler) GetBudgetSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, summary)
+}
+
+// GetTripCostAnalytics handles GET /trips/{id}/analytics/costs.
+func (h *Handler) GetTripCostAnalytics(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	currency, ok := parseCurrencyQuery(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := h.svc.GetTripCostAnalytics(r.Context(), id, currency)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// GetWorkspaceCostAnalytics handles GET /workspaces/{workspaceId}/analytics/costs.
+func (h *Handler) GetWorkspaceCostAnalytics(w http.ResponseWriter, r *http.Request) {
+	workspaceID, ok := parseUUIDParam(w, r, "workspaceId", "invalid workspace id")
+	if !ok {
+		return
+	}
+	currency, ok := parseCurrencyQuery(w, r)
+	if !ok {
+		return
+	}
+	from, ok := parseDateQuery(w, r, "from")
+	if !ok {
+		return
+	}
+	to, ok := parseDateQuery(w, r, "to")
+	if !ok {
+		return
+	}
+	includeArchived, ok := parseBoolQuery(w, r, "includeArchived")
+	if !ok {
+		return
+	}
+
+	result, err := h.svc.GetWorkspaceCostAnalytics(r.Context(), workspaceID, appdto.WorkspaceCostAnalyticsInput{
+		Currency:        currency,
+		From:            from,
+		To:              to,
+		IncludeArchived: includeArchived,
+	})
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 // UpdateTripBudget handles PUT /trips/{id}/budget. Only owner/editor may update.
@@ -1024,6 +1098,54 @@ func parseQueryInt(w http.ResponseWriter, r *http.Request, key string) (int, boo
 		return 0, false
 	}
 	return v, true
+}
+
+func parseCurrencyQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get("currency"))
+	if raw == "" {
+		return "", true
+	}
+	currency := strings.ToUpper(raw)
+	if len(currency) != 3 {
+		writeError(w, http.StatusBadRequest, "invalid currency")
+		return "", false
+	}
+	for _, ch := range currency {
+		if ch < 'A' || ch > 'Z' {
+			writeError(w, http.StatusBadRequest, "invalid currency")
+			return "", false
+		}
+	}
+	return currency, true
+}
+
+func parseDateQuery(w http.ResponseWriter, r *http.Request, key string) (*time.Time, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return nil, true
+	}
+	parsed, err := time.Parse("2006-01-02", raw)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid %s", key))
+		return nil, false
+	}
+	return &parsed, true
+}
+
+func parseBoolQuery(w http.ResponseWriter, r *http.Request, key string) (bool, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return false, true
+	}
+	switch strings.ToLower(raw) {
+	case "true", "1", "yes":
+		return true, true
+	case "false", "0", "no":
+		return false, true
+	default:
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid %s", key))
+		return false, false
+	}
 }
 
 func bearerToken(header string) (string, bool) {

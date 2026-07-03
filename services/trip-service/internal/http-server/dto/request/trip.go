@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
+
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -14,6 +16,7 @@ import (
 // enforced by the project's validation package in the handler.
 type CreateTrip struct {
 	Destination    string   `json:"destination" validate:"required"`
+	WorkspaceID    *string  `json:"workspaceId" validate:"omitempty,uuid"`
 	StartDate      string   `json:"startDate" validate:"omitempty,datetime=2006-01-02"`
 	Days           int32    `json:"days" validate:"required,gte=1,lte=30"`
 	BudgetAmount   *float64 `json:"budgetAmount" validate:"omitempty,gte=0"`
@@ -25,8 +28,14 @@ type CreateTrip struct {
 
 // ToInput maps the transport request to the application-level input.
 func (r CreateTrip) ToInput() appdto.CreateTripInput {
+	var workspaceID *uuid.UUID
+	if r.WorkspaceID != nil {
+		parsed := uuid.MustParse(*r.WorkspaceID)
+		workspaceID = &parsed
+	}
 	return appdto.CreateTripInput{
 		Destination:    r.Destination,
+		WorkspaceID:    workspaceID,
 		StartDate:      r.StartDate,
 		Days:           r.Days,
 		BudgetAmount:   r.BudgetAmount,

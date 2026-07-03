@@ -27,6 +27,14 @@ const (
 	// Budget optimization.
 	TypeBudgetOptimizationReady  = "budget_optimization_ready"
 	TypeBudgetOptimizationFailed = "budget_optimization_failed"
+
+	// Workspaces.
+	TypeWorkspaceInvited            = "workspace_invited"
+	TypeWorkspaceInvitationAccepted = "workspace_invitation_accepted"
+	TypeWorkspaceInvitationDeclined = "workspace_invitation_declined"
+	TypeWorkspaceMemberRemoved      = "workspace_member_removed"
+	TypeWorkspaceRoleChanged        = "workspace_role_changed"
+	TypeWorkspaceTripCreated        = "workspace_trip_created"
 )
 
 // Entity type constants describe the kind of object a notification refers to.
@@ -38,6 +46,7 @@ const (
 	EntityItineraryDay     = "itinerary_day"
 	EntityItineraryItem    = "itinerary_item"
 	EntityItineraryVersion = "itinerary_version"
+	EntityWorkspace        = "workspace"
 )
 
 // knownTypes is the set of notification types this version recognises. Unknown
@@ -45,19 +54,25 @@ const (
 // this helper remains useful for renderers/tests that need to distinguish known
 // vocabulary from future types.
 var knownTypes = map[string]struct{}{
-	TypeCollaborationInvited:     {},
-	TypeCollaborationAccepted:    {},
-	TypeCollaboratorRoleChange:   {},
-	TypeCollaboratorRemoved:      {},
-	TypeCommentCreated:           {},
-	TypeItineraryUpdated:         {},
-	TypeItineraryGenerated:       {},
-	TypeDayRegenerated:           {},
-	TypeItemRegenerated:          {},
-	TypeVersionRestored:          {},
-	TypeGenerationJobFailed:      {},
-	TypeBudgetOptimizationReady:  {},
-	TypeBudgetOptimizationFailed: {},
+	TypeCollaborationInvited:        {},
+	TypeCollaborationAccepted:       {},
+	TypeCollaboratorRoleChange:      {},
+	TypeCollaboratorRemoved:         {},
+	TypeCommentCreated:              {},
+	TypeItineraryUpdated:            {},
+	TypeItineraryGenerated:          {},
+	TypeDayRegenerated:              {},
+	TypeItemRegenerated:             {},
+	TypeVersionRestored:             {},
+	TypeGenerationJobFailed:         {},
+	TypeBudgetOptimizationReady:     {},
+	TypeBudgetOptimizationFailed:    {},
+	TypeWorkspaceInvited:            {},
+	TypeWorkspaceInvitationAccepted: {},
+	TypeWorkspaceInvitationDeclined: {},
+	TypeWorkspaceMemberRemoved:      {},
+	TypeWorkspaceRoleChanged:        {},
+	TypeWorkspaceTripCreated:        {},
 }
 
 // IsKnownType reports whether the notification type is part of the recognised

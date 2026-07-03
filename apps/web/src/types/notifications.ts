@@ -15,7 +15,13 @@ export type NotificationType =
   | "version_restored"
   | "generation_job_failed"
   | "budget_optimization_ready"
-  | "budget_optimization_failed";
+  | "budget_optimization_failed"
+  | "workspace_invited"
+  | "workspace_invitation_accepted"
+  | "workspace_invitation_declined"
+  | "workspace_member_removed"
+  | "workspace_role_changed"
+  | "workspace_trip_created";
 
 export type AppNotification = {
   id: string;

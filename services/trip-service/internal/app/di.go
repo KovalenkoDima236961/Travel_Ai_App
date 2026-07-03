@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
@@ -30,6 +31,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
@@ -140,6 +142,20 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("init user lookup client: %w", err)
 	}
+	var workspaceClient interface {
+		AccessCheck(context.Context, uuid.UUID, uuid.UUID) (*workspaces.Access, error)
+		ListForUser(context.Context, uuid.UUID) ([]workspaces.UserWorkspace, error)
+	}
+	if cfg.Workspaces.Enabled {
+		workspaceClient, err = workspaces.New(workspaces.Config{
+			BaseURL:        cfg.Workspaces.UserServiceURL,
+			Token:          cfg.Workspaces.ServiceToken,
+			TimeoutSeconds: cfg.Workspaces.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init workspace client: %w", err)
+		}
+	}
 	activityStreamCfg := activitystream.Normalize(activitystream.Config{
 		Enabled:                      cfg.ActivityStream.Enabled,
 		HeartbeatInterval:            cfg.ActivityStreamHeartbeatInterval(),
@@ -192,6 +208,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		),
 		service.WithUserLookup(userLookupClient),
 		service.WithActivity(activitySvc),
+		service.WithWorkspaces(workspaceClient, cfg.Workspaces.Enabled),
 	}
 	if notificationClient != nil {
 		opts = append(opts, service.WithNotifications(

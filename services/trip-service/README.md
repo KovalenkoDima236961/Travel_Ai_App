@@ -48,9 +48,10 @@ and graceful shutdown.
 | Itinerary safety | `itineraryRevision`, revision-aware writes, version snapshots, restore. |
 | Generation | Job creation, sync compatibility routes, AI context assembly, result validation. |
 | Collaboration | Invites, roles, accepted/shared trips, presence, soft edit locks. |
+| Workspaces | Personal vs workspace trips, workspace role checks via User Service, combined effective access. |
 | Activity | Persistent audit feed plus in-memory SSE best-effort updates. |
 | Comments | Private item comments, counts, edit/delete permissions. |
-| Budget | Trip budget, item/accommodation costs, multi-currency summaries, proposals. |
+| Budget | Trip budget, item/accommodation costs, multi-currency summaries, analytics, proposals. |
 | Accommodation | One private structured stay per trip, included in AI/budget/route context. |
 | Sharing | One public read-only link per trip, optional expiry/password unlock. |
 | Calendar | Per-trip/user sync state; provider operations delegated to External Integrations. |
@@ -126,6 +127,7 @@ or itinerary JSON.
 | Sync generation compatibility | `POST /trips/{id}/generate`, day regeneration, item regeneration |
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |
 | Budget | `GET /trips/{id}/budget-summary`, `PUT /trips/{id}/budget`, budget optimization job/proposal routes |
+| Cost analytics | `GET /trips/{id}/analytics/costs`, `GET /workspaces/{workspaceId}/analytics/costs` |
 | Accommodation | `GET /trips/{id}/accommodation`, `PUT /trips/{id}/accommodation`, `DELETE /trips/{id}/accommodation` |
 | Collaboration | collaborator CRUD/accept/decline, `GET /collaboration/invitations` |
 | Presence and locks | `/trips/{id}/presence*`, `/trips/{id}/edit-lock` |
@@ -138,6 +140,61 @@ Private routes require `Authorization: Bearer <accessToken>` when
 `AUTH_REQUIRED=true`. Public share routes use opaque share tokens and optional
 short-lived public share unlock tokens.
 
+## Workspace Trips
+
+Trips now have nullable `workspace_id`. Existing rows remain personal trips with
+`workspace_id=NULL`; workspace trips keep `user_id` as creator/audit owner while
+access is granted through User Service workspace roles.
+
+`POST /trips` accepts optional `workspaceId`. If present, Trip Service calls
+User Service `POST /internal/workspaces/access-check` and requires workspace
+`owner`, `admin`, or `member`; `viewer` can view but cannot create/edit.
+
+`GET /trips` accepts:
+
+- `scope=all|personal|workspace`
+- `workspaceId=<uuid>` for a single workspace
+
+For workspace listings, Trip Service calls
+`POST /internal/workspaces/list-for-user` and returns only trips from active
+memberships. Trip responses include `workspaceId`, `scope`, and access metadata
+with `source=owner|workspace|collaborator|public`.
+
+Effective access is the strongest safe permission from personal owner,
+workspace role, direct trip collaborator, or public share. Workspace owner/admin
+map to owner-level trip management, member maps to editor, and viewer maps to
+viewer. Direct trip collaborators still work for workspace trips, including
+non-workspace exceptions. Public share links remain separate anonymous read-only
+access and never expose workspace member data.
+
+## Cost Analytics
+
+Cost Analytics Dashboard v1 is read-only and computed from existing Trip Service
+data at request time. It does not add accounting records or booking/payment
+data.
+
+- `GET /trips/{id}/analytics/costs?currency=EUR` returns trip-level estimated
+  totals, budget remaining/overage, cost by day/category/source/confidence,
+  original currency totals, expensive items, missing/uncertain estimate counts,
+  conversion warnings, and actionable planning insights.
+- `GET /workspaces/{workspaceId}/analytics/costs?currency=EUR&from=2026-01-01&to=2026-12-31`
+  aggregates accessible workspace trips by trip/category/source/month and
+  includes top trips/items plus incomplete budget warnings.
+- Trip analytics requires private trip access. Owners, editors, and viewers can
+  read analytics; public share tokens do not expose analytics in v1.
+- Workspace analytics requires an active workspace role through User Service.
+  Owner, admin, member, and viewer roles can read the dashboard.
+
+Calculations reuse the budget conversion rules used by `budget-summary`.
+Accommodation cost is included once in total/category rollups and not forced
+into daily totals. Currency conversion failures are returned as warnings and the
+affected costs remain visible in original-currency totals.
+
+Limitations: costs are estimates for planning only; exchange rates may be
+approximate; provider prices and availability may change; missing estimates can
+make totals incomplete; reports are not accounting, tax, invoice, payment, or
+financial-advice features.
+
 ## Important Configuration
 
 | Variable | Purpose |
@@ -147,6 +204,7 @@ short-lived public share unlock tokens.
 | `ITINERARY_GENERATOR_MODE` | `mock` or `http` AI generator adapter. |
 | `AI_PLANNING_SERVICE_URL`, `AI_PLANNING_TIMEOUT_SECONDS` | AI Planning Service client. |
 | `USER_SERVICE_URL`, `USER_CONTEXT_*` | Profile/preference lookup for personalization. |
+| `WORKSPACES_ENABLED`, `USER_SERVICE_URL`, `WORKSPACE_ACCESS_TIMEOUT_SECONDS`, `INTERNAL_SERVICE_TOKEN` | Workspace access checks and trip list scoping. |
 | `EXTERNAL_INTEGRATIONS_SERVICE_URL` | Weather, places, prices, rates, and calendar calls. |
 | `WEATHER_CONTEXT_*` | Optional weather context for AI prompts. |
 | `PLACE_ENRICHMENT_*`, `PRICE_ENRICHMENT_*` | Auto-enrichment after generation. |

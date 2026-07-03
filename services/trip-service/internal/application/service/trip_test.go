@@ -173,6 +173,16 @@ func (m *mockRepo) ListByUser(_ context.Context, userID uuid.UUID, limit, offset
 	return m.listResult, nil
 }
 
+func (m *mockRepo) ListAccessible(_ context.Context, userID uuid.UUID, _ []uuid.UUID, _ appdto.TripListScope, _ *uuid.UUID, limit, offset int) ([]entity.Trip, error) {
+	m.listUserID = userID
+	m.listLimit = limit
+	m.listOffset = offset
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	return m.listResult, nil
+}
+
 func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
 	m.statusSeq = append(m.statusSeq, status)
 	m.statusUserIDs = append(m.statusUserIDs, userID)

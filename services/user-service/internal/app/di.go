@@ -8,10 +8,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/authusers"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/config"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/handler"
 	userrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/infrastructure/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/workspaces"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/validation"
@@ -45,8 +48,36 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	repo := userrepo.New(db)
 	svc := service.New(repo, log)
 	userHandler := handler.New(svc, validator, log)
+	authUsersClient, err := authusers.New(authusers.Config{
+		BaseURL:        cfg.AuthUsers.AuthServiceURL,
+		Token:          cfg.Internal.ServiceToken,
+		TimeoutSeconds: cfg.AuthUsers.TimeoutSeconds,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init auth users client: %w", err)
+	}
+	workspaceRepo := workspaces.NewRepository(db)
+	workspaceOptions := []workspaces.Option{workspaces.WithUserLookup(authUsersClient)}
+	if cfg.Notifications.Enabled {
+		notificationClient, err := notifications.New(notifications.Config{
+			BaseURL:        cfg.Notifications.NotificationServiceURL,
+			Token:          cfg.Notifications.NotificationServiceToken,
+			TimeoutSeconds: cfg.Notifications.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init notification client: %w", err)
+		}
+		workspaceOptions = append(workspaceOptions, workspaces.WithNotifications(
+			notificationClient,
+			cfg.Notifications.Enabled,
+			cfg.Notifications.FailOpen,
+			cfg.Notifications.PublicWebBaseURL,
+		))
+	}
+	workspaceSvc := workspaces.NewService(workspaceRepo, log, workspaceOptions...)
+	workspaceHandler := workspaces.NewHandler(workspaceSvc, log)
 	readinessHandler := httpserver.NewReadinessHandler(db, log)
-	router := httpserver.NewRouter(log, userHandler, readinessHandler, cfg.CORS, cfg.Auth)
+	router := httpserver.NewRouter(log, userHandler, workspaceHandler, readinessHandler, cfg.CORS, cfg.Auth, cfg.Internal)
 
 	return &container{
 		db:     db,
