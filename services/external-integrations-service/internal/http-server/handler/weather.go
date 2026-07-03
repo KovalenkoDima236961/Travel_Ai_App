@@ -46,6 +46,9 @@ func (h *WeatherHandler) Forecast(w http.ResponseWriter, r *http.Request) {
 
 	forecast, err := h.svc.GetForecast(r.Context(), req)
 	if err != nil {
+		if writeProviderLimitError(w, err) {
+			return
+		}
 		// Validation already passed, so any error here is an upstream provider
 		// failure. Return a safe, generic provider-unavailable response.
 		h.log.Warn("weather forecast failed",

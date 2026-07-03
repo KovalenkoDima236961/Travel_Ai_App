@@ -10,12 +10,15 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
-// New selects the configured route provider adapter and wires fallback and
-// caching around it. Mock remains the default and fallback; ORS is opt-in.
-// Unsupported providers fail fast at startup, mirroring the place provider.
-func New(cfg *config.Config, log *zap.Logger) (service.RouteProvider, error) {
+// New selects the configured route provider adapter and wires the quota guard,
+// fallback, and caching around it. Mock remains the default and fallback; ORS is
+// opt-in. Unsupported providers fail fast at startup, mirroring the place
+// provider. The decorator order is cache -> guard -> provider so cache hits
+// never consume provider quota.
+func New(cfg *config.Config, guard *providerlimits.Guard, log *zap.Logger) (service.RouteProvider, error) {
 	provider := strings.ToLower(strings.TrimSpace(cfg.RouteProvider.Provider))
 	if provider == "" {
 		provider = config.RouteProviderMock
@@ -25,6 +28,8 @@ func New(cfg *config.Config, log *zap.Logger) (service.RouteProvider, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	selected = newGuardedRouteProvider(guard, provider, selected, NewMockRouteProvider(), cfg.RouteProvider.FallbackToMock, log)
 
 	if cfg.RouteProvider.CacheEnabled {
 		ttl := time.Duration(cfg.RouteProvider.CacheTTLSeconds) * time.Second

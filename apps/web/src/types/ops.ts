@@ -108,3 +108,59 @@ export type ProviderStatus = {
   status: "healthy" | "degraded" | "down" | "unknown";
   lastErrorCode?: string;
 };
+
+export type ProviderQuotaStatus =
+  | "healthy"
+  | "nearing_quota"
+  | "quota_exceeded"
+  | "rate_limited_recently"
+  | "disabled"
+  | "unknown";
+
+export type ProviderQuotaOperationUsage = {
+  operation: string;
+  usedToday: number;
+  blockedToday: number;
+  fallbackToday: number;
+  lastAllowedAt?: string | null;
+  lastBlockedAt?: string | null;
+  lastFallbackAt?: string | null;
+};
+
+export type ProviderQuotaSummary = {
+  provider: string;
+  category: string;
+  enabled: boolean;
+  rateLimitPerMinute: number;
+  dailyQuota: number;
+  usedToday: number;
+  remainingToday: number;
+  blockedToday: number;
+  fallbackToday: number;
+  status: ProviderQuotaStatus;
+  lastBlockedAt?: string | null;
+  lastFallbackAt?: string | null;
+  operations: ProviderQuotaOperationUsage[];
+};
+
+export type ProviderQuotasResponse = {
+  date: string;
+  enabled: boolean;
+  resetAllowed: boolean;
+  providers: ProviderQuotaSummary[];
+};
+
+export type ProviderQuotaDayUsage = {
+  date: string;
+  usedCount: number;
+  blockedCount: number;
+  fallbackCount: number;
+};
+
+export type ProviderQuotaDetail = {
+  date: string;
+  enabled: boolean;
+  resetAllowed: boolean;
+  provider: ProviderQuotaSummary;
+  history: ProviderQuotaDayUsage[];
+};

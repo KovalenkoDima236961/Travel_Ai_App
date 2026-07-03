@@ -4,16 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const internalServiceTokenHeader = "X-Internal-Service-Token"
+
+const maxExchangeRateClientErrorBodyBytes = 2 * 1024
 
 type Config struct {
 	BaseURL        string
@@ -92,10 +96,14 @@ func (c *Client) get(ctx context.Context, path string, values url.Values, output
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxExchangeRateClientErrorBodyBytes))
+		if limitErr := providerlimit.Parse(resp.StatusCode, raw); limitErr != nil {
+			return limitErr
+		}
 		var body struct {
 			Error string `json:"error"`
 		}
-		_ = json.NewDecoder(resp.Body).Decode(&body)
+		_ = json.Unmarshal(raw, &body)
 		code := normalizeErrorCode(body.Error, resp.StatusCode)
 		return &Error{StatusCode: resp.StatusCode, Code: code}
 	}

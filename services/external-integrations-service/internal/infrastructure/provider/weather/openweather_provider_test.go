@@ -227,7 +227,7 @@ func TestNewMissingOpenWeatherKeyWithFallbackUsesMock(t *testing.T) {
 	provider, err := New(&config.Config{WeatherProvider: config.WeatherProviderConfig{
 		Provider:       config.WeatherProviderOpenWeather,
 		FallbackToMock: true,
-	}}, zap.NewNop())
+	}}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("expected fallback to mock, got error: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestNewMissingOpenWeatherKeyWithoutFallbackFailsStartup(t *testing.T) {
 	_, err := New(&config.Config{WeatherProvider: config.WeatherProviderConfig{
 		Provider:       config.WeatherProviderOpenWeather,
 		FallbackToMock: false,
-	}}, zap.NewNop())
+	}}, nil, zap.NewNop())
 	if err == nil {
 		t.Fatal("expected startup error when key missing and fallback disabled")
 	}

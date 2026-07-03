@@ -10,13 +10,15 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
-// New selects the configured weather provider adapter and wires fallback and
-// caching around it. Mock remains the default and fallback; OpenWeatherMap is
-// opt-in. Unsupported providers fail fast at startup, mirroring the place
-// provider.
-func New(cfg *config.Config, log *zap.Logger) (service.WeatherProvider, error) {
+// New selects the configured weather provider adapter and wires the quota guard,
+// fallback, and caching around it. Mock remains the default and fallback;
+// OpenWeatherMap is opt-in. Unsupported providers fail fast at startup. The
+// decorator order is cache -> guard -> provider so cache hits never consume
+// provider quota.
+func New(cfg *config.Config, guard *providerlimits.Guard, log *zap.Logger) (service.WeatherProvider, error) {
 	provider := strings.ToLower(strings.TrimSpace(cfg.WeatherProvider.Provider))
 	if provider == "" {
 		provider = config.WeatherProviderMock
@@ -26,6 +28,8 @@ func New(cfg *config.Config, log *zap.Logger) (service.WeatherProvider, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	selected = newGuardedWeatherProvider(guard, provider, selected, NewMockWeatherProvider(), cfg.WeatherProvider.FallbackToMock, log)
 
 	if cfg.WeatherProvider.CacheEnabled {
 		ttl := time.Duration(cfg.WeatherProvider.CacheTTLSeconds) * time.Second

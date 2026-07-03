@@ -19,6 +19,7 @@ import (
 	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
 	calendarrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/storage/postgres"
 )
@@ -43,25 +44,30 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 		return nil
 	})
 
-	provider, err := placeprovider.New(cfg, log)
+	// The provider-limit guard is the central rate-limit/quota enforcement point.
+	// Providers are wrapped so cache hits stay above the guard and never consume
+	// provider quota.
+	guard := providerlimits.New(cfg, db, log)
+
+	provider, err := placeprovider.New(cfg, guard, log)
 	if err != nil {
 		return nil, fmt.Errorf("init place provider: %w", err)
 	}
 
-	routeProvider, err := routeprovider.New(cfg, log)
+	routeProvider, err := routeprovider.New(cfg, guard, log)
 	if err != nil {
 		return nil, fmt.Errorf("init route provider: %w", err)
 	}
 
-	weatherProvider, err := weatherprovider.New(cfg, log)
+	weatherProvider, err := weatherprovider.New(cfg, guard, log)
 	if err != nil {
 		return nil, fmt.Errorf("init weather provider: %w", err)
 	}
-	exchangeRateProvider, err := exchangerateprovider.New(cfg, log)
+	exchangeRateProvider, err := exchangerateprovider.New(cfg, guard, log)
 	if err != nil {
 		return nil, fmt.Errorf("init exchange rate provider: %w", err)
 	}
-	priceSvc, err := prices.New(cfg, log)
+	priceSvc, err := prices.New(cfg, guard, log)
 	if err != nil {
 		return nil, fmt.Errorf("init price provider: %w", err)
 	}
@@ -92,10 +98,12 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 		StateTTL:         cfg.Calendar.StateTTL(),
 		PublicWebBaseURL: cfg.Calendar.PublicWebBaseURL,
 		DefaultTimeZone:  cfg.Calendar.DefaultTimeZone,
-	}, log)
+		ProviderName:     cfg.Calendar.Provider,
+	}, guard, log)
 	calendarHandler := handler.NewCalendarHandler(calendarSvc, log)
 	internalCalendarHandler := handler.NewInternalCalendarHandler(calendarSvc, log)
 	providerOpsHandler := handler.NewProviderOpsHandler(cfg, log)
+	providerQuotaOpsHandler := handler.NewProviderQuotaOpsHandler(cfg, guard, log)
 	readinessHandler := httpserver.NewReadinessHandler(log)
 	router := httpserver.NewRouter(
 		log,
@@ -107,6 +115,7 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 		calendarHandler,
 		internalCalendarHandler,
 		providerOpsHandler,
+		providerQuotaOpsHandler,
 		readinessHandler,
 		cfg.CORS,
 		cfg.Auth,

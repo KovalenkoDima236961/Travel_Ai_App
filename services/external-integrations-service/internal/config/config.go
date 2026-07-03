@@ -52,6 +52,7 @@ type Config struct {
 	PriceProvider        PriceProviderConfig        `yaml:"price_provider" validate:"required"`
 	Calendar             CalendarConfig             `yaml:"calendar" validate:"required"`
 	Ops                  OpsConfig                  `yaml:"ops"`
+	ProviderLimits       ProviderLimitsConfig       `yaml:"provider_limits"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -176,6 +177,44 @@ type OpsConfig struct {
 	DashboardEnabled     bool   `yaml:"dashboard_enabled" env:"OPS_DASHBOARD_ENABLED" env-default:"false"`
 	AdminEmails          string `yaml:"admin_emails" env:"OPS_ADMIN_EMAILS"`
 	InternalServiceToken string `yaml:"internal_service_token" env:"OPS_INTERNAL_SERVICE_TOKEN"`
+}
+
+// ProviderLimitsConfig configures the central per-provider rate-limit and
+// daily-quota guard. Enforcement is off by default so local development stays
+// permissive; staging/production should set PROVIDER_LIMITS_ENABLED=true.
+//
+// Rate limits are per minute; a value of 0 means unlimited. Daily quotas are a
+// per-provider cap across all of that provider's operations; a value of 0 means
+// unlimited. Both must be non-negative. Each provider call costs 1 unit in v1.
+type ProviderLimitsConfig struct {
+	Enabled       bool   `yaml:"enabled" env:"PROVIDER_LIMITS_ENABLED" env-default:"false"`
+	FailOpen      bool   `yaml:"fail_open" env:"PROVIDER_LIMITS_FAIL_OPEN" env-default:"true"`
+	Timezone      string `yaml:"timezone" env:"PROVIDER_LIMITS_TIMEZONE" env-default:"UTC"`
+	RateMaxWaitMS int    `yaml:"rate_max_wait_ms" env:"PROVIDER_RATE_LIMIT_MAX_WAIT_MS" env-default:"0"`
+
+	FoursquareRatePerMinute int   `yaml:"foursquare_rate_per_minute" env:"FOURSQUARE_RATE_LIMIT_PER_MINUTE" env-default:"50"`
+	FoursquareBurst         int   `yaml:"foursquare_burst" env:"FOURSQUARE_RATE_LIMIT_BURST" env-default:"10"`
+	FoursquareDailyQuota    int64 `yaml:"foursquare_daily_quota" env:"FOURSQUARE_DAILY_QUOTA" env-default:"900"`
+
+	ORSRatePerMinute int   `yaml:"ors_rate_per_minute" env:"ORS_RATE_LIMIT_PER_MINUTE" env-default:"30"`
+	ORSBurst         int   `yaml:"ors_burst" env:"ORS_RATE_LIMIT_BURST" env-default:"5"`
+	ORSDailyQuota    int64 `yaml:"ors_daily_quota" env:"ORS_DAILY_QUOTA" env-default:"1500"`
+
+	OpenWeatherRatePerMinute int   `yaml:"openweather_rate_per_minute" env:"OPENWEATHER_RATE_LIMIT_PER_MINUTE" env-default:"60"`
+	OpenWeatherBurst         int   `yaml:"openweather_burst" env:"OPENWEATHER_RATE_LIMIT_BURST" env-default:"10"`
+	OpenWeatherDailyQuota    int64 `yaml:"openweather_daily_quota" env:"OPENWEATHER_DAILY_QUOTA" env-default:"1000"`
+
+	GoogleCalendarRatePerMinute int   `yaml:"google_calendar_rate_per_minute" env:"GOOGLE_CALENDAR_RATE_LIMIT_PER_MINUTE" env-default:"30"`
+	GoogleCalendarBurst         int   `yaml:"google_calendar_burst" env:"GOOGLE_CALENDAR_RATE_LIMIT_BURST" env-default:"5"`
+	GoogleCalendarDailyQuota    int64 `yaml:"google_calendar_daily_quota" env:"GOOGLE_CALENDAR_DAILY_QUOTA" env-default:"1000"`
+
+	ExchangeRateRatePerMinute int   `yaml:"exchange_rate_rate_per_minute" env:"EXCHANGE_RATE_LIMIT_PER_MINUTE" env-default:"30"`
+	ExchangeRateBurst         int   `yaml:"exchange_rate_burst" env:"EXCHANGE_RATE_LIMIT_BURST" env-default:"5"`
+	ExchangeRateDailyQuota    int64 `yaml:"exchange_rate_daily_quota" env:"EXCHANGE_RATE_DAILY_QUOTA" env-default:"1000"`
+
+	PriceRatePerMinute int   `yaml:"price_rate_per_minute" env:"PRICE_PROVIDER_RATE_LIMIT_PER_MINUTE" env-default:"60"`
+	PriceBurst         int   `yaml:"price_burst" env:"PRICE_PROVIDER_RATE_LIMIT_BURST" env-default:"10"`
+	PriceDailyQuota    int64 `yaml:"price_daily_quota" env:"PRICE_PROVIDER_DAILY_QUOTA" env-default:"1000"`
 }
 
 func (c CalendarConfig) StateTTL() time.Duration {
@@ -372,6 +411,9 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validatePublicURLs(); err != nil {
 		return nil, err
 	}
+	if err := cfg.validateProviderLimits(); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
@@ -535,6 +577,49 @@ func (c *Config) validatePublicURLs() error {
 		}
 		if c.IsProduction() && isLocalhostURL(c.Calendar.PublicWebBaseURL) {
 			return fmt.Errorf("PUBLIC_WEB_BASE_URL must not use localhost in production")
+		}
+	}
+	return nil
+}
+
+// validateProviderLimits normalizes and validates the provider limit config.
+// Negative limits are always invalid. A rate limit or daily quota of 0 means
+// unlimited (documented). The timezone must be resolvable.
+func (c *Config) validateProviderLimits() error {
+	pl := &c.ProviderLimits
+	pl.Timezone = strings.TrimSpace(pl.Timezone)
+	if pl.Timezone == "" {
+		pl.Timezone = "UTC"
+	}
+	if _, err := time.LoadLocation(pl.Timezone); err != nil {
+		return fmt.Errorf("PROVIDER_LIMITS_TIMEZONE %q is not a valid timezone: %w", pl.Timezone, err)
+	}
+	if pl.RateMaxWaitMS < 0 {
+		return fmt.Errorf("PROVIDER_RATE_LIMIT_MAX_WAIT_MS must not be negative")
+	}
+
+	checks := []struct {
+		name  string
+		rate  int
+		burst int
+		quota int64
+	}{
+		{"FOURSQUARE", pl.FoursquareRatePerMinute, pl.FoursquareBurst, pl.FoursquareDailyQuota},
+		{"ORS", pl.ORSRatePerMinute, pl.ORSBurst, pl.ORSDailyQuota},
+		{"OPENWEATHER", pl.OpenWeatherRatePerMinute, pl.OpenWeatherBurst, pl.OpenWeatherDailyQuota},
+		{"GOOGLE_CALENDAR", pl.GoogleCalendarRatePerMinute, pl.GoogleCalendarBurst, pl.GoogleCalendarDailyQuota},
+		{"EXCHANGE_RATE", pl.ExchangeRateRatePerMinute, pl.ExchangeRateBurst, pl.ExchangeRateDailyQuota},
+		{"PRICE_PROVIDER", pl.PriceRatePerMinute, pl.PriceBurst, pl.PriceDailyQuota},
+	}
+	for _, check := range checks {
+		if check.rate < 0 {
+			return fmt.Errorf("%s_RATE_LIMIT_PER_MINUTE must not be negative", check.name)
+		}
+		if check.burst < 0 {
+			return fmt.Errorf("%s_RATE_LIMIT_BURST must not be negative", check.name)
+		}
+		if check.quota < 0 {
+			return fmt.Errorf("%s_DAILY_QUOTA must not be negative", check.name)
 		}
 	}
 	return nil

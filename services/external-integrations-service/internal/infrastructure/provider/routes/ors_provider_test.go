@@ -190,7 +190,7 @@ func TestNewMissingORSKeyWithFallbackUsesMock(t *testing.T) {
 	provider, err := New(&config.Config{RouteProvider: config.RouteProviderConfig{
 		Provider:       config.RouteProviderORS,
 		FallbackToMock: true,
-	}}, zap.NewNop())
+	}}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("expected fallback to mock, got error: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestNewMissingORSKeyWithoutFallbackFailsStartup(t *testing.T) {
 	_, err := New(&config.Config{RouteProvider: config.RouteProviderConfig{
 		Provider:       config.RouteProviderORS,
 		FallbackToMock: false,
-	}}, zap.NewNop())
+	}}, nil, zap.NewNop())
 	if err == nil {
 		t.Fatal("expected startup error when ORS key missing and fallback disabled")
 	}

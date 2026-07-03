@@ -238,6 +238,7 @@ func newTestRouter() http.Handler {
 		nil,
 		nil,
 		nil,
+		nil,
 		NewReadinessHandler(zap.NewNop()),
 		cfg.CORS,
 		cfg.Auth,

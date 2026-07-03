@@ -57,7 +57,7 @@ func TestExchangeRateFallbackToMock(t *testing.T) {
 			FallbackToMock: true,
 		},
 	}
-	provider, err := New(cfg, zap.NewNop())
+	provider, err := New(cfg, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestExchangeRateFallbackDisabledReturnsProviderUnavailable(t *testing.T) {
 			FallbackToMock: false,
 		},
 	}
-	provider, err := New(cfg, zap.NewNop())
+	provider, err := New(cfg, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
 	}

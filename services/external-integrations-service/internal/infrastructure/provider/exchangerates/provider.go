@@ -12,13 +12,15 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
-// New selects the configured exchange-rate provider adapter and wires fallback
-// and caching around it. Mock remains the default and fallback for local
-// development. Real provider names are reserved for future adapters; with
-// fallback enabled they degrade safely to mock.
-func New(cfg *config.Config, log *zap.Logger) (service.ExchangeRateProvider, error) {
+// New selects the configured exchange-rate provider adapter and wires the quota
+// guard, fallback, and caching around it. Mock remains the default and fallback
+// for local development. Real provider names are reserved for future adapters;
+// with fallback enabled they degrade safely to mock. The decorator order is
+// cache -> guard -> provider so cache hits never consume provider quota.
+func New(cfg *config.Config, guard *providerlimits.Guard, log *zap.Logger) (service.ExchangeRateProvider, error) {
 	provider := strings.ToLower(strings.TrimSpace(cfg.ExchangeRateProvider.Provider))
 	if provider == "" {
 		provider = config.ExchangeRateProviderMock
@@ -28,6 +30,8 @@ func New(cfg *config.Config, log *zap.Logger) (service.ExchangeRateProvider, err
 	if err != nil {
 		return nil, err
 	}
+
+	selected = newGuardedExchangeRateProvider(guard, provider, selected, NewMockExchangeRateProvider(), cfg.ExchangeRateProvider.FallbackToMock, log)
 
 	if cfg.ExchangeRateProvider.CacheEnabled {
 		ttl := time.Duration(cfg.ExchangeRateProvider.CacheTTLSeconds) * time.Second

@@ -10,9 +10,10 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/cache"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
-func New(cfg *config.Config, log *zap.Logger) (*Service, error) {
+func New(cfg *config.Config, guard *providerlimits.Guard, log *zap.Logger) (*Service, error) {
 	if log == nil {
 		log = zap.NewNop()
 	}
@@ -25,6 +26,8 @@ func New(cfg *config.Config, log *zap.Logger) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	provider = newGuardedProvider(guard, providerName, provider, NewMockPriceProvider(), cfg.PriceProvider.FallbackToMock, log)
 
 	if cfg.PriceProvider.CacheEnabled {
 		ttl := time.Duration(cfg.PriceProvider.CacheTTLSeconds) * time.Second

@@ -65,6 +65,9 @@ func (h *PlacesHandler) Search(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		extobs.RecordProviderRequest(h.providerName, "place_search", "error", time.Since(start))
 		extobs.RecordProviderFailure(h.providerName, "place_search", "provider_error")
+		if writeProviderLimitError(w, err) {
+			return
+		}
 		h.log.Warn("place search failed", zap.Int("query_length", len(query)), zap.String("destination", destination), zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "place search failed")
 		return
@@ -94,6 +97,9 @@ func (h *PlacesHandler) Details(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		extobs.RecordProviderRequest(h.providerName, "place_details", "error", time.Since(start))
 		extobs.RecordProviderFailure(h.providerName, "place_details", "provider_error")
+		if writeProviderLimitError(w, err) {
+			return
+		}
 		h.log.Warn("place details failed", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "place details failed")
 		return

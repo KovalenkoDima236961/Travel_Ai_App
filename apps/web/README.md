@@ -116,7 +116,22 @@ WORKER_SERVICE_INTERNAL_URL=http://localhost:8090
 
 - `/ops` is an allowlisted internal operations dashboard. It is hidden from
   navigation and expects backend `OPS_DASHBOARD_ENABLED=true` plus matching
-  `OPS_ADMIN_EMAILS`.
+  `OPS_ADMIN_EMAILS`. Besides jobs, queues, DLQ, workers, and provider health it
+  includes a **Provider Quotas** panel (see below).
+
+### Provider Quotas panel
+
+Sourced from External Integrations Service `/ops/providers/quotas`, it shows per
+provider: category, status, requests today, daily quota, remaining, minute limit,
+blocked-today, fallback-today, and the last blocked time. Statuses map to colors:
+`healthy` (green), `nearing_quota` / `rate_limited_recently` (amber),
+`quota_exceeded` (red), `disabled` / `unknown` (grey). It refreshes on the shared
+Ops interval and has a manual Refresh button. "View details" expands the
+operation-level breakdown plus the last 7 days of usage. A dev-only "Reset (dev)"
+button appears when the service reports `resetAllowed` (never in production) and
+requires a confirmation before clearing today's counters. Interpret `blocked` as
+calls rejected by a rate limit or quota, and `fallback` as limited calls that
+were served from mock/cache instead.
 
 ```mermaid
 flowchart TD

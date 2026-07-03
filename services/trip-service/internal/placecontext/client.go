@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
@@ -72,7 +73,7 @@ func (c *Client) SearchPlaces(ctx context.Context, query string, destination str
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, &Error{StatusCode: resp.StatusCode, Message: readErrorBody(resp.Body)}
+		return nil, newPlaceContextError(resp.StatusCode, resp.Body)
 	}
 
 	var payload SearchPlacesResponse
@@ -102,7 +103,7 @@ func (c *Client) GetPlaceDetails(ctx context.Context, placeID string) (*aggregat
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, &Error{StatusCode: resp.StatusCode, Message: readErrorBody(resp.Body)}
+		return nil, newPlaceContextError(resp.StatusCode, resp.Body)
 	}
 
 	var place aggregate.PlaceRef
@@ -112,15 +113,21 @@ func (c *Client) GetPlaceDetails(ctx context.Context, placeID string) (*aggregat
 	return &place, nil
 }
 
-func readErrorBody(body io.Reader) string {
+// newPlaceContextError returns a typed provider-limit error when the response
+// carries a known limit code, otherwise a generic place-context Error.
+func newPlaceContextError(statusCode int, body io.Reader) error {
 	limited, err := io.ReadAll(io.LimitReader(body, maxPlaceContextErrorBodyBytes))
 	if err != nil {
-		return "response body could not be read"
+		return &Error{StatusCode: statusCode, Message: "response body could not be read"}
 	}
-	if message := strings.TrimSpace(string(limited)); message != "" {
-		return message
+	if limitErr := providerlimit.Parse(statusCode, limited); limitErr != nil {
+		return limitErr
 	}
-	return "empty response body"
+	message := strings.TrimSpace(string(limited))
+	if message == "" {
+		message = "empty response body"
+	}
+	return &Error{StatusCode: statusCode, Message: message}
 }
 
 func normalizeBaseURL(raw string) (string, error) {

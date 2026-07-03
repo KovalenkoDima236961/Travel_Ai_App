@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
@@ -385,6 +386,12 @@ func ClassifyJobError(err error) (string, string) {
 		return "", ""
 	}
 
+	// Provider rate-limit / quota errors are classified first so an exhausted
+	// daily quota becomes terminal instead of being retried in a tight loop.
+	if limitErr, ok := providerlimit.As(err); ok {
+		return classifyProviderLimit(limitErr)
+	}
+
 	var invalid *apperrs.InvalidInputError
 	var dependency *apperrs.DependencyError
 	var conflict *apperrs.ItineraryConflictError
@@ -409,11 +416,49 @@ func ClassifyJobError(err error) (string, string) {
 	}
 }
 
+// classifyProviderLimit maps a provider-limit error to a safe job error code and
+// message. Rate limits and store-unavailable are transient; a quota exceeded is
+// terminal (retryable only after the daily counter resets).
+func classifyProviderLimit(limitErr *providerlimit.Error) (string, string) {
+	switch limitErr.Code {
+	case providerlimit.CodeRateLimited:
+		return ErrorProviderRateLimited, safeProviderLimitMessage(limitErr, "A provider is temporarily rate limited.")
+	case providerlimit.CodeQuotaExceeded:
+		return ErrorProviderQuotaExceeded, safeProviderLimitMessage(limitErr, "A provider daily quota has been reached.")
+	case providerlimit.CodeLimitsUnavailable:
+		return ErrorProviderLimitsUnavailable, safeProviderLimitMessage(limitErr, "The provider limit service is temporarily unavailable.")
+	default:
+		return ErrorUnknown, "Generation job failed."
+	}
+}
+
+// safeProviderLimitMessage builds a user-safe message that names the provider
+// category but never exposes API keys or account/quota internals.
+func safeProviderLimitMessage(limitErr *providerlimit.Error, fallback string) string {
+	category := strings.TrimSpace(limitErr.Operation)
+	if category == "" {
+		return fallback
+	}
+	switch limitErr.Code {
+	case providerlimit.CodeRateLimited:
+		return "Provider rate limited: " + category
+	case providerlimit.CodeQuotaExceeded:
+		return "Provider daily quota exceeded: " + category
+	case providerlimit.CodeLimitsUnavailable:
+		return "Provider limit service unavailable: " + category
+	default:
+		return fallback
+	}
+}
+
 func IsRetryableErrorCode(code string) bool {
 	switch code {
-	case ErrorAIGeneration, ErrorEnrichment, ErrorUnknown:
+	case ErrorAIGeneration, ErrorEnrichment, ErrorUnknown,
+		ErrorProviderRateLimited, ErrorProviderLimitsUnavailable:
 		return true
 	default:
+		// ErrorProviderQuotaExceeded is intentionally terminal: retrying before
+		// the daily quota resets would just fail again. Ops can retry tomorrow.
 		return false
 	}
 }

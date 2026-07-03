@@ -5,15 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const internalServiceTokenHeader = "X-Internal-Service-Token"
+
+const maxPriceClientErrorBodyBytes = 2 * 1024
 
 type Config struct {
 	BaseURL        string
@@ -71,10 +75,14 @@ func (c *Client) EstimatePrice(ctx context.Context, input PriceEstimateInput) (*
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPriceClientErrorBodyBytes))
+		if limitErr := providerlimit.Parse(resp.StatusCode, raw); limitErr != nil {
+			return nil, limitErr
+		}
 		var body struct {
 			Error string `json:"error"`
 		}
-		_ = json.NewDecoder(resp.Body).Decode(&body)
+		_ = json.Unmarshal(raw, &body)
 		code := strings.TrimSpace(body.Error)
 		if code == "" {
 			code = "price_provider_unavailable"

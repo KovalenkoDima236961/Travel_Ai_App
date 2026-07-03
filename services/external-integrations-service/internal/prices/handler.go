@@ -5,11 +5,14 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
+
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
 var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
@@ -52,6 +55,9 @@ func (h *Handler) Estimate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrUnsupportedCurrency) {
 			writeError(w, http.StatusBadRequest, "unsupported_currency")
+			return
+		}
+		if writeProviderLimitError(w, err) {
 			return
 		}
 		h.log.Warn("price estimate failed", zap.String("destination", input.Destination), zap.Error(err))
@@ -115,6 +121,30 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// writeProviderLimitError writes a controlled provider-limit response and returns
+// true when err is a provider limit error. It exposes only safe fields.
+func writeProviderLimitError(w http.ResponseWriter, err error) bool {
+	var limitErr *providerlimits.LimitError
+	if !errors.As(err, &limitErr) {
+		return false
+	}
+	status := http.StatusTooManyRequests
+	if limitErr.Code == providerlimits.CodeLimitsUnavailable {
+		status = http.StatusServiceUnavailable
+	}
+	if limitErr.RetryAfterSeconds > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(limitErr.RetryAfterSeconds))
+	}
+	writeJSON(w, status, map[string]any{
+		"error":             limitErr.Code,
+		"message":           limitErr.Message,
+		"provider":          limitErr.Provider,
+		"operation":         limitErr.Operation,
+		"retryAfterSeconds": limitErr.RetryAfterSeconds,
+	})
+	return true
 }
 
 func normalizeCurrency(value string) string {

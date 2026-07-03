@@ -237,6 +237,33 @@ Manual no-cache test:
 11. Check Trip Service and Worker Service logs for the same `correlationId`
     across job creation, RabbitMQ publish, message consume, and job completion.
 
+## Provider Quotas Panel
+
+Prerequisites: start the stack with the Ops Dashboard enabled and provider limits
+on (`OPS_DASHBOARD_ENABLED=true`, `OPS_ADMIN_EMAILS` includes your login,
+`PROVIDER_LIMITS_ENABLED=true`). Log in as an ops-admin user.
+
+1. Open `/ops` as the admin. Scroll to the **Provider Quotas** panel.
+2. Confirm each provider row shows category, status, requests today, daily quota,
+   remaining, minute limit, blocked today, and fallback today.
+3. Trigger a route estimate, weather forecast, or place search from a trip page.
+4. Click **Refresh** on the Provider Quotas panel (or wait for auto-refresh) and
+   confirm the relevant provider's "requests today" increased.
+5. Click **View details** on a provider and confirm the operation-level breakdown
+   and the last-7-days usage list render.
+6. To exercise a limit locally: stop the stack, set a very low quota for a real
+   provider path with a mock fallback, and restart. A zero-cost setup is
+   `ROUTE_PROVIDER=ors`, `ORS_API_KEY=dummy`, `ORS_BASE_URL=http://127.0.0.1:9`,
+   `ROUTE_PROVIDER_FALLBACK_TO_MOCK=true`, `ORS_DAILY_QUOTA=1`.
+7. Trigger a route estimate twice. The first consumes the quota (falling back to
+   mock because ORS is unreachable); the second is quota-exceeded and served by
+   the mock fallback.
+8. Refresh the panel and confirm the routes provider shows a `quota_exceeded`
+   status and non-zero blocked/fallback counts.
+9. Confirm the **Reset (dev)** button is visible (it is hidden when the service is
+   in production / `resetAllowed=false`). Click it, confirm the confirmation
+   prompt, and confirm today's counters reset.
+
 ## Budget Tracking
 
 1. Create a trip with budget `EUR 700` and generate its itinerary (mock AI is

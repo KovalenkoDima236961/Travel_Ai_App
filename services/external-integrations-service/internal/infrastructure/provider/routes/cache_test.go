@@ -77,7 +77,7 @@ func TestNewWiresCacheOnlyWhenEnabled(t *testing.T) {
 	disabled, err := New(&config.Config{RouteProvider: config.RouteProviderConfig{
 		Provider:     config.RouteProviderMock,
 		CacheEnabled: false,
-	}}, zap.NewNop())
+	}}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("new (cache disabled): %v", err)
 	}
@@ -89,7 +89,7 @@ func TestNewWiresCacheOnlyWhenEnabled(t *testing.T) {
 		Provider:        config.RouteProviderMock,
 		CacheEnabled:    true,
 		CacheTTLSeconds: 60,
-	}}, zap.NewNop())
+	}}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("new (cache enabled): %v", err)
 	}

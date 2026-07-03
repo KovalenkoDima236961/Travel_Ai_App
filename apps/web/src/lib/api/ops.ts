@@ -8,6 +8,8 @@ import type {
   OpsJob,
   OpsJobSummary,
   OpsJobsResponse,
+  ProviderQuotaDetail,
+  ProviderQuotasResponse,
   ProviderStatus,
   QueueStatus,
   WorkerStatus
@@ -33,7 +35,10 @@ export const opsKeys = {
   worker: ["ops", "worker"] as const,
   queues: ["ops", "queues"] as const,
   dlq: ["ops", "dlq"] as const,
-  providers: ["ops", "providers"] as const
+  providers: ["ops", "providers"] as const,
+  providerQuotas: (date?: string) => ["ops", "provider-quotas", date ?? "today"] as const,
+  providerQuotaDetail: (provider: string | null) =>
+    ["ops", "provider-quota", provider] as const
 };
 
 export async function getOpsJobSummary(): Promise<OpsJobSummary> {
@@ -126,4 +131,36 @@ export async function getProviderStatus(): Promise<{ providers: ProviderStatus[]
     baseUrl: getExternalIntegrationsApiBaseUrl(),
     serviceName: "External Integrations Service"
   });
+}
+
+const externalIntegrationsOptions = {
+  baseUrl: getExternalIntegrationsApiBaseUrl(),
+  serviceName: "External Integrations Service"
+};
+
+export async function getProviderQuotas(date?: string): Promise<ProviderQuotasResponse> {
+  const query = date?.trim() ? `?date=${encodeURIComponent(date.trim())}` : "";
+  return apiFetch<ProviderQuotasResponse>(
+    `/ops/providers/quotas${query}`,
+    {},
+    externalIntegrationsOptions
+  );
+}
+
+export async function getProviderQuotaDetail(provider: string): Promise<ProviderQuotaDetail> {
+  return apiFetch<ProviderQuotaDetail>(
+    `/ops/providers/quotas/${encodeURIComponent(provider)}`,
+    {},
+    externalIntegrationsOptions
+  );
+}
+
+export async function resetProviderQuotaDev(
+  provider: string
+): Promise<{ reset: boolean; provider: string; date: string }> {
+  return apiFetch<{ reset: boolean; provider: string; date: string }>(
+    `/ops/providers/quotas/${encodeURIComponent(provider)}/reset-dev`,
+    { method: "POST" },
+    externalIntegrationsOptions
+  );
 }

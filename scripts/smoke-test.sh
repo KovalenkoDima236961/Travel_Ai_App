@@ -682,6 +682,53 @@ if [[ "${SMOKE_EXPECT_OPS_DASHBOARD:-false}" == "true" ]]; then
   fi
   request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/ops/providers/status" "${ACCESS_TOKEN}"
   assert_2xx "External Integrations ops provider status"
+
+  echo "Checking provider quota endpoints..."
+  request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/ops/providers/quotas" "${ACCESS_TOKEN}"
+  assert_2xx "External Integrations ops provider quotas"
+  if ! jq -e '.providers | type == "array"' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Provider quotas response is missing a providers array." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  PROVIDER_LIMITS_ENABLED_RESP="$(jq -r '.enabled' <<<"${LAST_BODY}")"
+  if [[ "${PROVIDER_LIMITS_ENABLED_RESP}" == "true" ]]; then
+    # A route estimate and weather forecast were already exercised above, so with
+    # enforcement enabled the guard must have recorded at least one unit of usage.
+    ROUTES_USED="$(jq -r '[.providers[] | select(.category=="routes") | .usedToday] | add // 0' <<<"${LAST_BODY}")"
+    if [[ "${ROUTES_USED}" -lt 1 ]]; then
+      echo "Expected routes usedToday >= 1 with provider limits enabled, got ${ROUTES_USED}." >&2
+      echo "${LAST_BODY}" >&2
+      exit 1
+    fi
+    echo "Provider quota usage recorded for routes: ${ROUTES_USED}"
+  else
+    echo "Provider limits disabled in this environment; skipping usage-increase assertion."
+  fi
+
+  # Provider detail endpoint (operation breakdown + 7-day history).
+  request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/ops/providers/quotas/mock" "${ACCESS_TOKEN}"
+  assert_2xx "External Integrations ops provider quota detail"
+
+  # Optional: verify controlled block/fallback behavior when the operator has set
+  # a very low quota. A zero-cost setup is ROUTE_PROVIDER=ors, ORS_API_KEY=dummy,
+  # ORS_BASE_URL=http://127.0.0.1:9, ROUTE_PROVIDER_FALLBACK_TO_MOCK=true,
+  # ORS_DAILY_QUOTA=1, PROVIDER_LIMITS_ENABLED=true: the first call consumes the
+  # quota (and falls back to mock because ORS is unreachable), the second is
+  # quota-exceeded and served by mock fallback.
+  if [[ "${SMOKE_EXPECT_PROVIDER_QUOTA_BLOCK:-false}" == "true" ]]; then
+    request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" "${ROUTE_PAYLOAD}"
+    request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" "${ROUTE_PAYLOAD}"
+    request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/ops/providers/quotas" "${ACCESS_TOKEN}"
+    assert_2xx "External Integrations ops provider quotas after block"
+    BLOCK_FALLBACK="$(jq -r '[.providers[] | select(.category=="routes") | (.blockedToday + .fallbackToday)] | add // 0' <<<"${LAST_BODY}")"
+    if [[ "${BLOCK_FALLBACK}" -lt 1 ]]; then
+      echo "Expected routes blocked/fallback count >= 1 after exceeding the quota, got ${BLOCK_FALLBACK}." >&2
+      echo "${LAST_BODY}" >&2
+      exit 1
+    fi
+    echo "Provider quota block/fallback recorded for routes: ${BLOCK_FALLBACK}"
+  fi
 fi
 
 echo "Checking default user profile..."

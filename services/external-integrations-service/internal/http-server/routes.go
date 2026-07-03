@@ -29,6 +29,7 @@ func NewRouter(
 	calendarHandler *handler.CalendarHandler,
 	internalCalendarHandler *handler.InternalCalendarHandler,
 	providerOpsHandler *handler.ProviderOpsHandler,
+	providerQuotaOpsHandler *handler.ProviderQuotaOpsHandler,
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
 	authCfg config.AuthConfig,
@@ -93,6 +94,9 @@ func NewRouter(
 			}))
 			r.Use(ops.NewAdminChecker(opsCfg, log).Middleware)
 			providerOpsHandler.RegisterRoutes(r)
+			if providerQuotaOpsHandler != nil {
+				providerQuotaOpsHandler.RegisterRoutes(r)
+			}
 		})
 	}
 

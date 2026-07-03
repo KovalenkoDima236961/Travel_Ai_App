@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	tokencrypto "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/crypto"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
 type Repository interface {
@@ -36,6 +37,8 @@ type Service struct {
 	publicWebBaseURL string
 	defaultTimeZone  string
 	enabled          bool
+	guard            *providerlimits.Guard
+	providerName     string
 	log              *zap.Logger
 	now              func() time.Time
 }
@@ -45,9 +48,12 @@ type Config struct {
 	StateTTL         time.Duration
 	PublicWebBaseURL string
 	DefaultTimeZone  string
+	// ProviderName is the active calendar provider name used for limit metrics
+	// and Ops display (e.g. "google" or "mock").
+	ProviderName string
 }
 
-func NewService(repo Repository, provider CalendarProvider, cipher *tokencrypto.StringCipher, cfg Config, log *zap.Logger) *Service {
+func NewService(repo Repository, provider CalendarProvider, cipher *tokencrypto.StringCipher, cfg Config, guard *providerlimits.Guard, log *zap.Logger) *Service {
 	if log == nil {
 		log = zap.NewNop()
 	}
@@ -59,9 +65,27 @@ func NewService(repo Repository, provider CalendarProvider, cipher *tokencrypto.
 		publicWebBaseURL: strings.TrimRight(strings.TrimSpace(cfg.PublicWebBaseURL), "/"),
 		defaultTimeZone:  strings.TrimSpace(cfg.DefaultTimeZone),
 		enabled:          cfg.Enabled,
+		guard:            guard,
+		providerName:     strings.TrimSpace(cfg.ProviderName),
 		log:              log,
 		now:              func() time.Time { return time.Now().UTC() },
 	}
+}
+
+// reserveCalendar applies the provider limit guard for a calendar write. Calendar
+// writes never fall back to mock, so a limited call is reported to the caller as
+// a controlled failure and the real provider is not called.
+func (s *Service) reserveCalendar(ctx context.Context, operation string) (providerlimits.Decision, bool) {
+	if s.guard == nil {
+		return providerlimits.Decision{Allowed: true}, true
+	}
+	decision, _ := s.guard.CheckAndReserve(ctx, providerlimits.ProviderCall{
+		Provider:      s.providerName,
+		Operation:     operation,
+		Cost:          1,
+		AllowFallback: false,
+	})
+	return decision, decision.Allowed
 }
 
 func (s *Service) Status(ctx context.Context, userID uuid.UUID) (ConnectionStatus, error) {
@@ -217,9 +241,29 @@ func (s *Service) SyncEvents(ctx context.Context, req SyncEventsRequest) (*SyncE
 			DayNumber: item.DayNumber,
 			ItemIndex: item.ItemIndex,
 		}
+		isUpdate := strings.TrimSpace(item.ExistingEventID) != ""
+		operation := providerlimits.OpCalendarEventCreate
+		if isUpdate {
+			operation = providerlimits.OpCalendarEventUpdate
+		}
+		// Calendar writes never fall back to mock: a limited call must not
+		// pretend an event was created/updated. Report a controlled failure and
+		// skip the provider call so we do not hammer a limited provider.
+		if decision, ok := s.reserveCalendar(ctx, operation); !ok {
+			limitErr := providerlimits.LimitErrorFrom(decision)
+			result.Status = "failed"
+			result.Error = limitErr.Code
+			s.log.Warn("calendar event sync limited",
+				zap.String("sync_key", item.SyncKey),
+				zap.String("operation", operation),
+				zap.String("reason", decision.Reason),
+			)
+			out.Items = append(out.Items, result)
+			continue
+		}
 		var providerResult *CalendarEventResult
 		var providerErr error
-		if strings.TrimSpace(item.ExistingEventID) != "" {
+		if isUpdate {
 			calendarID := item.ExistingCalendarID
 			if strings.TrimSpace(calendarID) == "" {
 				calendarID = "primary"
@@ -257,6 +301,14 @@ func (s *Service) DeleteEvents(ctx context.Context, req DeleteEventsRequest) (*D
 		calendarID := event.CalendarID
 		if strings.TrimSpace(calendarID) == "" {
 			calendarID = "primary"
+		}
+		if decision, ok := s.reserveCalendar(ctx, providerlimits.OpCalendarEventDelete); !ok {
+			out.Failed++
+			s.log.Warn("calendar event delete limited",
+				zap.String("event_id", event.EventID),
+				zap.String("reason", decision.Reason),
+			)
+			continue
 		}
 		if err := s.provider.DeleteEvent(ctx, accessToken, calendarID, event.EventID); err != nil {
 			out.Failed++

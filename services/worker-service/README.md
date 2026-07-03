@@ -96,6 +96,29 @@ job row to `queued`, publish a delayed retry message, and then ACK the original
 message. Terminal failures are persisted before the message is NACKed into the
 DLQ.
 
+## Provider Rate-Limit / Quota Errors
+
+When a generation job calls External Integrations Service and a provider is
+limited, the service returns a controlled error. Trip Service clients surface
+these as typed `providerlimit.Error`s, and `generationjobs.ClassifyJobError`
+classifies them (ahead of the generic dependency-failure branch):
+
+| Provider error | Job error code | Classification | Behaviour |
+| -------------- | -------------- | -------------- | --------- |
+| `provider_rate_limited` | `provider_rate_limited` | transient | Retried via the delayed retry queue while attempts remain, then DLQ'd. |
+| `provider_limits_unavailable` | `provider_limits_unavailable` | transient | Retried like a rate limit (used when fail-open is off and the quota store is down). |
+| `provider_quota_exceeded` | `provider_quota_exceeded` | terminal | Failed immediately (no retry) so the worker does not tight-loop against an exhausted daily quota. Ops can retry the job the next day. |
+
+Retries use the existing TTL-delayed retry queue (bounded by
+`GENERATION_JOBS_MAX_ATTEMPTS`), so provider-limited jobs are never hammered in a
+tight loop. Persisted job error codes and messages are safe — they name the
+provider category (e.g. "Provider rate limited: route_estimate") but never expose
+API keys, account details, or quota internals.
+
+Note: these codes only surface for job steps that require the provider (i.e. the
+relevant enrichment/context step is configured fail-closed). Steps left
+fail-open continue without enrichment on a limit and the job still completes.
+
 ## Local Development
 
 Run the full stack from the repository root:

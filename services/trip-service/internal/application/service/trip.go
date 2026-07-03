@@ -24,6 +24,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -1519,6 +1520,9 @@ func (s *Service) handleUserContextError(err error, fields []zap.Field) (usercon
 	}
 
 	s.log.Warn("failed to load user context; generation blocked", logFields...)
+	if limitErr, ok := providerlimit.As(err); ok {
+		return usercontext.UserContext{}, limitErr
+	}
 	return usercontext.UserContext{}, apperrs.NewDependencyError("failed to load user preferences")
 }
 
@@ -1598,6 +1602,9 @@ func (s *Service) handleWeatherContextError(err error, fields []zap.Field) (*wea
 	}
 
 	s.log.Warn("failed to load weather context; generation blocked", logFields...)
+	if limitErr, ok := providerlimit.As(err); ok {
+		return nil, limitErr
+	}
 	return nil, apperrs.NewDependencyError("failed to load weather forecast")
 }
 
@@ -1737,6 +1744,9 @@ func (s *Service) handlePlaceEnrichmentError(err error, fields []zap.Field, star
 	}
 
 	s.log.Warn("failed to enrich itinerary places; generation blocked", logFields...)
+	if limitErr, ok := providerlimit.As(err); ok {
+		return nil, limitErr
+	}
 	return nil, apperrs.NewDependencyError("failed to enrich itinerary places")
 }
 
@@ -1809,6 +1819,9 @@ func (s *Service) handlePriceEnrichmentError(err error, fields []zap.Field, star
 	}
 
 	s.log.Warn("failed to enrich itinerary prices; generation blocked", logFields...)
+	if limitErr, ok := providerlimit.As(err); ok {
+		return nil, limitErr
+	}
 	return nil, apperrs.NewDependencyError("failed to enrich itinerary prices")
 }
 

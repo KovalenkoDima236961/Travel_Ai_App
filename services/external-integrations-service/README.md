@@ -60,6 +60,9 @@ Google Calendar directly.
 | `POST` | `/internal/calendar/google/events/sync` | `X-Internal-Service-Token` | Create/update app-owned calendar events. |
 | `POST` | `/internal/calendar/google/events/delete` | `X-Internal-Service-Token` | Delete app-owned calendar events. |
 | `GET` | `/ops/providers/status` | allowlisted bearer token | Sanitized provider health and recent failures. |
+| `GET` | `/ops/providers/quotas?date=` | allowlisted bearer token | Per-provider rate-limit/quota usage for a day. |
+| `GET` | `/ops/providers/quotas/{provider}` | allowlisted bearer token | Provider detail: operation breakdown + last 7 days. |
+| `POST` | `/ops/providers/quotas/{provider}/reset-dev` | allowlisted bearer token | Reset today's counters (403 in production). |
 
 ## Provider Selection
 
@@ -176,8 +179,70 @@ make test
 make build
 ```
 
+## Provider Quota & Rate-Limit Management (v1)
+
+External Integrations Service is the central enforcement point for per-provider
+rate limits and daily quotas. All outbound real provider calls pass through one
+guard (`internal/providerlimits`) so limit logic is never scattered across
+handlers.
+
+**Flow** (per operation): `cache lookup -> guard.CheckAndReserve -> real provider`.
+The guard sits *below* each provider's cache decorator, so cache hits never reach
+it and therefore never consume provider quota (only cache-hit metrics are
+recorded). On a limit the caller either falls back to mock/cache (when valid) or
+returns a controlled error.
+
+**Rate limiting** is an in-memory per-minute token bucket, keyed by provider
+category (one active provider per category). It is process-local and resets on
+restart. `*_RATE_LIMIT_PER_MINUTE=0` means unlimited; `*_RATE_LIMIT_BURST`
+controls the instantaneous burst.
+
+**Daily quotas** are Postgres-backed so restarts do not reset daily usage.
+Reservations are atomic: a `provider_daily_totals` row is locked `FOR UPDATE`,
+checked against the quota, and incremented in one transaction, so concurrent
+reservations can never exceed the quota. Per provider+operation rows in
+`provider_daily_usage` power the Ops operation breakdown. `*_DAILY_QUOTA=0` means
+unlimited. Usage is counted in UTC days (`PROVIDER_LIMITS_TIMEZONE`, default UTC).
+A reservation consumes a unit up-front; a real call that then errors and falls
+back still counts (conservative v1 behavior). Each call costs 1 unit.
+
+**Fallback / controlled errors.** When a real provider is limited:
+- places/routes/weather/exchange/price fall back to mock when
+  `*_PROVIDER_FALLBACK_TO_MOCK=true` (response carries `fallbackUsed: true`);
+  otherwise the handler returns a controlled error.
+- Google Calendar writes never fall back to mock — a limited write is reported as
+  a controlled failure and no fake event is created.
+
+Controlled error codes (HTTP 429 for the first two, 503 for the last):
+`provider_rate_limited`, `provider_quota_exceeded`, `provider_limits_unavailable`.
+Responses are safe: `{ "error", "message", "provider", "operation",
+"retryAfterSeconds" }` with no account/quota internals.
+
+**Configuration.** `PROVIDER_LIMITS_ENABLED` (default `false` — permissive local
+dev), `PROVIDER_LIMITS_FAIL_OPEN` (on quota-store failure: `false` blocks and
+returns `provider_limits_unavailable`, `true` allows — production should be
+`false`), plus per-provider `*_RATE_LIMIT_PER_MINUTE`, `*_RATE_LIMIT_BURST`, and
+`*_DAILY_QUOTA`. Negative limits are rejected at startup. See `.env.example`.
+
+**Metrics** (bounded labels only): `provider_limit_requests_total`,
+`provider_quota_used_total`, `provider_quota_blocked_total`,
+`provider_quota_remaining`, `provider_rate_limit_tokens_available`,
+`provider_fallback_due_to_limit_total`, `provider_limit_check_duration_seconds`.
+Existing `external_provider_*` metrics are unchanged.
+
+**Ops** endpoints (`/ops/providers/quotas*`, admin-only) expose usage, blocked,
+fallback counts, remaining quota, and status
+(`healthy` / `nearing_quota` / `quota_exceeded` / `rate_limited_recently` /
+`disabled` / `unknown`). `reset-dev` clears today's counters and is 403 in
+production.
+
 ## Limitations
 
+- Provider rate limits are in-memory per replica and reset on restart; there is
+  no distributed limiter across replicas in v1 (each replica enforces its own
+  per-minute budget). Daily quota counters are shared via Postgres.
+- No provider billing/cost integration; quotas protect against bursts and
+  runaway usage, they do not charge or meter money.
 - Caches are process-local and cleared on restart.
 - Mock routing is an estimate, not turn-by-turn navigation.
 - OpenWeatherMap free-tier forecast coverage is limited; out-of-range dates

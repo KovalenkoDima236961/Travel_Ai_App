@@ -93,6 +93,9 @@ func (h *ExchangeRateHandler) writeExchangeRateError(w http.ResponseWriter, err 
 		writeError(w, http.StatusBadRequest, "unsupported_currency")
 		return
 	}
+	if writeProviderLimitError(w, err) {
+		return
+	}
 	h.log.Warn("exchange rate request failed", zap.Error(err))
 	writeError(w, http.StatusBadGateway, "exchange_rate_provider_unavailable")
 }

@@ -8,15 +8,26 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
-// New selects the configured place provider adapter.
-func New(cfg *config.Config, log *zap.Logger) (service.PlaceProvider, error) {
+// New selects the configured place provider adapter and wraps it with the quota
+// guard. When the active provider is limited the guard falls back to mock (if
+// enabled) or returns a controlled limit error.
+func New(cfg *config.Config, guard *providerlimits.Guard, log *zap.Logger) (service.PlaceProvider, error) {
 	provider := strings.ToLower(strings.TrimSpace(cfg.PlaceProvider.Provider))
 	if provider == "" {
 		provider = config.PlaceProviderMock
 	}
 
+	selected, err := selectPlaceProvider(provider, cfg, log)
+	if err != nil {
+		return nil, err
+	}
+	return newGuardedPlaceProvider(guard, provider, selected, NewMockPlaceProvider(), cfg.PlaceProvider.FallbackToMock, log), nil
+}
+
+func selectPlaceProvider(provider string, cfg *config.Config, log *zap.Logger) (service.PlaceProvider, error) {
 	switch provider {
 	case config.PlaceProviderMock:
 		log.Info("place provider configured", zap.String("provider", config.PlaceProviderMock))

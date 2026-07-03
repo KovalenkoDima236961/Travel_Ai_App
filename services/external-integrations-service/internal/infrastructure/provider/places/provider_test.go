@@ -15,7 +15,7 @@ import (
 )
 
 func TestNewMockProviderSelectsMock(t *testing.T) {
-	provider, err := New(&config.Config{PlaceProvider: config.PlaceProviderConfig{Provider: "mock"}}, zap.NewNop())
+	provider, err := New(&config.Config{PlaceProvider: config.PlaceProviderConfig{Provider: "mock"}}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestNewMockProviderSelectsMock(t *testing.T) {
 }
 
 func TestNewUnsupportedProviderReturnsError(t *testing.T) {
-	_, err := New(&config.Config{PlaceProvider: config.PlaceProviderConfig{Provider: "google"}}, zap.NewNop())
+	_, err := New(&config.Config{PlaceProvider: config.PlaceProviderConfig{Provider: "google"}}, nil, zap.NewNop())
 	if err == nil {
 		t.Fatal("expected unsupported provider error")
 	}
@@ -46,7 +46,7 @@ func TestNewFoursquareWithoutAPIKeyFallsBackToMockWhenEnabled(t *testing.T) {
 			Provider:       config.PlaceProviderFoursquare,
 			FallbackToMock: true,
 		},
-	}, zap.NewNop())
+	}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("expected fallback provider, got error: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestNewFoursquareWithoutAPIKeyFailsWhenFallbackDisabled(t *testing.T) {
 			Provider:       config.PlaceProviderFoursquare,
 			FallbackToMock: false,
 		},
-	}, zap.NewNop())
+	}, nil, zap.NewNop())
 	assertProviderErrorKind(t, err, providerErrorAuthConfig)
 }
 
@@ -85,7 +85,7 @@ func TestFoursquareFallbackToMockWhenRealProviderErrors(t *testing.T) {
 			FoursquareBaseURL:        server.URL,
 			FoursquareTimeoutSeconds: 1,
 		},
-	}, zap.NewNop())
+	}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestFoursquareNoFallbackReturnsRealProviderError(t *testing.T) {
 			FoursquareBaseURL:        server.URL,
 			FoursquareTimeoutSeconds: 1,
 		},
-	}, zap.NewNop())
+	}, nil, zap.NewNop())
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
 	}

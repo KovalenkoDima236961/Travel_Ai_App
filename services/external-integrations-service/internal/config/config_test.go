@@ -48,3 +48,48 @@ func TestProductionMockProvidersPass(t *testing.T) {
 		t.Fatalf("expected valid production mock-provider config, got %v", err)
 	}
 }
+
+func TestProviderLimitsNegativeRateLimitRejected(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("ORS_RATE_LIMIT_PER_MINUTE", "-1")
+
+	if _, err := Load(""); err == nil {
+		t.Fatal("expected negative rate limit to be rejected")
+	}
+}
+
+func TestProviderLimitsNegativeDailyQuotaRejected(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("FOURSQUARE_DAILY_QUOTA", "-5")
+
+	if _, err := Load(""); err == nil {
+		t.Fatal("expected negative daily quota to be rejected")
+	}
+}
+
+func TestProviderLimitsZeroQuotaMeansUnlimited(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("ORS_DAILY_QUOTA", "0")
+	t.Setenv("ORS_RATE_LIMIT_PER_MINUTE", "0")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("expected zero (unlimited) limits to be valid, got %v", err)
+	}
+	if cfg.ProviderLimits.ORSDailyQuota != 0 || cfg.ProviderLimits.ORSRatePerMinute != 0 {
+		t.Fatalf("expected zero limits, got quota=%d rate=%d", cfg.ProviderLimits.ORSDailyQuota, cfg.ProviderLimits.ORSRatePerMinute)
+	}
+}
+
+func TestProviderLimitsInvalidTimezoneRejected(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("PROVIDER_LIMITS_TIMEZONE", "Not/AZone")
+
+	if _, err := Load(""); err == nil {
+		t.Fatal("expected invalid timezone to be rejected")
+	}
+}

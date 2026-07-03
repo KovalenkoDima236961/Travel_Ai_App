@@ -58,7 +58,7 @@ flowchart LR
 | Auth | [services/auth-service](services/auth-service/README.md) | `8082` | Email/password auth, JWT access tokens, refresh-token rotation, internal user lookup. |
 | Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Trip ownership, collaborators, itinerary revisions, jobs, budgets, comments, shares, activity. |
 | Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile and preference data scoped by Auth JWT `sub`. |
-| External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, weather, exchange rates, price estimates, Google Calendar integration boundary. |
+| External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, weather, exchange rates, price estimates, Google Calendar integration boundary. Central per-provider rate-limit and daily-quota enforcement (Provider Quota & Rate-Limit Management v1). |
 | Notifications | [services/notification-service](services/notification-service/README.md) | `8086` | In-app notifications, SSE, preferences, optional email and browser push. |
 | Worker | [services/worker-service](services/worker-service/README.md) | `8090` | RabbitMQ consumer for slow generation and budget optimization jobs. |
 | AI planning | [services/ai-planning-service](services/ai-planning-service/README.md) | `8000` | Itinerary generation, regeneration, budget proposals, destination context, local RAG. |
@@ -113,6 +113,11 @@ Key product capabilities:
   provider ticket estimates, and reviewable AI budget proposals.
 - Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
   email, and browser push integrations behind mock-first provider boundaries.
+- Provider Quota & Rate-Limit Management v1: External Integrations Service
+  enforces per-provider in-memory rate limits and Postgres-backed daily quotas
+  before calling real providers, with controlled `provider_rate_limited` /
+  `provider_quota_exceeded` errors, worker retry classification, and an Ops
+  Dashboard Provider Quotas panel.
 
 ## Quick Start
 

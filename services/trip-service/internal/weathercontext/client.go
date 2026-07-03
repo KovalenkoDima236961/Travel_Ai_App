@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
@@ -73,7 +74,11 @@ func (c *Client) GetForecast(ctx context.Context, destination string, startDate 
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, &Error{StatusCode: resp.StatusCode, Message: readErrorBody(resp.Body)}
+		body := readLimitedErrorBody(resp.Body)
+		if limitErr := providerlimit.Parse(resp.StatusCode, body); limitErr != nil {
+			return nil, limitErr
+		}
+		return nil, &Error{StatusCode: resp.StatusCode, Message: errorMessageFromBody(body)}
 	}
 
 	var forecast WeatherForecast
@@ -83,13 +88,20 @@ func (c *Client) GetForecast(ctx context.Context, destination string, startDate 
 	return &forecast, nil
 }
 
-func readErrorBody(body io.Reader) string {
+func readLimitedErrorBody(body io.Reader) []byte {
 	limited, err := io.ReadAll(io.LimitReader(body, maxWeatherContextErrorBodyBytes))
 	if err != nil {
-		return "response body could not be read"
+		return nil
 	}
-	if message := strings.TrimSpace(string(limited)); message != "" {
+	return limited
+}
+
+func errorMessageFromBody(body []byte) string {
+	if message := strings.TrimSpace(string(body)); message != "" {
 		return message
+	}
+	if body == nil {
+		return "response body could not be read"
 	}
 	return "empty response body"
 }

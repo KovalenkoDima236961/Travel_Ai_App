@@ -88,6 +88,9 @@ func (h *RoutesHandler) Estimate(w http.ResponseWriter, r *http.Request) {
 
 	estimate, err := h.svc.EstimateRoute(r.Context(), req)
 	if err != nil {
+		if writeProviderLimitError(w, err) {
+			return
+		}
 		// Validation already passed, so any error here is an upstream provider
 		// failure. Return a safe, generic provider-unavailable response.
 		h.log.Warn("route estimate failed", zap.String("mode", req.Mode), zap.Int("stop_count", len(req.Stops)), zap.Error(err))

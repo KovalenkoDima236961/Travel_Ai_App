@@ -12,7 +12,7 @@ import (
 )
 
 func TestNewUnsupportedRouteProviderReturnsError(t *testing.T) {
-	_, err := New(&config.Config{RouteProvider: config.RouteProviderConfig{Provider: "osrm"}}, zap.NewNop())
+	_, err := New(&config.Config{RouteProvider: config.RouteProviderConfig{Provider: "osrm"}}, nil, zap.NewNop())
 	if err == nil {
 		t.Fatal("expected unsupported route provider error")
 	}
