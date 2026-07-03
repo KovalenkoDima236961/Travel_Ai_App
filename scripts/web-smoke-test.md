@@ -153,6 +153,36 @@ Use local Grafana credentials `admin` / `admin`.
 56. Go to `/trips`.
 57. Confirm the trip appears in the list.
 
+## Collaborative Merge Recovery
+
+Manual test safe merge:
+
+1. Log in as user A in browser A.
+2. Log in as user B in browser B and open the same shared trip as an editor.
+3. Browser A clicks `Edit itinerary` at revision N.
+4. Browser B edits Day 1 and saves revision N+1.
+5. Browser A edits Day 3 and clicks `Save`.
+6. Confirm Browser A sees `This itinerary changed while you were editing`.
+7. Confirm the dialog offers `Apply safe merge`.
+8. Apply the safe merge.
+9. Confirm the final itinerary contains Browser B's Day 1 change and Browser A's
+   Day 3 change.
+
+Manual test conflict:
+
+1. Browser A enters edit mode.
+2. Browser B edits Day 2 item 1 and saves.
+3. Browser A edits Day 2 item 1 and saves.
+4. Confirm the conflict dialog shows overlapping local and latest changes.
+5. Choose `Keep latest` and apply; confirm the remote item remains.
+6. Repeat and choose `Keep mine`; confirm the local item replaces the remote item.
+
+Manual test discard:
+
+1. Browser A gets a stale-save conflict.
+2. Click `Discard my changes`.
+3. Confirm the latest itinerary is shown and the local draft is discarded.
+
 ## Observability
 
 1. Open Prometheus at `http://localhost:9090`.

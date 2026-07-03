@@ -99,7 +99,8 @@ Key product capabilities:
 
 - Authenticated trip planning with private ownership and collaborator roles.
 - Optimistic concurrency through `itineraryRevision` and explicit
-  `expectedItineraryRevision` writes.
+  `expectedItineraryRevision` writes, plus Advanced Collaborative Diff/Merge v1
+  for safe day/item-level recovery of stale itinerary drafts.
 - Asynchronous full generation, day/item regeneration, quality improvement, and
   budget optimization jobs.
 - Version history, restore, comments, activity feed, presence, and advisory edit

@@ -15,6 +15,7 @@ import { EditLockStatus } from "@/components/edit-locks/EditLockStatus";
 import { SoftEditLockWarningDialog } from "@/components/edit-locks/SoftEditLockWarningDialog";
 import { ExportTripMenu } from "@/components/export/ExportTripMenu";
 import { GenerationJobStatusCard } from "@/components/generation-jobs/GenerationJobStatusCard";
+import { MergeConflictDialog } from "@/components/itinerary/merge/MergeConflictDialog";
 import { ItemCommentsPanel } from "@/components/comments/ItemCommentsPanel";
 import { TripCommentsSummary } from "@/components/comments/TripCommentsSummary";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -78,6 +79,8 @@ import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
 import { useBudgetOptimizationProposals } from "@/lib/hooks/useBudgetOptimizationProposals";
 import { useGenerationJob } from "@/lib/hooks/useGenerationJob";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
+import { applyConflictResolutions, mergeItineraries } from "@/lib/itinerary/diff-merge/merge";
+import { cloneItinerary } from "@/lib/itinerary/diff-merge/normalize";
 import { useTripEditLock } from "@/lib/edit-locks/use-trip-edit-lock";
 import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
 import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
@@ -99,7 +102,18 @@ import type {
   GenerationJob,
   GenerationJobType
 } from "@/types/generation-jobs";
+import type {
+  ConflictResolution,
+  ConflictResolutionMap,
+  ItineraryMergeResult
+} from "@/lib/itinerary/diff-merge/types";
 import type { Itinerary, Trip } from "@/types/trip";
+
+type MergeRecoveryState = {
+  latestTrip: Trip;
+  mergeResult: ItineraryMergeResult;
+  resolutions: ConflictResolutionMap;
+};
 
 export default function TripDetailPage() {
   return (
@@ -123,9 +137,12 @@ function TripDetailPageContent() {
     time?: string | null;
   } | null>(null);
   const [draftItinerary, setDraftItinerary] = useState<Itinerary | null>(null);
+  const [baseItinerary, setBaseItinerary] = useState<Itinerary | null>(null);
   const [baseItineraryRevision, setBaseItineraryRevision] = useState<number | null>(null);
   const [editorErrors, setEditorErrors] = useState<string[]>([]);
   const [itineraryConflictMessage, setItineraryConflictMessage] = useState<string | null>(null);
+  const [mergeRecovery, setMergeRecovery] = useState<MergeRecoveryState | null>(null);
+  const [mergeApplyError, setMergeApplyError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
   const [activeGenerationJobId, setActiveGenerationJobId] = useState<string | null>(null);
@@ -447,10 +464,14 @@ function TripDetailPageContent() {
     if (!trip.itinerary) {
       return;
     }
-    setDraftItinerary(prepareItineraryForEdit(trip.itinerary));
+    const preparedItinerary = prepareItineraryForEdit(trip.itinerary);
+    setBaseItinerary(cloneItinerary(preparedItinerary));
+    setDraftItinerary(cloneItinerary(preparedItinerary));
     setBaseItineraryRevision(trip.itineraryRevision);
     setEditorErrors([]);
     setItineraryConflictMessage(null);
+    setMergeRecovery(null);
+    setMergeApplyError(null);
     setRegenerationError(null);
     setSuccessMessage(null);
     setIsEditing(true);
@@ -482,9 +503,7 @@ function TripDetailPageContent() {
 
   async function cancelEditing() {
     await editLock.release();
-    setIsEditing(false);
-    setDraftItinerary(null);
-    setBaseItineraryRevision(null);
+    clearEditSession();
     setEditorErrors([]);
     setItineraryConflictMessage(null);
     void setPresenceState("viewing");
@@ -510,21 +529,10 @@ function TripDetailPageContent() {
         itinerary: normalized,
         expectedRevision: baseItineraryRevision ?? trip.itineraryRevision
       });
-      queryClient.setQueryData(tripKeys.detail(tripId), updated);
-      await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
-      await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
-      await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
-      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
-      await tripQuery.refetch();
-      await editLock.release();
-      setDraftItinerary(null);
-      setBaseItineraryRevision(null);
-      setIsEditing(false);
-      void setPresenceState("viewing");
-      setSuccessMessage("Itinerary saved.");
+      await completeItinerarySave(updated, "Itinerary saved.");
     } catch (error) {
       if (isItineraryConflictError(error)) {
-        setItineraryConflictMessage("This itinerary changed while you were editing.");
+        await prepareMergeRecovery(normalized, error.currentItineraryRevision);
         setEditorErrors([]);
         return;
       }
@@ -537,9 +545,7 @@ function TripDetailPageContent() {
   async function reloadLatestAfterConflict() {
     await editLock.release();
     setItineraryConflictMessage(null);
-    setDraftItinerary(null);
-    setBaseItineraryRevision(null);
-    setIsEditing(false);
+    clearEditSession();
     void setPresenceState("viewing");
     await tripQuery.refetch();
   }
@@ -547,11 +553,142 @@ function TripDetailPageContent() {
   async function cancelLocalChangesAfterConflict() {
     await editLock.release();
     setItineraryConflictMessage(null);
-    setDraftItinerary(null);
-    setBaseItineraryRevision(null);
-    setIsEditing(false);
+    if (mergeRecovery?.latestTrip) {
+      queryClient.setQueryData(tripKeys.detail(tripId), mergeRecovery.latestTrip);
+    }
+    clearEditSession();
     void setPresenceState("viewing");
     await tripQuery.refetch();
+  }
+
+  async function prepareMergeRecovery(
+    localDraft: Itinerary,
+    latestRevisionHint: number,
+    applyErrorMessage?: string
+  ) {
+    if (!baseItinerary || baseItineraryRevision == null) {
+      setItineraryConflictMessage("This itinerary changed while you were editing.");
+      setMergeRecovery(null);
+      return;
+    }
+
+    try {
+      const latestTrip = await getTrip(tripId);
+      queryClient.setQueryData(tripKeys.detail(tripId), latestTrip);
+
+      if (!latestTrip.itinerary) {
+        setItineraryConflictMessage("The latest trip no longer has an itinerary.");
+        setMergeRecovery(null);
+        return;
+      }
+
+      const mergeResult = mergeItineraries(baseItinerary, localDraft, latestTrip.itinerary, {
+        baseRevision: baseItineraryRevision,
+        latestRevision: latestTrip.itineraryRevision ?? latestRevisionHint
+      });
+      setDraftItinerary(cloneItinerary(localDraft));
+      setMergeRecovery({
+        latestTrip,
+        mergeResult,
+        resolutions: defaultConflictResolutions(mergeResult)
+      });
+      setItineraryConflictMessage(null);
+      setMergeApplyError(applyErrorMessage ?? null);
+    } catch (fetchError) {
+      setItineraryConflictMessage(
+        getErrorMessage(fetchError, "Could not load the latest itinerary for merging.")
+      );
+      setMergeRecovery(null);
+    }
+  }
+
+  async function applyMergeRecovery() {
+    if (!mergeRecovery?.latestTrip.itinerary || !mergeRecovery.mergeResult.mergedItinerary) {
+      return;
+    }
+
+    const merged =
+      mergeRecovery.mergeResult.safety === "safe"
+        ? mergeRecovery.mergeResult.mergedItinerary
+        : applyConflictResolutions(
+            mergeRecovery.latestTrip.itinerary,
+            mergeRecovery.mergeResult,
+            mergeRecovery.resolutions
+          );
+    const normalized = normalizeItineraryForSave(merged);
+    const errors = validateEditableItinerary(normalized);
+    if (errors.length > 0) {
+      setMergeApplyError(errors.join(" "));
+      return;
+    }
+
+    try {
+      setMergeApplyError(null);
+      setEditorErrors([]);
+      const updated = await updateMutation.mutateAsync({
+        itinerary: normalized,
+        expectedRevision: mergeRecovery.latestTrip.itineraryRevision
+      });
+      await completeItinerarySave(updated, "Your changes were merged successfully.");
+    } catch (error) {
+      if (isItineraryConflictError(error)) {
+        await prepareMergeRecovery(
+          normalized,
+          error.currentItineraryRevision,
+          "The itinerary changed again while merging. Reload latest and try again."
+        );
+        return;
+      }
+      setMergeApplyError(getErrorMessage(error, "Could not apply merged itinerary."));
+    }
+  }
+
+  function updateConflictResolution(
+    conflictKey: string,
+    resolution: ConflictResolution
+  ) {
+    setMergeRecovery((current) =>
+      current
+        ? {
+            ...current,
+            resolutions: {
+              ...current.resolutions,
+              [conflictKey]: resolution
+            }
+          }
+        : current
+    );
+  }
+
+  async function viewLatestFromMerge() {
+    if (!window.confirm("View the latest itinerary and discard your local draft?")) {
+      return;
+    }
+    await cancelLocalChangesAfterConflict();
+  }
+
+  async function completeItinerarySave(updated: Trip, message: string) {
+    queryClient.setQueryData(tripKeys.detail(tripId), updated);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
+      queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+      queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
+      queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
+    ]);
+    await tripQuery.refetch();
+    await editLock.release();
+    clearEditSession();
+    void setPresenceState("viewing");
+    setSuccessMessage(message);
+  }
+
+  function clearEditSession() {
+    setIsEditing(false);
+    setDraftItinerary(null);
+    setBaseItinerary(null);
+    setBaseItineraryRevision(null);
+    setMergeRecovery(null);
+    setMergeApplyError(null);
   }
 
   async function regenerateDay(dayNumber: number, instruction?: string) {
@@ -998,10 +1135,10 @@ function TripDetailPageContent() {
                 <>
                   {editingRevisionChanged ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                      This itinerary was updated while you are editing.
+                      This itinerary has newer changes. Saving may require merge.
                     </div>
                   ) : null}
-                  {itineraryConflictMessage ? (
+                  {itineraryConflictMessage && !mergeRecovery ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                       <h2 className="font-semibold">
                         This itinerary changed while you were editing
@@ -1189,6 +1326,23 @@ function TripDetailPageContent() {
           onContinue={continueAfterEditLockWarning}
         />
       ) : null}
+      {mergeRecovery ? (
+        <MergeConflictDialog
+          applying={updateMutation.isPending}
+          error={mergeApplyError}
+          latestRevision={mergeRecovery.latestTrip.itineraryRevision}
+          mergeResult={mergeRecovery.mergeResult}
+          onApplyMerged={applyMergeRecovery}
+          onCancel={() => {
+            setMergeRecovery(null);
+            setMergeApplyError(null);
+          }}
+          onDiscardLocal={cancelLocalChangesAfterConflict}
+          onResolutionChange={updateConflictResolution}
+          onViewLatest={viewLatestFromMerge}
+          resolutions={mergeRecovery.resolutions}
+        />
+      ) : null}
       <BudgetOptimizationRequestDialog
         budgetSummary={budgetSummaryQuery.data ?? null}
         defaultDayNumber={budgetOptimizationDefaultDayNumber}
@@ -1200,6 +1354,17 @@ function TripDetailPageContent() {
         trip={trip}
       />
     </PageContainer>
+  );
+}
+
+function defaultConflictResolutions(
+  mergeResult: ItineraryMergeResult
+): ConflictResolutionMap {
+  return Object.fromEntries(
+    mergeResult.conflicts.map((conflict) => [
+      conflict.conflictKey,
+      conflict.resolution ?? "keep_latest"
+    ])
   );
 }
 

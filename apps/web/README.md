@@ -40,7 +40,7 @@ or tighter path filtering, such as notification and calendar OAuth calls.
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
-| Concurrency | `itineraryRevision` conflict panels, advisory presence, soft edit locks. |
+| Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
 | Budget | Trip budget, item costs, accommodation cost, summaries, optimization proposals. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
@@ -158,7 +158,10 @@ sequenceDiagram
         T-->>UI: saved, itineraryRevision = 8
     else another write already changed it
         T-->>UI: 409 itinerary_conflict, currentItineraryRevision
-        UI-->>UI: show reload/cancel conflict panel
+        UI->>T: GET /trips/{id}
+        T-->>UI: latest itineraryRevision and itinerary
+        UI-->>UI: compute three-way day/item merge
+        UI->>T: PUT /trips/{id}/itinerary expectedItineraryRevision=latest
     end
 ```
 
@@ -166,6 +169,21 @@ Manual itinerary edits, version restores, budget proposal applies, and direct
 regeneration compatibility routes all rely on backend revision checks. Presence
 and edit locks are advisory UX signals; revision checks are the real data-safety
 mechanism.
+
+When a manual save is stale, the web app compares the edit-session base
+itinerary, the user's draft, and the latest itinerary from Trip Service. Safe
+non-overlapping day/item changes can be previewed and applied on top of the
+latest revision only after explicit confirmation. Overlapping changes show
+per-conflict choices to keep the latest version or keep the local version.
+
+Current v1 limitations:
+
+- Merge granularity is day-level and item-level only.
+- There is no CRDT, operational transform, live co-editing, or text-level merge.
+- Item identity uses `item.id` when present, then stable name/time/type matching;
+  reorders are harder to recover when generated items do not have stable IDs.
+- The backend revision check remains authoritative, and every merged save still
+  sends the latest `expectedItineraryRevision`.
 
 ## Notifications And Push
 
