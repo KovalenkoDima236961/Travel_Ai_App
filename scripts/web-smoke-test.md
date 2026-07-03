@@ -764,6 +764,14 @@ at once: the trip **owner** and a **second user** (collaborator).
 
 ## Troubleshooting
 
+### Optional Ops Dashboard Check
+
+The `/ops` dashboard is intentionally disabled by default. To include it in the
+API smoke test, start the stack with `OPS_DASHBOARD_ENABLED=true`, set
+`OPS_ADMIN_EMAILS` to the smoke user email, run the script with
+`SMOKE_AUTH_EMAIL=<same-email>` and `SMOKE_EXPECT_OPS_DASHBOARD=true`, then open
+`http://localhost:3000/ops` with that account.
+
 - CORS error in browser console: confirm Trip Service has
   `CORS_ALLOWED_ORIGINS=http://localhost:3000`, then rebuild/restart
   `trip-service`.

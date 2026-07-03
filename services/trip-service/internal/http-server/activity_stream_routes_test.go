@@ -312,7 +312,7 @@ func newActivityStreamTestRouter(t *testing.T, cfg activitystream.Config) (http.
 	ready := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg), repo, manager
+	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg, config.OpsConfig{}), repo, manager
 }
 
 func waitForActivityClients(t *testing.T, manager activitystream.Manager, tripID uuid.UUID, want int) {

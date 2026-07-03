@@ -38,6 +38,20 @@ var (
 		},
 		[]string{"queue", "message_type", "reason"},
 	)
+	opsDLQActions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ops_dlq_actions_total",
+			Help: "Total ops DLQ actions.",
+		},
+		[]string{"action", "result"},
+	)
+	opsQueueStatusRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ops_queue_status_requests_total",
+			Help: "Total ops queue status requests.",
+		},
+		[]string{"result"},
+	)
 )
 
 func init() {
@@ -47,6 +61,8 @@ func init() {
 		workerMessagesNacked,
 		workerMessagesRetried,
 		workerMessagesDeadLettered,
+		opsDLQActions,
+		opsQueueStatusRequests,
 	)
 }
 
@@ -68,4 +84,12 @@ func recordRetried(queue, messageType string) {
 
 func recordDeadLettered(queue, messageType, reason string) {
 	workerMessagesDeadLettered.WithLabelValues(queue, messageType, reason).Inc()
+}
+
+func RecordOpsDLQAction(action, result string) {
+	opsDLQActions.WithLabelValues(action, result).Inc()
+}
+
+func RecordOpsQueueStatusRequest(result string) {
+	opsQueueStatusRequests.WithLabelValues(result).Inc()
 }

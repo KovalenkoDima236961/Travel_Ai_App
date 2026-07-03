@@ -120,6 +120,21 @@ var (
 		},
 		[]string{"job_type"},
 	)
+	opsJobActions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ops_job_actions_total",
+			Help: "Total ops generation job actions.",
+		},
+		[]string{"action", "result"},
+	)
+	opsJobActionDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "ops_job_action_duration_seconds",
+			Help:    "Ops generation job action duration.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"action", "result"},
+	)
 )
 
 func init() {
@@ -139,6 +154,8 @@ func init() {
 		workerJobsFailed,
 		workerJobDuration,
 		workerJobQueueDelay,
+		opsJobActions,
+		opsJobActionDuration,
 	)
 }
 
@@ -195,4 +212,9 @@ func recordWorkerFailure(job *entity.GenerationJob, errorCode string, startedAt 
 		inProcessWorkerJobsFailed.WithLabelValues(jobType, errorCode).Inc()
 		inProcessWorkerJobDuration.WithLabelValues(jobType).Observe(time.Since(startedAt).Seconds())
 	}
+}
+
+func recordOpsJobAction(action, result string, duration time.Duration) {
+	opsJobActions.WithLabelValues(action, result).Inc()
+	opsJobActionDuration.WithLabelValues(action, result).Observe(duration.Seconds())
 }

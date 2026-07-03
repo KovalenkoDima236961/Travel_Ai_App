@@ -154,9 +154,17 @@ short-lived public share unlock tokens.
 | `PUBLIC_SHARING_*`, `PUBLIC_SHARE_ACCESS_*` | Public share link controls. |
 | `TRIP_PRESENCE_*`, `TRIP_ACTIVITY_STREAM_*`, `TRIP_EDIT_LOCK_*` | In-memory SSE/advisory collaboration features. |
 | `GENERATION_JOB_*`, `RABBITMQ_*` | Job queue, retry, DLQ, and worker behavior. |
+| `OPS_DASHBOARD_ENABLED`, `OPS_ADMIN_EMAILS`, `OPS_STALE_RUNNING_JOB_SECONDS` | Allowlisted admin job monitor and safe job actions. |
 | `NOTIFICATIONS_*`, `NOTIFICATION_SERVICE_*` | Synchronous fail-open notification fanout. |
 | `CALENDAR_SYNC_*`, `DEFAULT_CALENDAR_TIMEZONE` | Calendar sync behavior. |
 | `POSTGRES_*`, `POSTGRES_MIG_PATH` | Database and auto-migration settings. |
+
+## Ops Dashboard Endpoints
+
+When `OPS_DASHBOARD_ENABLED=true`, allowlisted users can inspect generation jobs
+with `GET /ops/jobs`, `GET /ops/jobs/summary`, and `GET /ops/jobs/{jobId}`.
+Safe mutations require a non-empty `reason`: retry creates a new queued job,
+cancel only affects queued jobs, and mark-failed only affects stale running jobs.
 
 See [configs/config.example.yaml](configs/config.example.yaml) and
 [.env.example](.env.example) for the full local template.

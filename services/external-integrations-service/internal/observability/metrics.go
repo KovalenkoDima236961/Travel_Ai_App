@@ -2,10 +2,30 @@ package observability
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+type ProviderHealthSnapshot struct {
+	LastSuccessAt      *time.Time
+	LastFailureAt      *time.Time
+	RecentSuccessCount int
+	RecentFailureCount int
+	LastErrorCode      string
+}
+
+type providerHealthState struct {
+	mu                 sync.Mutex
+	lastSuccessAt      *time.Time
+	lastFailureAt      *time.Time
+	recentSuccessCount int
+	recentFailureCount int
+	lastErrorCode      string
+}
+
+var providerHealth sync.Map
 
 var (
 	externalProviderRequests = prometheus.NewCounterVec(
@@ -55,10 +75,16 @@ func RecordProviderRequest(provider, operation, result string, duration time.Dur
 	result = normalize(result)
 	externalProviderRequests.WithLabelValues(provider, operation, result).Inc()
 	externalProviderDuration.WithLabelValues(provider, operation, result).Observe(duration.Seconds())
+	if result == "success" {
+		healthState(provider).recordSuccess()
+	}
 }
 
 func RecordProviderFailure(provider, operation, errorCode string) {
-	externalProviderFailures.WithLabelValues(normalize(provider), normalize(operation), normalize(errorCode)).Inc()
+	provider = normalize(provider)
+	errorCode = normalize(errorCode)
+	externalProviderFailures.WithLabelValues(provider, normalize(operation), errorCode).Inc()
+	healthState(provider).recordFailure(errorCode)
 }
 
 func RecordProviderFallback(provider, operation, fallbackProvider string) {
@@ -79,4 +105,47 @@ func normalize(value string) string {
 		return "unknown"
 	}
 	return value
+}
+
+func ProviderHealth(provider string) ProviderHealthSnapshot {
+	state := healthState(normalize(provider))
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return ProviderHealthSnapshot{
+		LastSuccessAt:      cloneTimePtr(state.lastSuccessAt),
+		LastFailureAt:      cloneTimePtr(state.lastFailureAt),
+		RecentSuccessCount: state.recentSuccessCount,
+		RecentFailureCount: state.recentFailureCount,
+		LastErrorCode:      state.lastErrorCode,
+	}
+}
+
+func healthState(provider string) *providerHealthState {
+	value, _ := providerHealth.LoadOrStore(provider, &providerHealthState{})
+	return value.(*providerHealthState)
+}
+
+func (s *providerHealthState) recordSuccess() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UTC()
+	s.lastSuccessAt = &now
+	s.recentSuccessCount++
+}
+
+func (s *providerHealthState) recordFailure(code string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UTC()
+	s.lastFailureAt = &now
+	s.recentFailureCount++
+	s.lastErrorCode = code
+}
+
+func cloneTimePtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

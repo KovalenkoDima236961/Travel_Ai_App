@@ -25,13 +25,21 @@ type Repository interface {
 	GetGenerationJobByID(ctx context.Context, id uuid.UUID) (*entity.GenerationJob, error)
 	GetGenerationJobByIDAndTrip(ctx context.Context, id, tripID uuid.UUID) (*entity.GenerationJob, error)
 	ListGenerationJobsByTrip(ctx context.Context, tripID uuid.UUID, limit int) ([]entity.GenerationJob, error)
+	ListOpsGenerationJobs(ctx context.Context, filters OpsJobListFilters) ([]entity.GenerationJob, error)
+	CountOpsJobsByStatus(ctx context.Context) (map[entity.GenerationJobStatus]int, error)
+	CountOpsJobsByType(ctx context.Context) (map[entity.GenerationJobType]int, error)
+	ListRecentFailedOpsJobs(ctx context.Context, limit int) ([]entity.GenerationJob, error)
+	CountStaleRunningGenerationJobs(ctx context.Context, startedBefore time.Time) (int, error)
 	ClaimNextGenerationJob(ctx context.Context) (*entity.GenerationJob, error)
 	ClaimGenerationJob(ctx context.Context, id uuid.UUID) (*entity.GenerationJob, error)
 	CompleteGenerationJob(ctx context.Context, id uuid.UUID, resultItineraryRevision int) (*entity.GenerationJob, error)
 	FailGenerationJob(ctx context.Context, id uuid.UUID, errorCode string, errorMessage string) (*entity.GenerationJob, error)
 	ResetRunningGenerationJobToQueued(ctx context.Context, id uuid.UUID, errorCode string, errorMessage string) (*entity.GenerationJob, error)
 	CancelQueuedGenerationJob(ctx context.Context, id uuid.UUID) (*entity.GenerationJob, error)
+	CancelOpsGenerationJob(ctx context.Context, id uuid.UUID, errorCode, errorMessage string) (*entity.GenerationJob, error)
+	MarkOpsGenerationJobFailed(ctx context.Context, id uuid.UUID, startedBefore time.Time, errorCode, errorMessage string) (*entity.GenerationJob, error)
 	MarkStaleRunningGenerationJobsFailed(ctx context.Context, startedBefore time.Time, errorCode string, errorMessage string) (int64, error)
+	CreateOpsAuditEvent(ctx context.Context, event OpsAuditEvent) error
 }
 
 type TripService interface {

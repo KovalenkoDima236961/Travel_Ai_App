@@ -237,10 +237,12 @@ func newTestRouter() http.Handler {
 		priceHandler,
 		nil,
 		nil,
+		nil,
 		NewReadinessHandler(zap.NewNop()),
 		cfg.CORS,
 		cfg.Auth,
 		cfg.Internal,
+		cfg.Ops,
 	)
 }
 

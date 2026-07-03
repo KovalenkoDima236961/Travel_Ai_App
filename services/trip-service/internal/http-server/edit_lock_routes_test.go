@@ -302,7 +302,7 @@ func newEditLockTestRouter(t *testing.T, cfg editlocks.Config) (http.Handler, *r
 	ready := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg), repo
+	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg, config.OpsConfig{}), repo
 }
 
 func inviteEditLockCollaborator(t *testing.T, router http.Handler, ownerToken, tripID, email, role string) string {

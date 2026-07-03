@@ -24,6 +24,11 @@ auth:
 internal:
   service_token: dev-internal-service-token
 
+ops:
+  dashboard_enabled: false
+  admin_emails: ""
+  internal_service_token: dev-internal-service-token
+
 cors:
   allowed_origins: "http://localhost:3000"
   allowed_methods: "GET,POST,DELETE,OPTIONS"

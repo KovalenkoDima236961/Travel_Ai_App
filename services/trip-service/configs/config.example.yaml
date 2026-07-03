@@ -137,3 +137,9 @@ budget_conversion:
   external_integrations_service_url: http://external-integrations-service:8084
   internal_service_token: dev-internal-service-token
   timeout_seconds: 8
+
+ops:
+  dashboard_enabled: false
+  admin_emails: ""
+  internal_service_token: dev-internal-service-token
+  stale_running_job_seconds: 900

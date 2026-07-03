@@ -14,7 +14,7 @@ import (
 )
 
 const GenerationJobColumns = "id, trip_id, requested_by_user_id, job_type, status, " +
-	"expected_itinerary_revision, instruction, day_number, item_index, payload, correlation_id, request_id, error_code, " +
+	"expected_itinerary_revision, instruction, day_number, item_index, payload, correlation_id, request_id, retried_from_job_id, error_code, " +
 	"error_message, result_itinerary_revision, created_at, started_at, completed_at, " +
 	"cancelled_at, updated_at"
 
@@ -32,6 +32,7 @@ func GenerationJobInsertColumns() []string {
 		"payload",
 		"correlation_id",
 		"request_id",
+		"retried_from_job_id",
 	}
 }
 
@@ -49,6 +50,7 @@ func GenerationJobInsertValues(job *entity.GenerationJob) []any {
 		rawJSONArg(job.Payload),
 		toPgTextPtr(job.CorrelationID),
 		toPgTextPtr(job.RequestID),
+		toPgUUIDPtr(job.RetriedFromJobID),
 	}
 }
 
@@ -63,6 +65,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		payloadRaw                    []byte
 		correlationID                 pgtype.Text
 		requestID                     pgtype.Text
+		retriedFromJobID              pgtype.UUID
 		errorCode                     pgtype.Text
 		errorMessage                  pgtype.Text
 		resultRevision                pgtype.Int4
@@ -86,6 +89,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		&payloadRaw,
 		&correlationID,
 		&requestID,
+		&retriedFromJobID,
 		&errorCode,
 		&errorMessage,
 		&resultRevision,
@@ -115,6 +119,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		Payload:                   payloadRaw,
 		CorrelationID:             fromPgText(correlationID),
 		RequestID:                 fromPgText(requestID),
+		RetriedFromJobID:          fromPgUUID(retriedFromJobID),
 		ErrorCode:                 fromPgText(errorCode),
 		ErrorMessage:              fromPgText(errorMessage),
 		ResultItineraryRevision:   fromPgIntPtr(resultRevision),

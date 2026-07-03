@@ -204,6 +204,9 @@ npm run build
   endpoints outside a private network.
 - Browser-facing URLs use `NEXT_PUBLIC_*`; server-side Next.js proxy URLs use
   `*_INTERNAL_URL`.
+- The internal Ops Dashboard is off by default. Enable it only with
+  `OPS_DASHBOARD_ENABLED=true` and a comma-separated `OPS_ADMIN_EMAILS`
+  allowlist; its UI lives at `/ops`.
 - Do not log access tokens, refresh tokens, internal service tokens, OAuth
   tokens, API keys, full prompts, full preference payloads, or full private
   itinerary JSON.

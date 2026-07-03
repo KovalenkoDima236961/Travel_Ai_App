@@ -129,10 +129,13 @@ make run
 | `WORKER_CONCURRENCY` | `1` | Local processing concurrency. |
 | `WORKER_SHUTDOWN_TIMEOUT_SECONDS` | `30` | Graceful shutdown window. |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Broker URL. |
+| `RABBITMQ_MANAGEMENT_URL` | `http://rabbitmq:15672` | RabbitMQ Management API for queue/DLQ ops. |
+| `RABBITMQ_MANAGEMENT_USER`, `RABBITMQ_MANAGEMENT_PASSWORD` | `guest` | Management API credentials. |
 | `GENERATION_JOBS_PREFETCH` | `1` | AMQP prefetch count. |
 | `GENERATION_JOBS_MAX_ATTEMPTS` | `3` | Retry limit before DLQ. |
 | `GENERATION_JOBS_RETRY_DELAY_SECONDS` | `10` | Retry queue delay. |
 | `GENERATION_JOB_MAX_RUNNING_SECONDS` | `600` | Job timeout and stale-running cutoff. |
+| `OPS_DASHBOARD_ENABLED`, `OPS_ADMIN_EMAILS` | disabled, empty | Enables allowlisted worker ops routes. |
 | `AI_PLANNING_SERVICE_URL` | compose service URL | Downstream AI call target. |
 | `EXTERNAL_INTEGRATIONS_SERVICE_URL` | compose service URL | Weather/place/price/rate target. |
 | `NOTIFICATION_SERVICE_URL` | compose service URL | Internal notification fanout. |
@@ -148,6 +151,11 @@ executes the same generation and enrichment logic.
 | `GET` | `/health` | Process liveness. |
 | `GET` | `/ready` | Postgres and RabbitMQ readiness. |
 | `GET` | `/metrics` | Prometheus metrics. |
+| `GET` | `/ops/worker/status` | Worker readiness and active jobs. |
+| `GET` | `/ops/queues/status` | Main/retry/DLQ queue depths. |
+| `GET` | `/ops/dlq/messages` | Sanitized DLQ message headers. |
+| `POST` | `/ops/dlq/messages/{messageId}/requeue` | Requeue one DLQ message with a reason. |
+| `POST` | `/ops/dlq/messages/{messageId}/discard` | Discard one DLQ message with a reason. |
 
 Worker metrics include consumed/acked/nacked/retried/dead-lettered messages,
 active jobs, job starts/completions/failures, job duration, and queue delay.

@@ -270,7 +270,7 @@ func newPresenceTestRouter(t *testing.T, cfg presence.Config) (http.Handler, *ro
 	ready := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg), repo, manager
+	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg, config.OpsConfig{}), repo, manager
 }
 
 func waitForPresenceUsers(t *testing.T, manager presence.Manager, tripID uuid.UUID, want int) {

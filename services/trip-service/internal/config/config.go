@@ -34,6 +34,7 @@ type Config struct {
 	GenerationJobs     GenerationJobsConfig     `yaml:"generation_jobs"`
 	CalendarSync       CalendarSyncConfig       `yaml:"calendar_sync"`
 	BudgetConversion   BudgetConversionConfig   `yaml:"budget_conversion"`
+	Ops                OpsConfig                `yaml:"ops"`
 }
 
 // NotificationsConfig controls synchronous in-app notification fan-out to the
@@ -112,6 +113,14 @@ type BudgetConversionConfig struct {
 	ExternalIntegrationsServiceURL string `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
 	InternalServiceToken           string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
 	TimeoutSeconds                 int    `yaml:"timeout_seconds" env:"EXCHANGE_RATE_CLIENT_TIMEOUT_SECONDS" env-default:"8" validate:"min=1"`
+}
+
+// OpsConfig controls the internal allowlisted operations dashboard endpoints.
+type OpsConfig struct {
+	DashboardEnabled       bool   `yaml:"dashboard_enabled" env:"OPS_DASHBOARD_ENABLED" env-default:"false"`
+	AdminEmails            string `yaml:"admin_emails" env:"OPS_ADMIN_EMAILS"`
+	InternalServiceToken   string `yaml:"internal_service_token" env:"OPS_INTERNAL_SERVICE_TOKEN"`
+	StaleRunningJobSeconds int    `yaml:"stale_running_job_seconds" env:"OPS_STALE_RUNNING_JOB_SECONDS" env-default:"900" validate:"min=1"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -249,6 +258,10 @@ func (c *Config) GenerationJobMaxRunning() time.Duration {
 
 func (c *Config) GenerationJobPublishTimeout() time.Duration {
 	return time.Duration(c.GenerationJobs.PublishTimeoutSeconds) * time.Second
+}
+
+func (c *Config) OpsStaleRunningJobThreshold() time.Duration {
+	return time.Duration(c.Ops.StaleRunningJobSeconds) * time.Second
 }
 
 // MustLoad loads and validates the configuration, panicking on any error.

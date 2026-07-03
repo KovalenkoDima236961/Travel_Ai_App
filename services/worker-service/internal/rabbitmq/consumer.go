@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,9 +24,20 @@ type Consumer struct {
 	publisher   *jobqueue.RabbitMQPublisher
 	log         *zap.Logger
 
-	conn    *amqp.Connection
-	channel *amqp.Channel
-	ready   bool
+	conn     *amqp.Connection
+	channel  *amqp.Channel
+	ready    bool
+	activeMu sync.Mutex
+	active   map[uuid.UUID]ActiveJob
+}
+
+type ActiveJob struct {
+	JobID         uuid.UUID `json:"jobId"`
+	TripID        uuid.UUID `json:"tripId"`
+	JobType       string    `json:"jobType"`
+	StartedAt     time.Time `json:"startedAt"`
+	DurationMs    int64     `json:"durationMs"`
+	CorrelationID string    `json:"correlationId,omitempty"`
 }
 
 func NewConsumer(
@@ -52,6 +64,7 @@ func NewConsumer(
 		processor:   processor,
 		publisher:   publisher,
 		log:         log,
+		active:      map[uuid.UUID]ActiveJob{},
 	}
 }
 
@@ -137,6 +150,26 @@ func (c *Consumer) Ready() bool {
 		c.publisher.IsReady()
 }
 
+func (c *Consumer) Prefetch() int {
+	return c.prefetch
+}
+
+func (c *Consumer) ActiveJobs() []ActiveJob {
+	c.activeMu.Lock()
+	defer c.activeMu.Unlock()
+
+	now := time.Now()
+	out := make([]ActiveJob, 0, len(c.active))
+	for _, job := range c.active {
+		job.DurationMs = now.Sub(job.StartedAt).Milliseconds()
+		if job.DurationMs < 0 {
+			job.DurationMs = 0
+		}
+		out = append(out, job)
+	}
+	return out
+}
+
 func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 	startedAt := time.Now()
 	messageType := delivery.Type
@@ -174,6 +207,8 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 		zap.String("queue", c.cfg.QueueName),
 	}
 	logFields = append(logFields, observability.RequestIDFields(ctx)...)
+	c.setActive(msg, startedAt)
+	defer c.clearActive(msg.JobID)
 
 	result, err := c.processor.ProcessJobByID(ctx, msg.JobID, false)
 	if err != nil {
@@ -238,6 +273,24 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 		recordNacked(c.cfg.QueueName, messageType, "unknown_result")
 		_ = delivery.Nack(false, false)
 	}
+}
+
+func (c *Consumer) setActive(msg generationjobs.QueueMessage, startedAt time.Time) {
+	c.activeMu.Lock()
+	defer c.activeMu.Unlock()
+	c.active[msg.JobID] = ActiveJob{
+		JobID:         msg.JobID,
+		TripID:        msg.TripID,
+		JobType:       string(msg.JobType),
+		StartedAt:     startedAt,
+		CorrelationID: msg.CorrelationID,
+	}
+}
+
+func (c *Consumer) clearActive(jobID uuid.UUID) {
+	c.activeMu.Lock()
+	defer c.activeMu.Unlock()
+	delete(c.active, jobID)
 }
 
 func (c *Consumer) retryOrRequeue(

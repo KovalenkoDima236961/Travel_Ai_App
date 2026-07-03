@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
@@ -27,10 +28,12 @@ func NewRouter(
 	priceHandler *prices.Handler,
 	calendarHandler *handler.CalendarHandler,
 	internalCalendarHandler *handler.InternalCalendarHandler,
+	providerOpsHandler *handler.ProviderOpsHandler,
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
 	authCfg config.AuthConfig,
 	internalCfg config.InternalConfig,
+	opsCfg config.OpsConfig,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -79,6 +82,17 @@ func NewRouter(
 			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
 			r.Post("/internal/calendar/google/events/sync", internalCalendarHandler.SyncGoogleEvents)
 			r.Post("/internal/calendar/google/events/delete", internalCalendarHandler.DeleteGoogleEvents)
+		})
+	}
+
+	if opsCfg.DashboardEnabled && providerOpsHandler != nil {
+		r.Group(func(r chi.Router) {
+			r.Use(auth.Middleware(auth.MiddlewareConfig{
+				JWTAccessSecret: authCfg.JWTAccessSecret,
+				HeaderName:      authCfg.HeaderName,
+			}))
+			r.Use(ops.NewAdminChecker(opsCfg, log).Middleware)
+			providerOpsHandler.RegisterRoutes(r)
 		})
 	}
 

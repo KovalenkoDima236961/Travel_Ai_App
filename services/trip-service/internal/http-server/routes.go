@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
@@ -23,6 +24,7 @@ func NewRouter(
 	readinessHandler http.Handler,
 	corsCfg config.CORSConfig,
 	authCfg config.AuthConfig,
+	opsCfg config.OpsConfig,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -54,6 +56,12 @@ func NewRouter(
 			DevUserID:       devUserID,
 		}))
 		tripHandler.RegisterRoutes(r)
+		if opsCfg.DashboardEnabled {
+			r.Group(func(r chi.Router) {
+				r.Use(ops.NewAdminChecker(opsCfg, log).Middleware)
+				tripHandler.RegisterOpsRoutes(r, time.Duration(opsCfg.StaleRunningJobSeconds)*time.Second)
+			})
+		}
 	})
 
 	return r

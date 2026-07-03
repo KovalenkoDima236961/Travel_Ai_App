@@ -41,6 +41,7 @@ type GenerationJob struct {
 	Payload                   json.RawMessage
 	CorrelationID             *string
 	RequestID                 *string
+	RetriedFromJobID          *uuid.UUID
 	ErrorCode                 *string
 	ErrorMessage              *string
 	ResultItineraryRevision   *int

@@ -136,6 +136,40 @@ func (f *fakeJobRepo) ListGenerationJobsByTrip(_ context.Context, tripID uuid.UU
 	return []entity.GenerationJob{}, nil
 }
 
+func (f *fakeJobRepo) ListOpsGenerationJobs(context.Context, OpsJobListFilters) ([]entity.GenerationJob, error) {
+	if f.job == nil {
+		return []entity.GenerationJob{}, nil
+	}
+	return []entity.GenerationJob{*f.job}, nil
+}
+
+func (f *fakeJobRepo) CountOpsJobsByStatus(context.Context) (map[entity.GenerationJobStatus]int, error) {
+	out := map[entity.GenerationJobStatus]int{}
+	if f.job != nil {
+		out[f.job.Status] = 1
+	}
+	return out, nil
+}
+
+func (f *fakeJobRepo) CountOpsJobsByType(context.Context) (map[entity.GenerationJobType]int, error) {
+	out := map[entity.GenerationJobType]int{}
+	if f.job != nil {
+		out[f.job.JobType] = 1
+	}
+	return out, nil
+}
+
+func (f *fakeJobRepo) ListRecentFailedOpsJobs(context.Context, int) ([]entity.GenerationJob, error) {
+	if f.job != nil && f.job.Status == entity.GenerationJobStatusFailed {
+		return []entity.GenerationJob{*f.job}, nil
+	}
+	return []entity.GenerationJob{}, nil
+}
+
+func (f *fakeJobRepo) CountStaleRunningGenerationJobs(context.Context, time.Time) (int, error) {
+	return 0, nil
+}
+
 func (f *fakeJobRepo) ClaimNextGenerationJob(context.Context) (*entity.GenerationJob, error) {
 	return nil, domainerrs.ErrNotFound
 }
@@ -196,9 +230,37 @@ func (f *fakeJobRepo) CancelQueuedGenerationJob(_ context.Context, id uuid.UUID)
 	return nil, domainerrs.ErrNotFound
 }
 
+func (f *fakeJobRepo) CancelOpsGenerationJob(_ context.Context, id uuid.UUID, code, message string) (*entity.GenerationJob, error) {
+	if f.job != nil && f.job.ID == id {
+		out := *f.job
+		out.Status = entity.GenerationJobStatusCancelled
+		out.ErrorCode = &code
+		out.ErrorMessage = &message
+		f.job = &out
+		return &out, nil
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (f *fakeJobRepo) MarkOpsGenerationJobFailed(_ context.Context, id uuid.UUID, _ time.Time, code, message string) (*entity.GenerationJob, error) {
+	if f.job != nil && f.job.ID == id {
+		out := *f.job
+		out.Status = entity.GenerationJobStatusFailed
+		out.ErrorCode = &code
+		out.ErrorMessage = &message
+		f.job = &out
+		return &out, nil
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
 func (f *fakeJobRepo) MarkStaleRunningGenerationJobsFailed(context.Context, time.Time, string, string) (int64, error) {
 	f.staleCalls++
 	return 0, nil
+}
+
+func (f *fakeJobRepo) CreateOpsAuditEvent(context.Context, OpsAuditEvent) error {
+	return nil
 }
 
 type fakeTripService struct {

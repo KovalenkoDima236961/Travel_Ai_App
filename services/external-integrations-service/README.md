@@ -59,6 +59,7 @@ Google Calendar directly.
 | `DELETE` | `/calendar/google/disconnect` | bearer access token | Disconnect calendar. |
 | `POST` | `/internal/calendar/google/events/sync` | `X-Internal-Service-Token` | Create/update app-owned calendar events. |
 | `POST` | `/internal/calendar/google/events/delete` | `X-Internal-Service-Token` | Delete app-owned calendar events. |
+| `GET` | `/ops/providers/status` | allowlisted bearer token | Sanitized provider health and recent failures. |
 
 ## Provider Selection
 
@@ -162,6 +163,7 @@ curl -X POST "http://localhost:8084/prices/estimate" \
 | `CALENDAR_TOKEN_ENCRYPTION_KEY` | AES-GCM key for stored calendar tokens. |
 | `PUBLIC_WEB_BASE_URL` | Allowed OAuth callback redirect base. |
 | `*_CACHE_ENABLED`, `*_CACHE_TTL_SECONDS` | In-memory provider cache controls. |
+| `OPS_DASHBOARD_ENABLED`, `OPS_ADMIN_EMAILS` | Allowlisted provider health route. |
 
 API keys and OAuth secrets must stay server-side and out of committed files.
 

@@ -95,6 +95,7 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 	}, log)
 	calendarHandler := handler.NewCalendarHandler(calendarSvc, log)
 	internalCalendarHandler := handler.NewInternalCalendarHandler(calendarSvc, log)
+	providerOpsHandler := handler.NewProviderOpsHandler(cfg, log)
 	readinessHandler := httpserver.NewReadinessHandler(log)
 	router := httpserver.NewRouter(
 		log,
@@ -105,10 +106,12 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 		priceHandler,
 		calendarHandler,
 		internalCalendarHandler,
+		providerOpsHandler,
 		readinessHandler,
 		cfg.CORS,
 		cfg.Auth,
 		cfg.Internal,
+		cfg.Ops,
 	)
 
 	return &container{db: db, router: router}, nil

@@ -1521,7 +1521,7 @@ func newAuthTestRouterWithOptions(t *testing.T, authCfg config.AuthConfig, extra
 		w.WriteHeader(http.StatusOK)
 	})
 
-	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg), repo
+	return NewRouter(zap.NewNop(), tripHandler, ready, config.CORSConfig{}, authCfg, config.OpsConfig{}), repo
 }
 
 type routeTestRepo struct {

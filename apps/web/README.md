@@ -91,9 +91,11 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 | `NEXT_PUBLIC_USER_SERVICE_URL` | Browser-facing User Service URL. |
 | `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL` | Browser-facing place/route/weather/calendar URL. |
 | `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` | Browser-facing Notification Service URL. |
+| `NEXT_PUBLIC_WORKER_SERVICE_URL` | Browser-facing Worker Service URL for local ops checks. |
 | `TRIP_SERVICE_INTERNAL_URL` | Server-side URL for Next route handlers inside Docker. |
 | `NOTIFICATION_SERVICE_INTERNAL_URL` | Server-side notification proxy URL. |
 | `EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL` | Server-side external-integrations proxy URL. |
+| `WORKER_SERVICE_INTERNAL_URL` | Server-side worker proxy URL. |
 
 Local defaults:
 
@@ -103,12 +105,18 @@ NEXT_PUBLIC_TRIP_SERVICE_URL=http://localhost:8080
 NEXT_PUBLIC_USER_SERVICE_URL=http://localhost:8083
 NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL=http://localhost:8084
 NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:8086
+NEXT_PUBLIC_WORKER_SERVICE_URL=http://localhost:8090
 TRIP_SERVICE_INTERNAL_URL=http://localhost:8080
 NOTIFICATION_SERVICE_INTERNAL_URL=http://localhost:8086
 EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL=http://localhost:8084
+WORKER_SERVICE_INTERNAL_URL=http://localhost:8090
 ```
 
 ## Main Routes
+
+- `/ops` is an allowlisted internal operations dashboard. It is hidden from
+  navigation and expects backend `OPS_DASHBOARD_ENABLED=true` plus matching
+  `OPS_ADMIN_EMAILS`.
 
 ```mermaid
 flowchart TD

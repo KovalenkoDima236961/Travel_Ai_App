@@ -18,8 +18,15 @@ type Runtime struct {
 }
 
 type Config struct {
-	Runtime Runtime
-	Trip    *tripconfig.Config
+	Runtime            Runtime
+	RabbitMQManagement RabbitMQManagement
+	Trip               *tripconfig.Config
+}
+
+type RabbitMQManagement struct {
+	URL      string `env:"RABBITMQ_MANAGEMENT_URL" env-default:"http://rabbitmq:15672"`
+	User     string `env:"RABBITMQ_MANAGEMENT_USER" env-default:"guest"`
+	Password string `env:"RABBITMQ_MANAGEMENT_PASSWORD" env-default:"guest"`
 }
 
 func Load(tripConfigPath string) (*Config, error) {
@@ -38,10 +45,15 @@ func Load(tripConfigPath string) (*Config, error) {
 	if runtime.Concurrency < 1 {
 		runtime.Concurrency = 1
 	}
+	var management RabbitMQManagement
+	if err := cleanenv.ReadEnv(&management); err != nil {
+		return nil, fmt.Errorf("read rabbitmq management env config: %w", err)
+	}
 
 	return &Config{
-		Runtime: runtime,
-		Trip:    tripCfg,
+		Runtime:            runtime,
+		RabbitMQManagement: management,
+		Trip:               tripCfg,
 	}, nil
 }
 

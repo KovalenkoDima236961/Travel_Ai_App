@@ -3,6 +3,7 @@ const DEFAULT_AUTH_SERVICE_URL = "http://localhost:8082";
 const DEFAULT_USER_SERVICE_URL = "http://localhost:8083";
 const DEFAULT_EXTERNAL_INTEGRATIONS_SERVICE_URL = "http://localhost:8084";
 const DEFAULT_NOTIFICATION_SERVICE_URL = "http://localhost:8086";
+const DEFAULT_WORKER_SERVICE_URL = "http://localhost:8090";
 
 export function getTripServiceUrl() {
   const value = process.env.NEXT_PUBLIC_TRIP_SERVICE_URL?.trim();
@@ -125,4 +126,32 @@ export function getNotificationApiBaseUrl() {
   }
 
   return getNotificationServiceInternalUrl();
+}
+
+export function getWorkerServiceUrl() {
+  const value = process.env.NEXT_PUBLIC_WORKER_SERVICE_URL?.trim();
+
+  if (value) {
+    return value.replace(/\/+$/, "");
+  }
+
+  return DEFAULT_WORKER_SERVICE_URL;
+}
+
+export function getWorkerServiceInternalUrl() {
+  const value = process.env.WORKER_SERVICE_INTERNAL_URL?.trim();
+
+  if (value) {
+    return value.replace(/\/+$/, "");
+  }
+
+  return getWorkerServiceUrl();
+}
+
+export function getWorkerApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return "/api/worker-service";
+  }
+
+  return getWorkerServiceInternalUrl();
 }

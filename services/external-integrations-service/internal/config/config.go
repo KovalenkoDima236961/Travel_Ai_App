@@ -46,6 +46,7 @@ type Config struct {
 	ExchangeRateProvider ExchangeRateProviderConfig `yaml:"exchange_rate_provider" validate:"required"`
 	PriceProvider        PriceProviderConfig        `yaml:"price_provider" validate:"required"`
 	Calendar             CalendarConfig             `yaml:"calendar" validate:"required"`
+	Ops                  OpsConfig                  `yaml:"ops"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -164,6 +165,12 @@ type CalendarConfig struct {
 	GoogleCalendarAPI  string `yaml:"google_calendar_api" env:"GOOGLE_CALENDAR_API_URL" env-default:"https://www.googleapis.com/calendar/v3"`
 	MockAccountEmail   string `yaml:"mock_account_email" env:"MOCK_GOOGLE_ACCOUNT_EMAIL" env-default:"mock-calendar@example.local"`
 	MockEventLinkBase  string `yaml:"mock_event_link_base" env:"MOCK_GOOGLE_EVENT_LINK_BASE" env-default:"http://localhost:3000/mock-calendar/events"`
+}
+
+type OpsConfig struct {
+	DashboardEnabled     bool   `yaml:"dashboard_enabled" env:"OPS_DASHBOARD_ENABLED" env-default:"false"`
+	AdminEmails          string `yaml:"admin_emails" env:"OPS_ADMIN_EMAILS"`
+	InternalServiceToken string `yaml:"internal_service_token" env:"OPS_INTERNAL_SERVICE_TOKEN"`
 }
 
 func (c CalendarConfig) StateTTL() time.Duration {

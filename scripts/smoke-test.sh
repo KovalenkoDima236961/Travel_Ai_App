@@ -615,7 +615,7 @@ else
 fi
 
 echo "Registering and logging in smoke test user..."
-AUTH_EMAIL="smoke+$(date +%s)-$$@example.com"
+AUTH_EMAIL="${SMOKE_AUTH_EMAIL:-smoke+$(date +%s)-$$@example.com}"
 AUTH_PASSWORD="StrongPassword123!"
 AUTH_PAYLOAD="$(jq -nc --arg email "${AUTH_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
 
@@ -666,6 +666,22 @@ if [[ -z "${AUTH_ME_ID}" ]]; then
   echo "/auth/me did not include an id." >&2
   echo "${LAST_BODY}" >&2
   exit 1
+fi
+
+if [[ "${SMOKE_EXPECT_OPS_DASHBOARD:-false}" == "true" ]]; then
+  echo "Checking Ops Dashboard endpoints..."
+  request_with_bearer GET "${TRIP_SERVICE_URL}/ops/jobs/summary" "${ACCESS_TOKEN}"
+  assert_2xx "Trip Service ops job summary"
+  request_with_bearer GET "${TRIP_SERVICE_URL}/ops/jobs?limit=5" "${ACCESS_TOKEN}"
+  assert_2xx "Trip Service ops job list"
+  if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then
+    request_with_bearer GET "${WORKER_SERVICE_URL}/ops/worker/status" "${ACCESS_TOKEN}"
+    assert_2xx "Worker Service ops status"
+    request_with_bearer GET "${WORKER_SERVICE_URL}/ops/queues/status" "${ACCESS_TOKEN}"
+    assert_2xx "Worker Service ops queue status"
+  fi
+  request_with_bearer GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/ops/providers/status" "${ACCESS_TOKEN}"
+  assert_2xx "External Integrations ops provider status"
 fi
 
 echo "Checking default user profile..."

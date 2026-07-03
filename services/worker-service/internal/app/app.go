@@ -3,18 +3,23 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
+	tripauth "github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	tripconfig "github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/exchangerateclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
@@ -22,6 +27,7 @@ import (
 	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/jobqueue"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	tripops "github.com/KovalenkoDima236961/Travel_Ai_App/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
@@ -71,7 +77,7 @@ func New(configPath string) *App {
 		cfg:       cfg,
 		log:       log,
 		db:        db,
-		server:    newHTTPServer(cfg.Runtime.HTTPAddress, db, consumer, log),
+		server:    newHTTPServer(cfg, db, consumer, log),
 		consumer:  consumer,
 		publisher: publisher,
 	}
@@ -357,12 +363,13 @@ func generationQueueConfig(cfg *tripconfig.Config) jobqueue.Config {
 }
 
 func newHTTPServer(
-	address string,
+	cfg *workerconfig.Config,
 	db *postgres.DB,
 	consumer *rabbitmq.Consumer,
 	log *zap.Logger,
 ) *http.Server {
 	r := chi.NewRouter()
+	startedAt := time.Now().UTC()
 	r.Use(observability.RequestIDMiddleware)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(observability.HTTPMetricsMiddleware(observability.DefaultHTTPMetrics("worker-service")))
@@ -409,9 +416,47 @@ func newHTTPServer(
 		})
 	})
 	r.Handle("/metrics", observability.MetricsHandler(nil))
+	if cfg.Trip.Ops.DashboardEnabled {
+		devUserID, err := uuid.Parse(cfg.Trip.Auth.DevUserID)
+		if err != nil {
+			log.Panic("invalid dev user id", zap.String("dev_user_id", cfg.Trip.Auth.DevUserID), zap.Error(err))
+		}
+		mgmt, err := rabbitmq.NewManagementClient(rabbitmq.ManagementConfig{
+			URL:      cfg.RabbitMQManagement.URL,
+			User:     cfg.RabbitMQManagement.User,
+			Password: cfg.RabbitMQManagement.Password,
+			AMQPURL:  cfg.Trip.GenerationJobs.RabbitMQURL,
+			Queue:    generationQueueConfig(cfg.Trip),
+		})
+		if err != nil {
+			log.Warn("rabbitmq management client disabled", zap.Error(err))
+		}
+		opsHandler := &workerOpsHandler{
+			cfg:        cfg,
+			db:         db,
+			consumer:   consumer,
+			management: mgmt,
+			startedAt:  startedAt,
+			log:        log,
+		}
+		r.Group(func(r chi.Router) {
+			r.Use(tripauth.Middleware(tripauth.MiddlewareConfig{
+				Required:        true,
+				JWTAccessSecret: cfg.Trip.Auth.JWTAccessSecret,
+				HeaderName:      cfg.Trip.Auth.HeaderName,
+				DevUserID:       devUserID,
+			}))
+			r.Use(tripops.NewAdminChecker(cfg.Trip.Ops, log).Middleware)
+			r.Get("/ops/worker/status", opsHandler.status)
+			r.Get("/ops/queues/status", opsHandler.queueStatus)
+			r.Get("/ops/dlq/messages", opsHandler.listDLQ)
+			r.Post("/ops/dlq/messages/{messageId}/requeue", opsHandler.requeueDLQ)
+			r.Post("/ops/dlq/messages/{messageId}/discard", opsHandler.discardDLQ)
+		})
+	}
 
 	return &http.Server{
-		Addr:         address,
+		Addr:         cfg.Runtime.HTTPAddress,
 		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -450,4 +495,155 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
+}
+
+type workerOpsHandler struct {
+	cfg        *workerconfig.Config
+	db         *postgres.DB
+	consumer   *rabbitmq.Consumer
+	management *rabbitmq.ManagementClient
+	startedAt  time.Time
+	log        *zap.Logger
+}
+
+func (h *workerOpsHandler) status(w http.ResponseWriter, r *http.Request) {
+	dbConnected := false
+	if h.db != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		err := h.db.Ping(ctx)
+		cancel()
+		dbConnected = err == nil
+	}
+	rabbitConnected := h.consumer != nil && h.consumer.Ready()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"service":           "worker-service",
+		"enabled":           h.cfg.Runtime.Enabled,
+		"healthy":           dbConnected && rabbitConnected,
+		"rabbitmqConnected": rabbitConnected,
+		"dbConnected":       dbConnected,
+		"concurrency":       h.cfg.Runtime.Concurrency,
+		"prefetch":          h.consumerPrefetch(),
+		"activeJobs":        h.activeJobs(),
+		"startedAt":         h.startedAt,
+		"version":           "local",
+	})
+}
+
+func (h *workerOpsHandler) queueStatus(w http.ResponseWriter, r *http.Request) {
+	if h.management == nil {
+		rabbitmq.RecordOpsQueueStatusRequest("unavailable")
+		writeError(w, http.StatusServiceUnavailable, "rabbitmq management API unavailable")
+		return
+	}
+	queues, err := h.management.QueueStatuses(r.Context())
+	if err != nil {
+		rabbitmq.RecordOpsQueueStatusRequest("error")
+		h.log.Warn("ops queue status failed", zap.Error(err))
+		writeError(w, http.StatusServiceUnavailable, "rabbitmq management API unavailable")
+		return
+	}
+	rabbitmq.RecordOpsQueueStatusRequest("success")
+	writeJSON(w, http.StatusOK, map[string]any{"queues": queues})
+}
+
+func (h *workerOpsHandler) listDLQ(w http.ResponseWriter, r *http.Request) {
+	if h.management == nil {
+		writeError(w, http.StatusServiceUnavailable, "rabbitmq management API unavailable")
+		return
+	}
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			writeError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+		limit = parsed
+	}
+	messages, err := h.management.ListDLQMessages(r.Context(), limit)
+	if err != nil {
+		h.log.Warn("ops list dlq failed", zap.Error(err))
+		writeError(w, http.StatusServiceUnavailable, "rabbitmq management API unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"messages": messages})
+}
+
+func (h *workerOpsHandler) requeueDLQ(w http.ResponseWriter, r *http.Request) {
+	h.dlqAction(w, r, "requeue")
+}
+
+func (h *workerOpsHandler) discardDLQ(w http.ResponseWriter, r *http.Request) {
+	h.dlqAction(w, r, "discard")
+}
+
+func (h *workerOpsHandler) dlqAction(w http.ResponseWriter, r *http.Request, action string) {
+	if h.management == nil {
+		rabbitmq.RecordOpsDLQAction(action, "unavailable")
+		writeError(w, http.StatusServiceUnavailable, "rabbitmq management API unavailable")
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rabbitmq.RecordOpsDLQAction(action, "invalid")
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" {
+		rabbitmq.RecordOpsDLQAction(action, "invalid")
+		writeError(w, http.StatusBadRequest, "reason is required")
+		return
+	}
+	messageID := chi.URLParam(r, "messageId")
+	var err error
+	switch action {
+	case "requeue":
+		err = h.management.RequeueDLQMessage(r.Context(), messageID, reason)
+	case "discard":
+		err = h.management.DiscardDLQMessage(r.Context(), messageID, reason)
+	default:
+		err = fmt.Errorf("unsupported action")
+	}
+	if err != nil {
+		if errors.Is(err, rabbitmq.ErrMessageNotFound) {
+			rabbitmq.RecordOpsDLQAction(action, "not_found")
+			writeError(w, http.StatusNotFound, "message not found")
+			return
+		}
+		rabbitmq.RecordOpsDLQAction(action, "error")
+		h.log.Warn("ops dlq action failed",
+			zap.String("action", action),
+			zap.String("messageId", messageID),
+			zap.Error(err),
+		)
+		writeError(w, http.StatusServiceUnavailable, "rabbitmq management API unavailable")
+		return
+	}
+	rabbitmq.RecordOpsDLQAction(action, "success")
+	key := "discarded"
+	if action == "requeue" {
+		key = "requeued"
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{key: true})
+}
+
+func (h *workerOpsHandler) activeJobs() []rabbitmq.ActiveJob {
+	if h.consumer == nil {
+		return []rabbitmq.ActiveJob{}
+	}
+	return h.consumer.ActiveJobs()
+}
+
+func (h *workerOpsHandler) consumerPrefetch() int {
+	if h.consumer == nil {
+		return h.cfg.Trip.GenerationJobs.Prefetch
+	}
+	return h.consumer.Prefetch()
 }
