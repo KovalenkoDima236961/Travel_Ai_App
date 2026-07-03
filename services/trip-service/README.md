@@ -51,7 +51,7 @@ and graceful shutdown.
 | Workspaces | Personal vs workspace trips, workspace role checks via User Service, combined effective access. |
 | Activity | Persistent audit feed plus in-memory SSE best-effort updates. |
 | Comments | Private item comments, counts, edit/delete permissions. |
-| Budget | Trip budget, item/accommodation costs, multi-currency summaries, analytics, proposals. |
+| Budget | Trip budget, workspace shared budgets, item/accommodation costs, multi-currency summaries, analytics, proposals. |
 | Accommodation | One private structured stay per trip, included in AI/budget/route context. |
 | Sharing | One public read-only link per trip, optional expiry/password unlock. |
 | Calendar | Per-trip/user sync state; provider operations delegated to External Integrations. |
@@ -127,6 +127,7 @@ or itinerary JSON.
 | Sync generation compatibility | `POST /trips/{id}/generate`, day regeneration, item regeneration |
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |
 | Budget | `GET /trips/{id}/budget-summary`, `PUT /trips/{id}/budget`, budget optimization job/proposal routes |
+| Workspace budgets | `GET/POST /workspaces/{workspaceId}/budgets`, `GET/PATCH /workspaces/{workspaceId}/budgets/{budgetId}`, `POST /archive`, `POST /make-primary`, summary routes |
 | Cost analytics | `GET /trips/{id}/analytics/costs`, `GET /workspaces/{workspaceId}/analytics/costs` |
 | Accommodation | `GET /trips/{id}/accommodation`, `PUT /trips/{id}/accommodation`, `DELETE /trips/{id}/accommodation` |
 | Collaboration | collaborator CRUD/accept/decline, `GET /collaboration/invitations` |
@@ -179,7 +180,9 @@ data.
   conversion warnings, and actionable planning insights.
 - `GET /workspaces/{workspaceId}/analytics/costs?currency=EUR&from=2026-01-01&to=2026-12-31`
   aggregates accessible workspace trips by trip/category/source/month and
-  includes top trips/items plus incomplete budget warnings.
+  includes top trips/items plus incomplete budget warnings. When an active
+  primary workspace budget exists, the response includes `activeBudget` usage
+  and budget limit insights.
 - Trip analytics requires private trip access. Owners, editors, and viewers can
   read analytics; public share tokens do not expose analytics in v1.
 - Workspace analytics requires an active workspace role through User Service.
@@ -194,6 +197,49 @@ Limitations: costs are estimates for planning only; exchange rates may be
 approximate; provider prices and availability may change; missing estimates can
 make totals incomplete; reports are not accounting, tax, invoice, payment, or
 financial-advice features.
+
+## Workspace Shared Budgets
+
+Workspace Shared Budgets v1 is owned by Trip Service because Trip Service owns
+workspace trip costs, budget summaries, analytics, and currency conversion.
+
+Data lives in `workspace_budgets`:
+
+- `workspace_id`, `name`, optional `description`, `amount`, `currency`
+- optional `period_start` / `period_end`; null dates mean open-ended
+- `status=active|archived`, `is_primary`, creator/archive audit columns
+- a partial unique index allows at most one active primary budget per workspace
+
+Routes:
+
+- `GET /workspaces/{workspaceId}/budgets?status=active|archived`
+- `POST /workspaces/{workspaceId}/budgets`
+- `GET /workspaces/{workspaceId}/budgets/{budgetId}`
+- `PATCH /workspaces/{workspaceId}/budgets/{budgetId}`
+- `POST /workspaces/{workspaceId}/budgets/{budgetId}/archive`
+- `POST /workspaces/{workspaceId}/budgets/{budgetId}/make-primary`
+- `GET /workspaces/{workspaceId}/budgets/{budgetId}/summary`
+- `GET /workspaces/{workspaceId}/budgets/primary/summary`
+
+Permissions use User Service workspace access checks. Owner/admin can create,
+update, archive, and make primary; member/viewer can list and read summaries;
+non-members are denied. Archived workspaces are read-only for budgets.
+
+Successful create/update/archive actions emit best-effort in-app notifications
+to active workspace owners/admins except the actor. Primary changes are sent as
+`workspace_budget_updated`. Budget-threshold notifications are not emitted from
+analytics reads in v1 to avoid repeated alerts.
+
+Summary calculation is read-only and approximate. It includes workspace trips
+whose `startDate` falls inside the budget period. If both dates are null, all
+workspace trips are included, including trips without a start date. For dated
+budgets, trips without a start date are excluded and reported as warnings.
+Totals are converted into the budget currency using the existing budget
+conversion provider and warnings are returned for unconverted costs.
+
+Limitations: workspace budgets do not block trip edits, do not represent actual
+payments, do not split costs between members, and are not accounting, tax,
+invoice, reimbursement, or billing records.
 
 ## Important Configuration
 

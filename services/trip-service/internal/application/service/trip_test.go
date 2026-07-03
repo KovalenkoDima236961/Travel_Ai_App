@@ -183,6 +183,51 @@ func (m *mockRepo) ListAccessible(_ context.Context, userID uuid.UUID, _ []uuid.
 	return m.listResult, nil
 }
 
+func (m *mockRepo) CreateWorkspaceBudget(_ context.Context, budget *entity.WorkspaceBudget) (*entity.WorkspaceBudget, error) {
+	out := *budget
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = time.Now()
+	}
+	if out.UpdatedAt.IsZero() {
+		out.UpdatedAt = out.CreatedAt
+	}
+	return &out, nil
+}
+
+func (m *mockRepo) GetWorkspaceBudgetByID(context.Context, uuid.UUID, uuid.UUID) (*entity.WorkspaceBudget, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListWorkspaceBudgetsByWorkspace(context.Context, uuid.UUID, *entity.WorkspaceBudgetStatus) ([]entity.WorkspaceBudget, error) {
+	return []entity.WorkspaceBudget{}, nil
+}
+
+func (m *mockRepo) ListActiveWorkspaceBudgetsByWorkspace(context.Context, uuid.UUID) ([]entity.WorkspaceBudget, error) {
+	return []entity.WorkspaceBudget{}, nil
+}
+
+func (m *mockRepo) GetPrimaryWorkspaceBudget(context.Context, uuid.UUID) (*entity.WorkspaceBudget, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) UpdateWorkspaceBudget(_ context.Context, budget *entity.WorkspaceBudget) (*entity.WorkspaceBudget, error) {
+	out := *budget
+	out.UpdatedAt = time.Now()
+	return &out, nil
+}
+
+func (m *mockRepo) ArchiveWorkspaceBudget(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.WorkspaceBudget, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) SetWorkspaceBudgetPrimary(context.Context, uuid.UUID, uuid.UUID) (*entity.WorkspaceBudget, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CountWorkspaceBudgets(context.Context, uuid.UUID, *entity.WorkspaceBudgetStatus) (int, error) {
+	return 0, nil
+}
+
 func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
 	m.statusSeq = append(m.statusSeq, status)
 	m.statusUserIDs = append(m.statusUserIDs, userID)

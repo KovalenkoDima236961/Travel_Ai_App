@@ -51,6 +51,7 @@ sequenceDiagram
 | `POST` | `/workspace-invitations/{invitationId}/decline` | bearer access token | Decline a pending invitation. |
 | `POST` | `/internal/workspaces/access-check` | internal token | Check active membership and role for Trip Service. |
 | `POST` | `/internal/workspaces/list-for-user` | internal token | List active workspace ids/roles for Trip Service filters. |
+| `POST` | `/internal/workspaces/list-members` | internal token | List active workspace members for internal notification fan-out. |
 | `POST` | `/internal/workspaces/batch` | internal token | Resolve workspace names/slugs for internal callers. |
 
 Clients never send `userId`; the user is derived from the JWT `sub`.

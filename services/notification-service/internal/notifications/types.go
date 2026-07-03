@@ -28,6 +28,13 @@ const (
 	TypeBudgetOptimizationReady  = "budget_optimization_ready"
 	TypeBudgetOptimizationFailed = "budget_optimization_failed"
 
+	// Workspace budgets.
+	TypeWorkspaceBudgetCreated   = "workspace_budget_created"
+	TypeWorkspaceBudgetUpdated   = "workspace_budget_updated"
+	TypeWorkspaceBudgetArchived  = "workspace_budget_archived"
+	TypeWorkspaceBudgetExceeded  = "workspace_budget_exceeded"
+	TypeWorkspaceBudgetNearLimit = "workspace_budget_nearing_limit"
+
 	// Workspaces.
 	TypeWorkspaceInvited            = "workspace_invited"
 	TypeWorkspaceInvitationAccepted = "workspace_invitation_accepted"
@@ -47,6 +54,7 @@ const (
 	EntityItineraryItem    = "itinerary_item"
 	EntityItineraryVersion = "itinerary_version"
 	EntityWorkspace        = "workspace"
+	EntityWorkspaceBudget  = "workspace_budget"
 )
 
 // knownTypes is the set of notification types this version recognises. Unknown
@@ -67,6 +75,11 @@ var knownTypes = map[string]struct{}{
 	TypeGenerationJobFailed:         {},
 	TypeBudgetOptimizationReady:     {},
 	TypeBudgetOptimizationFailed:    {},
+	TypeWorkspaceBudgetCreated:      {},
+	TypeWorkspaceBudgetUpdated:      {},
+	TypeWorkspaceBudgetArchived:     {},
+	TypeWorkspaceBudgetExceeded:     {},
+	TypeWorkspaceBudgetNearLimit:    {},
 	TypeWorkspaceInvited:            {},
 	TypeWorkspaceInvitationAccepted: {},
 	TypeWorkspaceInvitationDeclined: {},

@@ -158,6 +158,35 @@ Use local Grafana credentials `admin` / `admin`.
 56. Go to `/trips`.
 57. Confirm the trip appears in the list.
 
+## Workspace Shared Budget Flow
+
+1. Log in as a workspace owner or admin.
+2. Open `/workspaces` and create or open a workspace.
+3. Create at least one workspace trip with item or accommodation costs.
+4. Open `/workspaces/{workspaceId}/budgets`.
+5. Click `Create budget`.
+6. Enter:
+   - name: `Smoke shared budget`
+   - amount: `100`
+   - currency: `EUR`
+   - periodStart: `2026-01-01`
+   - periodEnd: `2026-12-31`
+   - isPrimary: checked
+7. Confirm the budget appears with a utilization preview.
+8. Open the budget detail page.
+9. Confirm summary cards, utilization bar, cost by trip/category/source,
+   expensive items, insights, and warnings render.
+10. Download CSV and PDF.
+11. Edit the budget amount lower than the estimated total.
+12. Confirm the over-budget state and insight appear.
+13. Open `/workspaces/{workspaceId}/analytics`.
+14. Confirm the primary budget card appears.
+15. Click `Use budget period` and confirm the date filters match the budget
+    period.
+16. Log in as a workspace viewer.
+17. Confirm the viewer can open the budget list and detail page.
+18. Confirm create, edit, make-primary, and archive controls are not visible.
+
 ## Collaborative Merge Recovery
 
 Manual test safe merge:

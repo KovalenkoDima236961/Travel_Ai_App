@@ -3,6 +3,9 @@ package request
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -190,4 +193,125 @@ func (r UpdateTripCollaborator) ToInput() appdto.UpdateTripCollaboratorInput {
 // POST /public/trips/{shareToken}/unlock.
 type PublicShareUnlock struct {
 	Password string `json:"password"`
+}
+
+type CreateWorkspaceBudget struct {
+	Name        string   `json:"name"`
+	Description *string  `json:"description"`
+	Amount      *float64 `json:"amount"`
+	Currency    string   `json:"currency"`
+	PeriodStart *string  `json:"periodStart"`
+	PeriodEnd   *string  `json:"periodEnd"`
+	IsPrimary   *bool    `json:"isPrimary"`
+}
+
+func (r CreateWorkspaceBudget) ToInput() (appdto.CreateWorkspaceBudgetInput, error) {
+	if r.Amount == nil {
+		return appdto.CreateWorkspaceBudgetInput{}, fmt.Errorf("amount is required")
+	}
+	periodStart, err := parseOptionalDate(r.PeriodStart, "periodStart")
+	if err != nil {
+		return appdto.CreateWorkspaceBudgetInput{}, err
+	}
+	periodEnd, err := parseOptionalDate(r.PeriodEnd, "periodEnd")
+	if err != nil {
+		return appdto.CreateWorkspaceBudgetInput{}, err
+	}
+	return appdto.CreateWorkspaceBudgetInput{
+		Name:        r.Name,
+		Description: r.Description,
+		Amount:      *r.Amount,
+		Currency:    r.Currency,
+		PeriodStart: periodStart,
+		PeriodEnd:   periodEnd,
+		IsPrimary:   r.IsPrimary,
+	}, nil
+}
+
+type ArchiveWorkspaceBudget struct {
+	Reason string `json:"reason"`
+}
+
+func DecodeUpdateWorkspaceBudget(body io.Reader) (appdto.UpdateWorkspaceBudgetInput, error) {
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(body).Decode(&raw); err != nil {
+		return appdto.UpdateWorkspaceBudgetInput{}, err
+	}
+	var out appdto.UpdateWorkspaceBudgetInput
+	for key, value := range raw {
+		switch key {
+		case "name":
+			var name string
+			if err := json.Unmarshal(value, &name); err != nil {
+				return appdto.UpdateWorkspaceBudgetInput{}, fmt.Errorf("invalid name")
+			}
+			out.Name = &name
+		case "description":
+			out.DescriptionSet = true
+			if string(bytes.TrimSpace(value)) == "null" {
+				out.Description = nil
+				continue
+			}
+			var description string
+			if err := json.Unmarshal(value, &description); err != nil {
+				return appdto.UpdateWorkspaceBudgetInput{}, fmt.Errorf("invalid description")
+			}
+			out.Description = &description
+		case "amount":
+			var amount float64
+			if err := json.Unmarshal(value, &amount); err != nil {
+				return appdto.UpdateWorkspaceBudgetInput{}, fmt.Errorf("invalid amount")
+			}
+			out.Amount = &amount
+		case "currency":
+			var currency string
+			if err := json.Unmarshal(value, &currency); err != nil {
+				return appdto.UpdateWorkspaceBudgetInput{}, fmt.Errorf("invalid currency")
+			}
+			out.Currency = &currency
+		case "periodStart":
+			out.PeriodStartSet = true
+			periodStart, err := parseNullableDate(value, "periodStart")
+			if err != nil {
+				return appdto.UpdateWorkspaceBudgetInput{}, err
+			}
+			out.PeriodStart = periodStart
+		case "periodEnd":
+			out.PeriodEndSet = true
+			periodEnd, err := parseNullableDate(value, "periodEnd")
+			if err != nil {
+				return appdto.UpdateWorkspaceBudgetInput{}, err
+			}
+			out.PeriodEnd = periodEnd
+		case "isPrimary":
+			var isPrimary bool
+			if err := json.Unmarshal(value, &isPrimary); err != nil {
+				return appdto.UpdateWorkspaceBudgetInput{}, fmt.Errorf("invalid isPrimary")
+			}
+			out.IsPrimary = &isPrimary
+		}
+	}
+	return out, nil
+}
+
+func parseOptionalDate(value *string, field string) (*time.Time, error) {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", strings.TrimSpace(*value))
+	if err != nil {
+		return nil, fmt.Errorf("%s must be in YYYY-MM-DD format", field)
+	}
+	return &parsed, nil
+}
+
+func parseNullableDate(raw json.RawMessage, field string) (*time.Time, error) {
+	if string(bytes.TrimSpace(raw)) == "null" {
+		return nil, nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, fmt.Errorf("%s must be in YYYY-MM-DD format", field)
+	}
+	return parseOptionalDate(&value, field)
 }

@@ -1017,11 +1017,51 @@ WORKSPACE_VIEWER_EDIT_PAYLOAD="$(jq -nc --argjson itinerary "${WORKSPACE_MEMBER_
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${WORKSPACE_VIEWER_EDIT_PAYLOAD}"
 assert_status "Workspace viewer itinerary edit" "403"
 
+echo "Checking workspace shared budget flow..."
+WORKSPACE_BUDGET_PAYLOAD="$(jq -nc '{
+  name:"Smoke shared budget",
+  description:"Smoke test workspace budget",
+  amount:100,
+  currency:"EUR",
+  periodStart:"2026-01-01",
+  periodEnd:"2026-12-31",
+  isPrimary:true
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/budgets" "${ACCESS_TOKEN}" "${WORKSPACE_BUDGET_PAYLOAD}"
+assert_2xx "Create workspace budget"
+WORKSPACE_BUDGET_ID="$(jq -r '.budget.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${WORKSPACE_BUDGET_ID}" ]]; then
+  echo "Workspace budget response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/budgets/${WORKSPACE_BUDGET_ID}/summary" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Workspace viewer budget summary"
+if ! jq -e '.summary.tripCount >= 1 and .summary.estimatedTotal > 0 and (.summary.utilizationPercent != null)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Workspace budget summary did not include expected utilization data." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/budgets/${WORKSPACE_BUDGET_ID}" "${COLLAB_ACCESS_TOKEN}" '{"amount":90}'
+assert_status "Workspace viewer budget patch" "403"
+
 echo "Checking workspace viewer can read workspace cost analytics..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/analytics/costs?currency=EUR&from=2026-01-01&to=2026-12-31" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Workspace viewer cost analytics"
-if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.summary.tripCount >= 1 and (.byTrip | any(.tripId == $id)) and (.byCategory | length >= 1)' <<<"${LAST_BODY}" >/dev/null; then
+if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.summary.tripCount >= 1 and (.byTrip | any(.tripId == $id)) and (.byCategory | length >= 1) and (.activeBudget.id != null)' <<<"${LAST_BODY}" >/dev/null; then
   echo "Workspace cost analytics did not include the expected workspace trip." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/budgets/${WORKSPACE_BUDGET_ID}/archive" "${ACCESS_TOKEN}" '{"reason":"Smoke test completed"}'
+assert_2xx "Archive workspace budget"
+request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/budgets?status=active" "${ACCESS_TOKEN}"
+assert_2xx "List active workspace budgets after archive"
+if jq -e --arg id "${WORKSPACE_BUDGET_ID}" '.budgets | any(.id == $id)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Archived workspace budget still appeared in active budget list." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi

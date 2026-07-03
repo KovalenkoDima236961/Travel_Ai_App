@@ -235,6 +235,21 @@ func (s *Service) ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]Wor
 	return out, nil
 }
 
+func (s *Service) ListMembersInternal(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceMember, error) {
+	members, err := s.repo.ListMembers(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WorkspaceMember, 0, len(members))
+	for _, member := range members {
+		if member.Status != MemberStatusActive {
+			continue
+		}
+		out = append(out, member)
+	}
+	return out, nil
+}
+
 func (s *Service) InviteMember(ctx context.Context, workspaceID uuid.UUID, in InviteInput) (*WorkspaceInvitation, error) {
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {

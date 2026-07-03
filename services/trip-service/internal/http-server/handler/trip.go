@@ -132,6 +132,16 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/activity/stream", h.StreamActivity)
 	})
 	r.Get("/workspaces/{workspaceId}/analytics/costs", h.GetWorkspaceCostAnalytics)
+	r.Route("/workspaces/{workspaceId}/budgets", func(r chi.Router) {
+		r.Get("/", h.ListWorkspaceBudgets)
+		r.Post("/", h.CreateWorkspaceBudget)
+		r.Get("/primary/summary", h.GetPrimaryWorkspaceBudgetSummary)
+		r.Get("/{budgetId}", h.GetWorkspaceBudget)
+		r.Patch("/{budgetId}", h.UpdateWorkspaceBudget)
+		r.Post("/{budgetId}/archive", h.ArchiveWorkspaceBudget)
+		r.Post("/{budgetId}/make-primary", h.MakeWorkspaceBudgetPrimary)
+		r.Get("/{budgetId}/summary", h.GetWorkspaceBudgetSummary)
+	})
 }
 
 func (h *Handler) GetGoogleCalendarSyncStatus(w http.ResponseWriter, r *http.Request) {

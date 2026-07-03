@@ -101,6 +101,9 @@ function WorkspaceDetailPageContent() {
               <Link className={buttonStyles({ variant: "secondary" })} href={`/workspaces/${workspace.id}/analytics`}>
                 Analytics
               </Link>
+              <Link className={buttonStyles({ variant: "secondary" })} href={`/workspaces/${workspace.id}/budgets`}>
+                Budgets
+              </Link>
               <Link className={buttonStyles({ variant: "secondary" })} href="/trips/new">
                 Create trip
               </Link>

@@ -24,8 +24,10 @@ export function CostInsightsPanel({
           {insights.map((insight, index) => {
             const editAction =
               insight.action?.type === "optimize_budget" ||
+              insight.action?.type === "optimize_trip_day" ||
               insight.action?.type === "update_price" ||
-              insight.action?.type === "check_availability";
+              insight.action?.type === "check_availability" ||
+              insight.action?.type === "check_missing_prices";
             const showAction = Boolean(insight.action) && (!editAction || canEdit);
             return (
               <div
@@ -60,8 +62,10 @@ export function CostInsightsPanel({
 function actionLabel(type: string | undefined) {
   switch (type) {
     case "optimize_budget":
+    case "optimize_trip_day":
       return "Optimize";
     case "check_availability":
+    case "check_missing_prices":
       return "Check";
     case "update_price":
       return "Update";
@@ -69,7 +73,10 @@ function actionLabel(type: string | undefined) {
       return "Open item";
     case "open_trip":
       return "Open trip";
+    case "open_workspace_analytics":
+      return "Open analytics";
     case "export_report":
+    case "export_budget_report":
       return "Export";
     default:
       return "Open";

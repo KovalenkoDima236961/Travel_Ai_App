@@ -19,12 +19,16 @@ const (
 	InsightSeverityWarning  = "warning"
 	InsightSeverityCritical = "critical"
 
-	ActionOptimizeBudget    = "optimize_budget"
-	ActionCheckAvailability = "check_availability"
-	ActionUpdatePrice       = "update_price"
-	ActionOpenItem          = "open_item"
-	ActionOpenTrip          = "open_trip"
-	ActionExportReport      = "export_report"
+	ActionOptimizeBudget         = "optimize_budget"
+	ActionCheckAvailability      = "check_availability"
+	ActionUpdatePrice            = "update_price"
+	ActionOpenItem               = "open_item"
+	ActionOpenTrip               = "open_trip"
+	ActionOpenWorkspaceAnalytics = "open_workspace_analytics"
+	ActionExportReport           = "export_report"
+	ActionExportBudgetReport     = "export_budget_report"
+	ActionCheckMissingPrices     = "check_missing_prices"
+	ActionOptimizeTripDay        = "optimize_trip_day"
 
 	PlanningDisclaimer = "Costs are estimates for planning purposes only. Provider prices, availability, exchange rates, and booking costs may change."
 )
@@ -51,6 +55,7 @@ type WorkspaceCostAnalytics struct {
 	Currency       string                    `json:"currency"`
 	GeneratedAt    time.Time                 `json:"generatedAt"`
 	DateRange      DateRange                 `json:"dateRange"`
+	ActiveBudget   *ActiveWorkspaceBudget    `json:"activeBudget,omitempty"`
 	Summary        WorkspaceAnalyticsSummary `json:"summary"`
 	ByTrip         []TripCostSummary         `json:"byTrip"`
 	ByCategory     []CostAmountBreakdown     `json:"byCategory"`
@@ -60,6 +65,19 @@ type WorkspaceCostAnalytics struct {
 	ExpensiveItems []ExpensiveCostItem       `json:"expensiveItems"`
 	Insights       []CostInsight             `json:"insights"`
 	Warnings       []string                  `json:"warnings"`
+}
+
+type ActiveWorkspaceBudget struct {
+	ID                 uuid.UUID `json:"id"`
+	Name               string    `json:"name"`
+	Amount             float64   `json:"amount"`
+	Currency           string    `json:"currency"`
+	PeriodStart        *string   `json:"periodStart,omitempty"`
+	PeriodEnd          *string   `json:"periodEnd,omitempty"`
+	EstimatedTotal     float64   `json:"estimatedTotal"`
+	RemainingAmount    float64   `json:"remainingAmount"`
+	OverBudgetAmount   float64   `json:"overBudgetAmount"`
+	UtilizationPercent float64   `json:"utilizationPercent"`
 }
 
 type DateRange struct {

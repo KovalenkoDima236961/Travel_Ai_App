@@ -133,6 +133,11 @@ Current known types include:
 - `generation_job_failed`
 - `budget_optimization_ready`
 - `budget_optimization_failed`
+- `workspace_budget_created`
+- `workspace_budget_updated`
+- `workspace_budget_archived`
+- `workspace_budget_exceeded`
+- `workspace_budget_nearing_limit`
 - `workspace_invited`
 - `workspace_invitation_accepted`
 - `workspace_invitation_declined`
@@ -142,9 +147,9 @@ Current known types include:
 
 Workspace invitations and accepted/declined events use the `collaboration`
 category, role/removal events use `role_changes`, and optional workspace trip
-created events use `trip_updates`. Email templates link workspace invites to
-`/workspace-invitations`, role changes to `/workspaces/{workspaceId}`, and never
-include secrets or full metadata.
+created plus workspace budget events use `trip_updates`. Email templates link
+workspace invites to `/workspace-invitations`, role changes to
+`/workspaces/{workspaceId}`, and never include secrets or full metadata.
 
 Unknown types are accepted for forward compatibility. They are allowed in-app by
 default, but are not emailed or pushed unless policy explicitly allows them.

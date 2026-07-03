@@ -37,6 +37,22 @@ type UserWorkspace struct {
 	Role Role
 }
 
+type MemberStatus string
+
+const (
+	MemberStatusActive  MemberStatus = "active"
+	MemberStatusInvited MemberStatus = "invited"
+	MemberStatusRemoved MemberStatus = "removed"
+)
+
+type WorkspaceMember struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Role        Role
+	Status      MemberStatus
+}
+
 type Config struct {
 	BaseURL        string
 	Token          string
@@ -105,6 +121,38 @@ func (c *Client) ListForUser(ctx context.Context, userID uuid.UUID) ([]UserWorks
 	return out, nil
 }
 
+func (c *Client) ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceMember, error) {
+	var resp listMembersResponse
+	if err := c.postJSON(ctx, "/internal/workspaces/list-members", listMembersRequest{
+		WorkspaceID: workspaceID.String(),
+	}, &resp); err != nil {
+		return nil, err
+	}
+	out := make([]WorkspaceMember, 0, len(resp.Members))
+	for _, item := range resp.Members {
+		id, err := uuid.Parse(item.ID)
+		if err != nil {
+			return nil, fmt.Errorf("decode workspace member id: %w", err)
+		}
+		memberWorkspaceID, err := uuid.Parse(item.WorkspaceID)
+		if err != nil {
+			return nil, fmt.Errorf("decode workspace member workspace id: %w", err)
+		}
+		userID, err := uuid.Parse(item.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("decode workspace member user id: %w", err)
+		}
+		out = append(out, WorkspaceMember{
+			ID:          id,
+			WorkspaceID: memberWorkspaceID,
+			UserID:      userID,
+			Role:        Role(item.Role),
+			Status:      MemberStatus(item.Status),
+		})
+	}
+	return out, nil
+}
+
 func (c *Client) postJSON(ctx context.Context, path string, payload any, dst any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -150,9 +198,23 @@ type listForUserRequest struct {
 	UserID string `json:"userId"`
 }
 
+type listMembersRequest struct {
+	WorkspaceID string `json:"workspaceId"`
+}
+
 type listForUserResponse struct {
 	Workspaces []struct {
 		ID   string `json:"id"`
 		Role string `json:"role"`
 	} `json:"workspaces"`
+}
+
+type listMembersResponse struct {
+	Members []struct {
+		ID          string `json:"id"`
+		WorkspaceID string `json:"workspaceId"`
+		UserID      string `json:"userId"`
+		Role        string `json:"role"`
+		Status      string `json:"status"`
+	} `json:"members"`
 }

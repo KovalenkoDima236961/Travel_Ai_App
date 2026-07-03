@@ -45,7 +45,7 @@ notification streams, and calendar OAuth calls.
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
-| Budget | Trip budget, item costs, accommodation cost, summaries, cost analytics dashboards, optimization proposals. |
+| Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, cost analytics dashboards, optimization proposals. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
 | Availability | Per-item availability checks, provider prices, external booking links, and apply-price updates. |
 | Context | Weather cards, route/distance estimates, accommodation routing anchors. |
@@ -149,6 +149,8 @@ flowchart TD
     Home --> Workspaces["/workspaces"]
     Workspaces --> WorkspaceDetail["/workspaces/{workspaceId}"]
     WorkspaceDetail --> WorkspaceAnalytics["/workspaces/{workspaceId}/analytics"]
+    WorkspaceDetail --> WorkspaceBudgets["/workspaces/{workspaceId}/budgets"]
+    WorkspaceBudgets --> WorkspaceBudgetDetail["/workspaces/{workspaceId}/budgets/{budgetId}"]
     Workspaces --> WorkspaceSettings["/workspaces/{workspaceId}/settings"]
     Workspaces --> WorkspaceInvites["/workspace-invitations"]
     Trips --> TripDetail["/trips/{id}"]
@@ -164,6 +166,20 @@ flowchart TD
     Home --> Share["/share/{shareToken}"]
 ```
 
+Workspace budget routes:
+
+- `/workspaces/{workspaceId}/budgets` lists active and archived shared budgets,
+  shows primary budget usage previews, and exposes create/edit/archive/make
+  primary actions to owner/admin roles only.
+- `/workspaces/{workspaceId}/budgets/{budgetId}` shows budget utilization, cost
+  by trip/category/source, expensive items, insights, warnings, and CSV/PDF
+  export.
+- `/workspaces/{workspaceId}/analytics` shows the active primary budget when
+  present and can apply its period as the analytics date filter.
+
+Workspace budgets are planning estimates only. They do not block trip edits, do
+not represent payments, and do not split or settle costs between members.
+
 ## Service Calls By Feature
 
 | Feature | Primary calls |
@@ -177,7 +193,7 @@ flowchart TD
 | Presence and locks | `/trips/{id}/presence/*`, `/trips/{id}/edit-lock` |
 | Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |
-| Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, budget optimization job/proposal routes |
+| Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, `/workspaces/{workspaceId}/budgets*`, budget optimization job/proposal routes |
 | Cost analytics | `/trips/{id}/analytics/costs`, `/workspaces/{workspaceId}/analytics/costs`; browser-generated CSV/PDF reports |
 | Places/routes/weather | `/places/search`, `/places/{placeId}`, `/routes/estimate`, `/weather/forecast` |
 | Availability | `POST /availability/search` through the External Integrations API/proxy |

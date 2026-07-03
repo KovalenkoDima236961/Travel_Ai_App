@@ -17,6 +17,11 @@ const (
 	TypeGenerationJobFailed      = "generation_job_failed"
 	TypeBudgetOptimizationReady  = "budget_optimization_ready"
 	TypeBudgetOptimizationFailed = "budget_optimization_failed"
+	TypeWorkspaceBudgetCreated   = "workspace_budget_created"
+	TypeWorkspaceBudgetUpdated   = "workspace_budget_updated"
+	TypeWorkspaceBudgetArchived  = "workspace_budget_archived"
+	TypeWorkspaceBudgetExceeded  = "workspace_budget_exceeded"
+	TypeWorkspaceBudgetNearLimit = "workspace_budget_nearing_limit"
 )
 
 // Entity type constants describe the kind of object a notification refers to.
@@ -28,4 +33,5 @@ const (
 	EntityItineraryDay     = "itinerary_day"
 	EntityItineraryItem    = "itinerary_item"
 	EntityItineraryVersion = "itinerary_version"
+	EntityWorkspaceBudget  = "workspace_budget"
 )

@@ -25,7 +25,11 @@ export type CostInsightActionType =
   | "update_price"
   | "open_item"
   | "open_trip"
-  | "export_report";
+  | "open_workspace_analytics"
+  | "export_report"
+  | "export_budget_report"
+  | "check_missing_prices"
+  | "optimize_trip_day";
 
 export type CostAnalyticsSummary = {
   budgetAmount?: number | null;
@@ -52,6 +56,19 @@ export type WorkspaceAnalyticsSummary = {
   convertedItemCount: number;
   unconvertedItemCount: number;
   incompleteBudgetTripCount: number;
+};
+
+export type ActiveWorkspaceBudget = {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  estimatedTotal: number;
+  remainingAmount: number;
+  overBudgetAmount: number;
+  utilizationPercent: number;
 };
 
 export type CostByDay = {
@@ -162,6 +179,7 @@ export type WorkspaceCostAnalytics = {
     from?: string | null;
     to?: string | null;
   };
+  activeBudget?: ActiveWorkspaceBudget | null;
   summary: WorkspaceAnalyticsSummary;
   byTrip: TripCostSummary[];
   byCategory: CostAmountBreakdown[];

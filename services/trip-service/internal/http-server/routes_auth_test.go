@@ -1535,6 +1535,7 @@ type routeTestRepo struct {
 	activityEvents              []entity.TripActivityEvent
 	calendarSyncs               []entity.TripCalendarSync
 	budgetOptimizationProposals []entity.BudgetOptimizationProposal
+	workspaceBudgets            map[uuid.UUID]entity.WorkspaceBudget
 }
 
 func (r *routeTestRepo) CreateTripActivityEvent(_ context.Context, event *entity.TripActivityEvent) (*entity.TripActivityEvent, error) {
@@ -1686,6 +1687,143 @@ func (r *routeTestRepo) ListAccessible(_ context.Context, userID uuid.UUID, work
 		}
 	}
 	return trips, nil
+}
+
+func (r *routeTestRepo) CreateWorkspaceBudget(_ context.Context, budget *entity.WorkspaceBudget) (*entity.WorkspaceBudget, error) {
+	r.ensureWorkspaceBudgets()
+	now := time.Now().UTC()
+	out := *budget
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = now
+	}
+	if out.UpdatedAt.IsZero() {
+		out.UpdatedAt = out.CreatedAt
+	}
+	if out.IsPrimary {
+		r.clearWorkspaceBudgetPrimary(out.WorkspaceID)
+	}
+	r.workspaceBudgets[out.ID] = out
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetWorkspaceBudgetByID(_ context.Context, workspaceID, budgetID uuid.UUID) (*entity.WorkspaceBudget, error) {
+	r.ensureWorkspaceBudgets()
+	budget, ok := r.workspaceBudgets[budgetID]
+	if !ok || budget.WorkspaceID != workspaceID {
+		return nil, domainerrs.ErrNotFound
+	}
+	return &budget, nil
+}
+
+func (r *routeTestRepo) ListWorkspaceBudgetsByWorkspace(_ context.Context, workspaceID uuid.UUID, status *entity.WorkspaceBudgetStatus) ([]entity.WorkspaceBudget, error) {
+	r.ensureWorkspaceBudgets()
+	out := make([]entity.WorkspaceBudget, 0)
+	for _, budget := range r.workspaceBudgets {
+		if budget.WorkspaceID != workspaceID {
+			continue
+		}
+		if status != nil && budget.Status != *status {
+			continue
+		}
+		out = append(out, budget)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].IsPrimary != out[j].IsPrimary {
+			return out[i].IsPrimary
+		}
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
+func (r *routeTestRepo) ListActiveWorkspaceBudgetsByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]entity.WorkspaceBudget, error) {
+	status := entity.WorkspaceBudgetStatusActive
+	return r.ListWorkspaceBudgetsByWorkspace(ctx, workspaceID, &status)
+}
+
+func (r *routeTestRepo) GetPrimaryWorkspaceBudget(_ context.Context, workspaceID uuid.UUID) (*entity.WorkspaceBudget, error) {
+	r.ensureWorkspaceBudgets()
+	for _, budget := range r.workspaceBudgets {
+		if budget.WorkspaceID == workspaceID && budget.Status == entity.WorkspaceBudgetStatusActive && budget.IsPrimary {
+			out := budget
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) UpdateWorkspaceBudget(_ context.Context, budget *entity.WorkspaceBudget) (*entity.WorkspaceBudget, error) {
+	r.ensureWorkspaceBudgets()
+	current, ok := r.workspaceBudgets[budget.ID]
+	if !ok || current.WorkspaceID != budget.WorkspaceID || current.Status != entity.WorkspaceBudgetStatusActive {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *budget
+	if out.IsPrimary {
+		r.clearWorkspaceBudgetPrimary(out.WorkspaceID)
+	}
+	out.UpdatedAt = time.Now().UTC()
+	r.workspaceBudgets[out.ID] = out
+	return &out, nil
+}
+
+func (r *routeTestRepo) ArchiveWorkspaceBudget(_ context.Context, workspaceID, budgetID, actorUserID uuid.UUID) (*entity.WorkspaceBudget, error) {
+	r.ensureWorkspaceBudgets()
+	budget, ok := r.workspaceBudgets[budgetID]
+	if !ok || budget.WorkspaceID != workspaceID || budget.Status == entity.WorkspaceBudgetStatusArchived {
+		return nil, domainerrs.ErrNotFound
+	}
+	now := time.Now().UTC()
+	budget.Status = entity.WorkspaceBudgetStatusArchived
+	budget.IsPrimary = false
+	budget.ArchivedByUserID = &actorUserID
+	budget.ArchivedAt = &now
+	budget.UpdatedAt = now
+	r.workspaceBudgets[budgetID] = budget
+	return &budget, nil
+}
+
+func (r *routeTestRepo) SetWorkspaceBudgetPrimary(_ context.Context, workspaceID, budgetID uuid.UUID) (*entity.WorkspaceBudget, error) {
+	r.ensureWorkspaceBudgets()
+	budget, ok := r.workspaceBudgets[budgetID]
+	if !ok || budget.WorkspaceID != workspaceID || budget.Status != entity.WorkspaceBudgetStatusActive {
+		return nil, domainerrs.ErrNotFound
+	}
+	r.clearWorkspaceBudgetPrimary(workspaceID)
+	budget.IsPrimary = true
+	budget.UpdatedAt = time.Now().UTC()
+	r.workspaceBudgets[budgetID] = budget
+	return &budget, nil
+}
+
+func (r *routeTestRepo) CountWorkspaceBudgets(_ context.Context, workspaceID uuid.UUID, status *entity.WorkspaceBudgetStatus) (int, error) {
+	r.ensureWorkspaceBudgets()
+	count := 0
+	for _, budget := range r.workspaceBudgets {
+		if budget.WorkspaceID != workspaceID {
+			continue
+		}
+		if status != nil && budget.Status != *status {
+			continue
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (r *routeTestRepo) ensureWorkspaceBudgets() {
+	if r.workspaceBudgets == nil {
+		r.workspaceBudgets = map[uuid.UUID]entity.WorkspaceBudget{}
+	}
+}
+
+func (r *routeTestRepo) clearWorkspaceBudgetPrimary(workspaceID uuid.UUID) {
+	for id, budget := range r.workspaceBudgets {
+		if budget.WorkspaceID == workspaceID && budget.Status == entity.WorkspaceBudgetStatusActive {
+			budget.IsPrimary = false
+			r.workspaceBudgets[id] = budget
+		}
+	}
 }
 
 func (r *routeTestRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {

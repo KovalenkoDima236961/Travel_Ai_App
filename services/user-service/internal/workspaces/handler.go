@@ -50,6 +50,7 @@ func (h *Handler) RegisterInternalRoutes(r chi.Router) {
 	r.Route("/internal/workspaces", func(r chi.Router) {
 		r.Post("/access-check", h.InternalAccessCheck)
 		r.Post("/list-for-user", h.InternalListForUser)
+		r.Post("/list-members", h.InternalListMembers)
 		r.Post("/batch", h.InternalBatchInfo)
 	})
 }
@@ -293,6 +294,34 @@ func (h *Handler) InternalListForUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"workspaces": items})
 }
 
+func (h *Handler) InternalListMembers(w http.ResponseWriter, r *http.Request) {
+	var req internalListMembersRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	workspaceID, err := uuid.Parse(strings.TrimSpace(req.WorkspaceID))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "workspaceId must be a valid uuid")
+		return
+	}
+	members, err := h.svc.ListMembersInternal(r.Context(), workspaceID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	items := make([]internalWorkspaceMemberResponse, 0, len(members))
+	for _, member := range members {
+		items = append(items, internalWorkspaceMemberResponse{
+			ID:          member.ID.String(),
+			WorkspaceID: member.WorkspaceID.String(),
+			UserID:      member.UserID.String(),
+			Role:        string(member.Role),
+			Status:      string(member.Status),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": items})
+}
+
 func (h *Handler) InternalBatchInfo(w http.ResponseWriter, r *http.Request) {
 	var req internalBatchRequest
 	if !decodeJSON(w, r, &req) {
@@ -375,6 +404,10 @@ type internalListForUserRequest struct {
 	UserID string `json:"userId"`
 }
 
+type internalListMembersRequest struct {
+	WorkspaceID string `json:"workspaceId"`
+}
+
 type internalBatchRequest struct {
 	WorkspaceIDs []string `json:"workspaceIds"`
 }
@@ -431,6 +464,14 @@ type internalAccessCheckResponse struct {
 type internalWorkspaceRoleResponse struct {
 	ID   string `json:"id"`
 	Role string `json:"role"`
+}
+
+type internalWorkspaceMemberResponse struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	UserID      string `json:"userId"`
+	Role        string `json:"role"`
+	Status      string `json:"status"`
 }
 
 type internalWorkspaceInfoResponse struct {

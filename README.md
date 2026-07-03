@@ -120,6 +120,9 @@ Key product capabilities:
 - Cost Analytics Dashboard v1 with trip and workspace cost rollups, expensive
   item insights, missing estimate warnings, and browser-generated CSV/PDF cost
   reports.
+- Workspace Shared Budgets v1: owner/admin-managed workspace budget limits,
+  primary budget utilization in analytics, read-only member/viewer summaries,
+  over-budget insights, and CSV/PDF budget reports for planning estimates.
 - Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
   email, and browser push integrations behind mock-first provider boundaries.
 - Provider Quota & Rate-Limit Management v1: External Integrations Service

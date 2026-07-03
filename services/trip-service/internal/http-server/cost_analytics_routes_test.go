@@ -190,6 +190,21 @@ func (p routeTestWorkspaceProvider) ListForUser(_ context.Context, userID uuid.U
 	return out, nil
 }
 
+func (p routeTestWorkspaceProvider) ListMembers(_ context.Context, workspaceID uuid.UUID) ([]workspaces.WorkspaceMember, error) {
+	users := p.access[workspaceID]
+	out := make([]workspaces.WorkspaceMember, 0, len(users))
+	for userID, role := range users {
+		out = append(out, workspaces.WorkspaceMember{
+			ID:          uuid.New(),
+			WorkspaceID: workspaceID,
+			UserID:      userID,
+			Role:        role,
+			Status:      workspaces.MemberStatusActive,
+		})
+	}
+	return out, nil
+}
+
 func getTripCostAnalytics(t *testing.T, router http.Handler, token string, tripID uuid.UUID, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	path := "/trips/" + tripID.String() + "/analytics/costs"

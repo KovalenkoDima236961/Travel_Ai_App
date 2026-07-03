@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
 )
 
@@ -44,51 +46,32 @@ func (s *Service) GetWorkspaceCostAnalytics(
 	if in.From != nil && in.To != nil && in.From.After(*in.To) {
 		return analytics.WorkspaceCostAnalytics{}, apperrs.NewInvalidInput("from must be before or equal to to")
 	}
-	targetCurrency := in.Currency
-	if targetCurrency == "" {
-		targetCurrency = budget.DefaultCurrency
-	}
-
-	trips, err := s.repo.ListAccessible(
-		ctx,
-		user.ID,
-		[]uuid.UUID{workspaceID},
-		appdto.TripListScopeWorkspace,
-		&workspaceID,
-		maxWorkspaceAnalyticsTrips,
-		0,
-	)
+	computed, err := s.calculateWorkspaceCostAnalytics(ctx, user.ID, workspaceID, in)
 	if err != nil {
 		return analytics.WorkspaceCostAnalytics{}, err
 	}
+	result := computed.Analytics
+	if computed.TripLimitReached {
+		result.Warnings = append(result.Warnings, "Workspace analytics include the first 500 accessible trips.")
+	}
 
-	generatedAt := time.Now().UTC()
-	items := make([]analytics.WorkspaceTripInput, 0, len(trips))
-	for _, trip := range trips {
-		if !tripInAnalyticsDateRange(trip, in.From, in.To) {
-			continue
+	primary, err := s.repo.GetPrimaryWorkspaceBudget(ctx, workspaceID)
+	if err != nil {
+		if !errors.Is(err, domainerrs.ErrNotFound) {
+			return analytics.WorkspaceCostAnalytics{}, err
 		}
-		tripAnalytics, err := s.tripCostAnalyticsForTrip(ctx, &trip, targetCurrency, generatedAt)
+	} else {
+		summary, err := s.calculateWorkspaceBudgetSummary(ctx, user.ID, primary)
 		if err != nil {
 			return analytics.WorkspaceCostAnalytics{}, err
 		}
-		items = append(items, analytics.WorkspaceTripInput{
-			Trip:      trip,
-			Analytics: tripAnalytics,
-		})
+		result.ActiveBudget = activeBudgetUsageFromSummary(summary)
+		if !workspaceBudgetPeriodMatches(in.From, in.To, primary) {
+			result.Warnings = append(result.Warnings, "Analytics date range differs from primary budget period.")
+		}
+		result.Insights = append(result.Insights, budgetInsightsForWorkspaceAnalytics(summary.Insights)...)
 	}
 
-	result := analytics.CalculateWorkspaceCost(analytics.WorkspaceInput{
-		WorkspaceID: workspaceID,
-		Currency:    targetCurrency,
-		GeneratedAt: generatedAt,
-		From:        in.From,
-		To:          in.To,
-		Trips:       items,
-	})
-	if len(trips) >= maxWorkspaceAnalyticsTrips {
-		result.Warnings = append(result.Warnings, "Workspace analytics include the first 500 accessible trips.")
-	}
 	return result, nil
 }
 

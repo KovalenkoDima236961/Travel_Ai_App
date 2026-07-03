@@ -145,6 +145,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	var workspaceClient interface {
 		AccessCheck(context.Context, uuid.UUID, uuid.UUID) (*workspaces.Access, error)
 		ListForUser(context.Context, uuid.UUID) ([]workspaces.UserWorkspace, error)
+		ListMembers(context.Context, uuid.UUID) ([]workspaces.WorkspaceMember, error)
 	}
 	if cfg.Workspaces.Enabled {
 		workspaceClient, err = workspaces.New(workspaces.Config{

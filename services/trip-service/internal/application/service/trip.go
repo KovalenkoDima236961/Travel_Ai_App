@@ -136,6 +136,15 @@ type tripRepository interface {
 	MarkBudgetOptimizationProposalDiscarded(ctx context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error)
 	MarkBudgetOptimizationProposalExpired(ctx context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error)
 	MarkBudgetOptimizationProposalFailed(ctx context.Context, id uuid.UUID) (*entity.BudgetOptimizationProposal, error)
+	CreateWorkspaceBudget(ctx context.Context, budget *entity.WorkspaceBudget) (*entity.WorkspaceBudget, error)
+	GetWorkspaceBudgetByID(ctx context.Context, workspaceID, budgetID uuid.UUID) (*entity.WorkspaceBudget, error)
+	ListWorkspaceBudgetsByWorkspace(ctx context.Context, workspaceID uuid.UUID, status *entity.WorkspaceBudgetStatus) ([]entity.WorkspaceBudget, error)
+	ListActiveWorkspaceBudgetsByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]entity.WorkspaceBudget, error)
+	GetPrimaryWorkspaceBudget(ctx context.Context, workspaceID uuid.UUID) (*entity.WorkspaceBudget, error)
+	UpdateWorkspaceBudget(ctx context.Context, budget *entity.WorkspaceBudget) (*entity.WorkspaceBudget, error)
+	ArchiveWorkspaceBudget(ctx context.Context, workspaceID, budgetID, actorUserID uuid.UUID) (*entity.WorkspaceBudget, error)
+	SetWorkspaceBudgetPrimary(ctx context.Context, workspaceID, budgetID uuid.UUID) (*entity.WorkspaceBudget, error)
+	CountWorkspaceBudgets(ctx context.Context, workspaceID uuid.UUID, status *entity.WorkspaceBudgetStatus) (int, error)
 }
 
 type userContextProvider interface {
@@ -171,6 +180,7 @@ type budgetConversionProvider interface {
 type workspaceProvider interface {
 	AccessCheck(ctx context.Context, userID, workspaceID uuid.UUID) (*workspaces.Access, error)
 	ListForUser(ctx context.Context, userID uuid.UUID) ([]workspaces.UserWorkspace, error)
+	ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]workspaces.WorkspaceMember, error)
 }
 
 // Option customizes Service dependencies that are not required for the core

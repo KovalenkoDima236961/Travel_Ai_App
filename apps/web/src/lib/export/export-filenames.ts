@@ -33,6 +33,10 @@ export function buildWorkspaceCostReportFilename(title: string, extension: "csv"
   return `${slugifyForFilename(title || "workspace")}-workspace-cost-report.${extension}`;
 }
 
+export function buildWorkspaceBudgetReportFilename(title: string, extension: "csv" | "pdf"): string {
+  return `${slugifyForFilename(title || "workspace-budget")}-workspace-budget-report.${extension}`;
+}
+
 function buildBaseFilename(exportTrip: ExportTrip): string {
   const destination = slugifyForFilename(exportTrip.destination || "trip");
   const date = formatDateForFilename(exportTrip.startDate);
