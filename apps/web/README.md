@@ -3,7 +3,7 @@
 Next.js App Router frontend for the Travel AI App. The web app owns the browser
 experience for authentication, trip planning, itinerary editing, collaboration,
 notifications, exports, calendar sync controls, maps, weather, budgets, and
-public share pages.
+ticket/activity availability checks.
 
 ## Frontend Boundary
 
@@ -44,6 +44,7 @@ or tighter path filtering, such as notification and calendar OAuth calls.
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
 | Budget | Trip budget, item costs, accommodation cost, summaries, optimization proposals. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
+| Availability | Per-item availability checks, provider prices, external booking links, and apply-price updates. |
 | Context | Weather cards, route/distance estimates, accommodation routing anchors. |
 | Sharing | Public read-only share links, expiration, password unlock, sanitized exports. |
 | Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
@@ -89,7 +90,7 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 | `NEXT_PUBLIC_AUTH_SERVICE_URL` | Browser-facing Auth Service URL. |
 | `NEXT_PUBLIC_TRIP_SERVICE_URL` | Browser-facing Trip Service URL. |
 | `NEXT_PUBLIC_USER_SERVICE_URL` | Browser-facing User Service URL. |
-| `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL` | Browser-facing place/route/weather/calendar URL. |
+| `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL` | Browser-facing place/route/weather/calendar/availability URL. |
 | `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` | Browser-facing Notification Service URL. |
 | `NEXT_PUBLIC_WORKER_SERVICE_URL` | Browser-facing Worker Service URL for local ops checks. |
 | `TRIP_SERVICE_INTERNAL_URL` | Server-side URL for Next route handlers inside Docker. |
@@ -163,6 +164,7 @@ flowchart TD
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |
 | Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, budget optimization job/proposal routes |
 | Places/routes/weather | `/places/search`, `/places/{placeId}`, `/routes/estimate`, `/weather/forecast` |
+| Availability | `POST /availability/search` through the External Integrations API/proxy |
 | Calendar | `/calendar/google/*`, `/trips/{id}/calendar-sync/google/*` |
 | Notifications | `/notifications*`, `/notifications/preferences`, `/notifications/push/*` |
 

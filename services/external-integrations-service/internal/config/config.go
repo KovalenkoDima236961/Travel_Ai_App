@@ -25,6 +25,10 @@ const (
 	ExchangeRateProviderAPI               = "exchangerate_api"
 	PriceProviderMock                     = "mock"
 	PriceProviderAPI                      = "api"
+	AvailabilityProviderMock              = "mock"
+	AvailabilityProviderGetYourGuide      = "getyourguide"
+	AvailabilityProviderViator            = "viator"
+	AvailabilityProviderTiqets            = "tiqets"
 	CalendarProviderGoogle                = "google"
 	CalendarProviderMock                  = "mock"
 
@@ -50,6 +54,7 @@ type Config struct {
 	WeatherProvider      WeatherProviderConfig      `yaml:"weather_provider" validate:"required"`
 	ExchangeRateProvider ExchangeRateProviderConfig `yaml:"exchange_rate_provider" validate:"required"`
 	PriceProvider        PriceProviderConfig        `yaml:"price_provider" validate:"required"`
+	Availability         AvailabilityConfig         `yaml:"availability" validate:"required"`
 	Calendar             CalendarConfig             `yaml:"calendar" validate:"required"`
 	Ops                  OpsConfig                  `yaml:"ops"`
 	ProviderLimits       ProviderLimitsConfig       `yaml:"provider_limits"`
@@ -154,6 +159,26 @@ type PriceProviderConfig struct {
 	APIKey          string `yaml:"api_key" env:"PRICE_API_KEY"`
 }
 
+// AvailabilityConfig selects the external availability provider adapter. Mock is
+// the default for v1; real provider fields are placeholders until credentials
+// and provider-specific API docs are available.
+type AvailabilityConfig struct {
+	Enabled         bool   `yaml:"enabled" env:"AVAILABILITY_ENABLED" env-default:"true"`
+	Provider        string `yaml:"provider" env:"AVAILABILITY_PROVIDER" env-default:"mock"`
+	FallbackToMock  bool   `yaml:"fallback_to_mock" env:"AVAILABILITY_FALLBACK_TO_MOCK" env-default:"true"`
+	TimeoutSeconds  int    `yaml:"timeout_seconds" env:"AVAILABILITY_PROVIDER_TIMEOUT_SECONDS" env-default:"8"`
+	CacheEnabled    bool   `yaml:"cache_enabled" env:"AVAILABILITY_CACHE_ENABLED" env-default:"true"`
+	CacheTTLSeconds int    `yaml:"cache_ttl_seconds" env:"AVAILABILITY_CACHE_TTL_SECONDS" env-default:"900"`
+	DefaultCurrency string `yaml:"default_currency" env:"AVAILABILITY_DEFAULT_CURRENCY" env-default:"EUR"`
+
+	GetYourGuideAPIKey  string `yaml:"getyourguide_api_key" env:"GETYOURGUIDE_API_KEY"`
+	GetYourGuideBaseURL string `yaml:"getyourguide_base_url" env:"GETYOURGUIDE_BASE_URL"`
+	ViatorAPIKey        string `yaml:"viator_api_key" env:"VIATOR_API_KEY"`
+	ViatorBaseURL       string `yaml:"viator_base_url" env:"VIATOR_BASE_URL"`
+	TiqetsAPIKey        string `yaml:"tiqets_api_key" env:"TIQETS_API_KEY"`
+	TiqetsBaseURL       string `yaml:"tiqets_base_url" env:"TIQETS_BASE_URL"`
+}
+
 type CalendarConfig struct {
 	Enabled            bool   `yaml:"enabled" env:"GOOGLE_CALENDAR_ENABLED" env-default:"true"`
 	Provider           string `yaml:"provider" env:"CALENDAR_PROVIDER" env-default:"mock"`
@@ -215,6 +240,10 @@ type ProviderLimitsConfig struct {
 	PriceRatePerMinute int   `yaml:"price_rate_per_minute" env:"PRICE_PROVIDER_RATE_LIMIT_PER_MINUTE" env-default:"60"`
 	PriceBurst         int   `yaml:"price_burst" env:"PRICE_PROVIDER_RATE_LIMIT_BURST" env-default:"10"`
 	PriceDailyQuota    int64 `yaml:"price_daily_quota" env:"PRICE_PROVIDER_DAILY_QUOTA" env-default:"1000"`
+
+	AvailabilityRatePerMinute int   `yaml:"availability_rate_per_minute" env:"AVAILABILITY_RATE_LIMIT_PER_MINUTE" env-default:"30"`
+	AvailabilityBurst         int   `yaml:"availability_burst" env:"AVAILABILITY_RATE_LIMIT_BURST" env-default:"5"`
+	AvailabilityDailyQuota    int64 `yaml:"availability_daily_quota" env:"AVAILABILITY_DAILY_QUOTA" env-default:"500"`
 }
 
 func (c CalendarConfig) StateTTL() time.Duration {
@@ -365,6 +394,27 @@ func Load(path string) (*Config, error) {
 	}
 	cfg.PriceProvider.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.PriceProvider.BaseURL), "/")
 	cfg.PriceProvider.APIKey = strings.TrimSpace(cfg.PriceProvider.APIKey)
+
+	cfg.Availability.Provider = strings.ToLower(strings.TrimSpace(cfg.Availability.Provider))
+	if cfg.Availability.Provider == "" {
+		cfg.Availability.Provider = AvailabilityProviderMock
+	}
+	if cfg.Availability.TimeoutSeconds <= 0 {
+		cfg.Availability.TimeoutSeconds = 8
+	}
+	if cfg.Availability.CacheEnabled && cfg.Availability.CacheTTLSeconds <= 0 {
+		cfg.Availability.CacheTTLSeconds = 900
+	}
+	cfg.Availability.DefaultCurrency = strings.ToUpper(strings.TrimSpace(cfg.Availability.DefaultCurrency))
+	if cfg.Availability.DefaultCurrency == "" {
+		cfg.Availability.DefaultCurrency = "EUR"
+	}
+	cfg.Availability.GetYourGuideAPIKey = strings.TrimSpace(cfg.Availability.GetYourGuideAPIKey)
+	cfg.Availability.GetYourGuideBaseURL = strings.TrimRight(strings.TrimSpace(cfg.Availability.GetYourGuideBaseURL), "/")
+	cfg.Availability.ViatorAPIKey = strings.TrimSpace(cfg.Availability.ViatorAPIKey)
+	cfg.Availability.ViatorBaseURL = strings.TrimRight(strings.TrimSpace(cfg.Availability.ViatorBaseURL), "/")
+	cfg.Availability.TiqetsAPIKey = strings.TrimSpace(cfg.Availability.TiqetsAPIKey)
+	cfg.Availability.TiqetsBaseURL = strings.TrimRight(strings.TrimSpace(cfg.Availability.TiqetsBaseURL), "/")
 
 	cfg.Calendar.Provider = strings.ToLower(strings.TrimSpace(cfg.Calendar.Provider))
 	if cfg.Calendar.Provider == "" {
@@ -525,6 +575,35 @@ func (c *Config) validateProviders() error {
 	default:
 		return fmt.Errorf("PRICE_PROVIDER must be mock or api")
 	}
+
+	if c.Availability.Enabled {
+		switch c.Availability.Provider {
+		case AvailabilityProviderMock:
+		case AvailabilityProviderGetYourGuide:
+			if c.Availability.GetYourGuideAPIKey == "" {
+				return fmt.Errorf("GETYOURGUIDE_API_KEY is required when AVAILABILITY_PROVIDER=getyourguide")
+			}
+			if err := validateHTTPURL("GETYOURGUIDE_BASE_URL", c.Availability.GetYourGuideBaseURL, c.IsProduction()); err != nil {
+				return err
+			}
+		case AvailabilityProviderViator:
+			if c.Availability.ViatorAPIKey == "" {
+				return fmt.Errorf("VIATOR_API_KEY is required when AVAILABILITY_PROVIDER=viator")
+			}
+			if err := validateHTTPURL("VIATOR_BASE_URL", c.Availability.ViatorBaseURL, c.IsProduction()); err != nil {
+				return err
+			}
+		case AvailabilityProviderTiqets:
+			if c.Availability.TiqetsAPIKey == "" {
+				return fmt.Errorf("TIQETS_API_KEY is required when AVAILABILITY_PROVIDER=tiqets")
+			}
+			if err := validateHTTPURL("TIQETS_BASE_URL", c.Availability.TiqetsBaseURL, c.IsProduction()); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("AVAILABILITY_PROVIDER must be mock, getyourguide, viator, or tiqets")
+		}
+	}
 	return nil
 }
 
@@ -610,6 +689,7 @@ func (c *Config) validateProviderLimits() error {
 		{"GOOGLE_CALENDAR", pl.GoogleCalendarRatePerMinute, pl.GoogleCalendarBurst, pl.GoogleCalendarDailyQuota},
 		{"EXCHANGE_RATE", pl.ExchangeRateRatePerMinute, pl.ExchangeRateBurst, pl.ExchangeRateDailyQuota},
 		{"PRICE_PROVIDER", pl.PriceRatePerMinute, pl.PriceBurst, pl.PriceDailyQuota},
+		{"AVAILABILITY", pl.AvailabilityRatePerMinute, pl.AvailabilityBurst, pl.AvailabilityDailyQuota},
 	}
 	for _, check := range checks {
 		if check.rate < 0 {

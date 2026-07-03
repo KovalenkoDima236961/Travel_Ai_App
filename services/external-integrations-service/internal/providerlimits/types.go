@@ -9,6 +9,7 @@ const (
 	CategoryCalendar     = "calendar"
 	CategoryExchangeRate = "exchange_rate"
 	CategoryPrice        = "price"
+	CategoryAvailability = "availability"
 )
 
 // Bounded operation names. Operations are globally unique, so the category can
@@ -25,6 +26,7 @@ const (
 	OpExchangeRateLatest  = "exchange_rate_latest"
 	OpExchangeRateConvert = "exchange_rate_convert"
 	OpPriceEstimate       = "price_estimate"
+	OpAvailabilitySearch  = "availability_search"
 )
 
 // operationCategory maps every bounded operation to its provider category.
@@ -40,6 +42,7 @@ var operationCategory = map[string]string{
 	OpExchangeRateLatest:  CategoryExchangeRate,
 	OpExchangeRateConvert: CategoryExchangeRate,
 	OpPriceEstimate:       CategoryPrice,
+	OpAvailabilitySearch:  CategoryAvailability,
 }
 
 // categoryOperations lists the operations that belong to each category, used to
@@ -51,6 +54,7 @@ var categoryOperations = map[string][]string{
 	CategoryCalendar:     {OpCalendarEventCreate, OpCalendarEventUpdate, OpCalendarEventDelete, OpCalendarSync},
 	CategoryExchangeRate: {OpExchangeRateLatest, OpExchangeRateConvert},
 	CategoryPrice:        {OpPriceEstimate},
+	CategoryAvailability: {OpAvailabilitySearch},
 }
 
 // CategoryForOperation returns the provider category for a bounded operation, or

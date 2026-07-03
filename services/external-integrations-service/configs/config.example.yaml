@@ -93,6 +93,21 @@ price_provider:
   base_url: ""
   api_key: ""
 
+availability:
+  enabled: true
+  provider: mock
+  fallback_to_mock: true
+  timeout_seconds: 8
+  cache_enabled: true
+  cache_ttl_seconds: 900
+  default_currency: EUR
+  getyourguide_api_key: ""
+  getyourguide_base_url: ""
+  viator_api_key: ""
+  viator_base_url: ""
+  tiqets_api_key: ""
+  tiqets_base_url: ""
+
 calendar:
   enabled: true
   provider: mock

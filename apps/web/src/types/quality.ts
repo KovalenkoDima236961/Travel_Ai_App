@@ -19,6 +19,10 @@ export type QualityIssueType =
   | "missing_ticket_price"
   | "high_ticket_cost"
   | "provider_price_low_confidence"
+  | "availability_unchecked"
+  | "availability_unavailable"
+  | "availability_limited"
+  | "booking_price_higher_than_estimate"
   | "conversion_unavailable";
 
 export type QualityIssue = {

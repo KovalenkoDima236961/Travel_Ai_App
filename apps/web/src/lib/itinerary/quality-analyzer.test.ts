@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzeItineraryQuality } from "@/lib/itinerary/quality-analyzer";
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
+import type { AvailabilitySearchResponse } from "@/types/availability";
 import type { OpeningHoursInterval, Place } from "@/types/place";
 import type { RouteEstimate } from "@/types/route";
 import type { Itinerary, ItineraryItem } from "@/types/trip";
@@ -65,6 +66,37 @@ function routeEstimate(distanceKm: number): RouteEstimate {
     distanceKm,
     durationMinutes: Math.round(distanceKm * 12),
     segments: []
+  };
+}
+
+function availabilityResult(
+  status: AvailabilitySearchResponse["status"],
+  amount = 18
+): AvailabilitySearchResponse {
+  return {
+    status,
+    result: status === "unavailable" ? "unavailable" : "success",
+    provider: "mock",
+    providerDisplayName: "Mock Tickets",
+    fallbackUsed: false,
+    cached: false,
+    checkedAt: new Date().toISOString(),
+    match: { matched: true, confidence: 0.82 },
+    options:
+      status === "unavailable"
+        ? []
+        : [
+            {
+              id: "mock-option",
+              title: "Mock ticket",
+              availability: status,
+              price: { amount, currency: "EUR" },
+              priceType: "per_person",
+              providerName: "Mock Tickets",
+              bookingUrl: "https://example.com/book/mock"
+            }
+          ],
+    warnings: ["Availability and prices can change on the provider website."]
   };
 }
 
@@ -243,7 +275,7 @@ describe("analyzeItineraryQuality", () => {
 
   it("handles missing weather and route estimates", () => {
     const summary = analyzeItineraryQuality({
-      itinerary: itinerary(),
+      itinerary: itinerary([item({ type: "park", name: "Public garden" })]),
       weatherForecast: null,
       routeEstimatesByDay: {}
     });
@@ -312,10 +344,64 @@ describe("analyzeItineraryQuality", () => {
         ]
       },
       fallbackDistanceSummaries: [fallbackSummary(2)],
-      maxWalkingKmPerDay: 8
+      maxWalkingKmPerDay: 8,
+      availabilityResultsByItem: {
+        "1:0": availabilityResult("available", 18)
+      }
     });
 
     expect(summary.total).toBe(0);
+  });
+
+  it("detects unchecked availability for bookable attractions", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: itinerary([
+        item({
+          type: "museum",
+          name: "City Museum",
+          estimatedCost: { amount: 18, currency: "EUR", category: "ticket" }
+        })
+      ])
+    });
+
+    expect(summary.itemIssues.some((issue) => issue.type === "availability_unchecked")).toBe(true);
+  });
+
+  it("detects unavailable checked availability", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: itinerary([
+        item({
+          type: "museum",
+          name: "Sold Out Museum",
+          estimatedCost: { amount: 18, currency: "EUR", category: "ticket" }
+        })
+      ]),
+      availabilityResultsByItem: {
+        "1:0": availabilityResult("unavailable")
+      }
+    });
+
+    expect(summary.itemIssues.some((issue) => issue.type === "availability_unavailable")).toBe(true);
+    expect(summary.itemIssues.some((issue) => issue.type === "availability_unchecked")).toBe(false);
+  });
+
+  it("detects provider price higher than current estimate", () => {
+    const summary = analyzeItineraryQuality({
+      itinerary: itinerary([
+        item({
+          type: "museum",
+          name: "Premium Museum",
+          estimatedCost: { amount: 20, currency: "EUR", category: "ticket" }
+        })
+      ]),
+      availabilityResultsByItem: {
+        "1:0": availabilityResult("available", 35)
+      }
+    });
+
+    expect(
+      summary.itemIssues.some((issue) => issue.type === "booking_price_higher_than_estimate")
+    ).toBe(true);
   });
 
   it("detects missing ticket prices for likely paid attractions", () => {

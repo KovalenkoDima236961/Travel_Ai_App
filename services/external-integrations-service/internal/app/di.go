@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/availability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/calendar"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	tokencrypto "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/crypto"
@@ -71,6 +72,10 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 	if err != nil {
 		return nil, fmt.Errorf("init price provider: %w", err)
 	}
+	availabilitySvc, err := availability.New(cfg, guard, log)
+	if err != nil {
+		return nil, fmt.Errorf("init availability provider: %w", err)
+	}
 
 	svc := appservice.New(provider, log)
 	routesSvc := appservice.NewRoutesService(routeProvider, log)
@@ -81,6 +86,7 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, log)
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateSvc, log)
 	priceHandler := prices.NewHandler(priceSvc, log, cfg.PriceProvider.DefaultCurrency)
+	availabilityHandler := availability.NewHandler(availabilitySvc, log, cfg.Availability.DefaultCurrency)
 	cipher, err := tokencrypto.NewStringCipher(cfg.Calendar.EncryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("init calendar token encryption: %w", err)
@@ -112,6 +118,7 @@ func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*co
 		weatherHandler,
 		exchangeRateHandler,
 		priceHandler,
+		availabilityHandler,
 		calendarHandler,
 		internalCalendarHandler,
 		providerOpsHandler,

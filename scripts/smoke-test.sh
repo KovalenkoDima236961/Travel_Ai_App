@@ -668,6 +668,86 @@ if [[ -z "${AUTH_ME_ID}" ]]; then
   exit 1
 fi
 
+echo "Checking availability search requires auth..."
+AVAILABILITY_ITEM_NAME="Visit Colosseum availability smoke ${AUTH_ME_ID}"
+AVAILABILITY_PAYLOAD="$(
+  jq -nc --arg itemName "${AVAILABILITY_ITEM_NAME}" '{
+    destination: "Rome",
+    date: "2026-08-10",
+    currency: "EUR",
+    travelers: {adults: 2, children: 0},
+    item: {
+      name: $itemName,
+      type: "attraction",
+      startTime: "10:00",
+      place: {
+        name: "Colosseum",
+        address: "Piazza del Colosseo, Rome",
+        lat: 41.8902,
+        lng: 12.4922,
+        provider: "mock",
+        providerPlaceId: "mock-colosseum"
+      },
+      estimatedCost: {
+        amount: 18,
+        currency: "EUR",
+        category: "ticket",
+        source: "estimated",
+        confidence: "medium"
+      }
+    }
+  }'
+)"
+request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/availability/search" "${AVAILABILITY_PAYLOAD}"
+assert_status "Availability search requires auth" "401"
+
+echo "Checking availability search with authenticated user..."
+request_with_bearer POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/availability/search" "${ACCESS_TOKEN}" "${AVAILABILITY_PAYLOAD}"
+assert_2xx "Availability search"
+if ! jq -e '
+  (.status == "available" or .status == "limited" or .status == "unavailable" or .status == "unknown")
+  and ((.provider // "") | length > 0)
+  and ((.providerDisplayName // "") | length > 0)
+  and ((.checkedAt // "") | length > 0)
+  and (.match.confidence >= 0)
+  and (.options | type == "array")
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Availability search response did not include the normalized shape." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if jq -e '(.status == "available" or .status == "limited") and (.options | length > 0)' >/dev/null <<<"${LAST_BODY}"; then
+  if ! jq -e '
+    (.options[0].availability == "available" or .options[0].availability == "limited")
+    and (.options[0].price.amount > 0)
+    and (.options[0].price.currency == "EUR")
+    and (.options[0].priceType != "")
+    and (.options[0].bookingUrl | startswith("https://"))
+  ' >/dev/null <<<"${LAST_BODY}"; then
+    echo "Availability search did not include a safe bookable option." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+fi
+
+echo "Checking availability cache behavior..."
+request_with_bearer POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/availability/search" "${ACCESS_TOKEN}" "${AVAILABILITY_PAYLOAD}"
+assert_2xx "Availability search cache repeat"
+if [[ "${AVAILABILITY_CACHE_ENABLED:-true}" != "false" ]]; then
+  if ! jq -e '.cached == true and ((.cacheExpiresAt // "") | length > 0)' >/dev/null <<<"${LAST_BODY}"; then
+    echo "Expected repeated availability search to be served from cache." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+else
+  echo "Availability cache disabled in this environment; skipping cache-hit assertion."
+fi
+
+if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
+  echo "Checking availability metrics after availability calls..."
+  assert_metrics_contains "Availability search metrics" "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/metrics" "availability_search_requests_total"
+fi
+
 if [[ "${SMOKE_EXPECT_OPS_DASHBOARD:-false}" == "true" ]]; then
   echo "Checking Ops Dashboard endpoints..."
   request_with_bearer GET "${TRIP_SERVICE_URL}/ops/jobs/summary" "${ACCESS_TOKEN}"
@@ -701,7 +781,14 @@ if [[ "${SMOKE_EXPECT_OPS_DASHBOARD:-false}" == "true" ]]; then
       echo "${LAST_BODY}" >&2
       exit 1
     fi
+    AVAILABILITY_USED="$(jq -r '[.providers[] | select(.category=="availability") | .usedToday] | add // 0' <<<"${LAST_BODY}")"
+    if [[ "${AVAILABILITY_USED}" -lt 1 ]]; then
+      echo "Expected availability usedToday >= 1 with provider limits enabled, got ${AVAILABILITY_USED}." >&2
+      echo "${LAST_BODY}" >&2
+      exit 1
+    fi
     echo "Provider quota usage recorded for routes: ${ROUTES_USED}"
+    echo "Provider quota usage recorded for availability: ${AVAILABILITY_USED}"
   else
     echo "Provider limits disabled in this environment; skipping usage-increase assertion."
   fi

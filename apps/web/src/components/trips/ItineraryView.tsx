@@ -1,4 +1,7 @@
+import { AvailabilityCard } from "@/components/availability/AvailabilityCard";
 import type { Itinerary } from "@/types/trip";
+import type { Trip } from "@/types/trip";
+import type { AvailabilityOption, AvailabilitySearchResponse } from "@/types/availability";
 import type { OpeningHoursInterval } from "@/types/place";
 import {
   formatOpeningHoursForDay,
@@ -29,10 +32,22 @@ type ItineraryViewProps = {
   itinerary: Itinerary;
   currency?: string;
   startDate?: string | null;
+  trip?: Trip;
   disabled?: boolean;
   regeneratingTarget?: RegeneratingTarget | null;
   onRegenerateDay?: (dayNumber: number, instruction?: string) => void;
   onRegenerateItem?: (dayNumber: number, itemIndex: number, instruction?: string) => void;
+  onAvailabilityResult?: (
+    dayNumber: number,
+    itemIndex: number,
+    result: AvailabilitySearchResponse
+  ) => void;
+  onApplyAvailabilityPrice?: (
+    dayNumber: number,
+    itemIndex: number,
+    option: AvailabilityOption,
+    result: AvailabilitySearchResponse
+  ) => Promise<void>;
   comments?: CommentControls;
 };
 
@@ -40,10 +55,13 @@ export function ItineraryView({
   itinerary,
   currency = "EUR",
   startDate,
+  trip,
   disabled = false,
   regeneratingTarget = null,
   onRegenerateDay,
   onRegenerateItem,
+  onAvailabilityResult,
+  onApplyAvailabilityPrice,
   comments
 }: ItineraryViewProps) {
   if (!itinerary.days || itinerary.days.length === 0) {
@@ -194,6 +212,23 @@ export function ItineraryView({
                         />
                       </div>
                     ) : null}
+                    {trip && isLikelyBookableItem(item) ? (
+                      <AvailabilityCard
+                        currency={displayCurrency}
+                        dayNumber={dayNumber}
+                        disabled={disabled}
+                        item={item}
+                        itemIndex={index}
+                        onApplyPrice={
+                          onApplyAvailabilityPrice
+                            ? (option, result) =>
+                                onApplyAvailabilityPrice(dayNumber, index, option, result)
+                            : undefined
+                        }
+                        onResult={onAvailabilityResult}
+                        trip={trip}
+                      />
+                    ) : null}
                   </div>
                   <div className="flex items-start justify-between gap-3 sm:flex-col sm:items-end">
                     {costBadgeLabel(item.estimatedCost, displayCurrency) ? (
@@ -253,6 +288,48 @@ function formatPlaceCategory(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function isLikelyBookableItem(item: Itinerary["days"][number]["items"][number]) {
+  const type = (item.type ?? "").toLowerCase();
+  const placeCategory = (item.place?.category ?? "").toLowerCase();
+  const text = `${type} ${placeCategory} ${item.name ?? ""} ${item.note ?? ""}`.toLowerCase();
+
+  if (
+    [
+      "rest",
+      "break",
+      "walk",
+      "walking",
+      "transport",
+      "accommodation",
+      "hotel",
+      "note",
+      "food",
+      "meal",
+      "restaurant",
+      "cafe"
+    ].some((term) => text.includes(term))
+  ) {
+    return false;
+  }
+
+  return [
+    "attraction",
+    "museum",
+    "landmark",
+    "tour",
+    "activity",
+    "gallery",
+    "palace",
+    "castle",
+    "zoo",
+    "aquarium",
+    "theme park",
+    "theme_park",
+    "ticket",
+    "event"
+  ].some((term) => text.includes(term));
 }
 
 function formatConfidence(value: number | null | undefined) {

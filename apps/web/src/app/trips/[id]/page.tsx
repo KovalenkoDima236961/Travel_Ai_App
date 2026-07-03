@@ -110,6 +110,12 @@ import type {
   BudgetOptimizationJobRequest,
   BudgetOptimizationProposal
 } from "@/types/budget-optimization";
+import type { EstimatedCost } from "@/types/budget";
+import type {
+  AvailabilityOption,
+  AvailabilityResultByItem,
+  AvailabilitySearchResponse
+} from "@/types/availability";
 import type { RouteEstimate } from "@/types/route";
 import type { EditLockView } from "@/types/edit-locks";
 import type {
@@ -174,6 +180,9 @@ function TripDetailPageContent() {
     number | null
   >(null);
   const [budgetOptimizationError, setBudgetOptimizationError] = useState<string | null>(null);
+  const [availabilityResultsByItem, setAvailabilityResultsByItem] =
+    useState<AvailabilityResultByItem>({});
+  const [availabilityApplyError, setAvailabilityApplyError] = useState<string | null>(null);
   const [lockWarning, setLockWarning] = useState<EditLockView | null>(null);
   const [cachedTripRecord, setCachedTripRecord] = useState<CachedTripRecord | null>(null);
   const [offlineCacheLoading, setOfflineCacheLoading] = useState(false);
@@ -441,6 +450,10 @@ function TripDetailPageContent() {
       setActiveGenerationJobId(latestActiveGenerationJob.id);
     }
   }, [activeGenerationJob, latestActiveGenerationJob]);
+
+  useEffect(() => {
+    setAvailabilityResultsByItem({});
+  }, [tripId, displayedTrip?.itineraryRevision]);
 
   const commentCounts = commentCountsQuery.data ?? [];
   const commentCountMap = useMemo(
@@ -1254,6 +1267,93 @@ function TripDetailPageContent() {
     }
   }
 
+  function handleAvailabilityResult(
+    dayNumber: number,
+    itemIndex: number,
+    result: AvailabilitySearchResponse
+  ) {
+    setAvailabilityResultsByItem((current) => ({
+      ...current,
+      [availabilityResultKey(dayNumber, itemIndex)]: result
+    }));
+  }
+
+  async function applyAvailabilityPrice(
+    dayNumber: number,
+    itemIndex: number,
+    option: AvailabilityOption,
+    result: AvailabilitySearchResponse
+  ) {
+    if (!trip.itinerary || !option.price) {
+      return;
+    }
+
+    const dayIndex = trip.itinerary.days.findIndex(
+      (day, index) => (day.day || index + 1) === dayNumber
+    );
+    const currentItem = dayIndex >= 0 ? trip.itinerary.days[dayIndex]?.items[itemIndex] : null;
+    if (!currentItem) {
+      setAvailabilityApplyError("Could not find that itinerary item.");
+      return;
+    }
+
+    const nextCost: EstimatedCost = {
+      amount: option.price.amount,
+      currency: option.price.currency,
+      category: availabilityCostCategory(currentItem),
+      source: "provider",
+      confidence: "high",
+      note: `Availability provider price checked at ${result.checkedAt}; may change.`
+    };
+    const nextItinerary: Itinerary = {
+      ...trip.itinerary,
+      days: trip.itinerary.days.map((day, index) => {
+        if (index !== dayIndex) {
+          return day;
+        }
+        return {
+          ...day,
+          items: day.items.map((item, innerIndex) =>
+            innerIndex === itemIndex
+              ? {
+                  ...item,
+                  estimatedCost: nextCost,
+                  priceEnrichment: {
+                    ...(item.priceEnrichment ?? { status: "matched" as const }),
+                    status: "matched",
+                    provider: result.provider,
+                    matchConfidence: result.match?.confidence ?? null,
+                    priceType: option.priceType,
+                    reviewStatus: "changed",
+                    updatedAt: result.checkedAt,
+                    reason: "availability_provider_price"
+                  }
+                }
+              : item
+          )
+        };
+      })
+    };
+
+    try {
+      setAvailabilityApplyError(null);
+      setRegenerationError(null);
+      setSuccessMessage(null);
+      const updated = await updateMutation.mutateAsync({
+        itinerary: normalizeItineraryForSave(nextItinerary),
+        expectedRevision: trip.itineraryRevision
+      });
+      await completeItinerarySave(updated, "Budget price updated from availability.");
+    } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setAvailabilityApplyError("This itinerary changed. Reload latest version before updating the price.");
+        await tripQuery.refetch();
+        return;
+      }
+      setAvailabilityApplyError(getErrorMessage(error, "Could not update budget price."));
+    }
+  }
+
   function handleGenerationJobCreated(job: GenerationJob) {
     setActiveGenerationJobId(job.id);
     setSuccessMessage(null);
@@ -1529,6 +1629,12 @@ function TripDetailPageContent() {
             </div>
           ) : null}
 
+          {availabilityApplyError ? (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              {availabilityApplyError}
+            </div>
+          ) : null}
+
           {trip.status === "PROCESSING" ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
               The itinerary is being generated. This page will refresh while processing.
@@ -1538,6 +1644,7 @@ function TripDetailPageContent() {
           {trip.status === "COMPLETED" && trip.itinerary ? (
             <div className="space-y-4">
               <TripQualityChecks
+                availabilityResultsByItem={availabilityResultsByItem}
                 budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
                 fallbackDistanceSummaries={fallbackDistanceSummaries}
                 isEditing={isEditing}
@@ -1682,10 +1789,15 @@ function TripDetailPageContent() {
                     currency={trip.budgetCurrency}
                     disabled={createGenerationJobMutation.isPending || hasActiveGenerationJob}
                     itinerary={trip.itinerary}
+                    onApplyAvailabilityPrice={
+                      canMutateTrip ? applyAvailabilityPrice : undefined
+                    }
+                    onAvailabilityResult={handleAvailabilityResult}
                     onRegenerateDay={canMutateTrip ? regenerateDay : undefined}
                     onRegenerateItem={canMutateTrip ? regenerateItem : undefined}
                     regeneratingTarget={activeRegeneratingTarget}
                     startDate={trip.startDate}
+                    trip={trip}
                   />
                   <ItineraryMap
                     accommodation={trip.accommodation ?? null}
@@ -1978,6 +2090,21 @@ function failureMessageForGenerationJob(job: GenerationJob) {
     return job.errorMessage ?? "Budget optimization failed. The itinerary was not changed.";
   }
   return job.errorMessage ?? "Generation failed. The itinerary was not changed.";
+}
+
+function availabilityResultKey(dayNumber: number, itemIndex: number) {
+  return `${dayNumber}:${itemIndex}`;
+}
+
+function availabilityCostCategory(item: {
+  type?: string | null;
+  place?: { category?: string | null } | null;
+}): EstimatedCost["category"] {
+  const text = `${item.type ?? ""} ${item.place?.category ?? ""}`.toLowerCase();
+  if (text.includes("tour") || text.includes("activity") || text.includes("experience")) {
+    return "activity";
+  }
+  return "ticket";
 }
 
 type DetailRowProps = {

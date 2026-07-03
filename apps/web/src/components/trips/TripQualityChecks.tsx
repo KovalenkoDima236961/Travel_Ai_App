@@ -9,6 +9,7 @@ import {
   buildImproveItemInstruction
 } from "@/lib/itinerary/quality-instruction-builder";
 import { cn } from "@/lib/utils";
+import type { AvailabilityResultByItem } from "@/types/availability";
 import type { BudgetSummary } from "@/types/budget";
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
 import type { QualityIssue, QualityIssueSeverity, QualityIssueType } from "@/types/quality";
@@ -23,6 +24,7 @@ type TripQualityChecksProps = {
   fallbackDistanceSummaries?: DayDistanceSummary[];
   maxWalkingKmPerDay?: number | null;
   budgetSummary?: BudgetSummary | null;
+  availabilityResultsByItem?: AvailabilityResultByItem;
   onImproveDay?: (dayNumber: number, instruction: string) => Promise<void>;
   onImproveItem?: (
     dayNumber: number,
@@ -41,7 +43,8 @@ const actionableItemIssueTypes: QualityIssueType[] = [
   "place_may_be_closed",
   "place_match_low_confidence",
   "place_no_confident_match",
-  "expensive_item"
+  "expensive_item",
+  "availability_unavailable"
 ];
 
 export function TripQualityChecks({
@@ -51,6 +54,7 @@ export function TripQualityChecks({
   fallbackDistanceSummaries,
   maxWalkingKmPerDay,
   budgetSummary,
+  availabilityResultsByItem,
   onImproveDay,
   onImproveItem,
   onOptimizeDayForBudget,
@@ -74,9 +78,11 @@ export function TripQualityChecks({
       maxWalkingKmPerDay,
       accommodation: trip.accommodation ?? null,
       tripBudget: trip.budget,
-      budgetSummary
+      budgetSummary,
+      availabilityResultsByItem
     });
   }, [
+    availabilityResultsByItem,
     budgetSummary,
     fallbackDistanceSummaries,
     itinerary,
@@ -345,7 +351,8 @@ function isBudgetOptimizationIssue(issue: QualityIssue) {
   return (
     issue.type === "day_budget_high" ||
     issue.type === "high_ticket_cost" ||
-    issue.type === "expensive_item"
+    issue.type === "expensive_item" ||
+    issue.type === "booking_price_higher_than_estimate"
   );
 }
 
@@ -365,6 +372,14 @@ function IssueRow({ issue }: { issue: QualityIssue }) {
             href="#place-matches"
           >
             Review this match in Place Matches.
+          </a>
+        ) : null}
+        {issue.type === "availability_unchecked" ? (
+          <a
+            className="mt-1 inline-flex text-xs font-medium text-primary-700 hover:text-primary-600"
+            href={`#day-${issue.dayNumber}-item-${issue.itemIndex}-availability`}
+          >
+            Check availability.
           </a>
         ) : null}
       </div>

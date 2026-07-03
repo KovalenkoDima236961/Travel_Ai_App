@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/availability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
@@ -216,6 +217,17 @@ func TestExchangeRatesConvertValidatesAmountAndUnsupportedCurrency(t *testing.T)
 	}
 }
 
+func TestAvailabilitySearchRequiresJWT(t *testing.T) {
+	resp := performRequest(newTestRouter(), http.MethodPost, "/availability/search", `{
+		"destination":"Rome",
+		"date":"2026-08-10",
+		"item":{"name":"Colosseum"}
+	}`)
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
 func newTestRouter() http.Handler {
 	cfg := testConfig()
 	svc := appservice.New(placeprovider.NewMockPlaceProvider(), zap.NewNop())
@@ -228,6 +240,8 @@ func newTestRouter() http.Handler {
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateSvc, zap.NewNop())
 	priceSvc := prices.NewService(prices.NewMockPriceProvider(), zap.NewNop())
 	priceHandler := prices.NewHandler(priceSvc, zap.NewNop(), "EUR")
+	availabilitySvc := availability.NewService(availability.NewMockAvailabilityProvider(), zap.NewNop(), true)
+	availabilityHandler := availability.NewHandler(availabilitySvc, zap.NewNop(), "EUR")
 	return NewRouter(
 		zap.NewNop(),
 		placesHandler,
@@ -235,6 +249,7 @@ func newTestRouter() http.Handler {
 		weatherHandler,
 		exchangeRateHandler,
 		priceHandler,
+		availabilityHandler,
 		nil,
 		nil,
 		nil,
@@ -258,7 +273,9 @@ func testConfig() *config.Config {
 		WeatherProvider:      config.WeatherProviderConfig{Provider: "mock"},
 		ExchangeRateProvider: config.ExchangeRateProviderConfig{Provider: "mock"},
 		PriceProvider:        config.PriceProviderConfig{Provider: "mock", DefaultCurrency: "EUR"},
+		Availability:         config.AvailabilityConfig{Enabled: true, Provider: "mock", DefaultCurrency: "EUR"},
 		Internal:             config.InternalConfig{ServiceToken: "dev-internal-service-token"},
+		Auth:                 config.AuthConfig{JWTAccessSecret: "test-secret", HeaderName: "Authorization"},
 		CORS: config.CORSConfig{
 			AllowedOrigins: "http://localhost:3000",
 			AllowedMethods: "GET,POST,DELETE,OPTIONS",

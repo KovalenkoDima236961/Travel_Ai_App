@@ -51,6 +51,7 @@ func (h *ProviderOpsHandler) Status(w http.ResponseWriter, _ *http.Request) {
 		h.provider("weather", h.cfg.WeatherProvider.Provider, true, h.cfg.WeatherProvider.FallbackToMock),
 		h.provider("exchange_rate", h.cfg.ExchangeRateProvider.Provider, true, h.cfg.ExchangeRateProvider.FallbackToMock),
 		h.provider("price", h.cfg.PriceProvider.Provider, true, h.cfg.PriceProvider.FallbackToMock),
+		h.provider("availability", h.cfg.Availability.Provider, h.cfg.Availability.Enabled, h.cfg.Availability.FallbackToMock),
 		h.provider("calendar", h.cfg.Calendar.Provider, h.cfg.Calendar.Enabled, false),
 	}
 	writeJSON(w, http.StatusOK, ProviderStatusResponse{Providers: providers})

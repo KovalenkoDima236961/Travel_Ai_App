@@ -81,7 +81,12 @@ Use local Grafana credentials `admin` / `admin`.
     place address/provider and, when confidence is present, a percentage.
 18. If at least two generated auto-matched places have coordinates, confirm map
     markers and distance estimates appear before any manual place attachment.
-19. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+19. On a ticketed attraction/activity item, click `Check availability`.
+20. Confirm the card shows a provider status, checked time, price/start-time
+    option when available, and an external booking link that opens in a new tab.
+21. Click `Use this price` on an available option and confirm the budget summary
+    refreshes after the item cost is saved.
+22. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
 
 ## Queue Worker Recovery
 
@@ -249,18 +254,21 @@ on (`OPS_DASHBOARD_ENABLED=true`, `OPS_ADMIN_EMAILS` includes your login,
 3. Trigger a route estimate, weather forecast, or place search from a trip page.
 4. Click **Refresh** on the Provider Quotas panel (or wait for auto-refresh) and
    confirm the relevant provider's "requests today" increased.
-5. Click **View details** on a provider and confirm the operation-level breakdown
+5. Trigger an availability check from a trip item and confirm the availability
+   provider row is present; with limits enabled and a cache miss, its
+   "requests today" should increase.
+6. Click **View details** on a provider and confirm the operation-level breakdown
    and the last-7-days usage list render.
-6. To exercise a limit locally: stop the stack, set a very low quota for a real
+7. To exercise a limit locally: stop the stack, set a very low quota for a real
    provider path with a mock fallback, and restart. A zero-cost setup is
    `ROUTE_PROVIDER=ors`, `ORS_API_KEY=dummy`, `ORS_BASE_URL=http://127.0.0.1:9`,
    `ROUTE_PROVIDER_FALLBACK_TO_MOCK=true`, `ORS_DAILY_QUOTA=1`.
-7. Trigger a route estimate twice. The first consumes the quota (falling back to
+8. Trigger a route estimate twice. The first consumes the quota (falling back to
    mock because ORS is unreachable); the second is quota-exceeded and served by
    the mock fallback.
-8. Refresh the panel and confirm the routes provider shows a `quota_exceeded`
+9. Refresh the panel and confirm the routes provider shows a `quota_exceeded`
    status and non-zero blocked/fallback counts.
-9. Confirm the **Reset (dev)** button is visible (it is hidden when the service is
+10. Confirm the **Reset (dev)** button is visible (it is hidden when the service is
    in production / `resetAllowed=false`). Click it, confirm the confirmation
    prompt, and confirm today's counters reset.
 
@@ -313,6 +321,36 @@ on (`OPS_DASHBOARD_ENABLED=true`, `OPS_ADMIN_EMAILS` includes your login,
     window, and confirm the private trip budget, optimization UI/proposals, and
     provider price review metadata are **not** shown (item cost badges may still
     appear).
+
+## Real Availability Layer
+
+1. Open a private trip as owner or editor with at least one museum, landmark,
+   tour, activity, palace, castle, zoo, aquarium, theme park, ticket, or event
+   itinerary item.
+2. Confirm non-bookable items such as walks, restaurants, transport, hotels,
+   notes, rests, and public parks do not show a `Check availability` control.
+3. Click `Check availability` on a bookable item.
+4. Confirm the initial state is replaced by a normalized result showing status
+   (`available`, `limited`, `unavailable`, or `unknown`), provider label, checked
+   time, match confidence, and any warnings.
+5. With the default mock provider, a Colosseum-like attraction should return an
+   available or limited HTTPS booking link, EUR price, price type, duration, and
+   start times. A public park/walk should show no paid booking option if checked
+   via API/devtools.
+6. Click `Check availability` again for the same item and confirm the second
+   result shows the cache indicator when `AVAILABILITY_CACHE_ENABLED=true`.
+7. Click the booking link and confirm it opens externally; the app should not
+   embed checkout or ask for payment details.
+8. Click `Use this price`, confirm the replace-cost prompt when the item already
+   has an estimate, and accept.
+9. Confirm the item now shows a provider-filled ticket/activity cost, the budget
+   panel recalculates, and version history records a manual itinerary update.
+10. Open `Trip Quality Checks` before checking a bookable item and confirm it can
+    show an availability-unchecked issue. After checking, confirm unavailable or
+    higher-than-estimate provider prices appear as quality warnings when relevant.
+11. Stop only the External Integrations Service and click `Check availability`;
+    confirm the card shows a safe unavailable/error state and the trip page does
+    not crash. Restart the service afterward.
 
 ## Accommodation Planning
 

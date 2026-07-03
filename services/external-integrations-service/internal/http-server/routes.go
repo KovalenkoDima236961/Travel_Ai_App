@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/availability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/middleware"
@@ -26,6 +27,7 @@ func NewRouter(
 	weatherHandler *handler.WeatherHandler,
 	exchangeRateHandler *handler.ExchangeRateHandler,
 	priceHandler *prices.Handler,
+	availabilityHandler *availability.Handler,
 	calendarHandler *handler.CalendarHandler,
 	internalCalendarHandler *handler.InternalCalendarHandler,
 	providerOpsHandler *handler.ProviderOpsHandler,
@@ -60,6 +62,15 @@ func NewRouter(
 		r.Group(func(r chi.Router) {
 			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
 			priceHandler.RegisterRoutes(r)
+		})
+	}
+	if availabilityHandler != nil {
+		r.Group(func(r chi.Router) {
+			r.Use(auth.Middleware(auth.MiddlewareConfig{
+				JWTAccessSecret: authCfg.JWTAccessSecret,
+				HeaderName:      authCfg.HeaderName,
+			}))
+			availabilityHandler.RegisterRoutes(r)
 		})
 	}
 	if calendarHandler != nil {

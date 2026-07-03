@@ -97,7 +97,7 @@ func (g *Guard) Today() time.Time {
 
 // Limits returns all configured provider limits, ordered by category.
 func (g *Guard) Limits() []ProviderLimit {
-	order := []string{CategoryPlaces, CategoryRoutes, CategoryWeather, CategoryCalendar, CategoryExchangeRate, CategoryPrice}
+	order := []string{CategoryPlaces, CategoryRoutes, CategoryWeather, CategoryCalendar, CategoryExchangeRate, CategoryPrice, CategoryAvailability}
 	out := make([]ProviderLimit, 0, len(order))
 	for _, category := range order {
 		if limit, ok := g.registry[category]; ok {

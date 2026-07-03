@@ -73,7 +73,11 @@ function formatDayIssueBullet(issue: QualityIssue): string {
     issue.type === "conversion_unavailable" ||
     issue.type === "missing_ticket_price" ||
     issue.type === "high_ticket_cost" ||
-    issue.type === "provider_price_low_confidence"
+    issue.type === "provider_price_low_confidence" ||
+    issue.type === "availability_unchecked" ||
+    issue.type === "availability_unavailable" ||
+    issue.type === "availability_limited" ||
+    issue.type === "booking_price_higher_than_estimate"
   ) {
     return issue.instructionHint;
   }
@@ -120,6 +124,15 @@ function formatItemIssueBullet(issue: QualityIssue): string {
 
   if (issue.type === "provider_price_low_confidence") {
     return "Verify this attraction cost and suggest alternatives if uncertain.";
+  }
+
+  if (
+    issue.type === "availability_unchecked" ||
+    issue.type === "availability_unavailable" ||
+    issue.type === "availability_limited" ||
+    issue.type === "booking_price_higher_than_estimate"
+  ) {
+    return issue.instructionHint;
   }
 
   return issue.instructionHint;

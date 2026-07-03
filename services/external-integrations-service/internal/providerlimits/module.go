@@ -54,6 +54,7 @@ func resolveLimits(cfg *config.Config) []ProviderLimit {
 		exchangeRateLimit(cfg),
 		limitFor(CategoryPrice, cfg.PriceProvider.Provider, config.PriceProviderAPI,
 			pl.PriceRatePerMinute, pl.PriceBurst, pl.PriceDailyQuota),
+		availabilityLimit(cfg),
 	}
 }
 
@@ -81,4 +82,21 @@ func exchangeRateLimit(cfg *config.Config) ProviderLimit {
 		}
 	}
 	return ProviderLimit{Category: CategoryExchangeRate, Provider: active}
+}
+
+// availabilityLimit resolves the availability provider limit. Mock remains
+// unlimited; any real provider shares the AVAILABILITY_* controls in v1.
+func availabilityLimit(cfg *config.Config) ProviderLimit {
+	active := cfg.Availability.Provider
+	pl := cfg.ProviderLimits
+	if active != config.AvailabilityProviderMock && active != "" {
+		return ProviderLimit{
+			Category:      CategoryAvailability,
+			Provider:      active,
+			RatePerMinute: pl.AvailabilityRatePerMinute,
+			Burst:         pl.AvailabilityBurst,
+			DailyQuota:    pl.AvailabilityDailyQuota,
+		}
+	}
+	return ProviderLimit{Category: CategoryAvailability, Provider: active}
 }

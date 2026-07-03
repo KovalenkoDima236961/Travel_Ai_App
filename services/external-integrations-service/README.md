@@ -2,7 +2,8 @@
 
 Go service that isolates third-party integration boundaries from the Web App and
 Trip Service. It exposes stable application APIs for places, routes, weather,
-exchange rates, attraction/ticket price estimates, and Google Calendar sync.
+exchange rates, attraction/ticket price estimates, availability checks, and
+Google Calendar sync.
 
 Mock providers are the local default. Real providers are opt-in and keep API
 keys server-side.
@@ -19,6 +20,7 @@ flowchart LR
     API --> Weather["Weather provider port"]
     API --> Rates["Exchange-rate provider port"]
     API --> Prices["Price provider port"]
+    API --> Availability["Availability provider port"]
     API --> Calendar["Calendar provider port"]
 
     Places --> PlacesMock["mock"]
@@ -29,6 +31,8 @@ flowchart LR
     Weather --> OWM["OpenWeatherMap"]
     Rates --> RatesMock["mock"]
     Prices --> PricesMock["mock"]
+    Availability --> AvailabilityMock["mock"]
+    Availability --> AvailabilityReal["GetYourGuide / Viator / Tiqets<br/>reserved adapters"]
     Calendar --> CalendarMock["mock"]
     Calendar --> Google["Google Calendar"]
 
@@ -53,6 +57,7 @@ Google Calendar directly.
 | `GET` | `/exchange-rates/latest?base=` | none v1 | Latest deterministic/real rate table. |
 | `GET` | `/exchange-rates/convert?amount=&from=&to=` | none v1 | Currency conversion. |
 | `POST` | `/prices/estimate` | `X-Internal-Service-Token` | Internal attraction/ticket estimate. |
+| `POST` | `/availability/search` | bearer access token | User-triggered ticket/activity availability search. |
 | `GET` | `/calendar/google/status` | bearer access token | Connected calendar account status. |
 | `POST` | `/calendar/google/connect` | bearer access token | Start OAuth flow. |
 | `GET` | `/calendar/google/callback` | OAuth state | Complete provider callback. |
@@ -73,6 +78,7 @@ Google Calendar directly.
 | Weather | `WEATHER_PROVIDER=mock` | `openweathermap` | `WEATHER_PROVIDER_FALLBACK_TO_MOCK` |
 | Exchange rates | `EXCHANGE_RATE_PROVIDER=mock` | reserved future adapters | `EXCHANGE_RATE_PROVIDER_FALLBACK_TO_MOCK` |
 | Prices | `PRICE_PROVIDER=mock` | reserved future API adapter | `PRICE_PROVIDER_FALLBACK_TO_MOCK` |
+| Availability | `AVAILABILITY_PROVIDER=mock` | `getyourguide`, `viator`, `tiqets` placeholders | `AVAILABILITY_FALLBACK_TO_MOCK` |
 | Calendar | `CALENDAR_PROVIDER=mock` | `google` | none; validate config |
 
 Unsupported provider names fail startup. When fallback is enabled, missing keys
@@ -88,6 +94,7 @@ flowchart TD
     Weather["WeatherForecast<br/>destination, provider, days[], warnings"]
     Rate["ExchangeRate<br/>base, rates, provider, asOf"]
     Price["PriceEstimate<br/>estimatedCost, provider, matchConfidence"]
+    Availability["AvailabilitySearchResult<br/>status, provider, cached,<br/>match, options[], warnings"]
     Calendar["CalendarSync<br/>OAuth state, encrypted tokens, event sync"]
 
     Place --> Trip["Trip itinerary JSON"]
@@ -95,6 +102,7 @@ flowchart TD
     Weather --> Trip
     Rate --> Budget["Trip budget summaries"]
     Price --> Budget
+    Availability --> Budget
     Calendar --> Google["User calendar events"]
 ```
 
@@ -149,6 +157,38 @@ curl -X POST "http://localhost:8084/prices/estimate" \
   -d '{"destination":"Rome","currency":"EUR","itemContext":{"name":"Colosseum","type":"attraction"}}'
 ```
 
+Authenticated availability search:
+
+```bash
+curl -X POST "http://localhost:8084/availability/search" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "destination":"Rome",
+    "date":"2026-08-10",
+    "currency":"EUR",
+    "travelers":{"adults":2},
+    "item":{
+      "name":"Visit the Colosseum",
+      "type":"attraction",
+      "startTime":"10:00",
+      "place":{
+        "name":"Colosseum",
+        "lat":41.8902,
+        "lng":12.4922,
+        "provider":"mock",
+        "providerPlaceId":"mock-colosseum"
+      }
+    }
+  }'
+```
+
+Responses use `status` values `available`, `limited`, `unavailable`, or
+`unknown`. Options include normalized price, price type, start times, duration,
+safe HTTPS booking URL, provider display name, warnings, and cache metadata.
+The endpoint checks availability only; checkout and in-app bookings are out of
+scope for v1.
+
 ## Important Configuration
 
 | Variable | Purpose |
@@ -161,6 +201,7 @@ curl -X POST "http://localhost:8084/prices/estimate" \
 | `ROUTE_PROVIDER`, `ORS_API_KEY` | Route provider selection and key. |
 | `WEATHER_PROVIDER`, `OPENWEATHER_API_KEY` | Weather provider selection and key. |
 | `EXCHANGE_RATE_*`, `PRICE_*` | Currency and attraction price settings. |
+| `AVAILABILITY_*`, `GETYOURGUIDE_*`, `VIATOR_*`, `TIQETS_*` | Availability provider selection, cache, fallback, and reserved real-provider settings. |
 | `GOOGLE_CALENDAR_ENABLED`, `CALENDAR_PROVIDER` | Calendar sync provider mode. |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URL` | Real Google OAuth settings. |
 | `CALENDAR_TOKEN_ENCRYPTION_KEY` | AES-GCM key for stored calendar tokens. |
@@ -210,6 +251,8 @@ back still counts (conservative v1 behavior). Each call costs 1 unit.
 - places/routes/weather/exchange/price fall back to mock when
   `*_PROVIDER_FALLBACK_TO_MOCK=true` (response carries `fallbackUsed: true`);
   otherwise the handler returns a controlled error.
+- availability falls back to mock when `AVAILABILITY_FALLBACK_TO_MOCK=true`
+  and returns a warning that the result is estimated fallback availability.
 - Google Calendar writes never fall back to mock — a limited write is reported as
   a controlled failure and no fake event is created.
 
@@ -229,6 +272,10 @@ returns `provider_limits_unavailable`, `true` allows — production should be
 `provider_quota_remaining`, `provider_rate_limit_tokens_available`,
 `provider_fallback_due_to_limit_total`, `provider_limit_check_duration_seconds`.
 Existing `external_provider_*` metrics are unchanged.
+Availability also exposes `availability_search_requests_total`,
+`availability_search_duration_seconds`, `availability_options_returned_total`,
+`availability_cache_hits_total`, `availability_cache_misses_total`,
+`availability_fallback_total`, and `availability_errors_total`.
 
 **Ops** endpoints (`/ops/providers/quotas*`, admin-only) expose usage, blocked,
 fallback counts, remaining quota, and status
@@ -249,6 +296,9 @@ production.
   should use mock fallback in local development.
 - Price estimates are approximate hints, not booking, checkout, inventory, or
   guaranteed live pricing.
+- Availability checks are external-link handoffs only. They do not reserve
+  inventory, process payment, or guarantee that a quoted price remains available.
+  Caches are in-memory and can be stale until the TTL expires.
 - Calendar sync is Google-only, primary-calendar-only, one-way, and app-owned
   event oriented.
 

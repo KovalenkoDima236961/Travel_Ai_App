@@ -5,6 +5,7 @@ import { getCostAmount, getCostCategory, getCostCurrency } from "@/lib/budget/fo
 import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import type { TripAccommodation } from "@/types/accommodation";
+import type { AvailabilityResultByItem, AvailabilitySearchResponse } from "@/types/availability";
 import type { Budget, BudgetSummary } from "@/types/budget";
 import type { QualityIssue, QualityIssueSeverity, QualitySummary } from "@/types/quality";
 import type { RouteEstimate } from "@/types/route";
@@ -23,6 +24,7 @@ type AnalyzeItineraryQualityParams = {
   tripBudget?: Budget | null;
   budgetSummary?: BudgetSummary | null;
   expensiveItemThreshold?: number;
+  availabilityResultsByItem?: AvailabilityResultByItem;
 };
 
 // Default absolute threshold (in the trip currency) above which a single paid
@@ -31,6 +33,7 @@ const DEFAULT_EXPENSIVE_ITEM_THRESHOLD = 150;
 const DEFAULT_HIGH_TICKET_COST_THRESHOLD = 50;
 const DAY_BUDGET_OVERRUN_RATIO = 1.25;
 const TRIP_BUDGET_CRITICAL_RATIO = 1.2;
+const AVAILABILITY_RECENT_MS = 15 * 60 * 1000;
 
 // Item types that usually carry a cost; a missing estimate on these is flagged.
 const paidItemTypeTerms = [
@@ -115,7 +118,8 @@ export function analyzeItineraryQuality({
   placeMatchConfidenceThreshold = DEFAULT_PLACE_MATCH_CONFIDENCE_THRESHOLD,
   tripBudget,
   budgetSummary,
-  expensiveItemThreshold
+  expensiveItemThreshold,
+  availabilityResultsByItem
 }: AnalyzeItineraryQualityParams): QualitySummary {
   const issues: QualityIssue[] = [];
   const summaries =
@@ -168,6 +172,15 @@ export function analyzeItineraryQuality({
           dayNumber,
           itemIndex,
           placeMatchConfidenceThreshold
+        )
+      );
+
+      issues.push(
+        ...getAvailabilityIssues(
+          item,
+          dayNumber,
+          itemIndex,
+          availabilityResultsByItem?.[availabilityResultKey(dayNumber, itemIndex)]
         )
       );
     }
@@ -451,6 +464,124 @@ function itemLikelyNeedsTicketPrice(item: ItineraryItem): boolean {
     return false;
   }
   return paidAttractionTypeTerms.some((term) => haystack.includes(term));
+}
+
+function getAvailabilityIssues(
+  item: ItineraryItem,
+  dayNumber: number,
+  itemIndex: number,
+  result?: AvailabilitySearchResponse
+): QualityIssue[] {
+  if (!itemLikelyNeedsTicketPrice(item)) {
+    return [];
+  }
+
+  const issues: QualityIssue[] = [];
+  const itemName = item.name || "This item";
+
+  if (!result || !isRecentAvailabilityResult(result)) {
+    issues.push({
+      id: `day-${dayNumber}-item-${itemIndex}-availability-unchecked`,
+      type: "availability_unchecked",
+      severity: "info",
+      scope: "item",
+      dayNumber,
+      itemIndex,
+      title: "Availability not checked",
+      message: `${itemName} may require a date-specific ticket or reservation.`,
+      suggestion: "Check availability before relying on this itinerary item.",
+      instructionHint:
+        "This item needs a user-confirmed availability check before replacing it automatically.",
+      metadata: { itemType: item.type ?? null }
+    });
+    return issues;
+  }
+
+  if (result.status === "unavailable") {
+    issues.push({
+      id: `day-${dayNumber}-item-${itemIndex}-availability-unavailable`,
+      type: "availability_unavailable",
+      severity: "warning",
+      scope: "item",
+      dayNumber,
+      itemIndex,
+      title: "Availability unavailable",
+      message: `${itemName} appears unavailable for the selected date.`,
+      suggestion: "Regenerate or replace this item after confirming on the provider website.",
+      instructionHint: "Replace this unavailable bookable item with a realistic alternative.",
+      metadata: { provider: result.provider, checkedAt: result.checkedAt }
+    });
+  }
+
+  if (result.status === "limited") {
+    issues.push({
+      id: `day-${dayNumber}-item-${itemIndex}-availability-limited`,
+      type: "availability_limited",
+      severity: "info",
+      scope: "item",
+      dayNumber,
+      itemIndex,
+      title: "Limited availability",
+      message: `${itemName} has limited availability for the selected date.`,
+      suggestion: "Book externally soon or consider a backup option.",
+      instructionHint: "Keep this item only if the user confirms the limited external availability.",
+      metadata: { provider: result.provider, checkedAt: result.checkedAt }
+    });
+  }
+
+  const currentAmount = getCostAmount(item.estimatedCost);
+  const currentCurrency = getCostCurrency(item.estimatedCost);
+  const providerPrice = firstProviderPrice(result);
+  if (
+    currentAmount != null &&
+    providerPrice &&
+    (!currentCurrency || currentCurrency.toUpperCase() === providerPrice.currency.toUpperCase())
+  ) {
+    const difference = providerPrice.amount - currentAmount;
+    if (
+      difference > 0 &&
+      (difference >= 10 || (currentAmount > 0 && difference / currentAmount >= 0.2))
+    ) {
+      issues.push({
+        id: `day-${dayNumber}-item-${itemIndex}-booking-price-higher`,
+        type: "booking_price_higher_than_estimate",
+        severity: "warning",
+        scope: "item",
+        dayNumber,
+        itemIndex,
+        title: "Provider price is higher",
+        message: `${itemName} has a provider price of ${money(
+          providerPrice.amount,
+          providerPrice.currency
+        )}, above the current ${money(currentAmount, providerPrice.currency)} estimate.`,
+        suggestion: "Update the budget price or optimize the day budget.",
+        instructionHint:
+          "The provider booking price is higher than the current estimate; update budget or suggest cheaper alternatives.",
+        metadata: {
+          provider: result.provider,
+          providerAmount: providerPrice.amount,
+          currentAmount,
+          difference
+        }
+      });
+    }
+  }
+
+  return issues;
+}
+
+function availabilityResultKey(dayNumber: number, itemIndex: number) {
+  return `${dayNumber}:${itemIndex}`;
+}
+
+function isRecentAvailabilityResult(result: AvailabilitySearchResponse) {
+  const checked = new Date(result.checkedAt).getTime();
+  return Number.isFinite(checked) && Date.now() - checked <= AVAILABILITY_RECENT_MS;
+}
+
+function firstProviderPrice(result: AvailabilitySearchResponse) {
+  const option = result.options.find((currentOption) => currentOption.price);
+  return option?.price ?? null;
 }
 
 function money(amount: number, currency: string): string {
