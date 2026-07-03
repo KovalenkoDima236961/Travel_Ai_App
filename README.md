@@ -1,281 +1,215 @@
 # Travel AI App
 
-AI travel planning project with Go Auth Service, Go Trip Service, Go User
-Service, Go External Integrations Service, Go Notification Service, Go Worker
-Service, RabbitMQ, Python/FastAPI AI Planning Service, and a Next.js web app.
+Travel AI App is a local-first, multi-service travel planning system. It
+combines a Next.js web app, Go microservices, a FastAPI AI planning service,
+RabbitMQ-backed generation jobs, PostgreSQL-owned service data, and a local
+Prometheus/Grafana observability stack.
 
-Auth Service v1 lives in `services/auth-service` and supports email/password
-registration, login, refresh token rotation, logout, and JWT-backed `/auth/me`.
-Trip Service validates those JWT access tokens locally with the shared
-`JWT_ACCESS_SECRET` and scopes `/trips` data by the authenticated `sub` user ID.
-Trip Service also records itinerary version snapshots after generation, manual
-edits, partial regeneration, and restores; users can preview older versions and
-restore them without deleting history. Conflict Detection v1 adds integer
-`itineraryRevision` values and requires itinerary mutations to send
-`expectedItineraryRevision`; stale mutations return HTTP `409
-itinerary_conflict` instead of silently overwriting newer changes. Authenticated
-trip owners can also create one public read-only share link per trip. Public
-share links use opaque random tokens, expose only sanitized trip/itinerary data
-at `/share/{shareToken}`, and can be disabled by the owner. Share Controls v1
-adds optional expiration and password protection; protected public viewers
-unlock with a short-lived public share token that is separate from normal user
-auth JWTs and scoped to one share token.
-Collaborative Planning v1 lets trip owners invite existing registered users by
-email as `viewer` or `editor` collaborators. Pending invitees can accept from
-the web app, accepted viewers get read-only private trip access, and accepted
-editors can edit/regenerate/restore itinerary versions without managing public
-sharing or collaborators. Public share links remain independent and read-only.
-Itinerary Comments v1 lets owners and accepted collaborators (viewer or editor)
-leave comments on individual itinerary items. Comments live in a dedicated
-`itinerary_comments` table (never in the itinerary JSON), are linked by
-`trip_id`/`day_number`/`item_index`, and are soft-deleted. Authors can edit and
-delete their own comments; trip owners can delete any comment. Comments are a
-private authenticated feature and are never exposed on public share links/pages.
-Real-time Trip Presence v1 lets owners and accepted collaborators see who else
-is viewing or editing a private trip. Trip Service exposes an authenticated SSE
-stream and advisory state update endpoint backed by an in-memory,
-single-instance presence manager. The Web App shows `Currently here` on private
-trip detail pages and warns when another collaborator is editing. Presence is
-not a lock, does not sync documents, and is never shown on public share pages;
-revision-checked writes are the backend protection against stale itinerary
-saves.
-Soft Edit Locks v1 add advisory, in-memory itinerary edit locks in Trip Service.
-Owners/editors attempt to acquire or renew a temporary lock before manual edit
-mode, viewers can only read lock status, and public share viewers have no
-access. If another editor holds the lock, the Web App warns the user but allows
-`Continue anyway`; `itineraryRevision` conflict detection remains the final
-safety mechanism. Locks are instance-local, expire automatically, and are not
-hard blocking.
-Background Jobs v1 moves slow AI full generation, day/item regeneration, quality
-improvements, and budget optimization to PostgreSQL-backed
-`trip_generation_jobs` rows dispatched through RabbitMQ in local compose.
-Trip Service validates and creates jobs, publishes small messages to
-`trip.jobs.exchange`, and `services/worker-service` consumes them from
-`trip.generation.jobs`. The Web App creates jobs, shows a status card, polls job
-state, and refetches the trip when the job completes. Jobs check
-`expectedItineraryRevision` when queued and again through the final
-revision-aware save, so newer itinerary edits are not overwritten; stale jobs
-fail visibly with `itinerary_conflict`. The in-process Trip Service worker
-remains available with `GENERATION_JOB_DISPATCH_MODE=in_process`; queue mode has
-manual ACK/NACK, retries, and a DLQ. There is no Kafka, Redis queue, distributed
-locking, transactional outbox, or progress streaming in v1.
-Activity Feed / Audit Log v1 records important successful actions on a trip
-(creation, generation, edits, regenerations, version restores, comments,
-collaborator changes, and share setting changes) as persistent rows in a
-dedicated `trip_activity_events` table. The owner and accepted collaborators read
-a chronological, newest-first feed via `GET /trips/{id}/activity` (cursor
-paginated); pending/removed/non-collaborators get `404` and there is no public
-route, so public share viewers never see activity. Events are recorded only
-after an action succeeds, recording failures never fail the action, and metadata
-is small and sanitized (no secrets, passwords, tokens, comment bodies, or full
-itinerary JSON). The web app shows a `Recent activity` panel on private trip
-detail pages. Real-time Activity Feed v1 adds an authenticated, fetch-based SSE
-stream at `GET /trips/{id}/activity/stream`; connected private collaborators
-receive best-effort `activity.created` events and the web app refetches the feed
-live. The persistent activity endpoint remains the source of truth; the stream
-is in-memory only, has no replay, and is never available to public share viewers.
-Notification Service v1 lives in `services/notification-service` and owns
-private, per-user in-app notifications in its own database. After a successful
-collaboration/comment/itinerary action, Trip Service calls the Notification
-Service **synchronously over HTTP** (internal `POST /internal/notifications/batch`,
-authenticated with a shared `INTERNAL_SERVICE_TOKEN`) to create notifications for
-the affected users — owner and accepted collaborators, never the actor
-themselves. Notification creation is fail-open: a failure is logged and never
-breaks the originating Trip Service action. Users read their own notifications
-from user-facing endpoints (`GET /notifications`, `GET /notifications/unread-count`,
-`PATCH /notifications/{id}/read`, `PATCH /notifications/read-all`) that require a
-valid Auth Service JWT, so users only ever see their own notifications and public
-share viewers have no access. The web app shows a header notification bell with a
-real-time SSE-backed unread badge, polling fallback, a dropdown of recent
-notifications, and a `/notifications` page; clicking a notification marks it
-read and navigates to the related trip.
-The Notification Service also supports **optional email notifications (v1)**: for
-selected types (collaboration invited, comment created, collaborator role
-changed/removed by default) it resolves the recipient's email from Auth Service
-(internal `POST /internal/users/batch`) and sends a short email after the in-app
-rows are created. Notification Preferences v1 lets each authenticated user
-control global category preferences for in-app, email, and browser push delivery through
-`GET/PUT /notifications/preferences`; missing rows use defaults where in-app
-and push categories are enabled and email trip updates are disabled. Email is
-behind a provider switch (`EMAIL_PROVIDER=mock` by default — sends nothing
-externally; `smtp` for real delivery) and is fail-open by default, so an email
-failure never affects in-app notification creation. Web Push Notifications v1
-uses VAPID browser Push API subscriptions, stores multiple subscriptions per
-user, sends short lock-screen-safe payloads for important events, and disables
-expired/gone subscriptions automatically. Real-time notification delivery uses
-authenticated Server-Sent Events from Notification Service with an in-memory,
-single-instance connection manager; polling remains the recovery path. No native
-mobile push, FCM/APNS, WebSockets, RabbitMQ, background workers, per-trip
-notification preferences, quiet hours, unsubscribe links, or digests in v1 — the
-synchronous HTTP design is deliberately simple and replaceable by an event bus /
-async worker later.
-User/Profile Service v1 lives in `services/user-service` and owns travel
-profiles/preferences for authenticated users, also scoped by the JWT `sub`.
-AI Planning Service owns itinerary generation and local travel knowledge.
-When a user generates an itinerary, Trip Service fetches that user's profile and
-preferences from User Service by forwarding the user's JWT, then sends optional
-`userProfile` and `userPreferences` to AI Planning Service for prompt
-personalization. Trip Service can also fetch a mock weather forecast from
-External Integrations Service and forward optional `weatherForecast` context so
-AI prompts can adapt to rain, heat, cold, or wind. After AI generation, Trip
-Service can also call External Integrations Service to auto-attach
-high-confidence place metadata to suitable itinerary items; enrichment is
-optional and fail-open by default. Access tokens and full preference payloads
-should not be logged.
-External Integrations Service v1 lives in
-`services/external-integrations-service` and owns place search/details, route
-estimation, weather forecast, exchange-rate, and attraction/ticket price provider
-boundaries.
-Place search/details use the deterministic mock provider by default and can
-optionally use Foursquare via `PLACE_PROVIDER=foursquare`; mock remains the local
-no-key default. Routing and weather likewise support real providers behind clean
-provider abstractions while keeping the `POST /routes/estimate` and
-`GET /weather/forecast` contracts stable: real routing via OpenRouteService
-(`ROUTE_PROVIDER=ors`) and real weather via OpenWeatherMap
-(`WEATHER_PROVIDER=openweathermap`), each opt-in with mock as the default and the
-fail-open fallback. Exchange-rate v1 exposes deterministic mock
-`GET /exchange-rates/latest` and `GET /exchange-rates/convert` endpoints used by
-Trip Service budget summaries; real exchange-rate provider names are reserved
-for future adapters. Attraction/ticket price v1 exposes an internal deterministic
-mock `POST /prices/estimate` endpoint used by Trip Service price enrichment; real
-price provider fields are placeholders for future adapters. Results are cached in
-a small in-memory TTL cache, and provider API keys never reach the Web App. The
-Web App calls this service when
-attaching optional place metadata to itinerary items, estimating per-day routes
-via `POST /routes/estimate`, and showing trip weather via
-`GET /weather/forecast`; Trip Service calls it for budget conversion and
-generated-item ticket estimates. Route, weather, exchange-rate, and price data
-are read-only; attached places can also carry optional local `openingHours`
-intervals (`dayOfWeek` 1 Monday through 7 Sunday, `HH:mm` local time). The Web
-App shows advisory closed-place warnings when hours are available and handles
-missing real provider fields gracefully. No real Google Places provider, real
-opening-hours provider, Google Maps routing, historical exchange rates, real
-ticket booking/checkout provider, or trading-grade rate accuracy is enabled yet.
-Calendar Sync v1 is implemented inside External Integrations Service rather
-than a separate Calendar Service. Users can connect one Google Calendar account
-through server-side OAuth, tokens are encrypted at rest, and Trip Service can
-one-way sync timed itinerary items as Google Calendar events. Sync is per user
-and per private trip; owners and editors can sync their own calendars, viewers
-and public share viewers cannot. v1 uses the primary calendar only, the
-`calendar.events` scope, and no two-way sync, webhooks, recurring events, or
-Apple/Outlook providers.
-Budget Tracking v1 gives each trip an optional structured budget
-(`{ amount, currency }`) and each itinerary item an optional structured
-`estimatedCost` (`{ amount, currency, category, confidence, source, note }`,
-AI-estimated or manually edited). Trip Service computes a budget summary on
-demand via `GET /trips/{id}/budget-summary` (estimated total, remaining/over,
-daily and category breakdowns) and owners/editors set the budget via
-`PUT /trips/{id}/budget` without touching the itinerary revision. Manual item
-cost edits reuse the existing revision-checked `PUT /trips/{id}/itinerary` flow,
-so conflict detection and version history apply unchanged. Multi-currency
-Support v1 converts item and accommodation estimates into the trip budget
-currency with External Integrations Service exchange rates, preserves original
-currency totals, and reports conversion warnings when a cost cannot be
-converted. The Web App shows a `BudgetPanel`, item cost badges, approximate
-converted totals, and budget-aware quality warnings (over-budget trip/day,
-expensive items, missing estimates, conversion gaps, and provider ticket-price
-review hints). AI generation/regeneration prefers the trip/preferred currency but
-may use local currencies when natural; the backend conversion is the source of
-truth for budget totals. Trip Service can enrich likely ticketed attractions with
-deterministic provider `estimatedCost` values after generation while preserving
-manual costs by default. v1 has no real ticket booking/checkout provider,
-historical rates, crypto rates, or financial accuracy guarantees, and never
-exposes the private trip budget or provider review metadata on the public share
-page.
-Advanced AI Budget Optimization v1 lets owners/editors request a day-level
-cheaper-itinerary proposal from AI without automatically overwriting the trip.
-Trip Service queues a `budget_optimization_day` job, sends the selected day plus
-budget, accommodation, weather, route, and preference context to AI Planning
-Service `/optimize-budget/day`, stores the validated proposal in
-`budget_optimization_proposals`, and shows it in the Web App for explicit review.
-Applying a proposal uses `expectedItineraryRevision`, replaces only that day,
-increments the revision once, and creates version/activity records; discarding
-does not change the itinerary. Accepted viewers can read private proposals but
-cannot create/apply/discard them, and public shares expose none of this UI or
-API surface.
-Accommodation Planning v1 adds one private structured stay location per trip.
-Owners/editors can add, edit, or remove an accommodation with name/type/address,
-optional attached place coordinates, check-in/check-out dates, notes, and an
-optional accommodation `estimatedCost`; accepted viewers can read it on private
-trips. Trip Service stores it as JSONB on `trips`, includes its cost in the
-budget summary, forwards it to AI generation/regeneration, and records sanitized
-activity events. The Web App shows an `Accommodation` panel, uses the stay as a
-daily route start/end anchor when coordinates exist, includes it in private PDF
-exports, and omits structured accommodation from public share pages/exports.
-v1 has no hotel search provider, booking flow, multi-stay support, real booking
-price feed, or check-in/out calendar events.
+The default development stack runs at `http://localhost:3000`.
 
-Web App v1 supports register/login/logout and stores tokens in `localStorage`
-for development. Secure httpOnly cookies should replace localStorage token
-storage before production.
+## System Map
 
-Web App v1 lives in `apps/web`. The local full stack runs from
-`infra/docker-compose.yml`, and the browser URL is `http://localhost:3000`.
-Detailed full-stack instructions are in [infra/README.md](infra/README.md).
+```mermaid
+flowchart LR
+    Browser["Browser"] --> Web["Next.js Web App<br/>apps/web<br/>:3000"]
 
-## Local Development
+    Web --> Auth["Auth Service<br/>:8082"]
+    Web --> Trip["Trip Service<br/>:8080"]
+    Web --> User["User Service<br/>:8083"]
+    Web --> External["External Integrations<br/>:8084"]
+    Web --> Notify["Notification Service<br/>:8086"]
 
-Local application infrastructure is defined in `infra/docker-compose.yml`; the main
-compose file intentionally lives under `infra/`, not the project root.
+    Trip --> Auth
+    Trip --> User
+    Trip --> External
+    Trip --> Notify
+    Trip --> AI["AI Planning Service<br/>FastAPI :8000"]
+    Trip --> Rabbit["RabbitMQ<br/>trip.generation.jobs"]
 
-Start with:
+    Worker["Worker Service<br/>:8090"] --> Rabbit
+    Worker --> TripDB[("PostgreSQL<br/>trip_service")]
+    Worker --> AI
+    Worker --> External
+    Worker --> Notify
+
+    Auth --> AuthDB[("PostgreSQL<br/>auth_service")]
+    User --> UserDB[("PostgreSQL<br/>user_service")]
+    Trip --> TripDB
+    Notify --> NotifyDB[("PostgreSQL<br/>notification_service")]
+    External --> ExternalDB[("PostgreSQL<br/>external_integrations_service")]
+    AI --> Chroma[("ChromaDB volume<br/>local RAG")]
+    AI --> Ollama["Ollama<br/>:11434"]
+
+    Prom["Prometheus :9090"] --> Auth
+    Prom --> Trip
+    Prom --> User
+    Prom --> External
+    Prom --> Notify
+    Prom --> AI
+    Prom --> Worker
+    Grafana["Grafana :3001"] --> Prom
+```
+
+## Services
+
+| Area | Path | Port | Responsibility |
+| ---- | ---- | ---- | -------------- |
+| Web app | [apps/web](apps/web/README.md) | `3000` | Trip UX, collaboration, exports, notifications, calendar controls. |
+| Auth | [services/auth-service](services/auth-service/README.md) | `8082` | Email/password auth, JWT access tokens, refresh-token rotation, internal user lookup. |
+| Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Trip ownership, collaborators, itinerary revisions, jobs, budgets, comments, shares, activity. |
+| Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile and preference data scoped by Auth JWT `sub`. |
+| External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, weather, exchange rates, price estimates, Google Calendar integration boundary. |
+| Notifications | [services/notification-service](services/notification-service/README.md) | `8086` | In-app notifications, SSE, preferences, optional email and browser push. |
+| Worker | [services/worker-service](services/worker-service/README.md) | `8090` | RabbitMQ consumer for slow generation and budget optimization jobs. |
+| AI planning | [services/ai-planning-service](services/ai-planning-service/README.md) | `8000` | Itinerary generation, regeneration, budget proposals, destination context, local RAG. |
+| Local infra | [infra](infra/README.md) | mixed | Docker Compose, Postgres, RabbitMQ, Ollama, Adminer, Prometheus, Grafana. |
+| Observability | [infra/observability](infra/observability/README.md) | `9090`, `3001` | Metrics, dashboards, correlation IDs, label rules. |
+
+## Core Workflows
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant W as Web App
+    participant A as Auth Service
+    participant T as Trip Service
+    participant Q as RabbitMQ
+    participant X as Worker Service
+    participant AI as AI Planning Service
+    participant E as External Integrations
+    participant N as Notification Service
+
+    U->>W: Create trip and generate itinerary
+    W->>A: Login/register
+    A-->>W: Access and refresh tokens
+    W->>T: POST /trips/{id}/generation-jobs
+    T->>Q: Publish job message
+    T-->>W: 202 Accepted + job id
+    X->>Q: Consume job
+    X->>T: Claim job row in trip DB
+    X->>E: Optional weather, place, price, rates
+    X->>AI: Generate or optimize itinerary
+    X->>T: Save revision-aware result
+    X->>N: Best-effort notification
+    W->>T: Poll job until completed
+    T-->>W: Updated trip + itineraryRevision
+```
+
+Key product capabilities:
+
+- Authenticated trip planning with private ownership and collaborator roles.
+- Optimistic concurrency through `itineraryRevision` and explicit
+  `expectedItineraryRevision` writes.
+- Asynchronous full generation, day/item regeneration, quality improvement, and
+  budget optimization jobs.
+- Version history, restore, comments, activity feed, presence, and advisory edit
+  locks for private trips.
+- Public read-only share links with optional expiration and password unlock.
+- Budget summaries with multi-currency conversion, accommodation cost support,
+  provider ticket estimates, and reviewable AI budget proposals.
+- Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
+  email, and browser push integrations behind mock-first provider boundaries.
+
+## Quick Start
 
 ```bash
 cp infra/.env.example infra/.env
 ./scripts/dev-setup.sh
+docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
-Run the full app smoke test with:
+Open:
+
+- Web app: `http://localhost:3000`
+- Grafana: `http://localhost:3001` (`admin` / `admin`)
+- Prometheus: `http://localhost:9090`
+- RabbitMQ management: `http://localhost:15672` (`guest` / `guest`)
+- Adminer: `http://localhost:8081`
+
+Run the full-stack smoke test:
 
 ```bash
 ./scripts/smoke-test.sh
 ```
 
-The smoke test registers/logs in a unique user, checks profile/preferences
-defaults and updates, creates and generates a trip with
-`Authorization: Bearer <accessToken>`, exercises personalized generation,
-registers a second user and verifies collaborator invite/accept/viewer/editor
-permissions/removal,
-searches mock places, checks mock route and weather endpoints, saves attached
-place metadata with opening hours through Trip Service, verifies public trip
-sharing create/status/password unlock/clear/disable behavior, verifies itinerary
-version history and restore behavior, exercises itinerary comments
-(create/list/counts/update/soft-delete, owner-deletes-any, collaborator-cannot-
-delete-others, comments require auth, and public shares expose no comments),
-verifies the activity feed records major actions and that
-owner/accepted-collaborator can read it while pending/removed/non-collaborators,
-unauthenticated requests, and the public share endpoint cannot,
-checks presence state/snapshot access for owners, collaborators, removed
-collaborators, and non-collaborators,
-checks notification preferences can suppress and re-enable future comment
-notifications, verifies itinerary revision conflict detection rejects stale
-manual edits and day regeneration attempts,
-exercises accommodation add/read/delete, budget inclusion, viewer read-only
-permissions, activity feed events, and public-share redaction,
-confirms only that user can access the trip and versions, and logs out.
+## Development Commands
 
-See `infra/README.md` for direct Docker Compose commands, Ollama model pulls,
-knowledge indexing, useful URLs, and troubleshooting. The full app can be
-started with:
+From the repository root:
 
 ```bash
+cp infra/.env.example infra/.env
+./scripts/dev-setup.sh
+./scripts/index-knowledge.sh
+./scripts/smoke-test.sh
 docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
-## Production Observability v1
+From a Go service directory:
 
-The local stack includes Prometheus and Grafana for API, worker, RabbitMQ, AI,
-notification, auth/user, and external-provider health.
+```bash
+make fmt
+make vet
+make test
+make build
+```
 
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001` (`admin` / `admin`, local dev only)
-- RabbitMQ metrics: `http://localhost:15692/metrics`
-- Service metrics: `/metrics` on each Go service, Worker Service, and AI
-  Planning Service
+From `services/ai-planning-service`:
 
-Services propagate `X-Request-ID` and `X-Correlation-ID` through internal HTTP
-calls and RabbitMQ generation-job messages. Logs include those IDs plus bounded
-job/provider fields; metrics intentionally do not label by user, trip, job,
-request, correlation ID, raw destination, prompt, or private payload. See
-[infra/observability/README.md](infra/observability/README.md) for dashboards,
-metric names, and label rules.
+```bash
+make install
+make fmt-check
+make lint
+make test
+```
+
+From `apps/web`:
+
+```bash
+npm install
+npm run dev
+npm run typecheck
+npm run build
+```
+
+## Repository Layout
+
+```text
+.
+├── apps/web                         # Next.js App Router frontend
+├── services/
+│   ├── auth-service                 # Go auth service
+│   ├── trip-service                 # Go trip/domain orchestration service
+│   ├── user-service                 # Go profile/preferences service
+│   ├── external-integrations-service# Go provider boundary service
+│   ├── notification-service         # Go notification service
+│   ├── worker-service               # Go RabbitMQ job worker
+│   └── ai-planning-service          # FastAPI AI service
+├── infra                            # Docker Compose and local observability
+├── scripts                          # Setup, smoke tests, indexing helpers
+├── packages                         # Reserved for shared packages
+└── graphify-out                     # Generated codebase knowledge graph
+```
+
+## Configuration And Security
+
+- Start from `infra/.env.example`; keep real secrets in `infra/.env` or the
+  shell environment only.
+- Auth, Trip, User, and Notification services must share `JWT_ACCESS_SECRET` in
+  local development.
+- Internal service calls use `INTERNAL_SERVICE_TOKEN`; do not expose internal
+  endpoints outside a private network.
+- Browser-facing URLs use `NEXT_PUBLIC_*`; server-side Next.js proxy URLs use
+  `*_INTERNAL_URL`.
+- Do not log access tokens, refresh tokens, internal service tokens, OAuth
+  tokens, API keys, full prompts, full preference payloads, or full private
+  itinerary JSON.
+
+## Documentation Map
+
+- Run the whole stack: [infra/README.md](infra/README.md)
+- Metrics and dashboards: [infra/observability/README.md](infra/observability/README.md)
+- Frontend behavior: [apps/web/README.md](apps/web/README.md)
+- Trip orchestration: [services/trip-service/README.md](services/trip-service/README.md)
+- AI generation and RAG: [services/ai-planning-service/README.md](services/ai-planning-service/README.md)
+
+The generated codebase graph starts at [graphify-out/wiki/index.md](graphify-out/wiki/index.md).

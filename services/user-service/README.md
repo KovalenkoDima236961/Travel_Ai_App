@@ -1,65 +1,84 @@
 # User Service
 
-User/Profile Service v1 owns authenticated users' travel profiles and travel
-preferences. Auth Service owns identity and token issuance; User Service only
-validates Auth Service JWT access tokens locally with the shared
-`JWT_ACCESS_SECRET`.
+Go service that owns each authenticated user's travel profile and preference
+data. Identity stays in Auth Service; User Service validates the Auth Service
+JWT locally and scopes all records by the token `sub` claim.
+
+Trip Service forwards the user's bearer token to this service during itinerary
+generation so AI Planning Service can receive trusted personalization context.
+
+## Data Flow
+
+```mermaid
+sequenceDiagram
+    participant W as Web App
+    participant A as Auth Service
+    participant U as User Service
+    participant T as Trip Service
+    participant AI as AI Planning Service
+
+    W->>A: Login/register
+    A-->>W: Access JWT
+    W->>U: GET/PUT profile, GET/PATCH preferences
+    U-->>W: Data scoped by JWT sub
+    W->>T: Generate itinerary
+    T->>U: Forward user JWT for profile/preferences
+    U-->>T: Trusted personalization context
+    T->>AI: Generate with optional userProfile/userPreferences
+```
 
 ## Endpoints
 
-Public:
+| Method | Path | Auth | Purpose |
+| ------ | ---- | ---- | ------- |
+| `GET` | `/health` | none | Liveness. |
+| `GET` | `/ready` | none | PostgreSQL readiness. |
+| `GET` | `/metrics` | none | Prometheus metrics. |
+| `GET` | `/users/me/profile` | bearer access token | Read current user's profile. |
+| `PUT` | `/users/me/profile` | bearer access token | Replace current user's profile fields. |
+| `GET` | `/users/me/preferences` | bearer access token | Read travel preferences. |
+| `PATCH` | `/users/me/preferences` | bearer access token | Partially update travel preferences. |
 
-- `GET /health`
-- `GET /ready`
+Clients never send `userId`; the user is derived from the JWT `sub`.
 
-Protected:
-
-- `GET /users/me/profile`
-- `PUT /users/me/profile`
-- `GET /users/me/preferences`
-- `PATCH /users/me/preferences`
-
-Protected endpoints require `Authorization: Bearer <accessToken>`. The service
-uses the JWT `sub` claim as the owner user ID; clients must not send `userId`.
-During itinerary generation, Trip Service calls these same protected endpoints
-with the authenticated user's JWT to load trusted profile/preferences for AI
-Planning Service personalization. User Service should continue to avoid logging
-access tokens or sensitive preference payloads.
-
-## Environment
-
-- `APP_ENV=development`
-- `HTTP_ADDRESS=:8083`
-- `POSTGRES_DB=user_service`
-- `POSTGRES_USER=postgres`
-- `POSTGRES_PASSWORD=postgres`
-- `POSTGRES_HOST=localhost`
-- `POSTGRES_PORT=5432`
-- `POSTGRES_MIG_PATH=./migrations`
-- `JWT_ACCESS_SECRET=change-me-in-development`
-- `CORS_ALLOWED_ORIGINS=http://localhost:3000`
-
-In production, `JWT_ACCESS_SECRET` must not be the development default and must
-be at least 32 characters.
-
-## Local Commands
+## Local Development
 
 ```bash
+cd services/user-service
 cp .env.example .env
 set -a; source .env; set +a
 make run
 ```
 
-The service applies golang-migrate migrations on startup. To run them manually:
+Run with YAML config:
+
+```bash
+cp configs/config.example.yaml configs/config.yaml
+make config-run
+```
+
+Migrations run automatically on startup. Manual migration targets are available:
 
 ```bash
 make migrate-up
+make migrate-down
 ```
 
-This service follows the auth/trip service repository style and uses squirrel
-query builders rather than sqlc.
+## Configuration
 
-## Curl Examples
+| Variable | Default | Notes |
+| -------- | ------- | ----- |
+| `APP_ENV` | `development` | Production rejects weak token settings. |
+| `HTTP_ADDRESS` | `:8083` | Listen address. |
+| `AUTH_REQUIRED` | `true` | Keep enabled outside local debugging. |
+| `JWT_ACCESS_SECRET` | `change-me-in-development` | Must match Auth Service. |
+| `AUTH_HEADER_NAME` | `Authorization` | Bearer token header. |
+| `DEV_USER_ID` | fixed UUID | Only used when auth is disabled. |
+| `POSTGRES_*` | local compose defaults | Database and pool settings. |
+| `POSTGRES_MIG_PATH` | `./migrations` | Migration directory. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Browser origin allowlist. |
+
+## Example Calls
 
 ```bash
 TOKEN="<access token>"
@@ -70,39 +89,27 @@ curl -H "Authorization: Bearer ${TOKEN}" \
 curl -X PUT http://localhost:8083/users/me/profile \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "displayName": "Dmytro",
-    "homeCity": "Bratislava",
-    "homeCountry": "Slovakia",
-    "preferredCurrency": "EUR",
-    "preferredLanguage": "en"
-  }'
-
-curl -H "Authorization: Bearer ${TOKEN}" \
-  http://localhost:8083/users/me/preferences
+  -d '{"displayName":"Dmytro","homeCity":"Bratislava","preferredCurrency":"EUR"}'
 
 curl -X PATCH http://localhost:8083/users/me/preferences \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "travelStyles": ["budget", "food", "hidden_gems"],
-    "pace": "balanced",
-    "maxWalkingKmPerDay": 8,
-    "foodPreferences": ["local", "cheap"],
-    "avoid": ["nightclubs"],
-    "preferredTransport": ["walking", "public_transport"],
-    "accommodationStyle": ["budget_hotel"]
-  }'
+  -d '{"travelStyles":["budget","food"],"pace":"balanced","maxWalkingKmPerDay":8}'
 ```
 
-## Observability
+## Development Checks
 
-- `GET /metrics` exposes Prometheus metrics.
-- HTTP middleware records `http_requests_total`,
-  `http_request_duration_seconds`, and `http_requests_in_flight`.
-- User counters include `user_profile_requests_total` and
-  `user_preferences_requests_total`, labeled by bounded operation/result values.
-- The service reads or generates `X-Request-ID` and `X-Correlation-ID`, echoes
-  them on responses, and includes them in request logs.
-- Do not log Authorization headers, full travel preferences, or private profile
-  payloads.
+```bash
+make fmt
+make vet
+make test
+make build
+```
+
+## Observability And Safety
+
+- `GET /metrics` exposes HTTP and user-domain metrics.
+- Request and correlation IDs are generated when missing, echoed in responses,
+  and included in logs.
+- Do not log access tokens, full preference payloads, private profile payloads,
+  or raw Authorization headers.

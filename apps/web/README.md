@@ -1,44 +1,69 @@
 # Travel AI Planner Web
 
-Next.js Web App v1 for registering/logging in, managing profile and travel
-preferences, creating trip requests, listing trips, opening trip details,
-generating itineraries, viewing generated plans, showing mock weather context,
-and editing completed itineraries. Completed trips with itineraries also show
-version history with read-only preview and restore actions. Owners can create a
-public read-only share link for a trip, set expiration/password controls, and
-disable that link later. Owners can also invite registered users to collaborate
-on private trips as viewers or editors.
+Next.js App Router frontend for the Travel AI App. The web app owns the browser
+experience for authentication, trip planning, itinerary editing, collaboration,
+notifications, exports, calendar sync controls, maps, weather, budgets, and
+public share pages.
 
-The Web App prevents stale itinerary overwrites with Trip Service
-`itineraryRevision` values. Manual edit mode captures the revision when editing
-starts and sends it as `expectedItineraryRevision` on save. If Trip Service
-returns `409 itinerary_conflict`, the page shows a conflict panel with
-`Reload latest` and `Cancel my changes` actions instead of retrying or forcing an
-overwrite. Generate and regenerate actions create Trip Service background jobs
-with the latest displayed revision and poll job status until completion.
-Budget optimization actions also create background jobs, but job completion only
-adds a reviewable proposal; the itinerary changes only when an owner/editor
-clicks `Apply` on the proposal. Restore, place review, and route optimization
-actions still save directly with the latest displayed revision. On conflict, the
-page shows a readable message and refetches the trip.
+## Frontend Boundary
 
-Before manual itinerary edit mode starts, the page attempts to acquire Trip
-Service's advisory soft edit lock. If another owner/editor currently owns the
-lock, the page warns the user and lets them cancel or continue anyway. The lock
-renews while the user remains in edit mode and is best-effort released on save,
-cancel, conflict resolution, and unmount. It does not replace revision conflict
-detection.
+```mermaid
+flowchart LR
+    Browser["Browser"] --> App["Next.js App Router<br/>src/app"]
+    App --> Components["UI Components<br/>src/components"]
+    App --> API["API Clients<br/>src/lib/api"]
+    Components --> Hooks["React Query hooks<br/>src/lib"]
+
+    API --> Auth["Auth Service :8082"]
+    API --> Trip["Trip Service :8080"]
+    API --> User["User Service :8083"]
+    API --> External["External Integrations :8084"]
+    API --> NotifyProxy["Next API proxy<br/>/api/notification-service/*"]
+    API --> ExternalProxy["Next API proxy<br/>/api/external-integrations/*"]
+
+    NotifyProxy --> Notify["Notification Service :8086"]
+    ExternalProxy --> External
+
+    Trip --> AI["AI Planning Service"]
+    Trip --> Worker["Worker Service / RabbitMQ"]
+    Trip --> Notify
+```
+
+The browser calls public service URLs for normal JSON APIs. Same-origin Next.js
+API proxy routes are used where a browser flow needs an internal Docker hostname
+or tighter path filtering, such as notification and calendar OAuth calls.
+
+## Capabilities
+
+| Area | What the UI supports |
+| ---- | -------------------- |
+| Auth | Register, login, refresh/logout, current-user lookup. |
+| Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
+| Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
+| Concurrency | `itineraryRevision` conflict panels, advisory presence, soft edit locks. |
+| Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
+| Budget | Trip budget, item costs, accommodation cost, summaries, optimization proposals. |
+| Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
+| Context | Weather cards, route/distance estimates, accommodation routing anchors. |
+| Sharing | Public read-only share links, expiration, password unlock, sanitized exports. |
+| Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
+| Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
+| Export | Browser-generated PDF and `.ics` downloads for private and public views. |
 
 ## Source Layout
 
-Application code lives under `src/`:
+```text
+apps/web
+├── src/app                         # App Router routes and route handlers
+├── src/components                  # Feature and layout components
+├── src/lib/api                     # Service clients and DTO adapters
+├── src/lib                         # Hooks, formatting, export, notifications
+├── src/types                       # Shared TypeScript types
+├── public/sw.js                    # Browser push service worker
+└── package.json
+```
 
-- `src/app`
-- `src/components`
-- `src/lib`
-- `src/types`
-
-## Setup
+## Run Locally
 
 ```bash
 cd apps/web
@@ -47,7 +72,29 @@ npm install
 npm run dev
 ```
 
-The app expects the service URLs in:
+The development server starts on `http://localhost:3000`.
+
+For the full stack, prefer the repository-level compose flow:
+
+```bash
+cp infra/.env.example infra/.env
+docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
+```
+
+## Environment
+
+| Variable | Purpose |
+| -------- | ------- |
+| `NEXT_PUBLIC_AUTH_SERVICE_URL` | Browser-facing Auth Service URL. |
+| `NEXT_PUBLIC_TRIP_SERVICE_URL` | Browser-facing Trip Service URL. |
+| `NEXT_PUBLIC_USER_SERVICE_URL` | Browser-facing User Service URL. |
+| `NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL` | Browser-facing place/route/weather/calendar URL. |
+| `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` | Browser-facing Notification Service URL. |
+| `TRIP_SERVICE_INTERNAL_URL` | Server-side URL for Next route handlers inside Docker. |
+| `NOTIFICATION_SERVICE_INTERNAL_URL` | Server-side notification proxy URL. |
+| `EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL` | Server-side external-integrations proxy URL. |
+
+Local defaults:
 
 ```bash
 NEXT_PUBLIC_AUTH_SERVICE_URL=http://localhost:8082
@@ -60,752 +107,104 @@ NOTIFICATION_SERVICE_INTERNAL_URL=http://localhost:8086
 EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL=http://localhost:8084
 ```
 
-`NOTIFICATION_SERVICE_INTERNAL_URL` is used by the server-side notification proxy
-route (`app/api/notification-service/[...path]`); in Docker Compose it is the
-internal hostname `http://notification-service:8086`.
-`EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL` is used by the server-side
-external-integrations proxy for authenticated Google Calendar OAuth calls.
+## Main Routes
 
-## Browser Push Notifications
+```mermaid
+flowchart TD
+    Home["/"] --> Login["/login"]
+    Home --> Register["/register"]
+    Home --> Trips["/trips"]
+    Trips --> TripDetail["/trips/{id}"]
+    Trips --> Invitations["Pending invitations"]
+    TripDetail --> Edit["Itinerary edit mode"]
+    TripDetail --> Versions["Version preview / restore"]
+    TripDetail --> Budget["Budget and proposals"]
+    TripDetail --> Activity["Activity / comments / presence"]
+    Home --> Settings["/settings"]
+    Home --> Notifications["/notifications"]
+    Home --> Share["/share/{shareToken}"]
+```
 
-The app serves a service worker at `/sw.js` from `public/sw.js`. Authenticated
-settings render `PushNotificationSettings`, which checks browser support,
-requests notification permission only after the user clicks enable, registers
-the service worker, subscribes `PushManager` with the Notification Service VAPID
-public key, and stores the subscription through:
+## Service Calls By Feature
+
+| Feature | Primary calls |
+| ------- | ------------- |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
+| Trip list/detail | `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}` |
+| Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
+| Itinerary writes | `PUT /trips/{id}/itinerary`, version restore, day/item regeneration compatibility routes |
+| Collaboration | `/trips/{id}/collaborators`, `/collaboration/invitations` |
+| Presence and locks | `/trips/{id}/presence/*`, `/trips/{id}/edit-lock` |
+| Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
+| Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |
+| Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, budget optimization job/proposal routes |
+| Places/routes/weather | `/places/search`, `/places/{placeId}`, `/routes/estimate`, `/weather/forecast` |
+| Calendar | `/calendar/google/*`, `/trips/{id}/calendar-sync/google/*` |
+| Notifications | `/notifications*`, `/notifications/preferences`, `/notifications/push/*` |
+
+## Revision-Safe Editing
+
+```mermaid
+sequenceDiagram
+    participant UI as Trip Detail Page
+    participant T as Trip Service
+
+    UI->>T: GET /trips/{id}
+    T-->>UI: itineraryRevision = 7
+    UI->>T: POST /trips/{id}/edit-lock
+    T-->>UI: lock acquired or conflict warning
+    UI->>T: PUT /trips/{id}/itinerary expectedItineraryRevision=7
+    alt current revision is still 7
+        T-->>UI: saved, itineraryRevision = 8
+    else another write already changed it
+        T-->>UI: 409 itinerary_conflict, currentItineraryRevision
+        UI-->>UI: show reload/cancel conflict panel
+    end
+```
+
+Manual itinerary edits, version restores, budget proposal applies, and direct
+regeneration compatibility routes all rely on backend revision checks. Presence
+and edit locks are advisory UX signals; revision checks are the real data-safety
+mechanism.
+
+## Notifications And Push
+
+The header notification bell uses polling plus an authenticated fetch-based SSE
+stream. Native `EventSource` is not used because the stream needs
+`Authorization: Bearer <accessToken>`.
+
+Browser push uses `public/sw.js`, the Push API, and VAPID keys served by
+Notification Service:
 
 - `GET /notifications/push/public-key`
 - `POST /notifications/push/subscribe`
 - `DELETE /notifications/push/unsubscribe`
 - `GET /notifications/push/status`
 
-Push requires a browser/platform that supports Service Workers, PushManager, and
-Notifications. Denied browser permission must be changed in site settings. Local
-testing requires `WEB_PUSH_ENABLED=true` plus VAPID keys in `infra/.env`; the
-private key stays server-side in Notification Service and is never exposed to
-the Web App.
+Push is opt-in by explicit user action and requires `WEB_PUSH_ENABLED=true` plus
+VAPID keys on the Notification Service.
 
-## Backend
-
-Start the repository backend services first, then run the web app. The frontend calls Auth Service endpoints:
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/refresh`
-- `POST /auth/logout`
-- `GET /auth/me`
-
-After login/register, the frontend stores the access and refresh token in
-`localStorage` for development v1 and sends `Authorization: Bearer <accessToken>`
-to Trip Service. Secure httpOnly cookies are recommended for production.
-
-The frontend calls the protected Trip Service endpoints:
-
-- `POST /trips`
-- `GET /trips?limit=20&offset=0`
-- `GET /trips/shared-with-me`
-- `GET /trips/{id}`
-- `POST /trips/{id}/generation-jobs`
-- `GET /trips/{id}/generation-jobs`
-- `GET /trips/{id}/generation-jobs/{jobId}`
-- `POST /trips/{id}/generation-jobs/{jobId}/cancel`
-- `POST /trips/{id}/budget-optimization-jobs`
-- `GET /trips/{id}/budget-optimization-proposals`
-- `GET /trips/{id}/budget-optimization-proposals/{proposalId}`
-- `POST /trips/{id}/budget-optimization-proposals/{proposalId}/apply`
-- `POST /trips/{id}/budget-optimization-proposals/{proposalId}/discard`
-- `POST /trips/{id}/generate` (legacy synchronous compatibility)
-- `PUT /trips/{id}/itinerary`
-- `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate` (legacy synchronous compatibility)
-- `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate` (legacy synchronous compatibility)
-- `GET /trips/{id}/share`
-- `POST /trips/{id}/share`
-- `PATCH /trips/{id}/share`
-- `DELETE /trips/{id}/share`
-- `GET /trips/{id}/itinerary/versions`
-- `GET /trips/{id}/itinerary/versions/{versionId}`
-- `POST /trips/{id}/itinerary/versions/{versionId}/restore`
-- `POST /trips/{id}/collaborators`
-- `GET /trips/{id}/collaborators`
-- `PATCH /trips/{id}/collaborators/{collaboratorId}`
-- `DELETE /trips/{id}/collaborators/{collaboratorId}`
-- `POST /trips/{id}/collaborators/{collaboratorId}/accept`
-- `POST /trips/{id}/collaborators/{collaboratorId}/decline`
-- `GET /trips/{id}/presence/stream`
-- `POST /trips/{id}/presence/state`
-- `GET /trips/{id}/presence`
-- `GET /trips/{id}/edit-lock`
-- `POST /trips/{id}/edit-lock`
-- `DELETE /trips/{id}/edit-lock`
-- `GET /trips/{id}/calendar-sync/google/status`
-- `POST /trips/{id}/calendar-sync/google/sync`
-- `DELETE /trips/{id}/calendar-sync/google`
-- `GET /trips/{id}/accommodation`
-- `PUT /trips/{id}/accommodation`
-- `DELETE /trips/{id}/accommodation`
-- `GET /collaboration/invitations`
-- `GET /trips/{id}/comments` (and `?dayNumber=&itemIndex=` for one item)
-- `GET /trips/{id}/comments/counts`
-- `POST /trips/{id}/comments`
-- `PATCH /trips/{id}/comments/{commentId}`
-- `DELETE /trips/{id}/comments/{commentId}`
-- `GET /public/trips/{shareToken}/status` without Authorization for public share pages
-- `POST /public/trips/{shareToken}/unlock` without Authorization to unlock protected shares
-- `GET /public/trips/{shareToken}` without Authorization for unprotected shares or with `Authorization: Bearer <publicShareAccessToken>` for protected shares
-
-## Budget Optimization UI
-
-Private completed trip pages can show `Optimize Day N for budget` from the
-Budget panel and budget-related Trip Quality Checks. The request dialog lets an
-owner/editor choose a day, target reduction amount, constraints, max walking
-increase, and an optional instruction. Creating the request queues a
-`budget_optimization_day` job and reuses the existing generation job status
-card.
-
-When the job completes, the page refetches pending proposals and shows proposal
-cards with approximate savings, base/proposed day totals, confidence, change
-reasons, tradeoffs, warnings, and a simple current-vs-proposed day preview. The
-proposal card has explicit `Apply` and `Discard` actions. Applying sends the
-current `itineraryRevision`; stale proposals or stale apply requests show an
-outdated-proposal conflict message and refetch the trip/proposals. Successful
-apply refetches trip details, budget summary, route estimates, version history,
-activity, and trip lists.
-
-Accepted viewers can read private proposals but cannot create, apply, or
-discard them. Public share pages do not mount budget optimization UI and cannot
-call private proposal endpoints. AI savings are displayed as approximate
-estimates, not guaranteed prices.
-
-The frontend calls External Integrations Service v1 directly for place search,
-route estimates, and weather forecasts:
-
-- `GET /places/search?query=Colosseum&destination=Rome`
-- `GET /places/{placeId}`
-- `POST /routes/estimate`
-- `GET /weather/forecast?destination=Rome&startDate=2026-08-10&days=3`
-- `GET /exchange-rates/latest?base=EUR` and `GET /exchange-rates/convert?...`
-  indirectly through Trip Service budget summaries
-- `GET /calendar/google/status`
-- `POST /calendar/google/connect`
-- `DELETE /calendar/google/disconnect`
-
-The Web App does not call third-party place, route, weather, exchange-rate,
-ticket-price, or calendar APIs directly. It also does not call Google Calendar
-directly. Trip Service calls the internal `POST /prices/estimate` endpoint after
-generation and returns provider `estimatedCost` values as part of itinerary
-items. The private trip detail page renders `CalendarSyncPanel` for completed trips; owners
-and editors can connect Google Calendar, sync/update itinerary events using the
-latest `itineraryRevision`, remove synced events, or disconnect the account.
-Viewers see a disabled message, and public share pages never render calendar
-sync.
-If External Integrations Service is configured with `PLACE_PROVIDER=foursquare`,
-the browser still calls the same `/places/search` and `/places/{placeId}`
-endpoints and receives normalized `Place` objects. The same applies to routing
-and weather: the route/weather provider can be switched server-side
-(`ROUTE_PROVIDER=ors`, `WEATHER_PROVIDER=openweathermap`) without any frontend
-change — the Web App keeps calling `POST /routes/estimate` and
-`GET /weather/forecast` and receives the same canonical response shape. Real
-provider keys stay server-side; the browser never calls OpenRouteService or
-OpenWeatherMap directly. Trip Service uses the same service for budget
-conversion and ticket-price enrichment, so exchange-rate and provider-price keys
-also stay server-side. Responses may include an optional `fallbackUsed` flag and
-a `provider` label (`mock`, `ors`, `openweathermap`, `identity`, or a future
-provider); the UI treats these as advisory developer hints.
-
-Automatic place enrichment after AI generation is owned by Trip Service. The Web
-App does not call enrichment directly; it renders returned `place` metadata and
-shows an `Auto-matched place` confidence badge when an item has
-`placeEnrichment.status === "matched"`. Manual place changes/removals in the
-editor clear `placeEnrichment` so stale auto-match labels are not saved.
-
-Automatic price enrichment is also owned by Trip Service. The Web App renders
-provider costs as `provider estimate` badges, shows a subtle no-estimate hint for
-provider no-match results, and marks provider review metadata as changed or
-removed when an editor changes or clears that item's cost.
-
-## Background Generation Jobs
-
-Private trip detail pages start AI generation through
-`POST /trips/{id}/generation-jobs` and poll
-`GET /trips/{id}/generation-jobs/{jobId}` every few seconds while the job is
-`queued` or `running`. The `GenerationJobStatusCard` shows queued/running,
-completed, failed, and cancelled states. Full generation, day regeneration, item
-regeneration, and quality-improvement actions all share this path.
-
-While a job is queued or running, the page disables other AI generation actions
-for the trip. Manual editing remains available; if a user saves while a job is
-running, Trip Service conflict detection may cause the job to fail with
-`itinerary_conflict`. On job completion, the page refetches the trip, version
-history, route estimates, and activity. On conflict failure, it refetches the
-trip and tells the user to reload the latest version before trying again.
-
-## Place Enrichment Review
-
-Completed trip detail pages show a `Place Matches` review section when the
-itinerary contains auto-enrichment metadata. The section lists auto-matched
-places and no-match results from Trip Service:
-
-- `Accept` keeps the attached place and marks `placeEnrichment.reviewStatus` as
-  `accepted`.
-- `Change` opens the existing place search dialog, replaces the attached place,
-  and marks the review status as `changed`.
-- `Remove` clears the attached place and marks the review status as `removed`.
-- `Search manually` appears for no-match rows and saves the selected place with
-  review status `changed`.
-
-Each review action saves the full itinerary through the existing
-`PUT /trips/{id}/itinerary` endpoint, so Trip Service records a `MANUAL_EDIT`
-version. The review state lives inside the itinerary JSON for v1; there is no
-separate review table or background worker.
-
-## Collaborative Planning
-
-The trips page shows `Pending invitations`, `My Trips`, and `Shared with me`.
-Accepted shared trips open through the normal `/trips/{id}` route; Trip Service
-decides access and returns `trip.access`.
-
-Owner UI:
-
-- Shows `Share itinerary` and `Collaborators` panels.
-- Can invite registered users by exact email, choose `viewer` or `editor`,
-  change roles, and remove collaborators.
-
-Editor UI:
-
-- Shows itinerary edit/regenerate, place review, route optimization, export,
-  and version restore controls.
-- Hides public share and collaborator management.
-
-Viewer UI:
-
-- Shows read-only itinerary, map/weather/distance, export, and version preview.
-- Hides edit, regenerate, place review actions, route optimization apply,
-  restore, public share, and collaborator management.
-
-Current v1 limitations: registered users only, advisory presence and soft edit
-locks only, no real-time itinerary sync, no automatic merge, no diff viewer, and
-no hard blocking locks.
-
-## Accommodation Planning
-
-Private trip detail pages show an `Accommodation` panel in the sidebar near the
-budget panel. Owners/editors can add, edit, or remove one stay location; accepted
-viewers can read it but do not see edit controls. The form supports name, type,
-address, check-in/check-out dates, estimated stay cost, notes, and an optional
-attached place from the existing place search dialog. Selecting a place fills
-name/address/place data and infers the type from categories like hotel, lodging,
-hostel, or apartment.
-
-When accommodation has place coordinates, the map shows a distinct
-`Accommodation` marker and the distance builder uses the stay as the start and
-end point for each mapped day (`stay -> first stop -> ... -> last stop -> stay`).
-The distance panel marks those days with `Includes stay`. The budget panel
-includes the accommodation `estimatedCost` through Trip Service's budget summary.
-Private PDF export includes an `Accommodation` section; public share pages and
-public exports do not expose structured accommodation in v1.
-
-Limitations: no hotel search provider, booking/payment flow, multi-stay support,
-real booking price feed, or check-in/check-out calendar events.
-
-## Real-time Trip Presence
-
-Private trip detail pages show a `Currently here` presence card for owners and
-accepted collaborators. The Web App opens a fetch-based Server-Sent Events
-stream (`lib/presence/use-trip-presence-stream.ts`) to
-`GET /trips/{id}/presence/stream`. Native `EventSource` is not used because the
-stream requires `Authorization: Bearer <accessToken>`; chunks are parsed with
-the shared SSE parser in `lib/notifications/sse-parser.ts`.
-
-When an owner/editor enters manual itinerary edit mode, the page calls
-`POST /trips/{id}/presence/state` with `{"state":"editing"}`. Saving, canceling,
-leaving the page, or hiding the tab best-effort returns the state to
-`viewing`; stream disconnects also unregister the session server-side. Viewers
-connect and appear as `viewing`, but cannot enter edit mode.
-
-If another collaborator is currently editing, an amber warning appears near the
-itinerary edit controls. The warning is advisory only: it never blocks editing,
-saving, regeneration, restore, or route optimization. Public share pages do not
-mount presence UI and make no presence requests.
-
-## Soft Edit Locks
-
-Private trip detail pages fetch `GET /trips/{id}/edit-lock` for owners and
-accepted collaborators. When an owner/editor clicks `Edit itinerary`, the page
-calls `POST /trips/{id}/edit-lock` before entering edit mode.
-
-If acquire succeeds, the page enters edit mode, stores the current
-`itineraryRevision`, sets presence to `editing`, and renews the lock every 45
-seconds while editing. Save, cancel, conflict resolution, and unmount stop the
-renewal loop and best-effort call `DELETE /trips/{id}/edit-lock`.
-
-If acquire returns `409 edit_lock_conflict`, the `Someone is already editing`
-dialog shows the collaborator name when available, otherwise `A collaborator`.
-Choosing `Cancel` leaves edit mode closed. Choosing `Continue anyway` enters
-edit mode without owning or renewing the lock; stale-save conflict detection
-still protects the final save.
-
-Viewers can see lock status but have no edit button and cannot acquire locks.
-Public share pages do not fetch or show edit locks.
-
-## Itinerary Comments
-
-On private trip detail pages, each itinerary item in the read-only view shows a
-`Comments` button with an active-comment count badge (powered by
-`GET /trips/{id}/comments/counts`). A `comments across itinerary items` summary
-renders above the itinerary. Owners and accepted collaborators (viewer or
-editor) can open the per-item panel to read and post comments.
-
-In the comment panel:
-
-- Comments load via `GET /trips/{id}/comments?dayNumber=&itemIndex=`.
-- Posting a comment uses `POST /trips/{id}/comments`; the textarea shows a
-  `0/2000` counter and disables `Post` for empty/too-long bodies.
-- A comment shows `You` for your own comments and `Collaborator` otherwise, plus
-  `edited` when it was changed after creation.
-- Authors can `Edit` (inline) and `Delete` their own comments; trip owners can
-  `Delete` any comment. The backend enforces these rules — the UI only hides
-  buttons. After any change the panel refetches item comments and counts.
-
-Comments are shown in the read-only itinerary only and are hidden while editing
-the itinerary. They are a private feature: the public `/share/{shareToken}` page
-never renders comment UI and makes no comment requests.
-
-Limitations: no real-time updates, no notifications, no mentions, and no
-threaded replies. Comments are keyed by `dayNumber`/`itemIndex`, so heavy
-itinerary reordering can leave a comment pointing at a different item.
-
-## Recent Activity
-
-Private trip detail pages render a `Recent activity` panel at the bottom
-(`components/activity/ActivityFeed.tsx`). It shows a chronological, newest-first
-audit log of important successful actions on the trip — generation, edits,
-regenerations, version restores, comments, collaborator changes, and share
-setting changes.
-
-- Events load via `GET /trips/{id}/activity?limit=30&cursor=...`
-  (`lib/api/activity.ts`) using `useInfiniteQuery`; a `Load more` button pages
-  through older events with the returned `nextCursor`.
-- Events are grouped by calendar day (`Today` / `Yesterday` / date) by
-  `lib/activity/group-activity-by-date.ts` and rendered as readable lines by
-  `lib/activity/format-activity-event.ts` (e.g. `You generated the itinerary`,
-  `You commented on Day 2 · Louvre Museum`, `You invited anna@example.com as
-  editor`). The actor is shown as `You` for the current viewer, `System` for
-  actor-less events, and `Collaborator` otherwise (no display names in v1). The
-  formatter is defensive: missing metadata degrades gracefully and an unknown
-  event type renders `Activity recorded` rather than crashing.
-- The panel is shown only to the owner and accepted collaborators (same access
-  rule as comments) and renders nothing otherwise. It is never mounted on the
-  public `/share/{shareToken}` page and makes no activity requests there.
-- Private trip detail pages open a fetch-based SSE stream with
-  `GET /trips/{id}/activity/stream` (`lib/activity/use-trip-activity-stream.ts`).
-  Native `EventSource` is not used because the Auth Service JWT must be sent in
-  the `Authorization` header, never in the query string.
-- On `activity.created`, the page invalidates the activity query (`activityKeys`)
-  and refetches `GET /activity`, preserving actor labels and formatting. If the
-  stream is unavailable or reconnecting, the normal query and mutation-triggered
-  invalidations still work.
-
-Limitations: no filtering/search, generic actor labels, and best-effort
-single-instance streaming only. In-app notifications for these events are
-surfaced separately by the notification bell (see below).
-
-## Notifications
-
-The authenticated header (`components/layout/AppHeader.tsx`) shows a notification
-bell (`components/notifications/NotificationBell.tsx`) backed by the Notification
-Service. It is private, authenticated, per-user data — the bell renders nothing
-for logged-out / public share viewers and makes no requests for them.
-
-- The unread count is polled (~every 45s) via `GET /notifications/unread-count`
-  using React Query (`lib/notifications/use-notifications.ts`); a red badge shows
-  when the count is greater than zero (`99+` cap). Polling remains enabled as a
-  fallback and slows to ~120s while the real-time stream is connected.
-- The bell also mounts a fetch-based Server-Sent Events stream
-  (`lib/notifications/use-notification-stream.ts`) to
-  `GET /notifications/stream`. Native `EventSource` is not used because it cannot
-  send an `Authorization` header; the app uses `fetch` with
-  `Authorization: Bearer <accessToken>` and parses SSE chunks manually in
-  `lib/notifications/sse-parser.ts`.
-- On `notification.created`, the stream invalidates the notification list and
-  unread-count React Query keys so the badge/dropdown update without a manual
-  refresh. `heartbeat` events only keep the stream alive. If the stream
-  disconnects, the hook reconnects with backoff while polling continues.
-- Clicking the bell opens a dropdown
-  (`components/notifications/NotificationsDropdown.tsx`) that fetches the latest
-  10 notifications (`GET /notifications?limit=10`), with loading / empty
-  (`No notifications yet.`) / error states, an unread dot indicator, relative
-  timestamps, and a `Mark all as read` action. A `View all` link opens the full
-  `/notifications` page (`app/notifications/page.tsx`) with `Load more` cursor
-  pagination.
-- Clicking a notification marks it read (`PATCH /notifications/{id}/read`),
-  refreshes the unread count, and navigates to the related destination resolved
-  by `lib/notifications/notification-navigation.ts` (`collaboration_invited` →
-  `/trips`; anything with a `tripId` → `/trips/{tripId}`; otherwise `/trips`).
-- All requests go through the same-origin proxy route
-  `app/api/notification-service/[...path]` (which never forwards `internal/*`
-  paths), attaching the user's bearer token via the shared `apiFetch` client. The
-  base URL comes from `lib/config.ts` (`getNotificationApiBaseUrl`).
-
-In-app notifications may **also trigger an email** depending on server
-configuration: the Notification Service can send email for selected types
-(collaboration invited, comment created, collaborator role changed/removed by
-default). The `/settings` page includes a `Notification preferences` section
-where authenticated users can enable or disable in-app and email delivery by
-category: collaboration invitations, comments, role changes, and trip updates.
-These settings are saved through `GET/PUT /notifications/preferences` on the
-Notification Service via the same-origin notification proxy. Locally the default
-`EMAIL_PROVIDER=mock` sends nothing externally (see the Notification Service and
-infra READMEs).
-
-Limitations: real-time updates are SSE-only with polling recovery (no
-WebSockets/push), in-app notifications surface in the bell, and the bell shows a
-count plus the latest items. No unsubscribe links, email digests, quiet hours,
-or per-trip notification preferences yet.
-
-## Public Trip Sharing
-
-Authenticated trip detail pages include a `Share itinerary` panel. It calls
-`GET /trips/{id}/share` on load, `POST /trips/{id}/share` to create or
-re-enable a link, `PATCH /trips/{id}/share` to save expiration/password
-settings, and `DELETE /trips/{id}/share` to disable it. The share URL points to
-`/share/{shareToken}`.
-
-The panel supports `Never`, `7 days`, `30 days`, and custom expiration, plus
-password enable/change/remove. Passwords are sent only when creating, enabling,
-or changing protection and are never shown after save.
-
-The public share page calls `GET /public/trips/{shareToken}/status` first. If
-the link is password protected, it shows an unlock form and calls
-`POST /public/trips/{shareToken}/unlock`. The returned public share access token
-is stored only in `sessionStorage` under
-`public-share-access-token:{shareToken}` with its expiry, so refresh works until
-the short-lived token expires. The app clears that stored token if the backend
-returns `401`.
-
-After unlock, the public page calls `GET /public/trips/{shareToken}` with the
-public share bearer token. Unprotected links are fetched without Authorization.
-It renders the sanitized read-only trip summary, itinerary, place metadata, map
-view, distance estimate, weather context, and PDF/.ics export when data is
-available. It does not render edit, regenerate, version history, route
-optimization, place-match review, settings, logout, or any private preference
-controls.
-
-Disabled, expired, or unknown share links show:
-
-```text
-This shared trip is unavailable, expired, or disabled.
-```
-
-Public sharing v1 has one link per trip and no analytics or collaboration.
-
-## Export v1
-
-Private trip detail pages and public share pages support read-only export from
-the browser:
-
-- `Download PDF` creates a clean itinerary summary with trip facts, day-by-day
-  items, visible place details, weather summary when loaded, and distance
-  summary when available.
-- `Download calendar (.ics)` creates one calendar event per itinerary item with
-  a parseable time and a trip start date.
-
-Calendar export skips untimed or unparseable itinerary items. Exported calendar
-times are local floating times, so the importing calendar app interprets them in
-the user's calendar timezone. Export v1 does not call Google Calendar, Apple
-Calendar, Outlook, OAuth, or any external calendar API.
-
-Exports are generated from a sanitized frontend model. They do not include user
-email, user ID, preferences, tokens, itinerary version history, or internal
-place-enrichment debug metadata.
-
-To edit an itinerary, open a completed trip and click `Edit itinerary`. The
-editor supports changing day titles and item fields, adding/removing days, and
-adding/removing items. `Save` sends `PUT /trips/{id}/itinerary` with:
-
-```json
-{
-  "itinerary": {
-    "days": [
-      {
-        "day": 1,
-        "title": "Edited Day",
-        "items": [
-          {
-            "time": "10:00",
-            "type": "activity",
-            "name": "Edited Activity",
-            "note": "",
-            "estimatedCost": null,
-            "place": {
-              "provider": "mock",
-              "providerPlaceId": "mock-colosseum-rome",
-              "name": "Colosseum",
-              "address": "Piazza del Colosseo, 1, 00184 Roma RM, Italy",
-              "latitude": 41.8902,
-              "longitude": 12.4922,
-              "rating": 4.7,
-              "ratingCount": 120000,
-              "mapUrl": "https://maps.example.com/mock-colosseum-rome",
-              "category": "landmark",
-              "website": "https://example.com/colosseum",
-              "openingHours": [
-                { "dayOfWeek": 1, "open": "08:30", "close": "19:15" },
-                { "dayOfWeek": 2, "open": "08:30", "close": "19:15" }
-              ]
-            }
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Itinerary editing v1 replaces the whole itinerary JSON. Partial regeneration
-buttons call Trip Service to regenerate a day or item while preserving the rest
-of the itinerary.
-
-To attach a normalized place, open a completed trip, click
-`Edit itinerary`, click `Attach real place` on an item, search, select a result,
-then click `Save`. Existing itinerary items without `place` metadata continue to
-render normally. Mock places can include optional `openingHours` using
-`dayOfWeek` values `1 = Monday` through `7 = Sunday` and local `HH:mm` times.
-Search results and attached-place displays include a provider label such as
-`Provider: Mock` or `Provider: Foursquare`.
-When an attached place has hours and the trip has a start date, the read-only
-itinerary shows an advisory `Likely open at this time`, `May be closed at this
-time`, or `May be closed on this day` badge plus that day's hours. The warning
-is advisory because schedules are optional, simple local trip dates are used,
-and there are no timezone, holiday, or special-date overrides. Real provider
-results may omit rating, website, coordinates, or `openingHours`; the UI hides
-missing ratings, shows unknown opening hours, and maps only places with valid
-coordinates.
-
-v1 intentionally has no flights, hotels, real weather provider, real Google
-Places provider, real opening-hours provider, or turn-by-turn route geometry.
-See Distance / Walking Estimate below for the approximate route and straight-line
-distances the Web App shows.
-
-## Weather Context
-
-Trip detail pages show a `Weather context` card near the top of the page. When a
-trip has `destination`, `startDate`, and `days`, the card calls
-`GET /weather/forecast` on the External Integrations Service and renders daily
-mock forecast rows with summary, temperature range, precipitation chance, wind
-speed, provider label, and warning badges. When `provider` is `mock`, the UI
-labels it as a local-development mock forecast.
-
-If the trip has no start date, the card asks the user to add one. If the weather
-service is unavailable or returns an error, the card shows `Weather forecast
-unavailable.` and the rest of the trip detail page continues to work.
-
-Weather is not persisted by the Web App or Trip Service. During itinerary
-generation/regeneration, Trip Service may fetch weather and pass it to AI
-Planning Service so prompts can adapt to rain, heat, cold, or wind.
-
-## Map View
-
-Completed trips with itinerary items that have attached places and valid
-coordinates show a read-only Map View on the trip detail page. The map uses
-Leaflet with OpenStreetMap tiles and renders markers only for itinerary items
-with numeric latitude and longitude values. Use the day filter to view all
-mapped places or only the mapped places for a single day.
-
-Attach places in itinerary edit mode first, then save or leave edit mode to see
-them on the map. Map View v1 does not support route optimization, marker
-dragging, or editing places from the map. Marker popups show opening-hours
-status when the attached place includes `openingHours`.
-
-## Distance / Walking Estimate
-
-Completed trips with itinerary items that have attached place coordinates show a
-read-only Distance estimate panel below the Map View on the trip detail page. The
-panel prefers a route estimate from the External Integrations Service and falls
-back to a frontend straight-line (Haversine) estimate when that service is
-unavailable.
-
-- For each day with at least two mapped stops, the Web App calls
-  `POST /routes/estimate` on the External Integrations Service
-  (`mode: "walking"`, ordered stops) and shows
-  `Route estimate: <km> · ~<time> walking` plus a `Route estimates by mock
-  provider` badge and the smaller straight-line fallback figure.
-- Route estimates are approximate (mock provider: Haversine × 1.25 at 5 km/h),
-  read-only, and never modify the itinerary or get persisted by Trip Service.
-- If the route service is slow, down, or returns an error, the panel shows
-  `Route service unavailable. Showing straight-line estimate.` and uses the
-  frontend Haversine estimate (Earth radius 6371 km, flat 5 km/h pace). The page
-  never blocks on or crashes from route loading.
-- Compares each day total with `maxWalkingKmPerDay` from the User/Profile
-  Service, using the route distance when available and the straight-line
-  distance otherwise. The warning line states which estimate was used.
-
-Only itinerary items with a numeric, in-range `latitude` and `longitude` are
-counted, so existing trips without place coordinates keep working. A day needs at
-least two mapped stops before it contributes a distance. Preferences are fetched
-non-blocking: if the request fails the estimates still render, just without the
-preference comparison. Distance estimates are hidden during itinerary edit mode
-and reappear after saving or leaving edit mode.
-
-The straight-line logic lives in `src/lib/itinerary/distance-utils.ts`; route
-stop extraction in `src/lib/itinerary/route-estimate-utils.ts`; the route
-estimate fetching (TanStack Query, one query per day, keyed by stop coordinates,
-no retries) in `src/lib/hooks/useRouteEstimates.ts` and `src/lib/api/routes.ts`.
-All are covered by their respective `*.test.ts` files. This requires
-`NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL` and the service's CORS to allow
-`POST` from the browser origin.
-
-## AI Quality Feedback Loop
-
-Completed trip detail pages show a `Trip Quality Checks` card after weather
-context. The card analyzes the current itinerary with existing frontend and
-service signals:
-
-- route estimates, falling back to Haversine distance summaries
-- `maxWalkingKmPerDay` from user preferences
-- weather forecast rain and heat thresholds
-- place opening hours at the scheduled item time
-- place enrichment confidence and review state
-- provider ticket-price enrichment confidence and review state
-- missing map-ready place coordinates for enriched itinerary items
-- budget signals (see Budget Tracking v1): over-budget trip/day, expensive items,
-  likely-paid items missing a cost estimate, high ticket/activity costs, and
-  provider low-confidence estimates
-
-The checks are advisory and never regenerate automatically. Users stay in
-control: `Improve day` and `Improve item` buttons build concise AI instructions
-from the detected issues and call the existing partial regeneration endpoints:
-
-- `POST /trips/{id}/itinerary/days/{dayNumber}/regenerate`
-- `POST /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate`
-
-After regeneration, the Web App refetches the trip and refreshes itinerary
-version history, so Trip Service records the change through its existing version
-logic. If route estimates, weather, preferences, opening hours, or enrichment
-metadata are unavailable, the card simply omits those checks and continues with
-the signals it has. In manual edit mode, AI improvement buttons are hidden and
-the card asks the user to save or cancel edits first.
-
-## Budget Tracking v1
-
-Private trip detail pages show a `Budget` panel in the sidebar. It fetches
-`GET /trips/{id}/budget-summary` and shows the trip budget, estimated total,
-remaining or over-budget amount, daily totals, category totals, original
-currency totals, conversion warnings, and exchange-rate metadata. Converted
-amounts are rendered as approximate. When the estimated total exceeds the budget
-it switches to a warning style. Owners and editors can set, edit, or clear the
-trip budget through `PUT /trips/{id}/budget` (viewers see a read-only panel).
-Updating the budget does not change the itinerary revision.
-
-Itinerary items show a compact cost badge (for example `€18 ticket`, with
-`(approx.)` for low-confidence and a small source marker for hand-edited or
-provider-estimated costs). Item costs are edited through the existing itinerary editor: the
-`ItemCostEditor` sets a structured `estimatedCost` (amount, currency, category,
-confidence, note) with `source: "manual"`, and the editor saves with
-`expectedItineraryRevision`, so conflict detection and version history apply
-unchanged. A stale cost edit returns `409 itinerary_conflict`.
-
-Budget-aware quality checks (`trip_budget_exceeded`, `day_budget_high`,
-`expensive_item`, `missing_cost_estimate`, `missing_ticket_price`,
-`high_ticket_cost`, `provider_price_low_confidence`, `conversion_unavailable`)
-appear in the Trip Quality Checks card. `Improve day` instructions ask the AI to
-reduce cost or replace/clarify likely ticketed stops; for a whole-trip overrun
-the card offers an `Improve day N` action targeting the highest-cost day.
-Conversion warnings ask for manual currency or cost correction and do not ask the
-AI to invent exchange rates.
-
-Private PDF export can include the backend budget summary (trip budget,
-approximate estimated total, remaining/over, original currency totals, and
-conversion notes) plus item cost badges. The public share page and public export
-never show the private trip budget; only item-level cost badges that are part of
-the shared itinerary are visible.
-
-## Route Optimization v1
-
-Completed trips can suggest a better visiting order for a single day. The
-`Distance estimate` panel shows an `Optimize order` button for any day with at
-least three mapped places (items with valid coordinates). Clicking it opens a
-preview dialog; nothing is saved until the user confirms.
-
-- Optimizes one day at a time. It never reorders across days.
-- Uses a simple nearest-neighbour algorithm over straight-line (Haversine)
-  distance. It is **not** real routing — no external routing APIs and no
-  Google/Mapbox routing are involved, and the UI labels the figures as
-  approximate.
-- Keeps the first mapped place fixed so the day keeps its starting point.
-- Reorders mapped places into the existing time slots: the place that lands in a
-  position inherits that position's original time.
-- Keeps unmapped items (notes, rest, free time) in their original positions.
-- Shows current vs suggested order side by side, plus the original/optimized
-  distance and the estimated saving (km and walking minutes). If the saving is
-  negligible it says so but still allows applying.
-- Applying saves the full itinerary through the existing
-  `PUT /trips/{id}/itinerary` endpoint, which creates a `MANUAL_EDIT` version
-  through the existing Trip Service versioning. The order persists after refresh.
-
-Optimize controls only appear in read-only mode, so they are hidden while
-editing the itinerary manually. The pure logic lives in
-`src/lib/itinerary/route-optimization-utils.ts` and is covered by
-`route-optimization-utils.test.ts`; the UI is `OptimizeDayOrderDialog`.
-
-The Version History panel appears on completed trips that have an itinerary. It
-fetches version summaries, displays source labels such as `Generated`,
-`Manual edit`, `Regenerated day`, `Regenerated item`, and `Restored`, and loads
-full itinerary JSON only when the user clicks `View`. `Restore` asks for
-confirmation, replaces the current itinerary through Trip Service, refetches the
-trip, and refreshes the version list. Viewing a version never changes the current
-trip.
-
-Version history v1 starts after the backend feature is deployed. It does not
-support diff view, branching, named versions, version comparison,
-drag-and-drop, full map views, payments, admin flows, or collaboration.
-
-The frontend calls the protected User Service endpoints from `/settings`:
-
-- `GET /users/me/profile`
-- `PUT /users/me/profile`
-- `GET /users/me/preferences`
-- `PATCH /users/me/preferences`
-
-The settings page also calls the protected Notification Service preference
-endpoints:
-
-- `GET /notifications/preferences`
-- `PUT /notifications/preferences`
-
-Browser requests go through the Next.js route proxy at `/api/trip-service/*`,
-which forwards to `TRIP_SERVICE_INTERNAL_URL` when set, then falls back to
-`NEXT_PUBLIC_TRIP_SERVICE_URL`. In Docker Compose, the browser-facing URL stays
-`http://localhost:8080` while server-side proxy calls use
-`http://trip-service:8080`. The proxy forwards the `Authorization` header.
-
-Auth Service, Trip Service, and User Service enable CORS for
-`http://localhost:3000`, so direct browser calls to
-`NEXT_PUBLIC_AUTH_SERVICE_URL`, `NEXT_PUBLIC_TRIP_SERVICE_URL`, and
-`NEXT_PUBLIC_USER_SERVICE_URL` remain possible during local development. External
-Integrations Service enables CORS for `http://localhost:3000` and is called via
-`NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL`.
-
-Open the settings page at:
-
-```text
-http://localhost:3000/settings
-```
-
-Preferences are saved in User/Profile Service. Trip Service fetches them during
-itinerary generation. The Web App does not send preferences directly to Trip
-Service.
-
-The current Trip Service validates the most active pace as `packed`; the UI labels that option as `Intensive`.
-
-## Commands
+## Quality Checks
 
 ```bash
-npm run dev
-npm run build
-npm run start
 npm run typecheck
-npm test
+npm run test
+npm run build
 ```
 
-`npm test` runs the Vitest unit tests for the pure itinerary utilities (for
-example the distance/walking estimate helpers).
+The repository-level smoke test exercises the web-facing service contracts:
+
+```bash
+./scripts/smoke-test.sh
+```
+
+## Security Notes
+
+- Tokens are stored in `localStorage` for development v1. Use secure httpOnly
+  cookies before production.
+- Public share pages use separate short-lived public share tokens; they are not
+  Auth Service JWTs.
+- Public share pages never render private collaboration, comments, activity,
+  budget optimization, edit, notification, settings, or calendar-sync controls.
+- The browser never receives third-party provider API keys, SMTP credentials,
+  VAPID private keys, OAuth secrets, internal service tokens, or raw AI prompts.

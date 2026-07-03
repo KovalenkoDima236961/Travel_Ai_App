@@ -1,11 +1,65 @@
 # Worker Service
 
-Dedicated Go worker for long-running Trip Service generation jobs.
+Go worker for long-running Trip Service generation jobs. It consumes RabbitMQ
+messages, loads the full job row from the Trip Service database, reuses Trip
+Service generation/business logic, and writes the final job, itinerary,
+proposal, version, activity, and notification effects.
 
-It consumes small RabbitMQ messages from `trip.generation.jobs`, loads the full
-job row from Postgres, reuses Trip Service generation/business logic, and updates
-the existing job, itinerary, proposal, version, activity, and notification tables.
-The Web App keeps using the existing Trip Service job creation and polling APIs.
+The Web App does not call Worker Service directly. It creates and polls jobs
+through Trip Service.
+
+## Processing Flow
+
+```mermaid
+sequenceDiagram
+    participant T as Trip Service
+    participant Q as RabbitMQ
+    participant W as Worker Service
+    participant DB as trip_service DB
+    participant AI as AI Planning Service
+    participant E as External Integrations
+    participant N as Notification Service
+
+    T->>DB: Insert queued job row
+    T->>Q: Publish small job message
+    W->>Q: Consume message
+    W->>DB: Claim job by jobId
+    W->>E: Optional weather/place/price/rate context
+    W->>AI: Generate/regenerate/optimize
+    W->>DB: Save revision-aware result
+    W->>N: Best-effort notification
+    W->>Q: ACK original message
+```
+
+Messages contain only routing metadata: `messageId`, `jobId`, `tripId`,
+`jobType`, timestamps, request ID, and correlation ID. The database job row is
+the source of truth.
+
+## Queue Topology
+
+```mermaid
+flowchart LR
+    Exchange["trip.jobs.exchange<br/>direct durable"] --> Main["trip.generation.jobs"]
+    Main --> Worker["worker consumer"]
+    Worker -->|retryable failure| Retry["trip.generation.retry<br/>TTL delay"]
+    Retry --> Exchange
+    Worker -->|terminal failure / max attempts| DLX["trip.jobs.dlx"]
+    DLX --> DLQ["trip.generation.dead_letter"]
+    Worker -->|success / duplicate terminal job| Ack["ACK"]
+```
+
+Default topology:
+
+| Name | Default |
+| ---- | ------- |
+| Exchange | `trip.jobs.exchange` |
+| Main queue | `trip.generation.jobs` |
+| Main routing key | `trip.generation` |
+| Retry queue | `trip.generation.retry` |
+| Retry routing key | `trip.generation.retry` |
+| Dead-letter exchange | `trip.jobs.dlx` |
+| Dead-letter queue | `trip.generation.dead_letter` |
+| Dead-letter routing key | `trip.generation.dead` |
 
 ## Job Types
 
@@ -16,92 +70,111 @@ The Web App keeps using the existing Trip Service job creation and polling APIs.
 - `quality_improvement_item`
 - `budget_optimization_day`
 
-## Queue Topology
+For budget optimization, a completed job means a pending proposal was stored for
+review. It does not mean the itinerary changed.
 
-- Exchange: `trip.jobs.exchange` direct, durable
-- Main queue: `trip.generation.jobs`, durable, routing key `trip.generation`
-- Retry queue: `trip.generation.retry`, durable, routing key `trip.generation.retry`
-- Dead-letter exchange: `trip.jobs.dlx` direct, durable
-- Dead-letter queue: `trip.generation.dead_letter`, durable, routing key `trip.generation.dead`
+## Idempotency And Retries
 
-The retry queue uses message TTL and dead-letters back to the main exchange.
+```mermaid
+stateDiagram-v2
+    [*] --> received
+    received --> skipped: job already terminal
+    received --> running: claim queued job
+    running --> completed: save succeeds
+    running --> retry: retryable error
+    retry --> received: delayed message
+    running --> failed: terminal error or max attempts
+    skipped --> [*]
+    completed --> [*]
+    failed --> dlq
+    dlq --> [*]
+```
 
-## Local Run
+The `jobId` is the idempotency key. Completed, failed, cancelled, and duplicate
+already-running jobs are acknowledged and skipped. Retryable failures reset the
+job row to `queued`, publish a delayed retry message, and then ACK the original
+message. Terminal failures are persisted before the message is NACKed into the
+DLQ.
 
-From the repository root:
+## Local Development
+
+Run the full stack from the repository root:
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
-RabbitMQ management UI is available at `http://localhost:15672` with local
-credentials `guest` / `guest`.
+RabbitMQ management UI:
 
-To run only the worker from source, set the same Postgres, RabbitMQ, and
-downstream service env vars used in `infra/.env.example`, then:
+```text
+http://localhost:15672
+guest / guest
+```
+
+Run only the worker from source after exporting the same Postgres, RabbitMQ, AI,
+external integration, notification, enrichment, and budget-conversion variables
+used by `infra/.env.example`:
 
 ```bash
 cd services/worker-service
 make run
 ```
 
-## Important Env Vars
+## Important Configuration
 
-- `WORKER_ENABLED=true`
-- `WORKER_HTTP_ADDR=:8090`
-- `WORKER_SHUTDOWN_TIMEOUT_SECONDS=30`
-- `RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/`
-- `GENERATION_JOBS_PREFETCH=1`
-- `GENERATION_JOBS_MAX_ATTEMPTS=3`
-- `GENERATION_JOBS_RETRY_DELAY_SECONDS=10`
-- `GENERATION_JOB_MAX_RUNNING_SECONDS=600`
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `WORKER_ENABLED` | `true` | Enable processing loop. |
+| `WORKER_HTTP_ADDR` | `:8090` | Health/ready/metrics server. |
+| `WORKER_CONCURRENCY` | `1` | Local processing concurrency. |
+| `WORKER_SHUTDOWN_TIMEOUT_SECONDS` | `30` | Graceful shutdown window. |
+| `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Broker URL. |
+| `GENERATION_JOBS_PREFETCH` | `1` | AMQP prefetch count. |
+| `GENERATION_JOBS_MAX_ATTEMPTS` | `3` | Retry limit before DLQ. |
+| `GENERATION_JOBS_RETRY_DELAY_SECONDS` | `10` | Retry queue delay. |
+| `GENERATION_JOB_MAX_RUNNING_SECONDS` | `600` | Job timeout and stale-running cutoff. |
+| `AI_PLANNING_SERVICE_URL` | compose service URL | Downstream AI call target. |
+| `EXTERNAL_INTEGRATIONS_SERVICE_URL` | compose service URL | Weather/place/price/rate target. |
+| `NOTIFICATION_SERVICE_URL` | compose service URL | Internal notification fanout. |
+| `POSTGRES_*` | local compose defaults | Trip Service database access. |
 
-The worker also reads Trip Service env vars for Postgres, AI Planning Service,
-External Integrations Service, Notification Service, enrichment, and budget
-conversion.
+Worker Service also reads many Trip Service configuration variables because it
+executes the same generation and enrichment logic.
 
-## Health
+## Health And Metrics
 
-- `GET /health` returns process liveness.
-- `GET /ready` checks Postgres and RabbitMQ consumer/publisher readiness.
-- `GET /metrics` exposes Prometheus metrics.
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| `GET` | `/health` | Process liveness. |
+| `GET` | `/ready` | Postgres and RabbitMQ readiness. |
+| `GET` | `/metrics` | Prometheus metrics. |
 
-## Retry And Idempotency
+Worker metrics include consumed/acked/nacked/retried/dead-lettered messages,
+active jobs, job starts/completions/failures, job duration, and queue delay.
 
-Each message contains only `messageId`, `jobId`, `tripId`, `jobType`,
-`createdAt`, `requestId`, and `correlationId`. The job ID is the idempotency
-key. Completed, failed, cancelled, and already-running duplicate messages are
-acknowledged and skipped.
+## Development Checks
 
-The worker also reads `x-request-id`, `x-correlation-id`, `x-message-type`,
-`x-source-service`, and `x-attempts` headers. Request and correlation IDs are
-placed into context, logged, and propagated to downstream internal HTTP calls.
-
-Retryable processing failures reset the running job row back to `queued`,
-publish a new message to the retry queue with `x-attempts + 1`, and only then
-ACK the original message. Terminal failures are persisted to the job row before
-the original message is NACKed into the DLQ.
+```bash
+make fmt
+make vet
+make test
+make build
+```
 
 ## Limitations
 
-- No transactional outbox yet; Trip Service marks the job failed if queue
+- No transactional outbox yet; Trip Service can fail a job immediately when
   publish fails in fail-closed mode.
-- No distributed tracing backend yet. Metrics are exposed locally through
-  Prometheus/Grafana.
-- The worker writes Trip Service-owned tables directly as the v1 architecture.
-- Queue mode requires RabbitMQ; `in_process` mode remains available in Trip
-  Service for local fallback and tests.
+- No distributed tracing backend yet; metrics and correlation IDs are the local
+  observability path.
+- Worker writes Trip Service-owned tables directly in v1.
+- Queue mode requires RabbitMQ. Trip Service `in_process` dispatch remains the
+  local fallback and test path.
 
-## Observability
+## Safety
 
-Worker metrics include `worker_messages_consumed_total`,
-`worker_messages_acked_total`, `worker_messages_nacked_total`,
-`worker_messages_retried_total`, `worker_messages_dead_lettered_total`,
-`worker_active_jobs`, `worker_jobs_started_total`,
-`worker_jobs_completed_total`, `worker_jobs_failed_total`,
-`worker_job_duration_seconds`, and `worker_job_queue_delay_seconds`.
-
-Job logs include `jobId`, `tripId`, `jobType`, `messageId`, `attempt`,
-`durationMs`, `errorCode`, `requestId`, and `correlationId` when available.
-Panic recovery records `errorCode="panic"`, logs the stack safely, and attempts
-to mark the job failed without crashing the worker process.
+- Never put access tokens, prompts, preferences, or itinerary JSON in RabbitMQ
+  messages.
+- Logs include job IDs, trip IDs, job type, attempt, duration, request ID, and
+  correlation ID, but must not include tokens, full prompts, full preference
+  payloads, or provider secrets.
