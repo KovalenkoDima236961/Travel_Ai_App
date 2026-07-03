@@ -9,10 +9,10 @@ export function getTripServiceUrl() {
   const value = process.env.NEXT_PUBLIC_TRIP_SERVICE_URL?.trim();
 
   if (value) {
-    return value.replace(/\/+$/, "");
+    return validatePublicServiceUrl("NEXT_PUBLIC_TRIP_SERVICE_URL", value);
   }
 
-  if (process.env.NODE_ENV !== "production") {
+  if (!isStrictAppEnv()) {
     return DEFAULT_TRIP_SERVICE_URL;
   }
 
@@ -41,10 +41,10 @@ export function getAuthServiceUrl() {
   const value = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL?.trim();
 
   if (value) {
-    return value.replace(/\/+$/, "");
+    return validatePublicServiceUrl("NEXT_PUBLIC_AUTH_SERVICE_URL", value);
   }
 
-  if (process.env.NODE_ENV !== "production") {
+  if (!isStrictAppEnv()) {
     return DEFAULT_AUTH_SERVICE_URL;
   }
 
@@ -55,10 +55,10 @@ export function getUserServiceUrl() {
   const value = process.env.NEXT_PUBLIC_USER_SERVICE_URL?.trim();
 
   if (value) {
-    return value.replace(/\/+$/, "");
+    return validatePublicServiceUrl("NEXT_PUBLIC_USER_SERVICE_URL", value);
   }
 
-  if (process.env.NODE_ENV !== "production") {
+  if (!isStrictAppEnv()) {
     return DEFAULT_USER_SERVICE_URL;
   }
 
@@ -69,7 +69,11 @@ export function getExternalIntegrationsServiceUrl() {
   const value = process.env.NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL?.trim();
 
   if (value) {
-    return value.replace(/\/+$/, "");
+    return validatePublicServiceUrl("NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL", value);
+  }
+
+  if (isStrictAppEnv()) {
+    throw new Error("NEXT_PUBLIC_EXTERNAL_INTEGRATIONS_SERVICE_URL is not configured.");
   }
 
   return DEFAULT_EXTERNAL_INTEGRATIONS_SERVICE_URL;
@@ -97,10 +101,10 @@ export function getNotificationServiceUrl() {
   const value = process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL?.trim();
 
   if (value) {
-    return value.replace(/\/+$/, "");
+    return validatePublicServiceUrl("NEXT_PUBLIC_NOTIFICATION_SERVICE_URL", value);
   }
 
-  if (process.env.NODE_ENV !== "production") {
+  if (!isStrictAppEnv()) {
     return DEFAULT_NOTIFICATION_SERVICE_URL;
   }
 
@@ -132,7 +136,11 @@ export function getWorkerServiceUrl() {
   const value = process.env.NEXT_PUBLIC_WORKER_SERVICE_URL?.trim();
 
   if (value) {
-    return value.replace(/\/+$/, "");
+    return validatePublicServiceUrl("NEXT_PUBLIC_WORKER_SERVICE_URL", value);
+  }
+
+  if (isStrictAppEnv()) {
+    throw new Error("NEXT_PUBLIC_WORKER_SERVICE_URL is not configured.");
   }
 
   return DEFAULT_WORKER_SERVICE_URL;
@@ -154,4 +162,49 @@ export function getWorkerApiBaseUrl() {
   }
 
   return getWorkerServiceInternalUrl();
+}
+
+function isStrictAppEnv() {
+  const appEnv = (
+    process.env.NEXT_PUBLIC_APP_ENV ??
+    process.env.APP_ENV ??
+    "local"
+  ).trim().toLowerCase();
+  return appEnv === "staging" || appEnv === "production";
+}
+
+function isProductionAppEnv() {
+  const appEnv = (
+    process.env.NEXT_PUBLIC_APP_ENV ??
+    process.env.APP_ENV ??
+    "local"
+  ).trim().toLowerCase();
+  return appEnv === "production";
+}
+
+function validatePublicServiceUrl(name: string, value: string) {
+  const normalized = value.replace(/\/+$/, "");
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error(`${name} must be a valid http/https URL.`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${name} must use http or https.`);
+  }
+  if (isProductionAppEnv() && parsed.protocol !== "https:") {
+    throw new Error(`${name} must use https in production.`);
+  }
+  if (isProductionAppEnv() && isLocalhost(parsed.hostname)) {
+    throw new Error(`${name} must not use localhost in production.`);
+  }
+
+  return normalized;
+}
+
+function isLocalhost(hostname: string) {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
 }

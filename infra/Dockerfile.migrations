@@ -1,0 +1,52 @@
+FROM golang:1.26-alpine AS auth-builder
+WORKDIR /src/services/auth-service
+COPY services/auth-service/go.mod services/auth-service/go.sum* ./
+RUN go mod download
+COPY services/auth-service ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/auth-service-migrate ./cmd/migrate
+
+FROM golang:1.26-alpine AS user-builder
+WORKDIR /src/services/user-service
+COPY services/user-service/go.mod services/user-service/go.sum* ./
+RUN go mod download
+COPY services/user-service ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/user-service-migrate ./cmd/migrate
+
+FROM golang:1.26-alpine AS trip-builder
+WORKDIR /src/services/trip-service
+COPY services/trip-service/go.mod services/trip-service/go.sum ./
+RUN go mod download
+COPY services/trip-service ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/trip-service-migrate ./cmd/migrate
+
+FROM golang:1.26-alpine AS notification-builder
+WORKDIR /src/services/notification-service
+COPY services/notification-service/go.mod services/notification-service/go.sum* ./
+RUN go mod download
+COPY services/notification-service ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/notification-service-migrate ./cmd/migrate
+
+FROM golang:1.26-alpine AS external-builder
+WORKDIR /src/services/external-integrations-service
+COPY services/external-integrations-service/go.mod services/external-integrations-service/go.sum* ./
+RUN go mod download
+COPY services/external-integrations-service ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/external-integrations-service-migrate ./cmd/migrate
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates && adduser -D -u 10001 appuser
+WORKDIR /app
+COPY --from=auth-builder /out/auth-service-migrate /usr/local/bin/auth-service-migrate
+COPY --from=user-builder /out/user-service-migrate /usr/local/bin/user-service-migrate
+COPY --from=trip-builder /out/trip-service-migrate /usr/local/bin/trip-service-migrate
+COPY --from=notification-builder /out/notification-service-migrate /usr/local/bin/notification-service-migrate
+COPY --from=external-builder /out/external-integrations-service-migrate /usr/local/bin/external-integrations-service-migrate
+COPY services/auth-service/migrations /app/migrations/auth-service
+COPY services/user-service/migrations /app/migrations/user-service
+COPY services/trip-service/migrations /app/migrations/trip-service
+COPY services/notification-service/migrations /app/migrations/notification-service
+COPY services/external-integrations-service/migrations /app/migrations/external-integrations-service
+COPY scripts/run-migrations.sh /usr/local/bin/run-migrations.sh
+RUN chmod +x /usr/local/bin/run-migrations.sh
+USER appuser
+ENTRYPOINT ["/usr/local/bin/run-migrations.sh"]

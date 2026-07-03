@@ -10,6 +10,7 @@ RUN go mod download
 # Build the static binary.
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/user-service ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/user-service-migrate ./cmd/migrate
 
 # --- runtime stage ---
 FROM alpine:3.20
@@ -19,6 +20,7 @@ RUN apk add --no-cache ca-certificates wget && adduser -D -u 10001 appuser
 WORKDIR /app
 
 COPY --from=builder /out/user-service /usr/local/bin/user-service
+COPY --from=builder /out/user-service-migrate /usr/local/bin/user-service-migrate
 # Migrations are applied by the service on startup.
 COPY --from=builder /app/migrations /app/migrations
 
@@ -26,4 +28,3 @@ USER appuser
 EXPOSE 8083
 
 ENTRYPOINT ["user-service"]
-

@@ -6,5 +6,8 @@ __pycache__
 .ruff_cache
 .git
 .gitignore
+.env
+.env.*
+Dockerfile
 tests
 README.md

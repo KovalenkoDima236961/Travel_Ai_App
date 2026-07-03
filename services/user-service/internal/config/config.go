@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,12 +15,13 @@ import (
 const (
 	DefaultDevelopmentJWTSecret  = "change-me-in-development"
 	MinProductionJWTSecretLength = 32
+	MinProductionDBPassword      = 16
 )
 
 // Config is the root application configuration. It is loaded from a YAML file
 // with environment-variable overrides, then validated during bootstrap.
 type Config struct {
-	Env        string          `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production"`
+	Env        string          `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
 	HTTPServer HTTPServer      `yaml:"http_server" validate:"required"`
 	Auth       AuthConfig      `yaml:"auth" validate:"required"`
 	CORS       CORSConfig      `yaml:"cors" validate:"required"`
@@ -82,6 +84,12 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validateJWTSecret(); err != nil {
 		return nil, err
 	}
+	if err := cfg.validatePostgres(); err != nil {
+		return nil, err
+	}
+	if err := cfg.validateCORS(); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
@@ -89,13 +97,15 @@ func Load(path string) (*Config, error) {
 // IsProduction reports whether the service runs in a production profile.
 func (c *Config) IsProduction() bool { return c.Env == "production" }
 
+func (c *Config) IsStrictEnv() bool { return c.Env == "staging" || c.Env == "production" }
+
 // UsesDefaultDevelopmentJWTSecret reports whether a warning should be logged.
 func (c *Config) UsesDefaultDevelopmentJWTSecret() bool {
 	return !c.IsProduction() && c.Auth.JWTAccessSecret == DefaultDevelopmentJWTSecret
 }
 
 func (c *Config) applyDefaults() {
-	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && c.Env == "development" {
+	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && isLocalEnv(c.Env) {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
@@ -111,16 +121,101 @@ func (c *Config) validateJWTSecret() error {
 	if secret == "" {
 		return fmt.Errorf("JWT_ACCESS_SECRET is required")
 	}
-	if !c.IsProduction() {
+	if !c.IsStrictEnv() {
 		c.Auth.JWTAccessSecret = secret
 		return nil
 	}
-	if secret == DefaultDevelopmentJWTSecret {
-		return fmt.Errorf("JWT_ACCESS_SECRET must not use the development default in production")
+	if isUnsafeSecret(secret, DefaultDevelopmentJWTSecret) {
+		return fmt.Errorf("JWT_ACCESS_SECRET must not use a development default in %s", c.Env)
 	}
 	if len(secret) < MinProductionJWTSecretLength {
-		return fmt.Errorf("JWT_ACCESS_SECRET must be at least %d characters in production", MinProductionJWTSecretLength)
+		return fmt.Errorf("JWT_ACCESS_SECRET must be at least %d characters in %s", MinProductionJWTSecretLength, c.Env)
 	}
 	c.Auth.JWTAccessSecret = secret
 	return nil
+}
+
+func (c *Config) validatePostgres() error {
+	password := strings.TrimSpace(c.Postgres.Password)
+	if password == "" {
+		return fmt.Errorf("POSTGRES_PASSWORD is required")
+	}
+	if c.IsStrictEnv() {
+		if isUnsafeSecret(password, "postgres") {
+			return fmt.Errorf("POSTGRES_PASSWORD must not use a development default in %s", c.Env)
+		}
+		if len(password) < MinProductionDBPassword {
+			return fmt.Errorf("POSTGRES_PASSWORD must be at least %d characters in %s", MinProductionDBPassword, c.Env)
+		}
+	}
+	c.Postgres.Password = password
+	return nil
+}
+
+func (c *Config) validateCORS() error {
+	origins := strings.TrimSpace(c.CORS.AllowedOrigins)
+	if origins == "" {
+		if c.IsStrictEnv() {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS is required in %s", c.Env)
+		}
+		return nil
+	}
+	if c.IsStrictEnv() && origins == "*" {
+		return fmt.Errorf("CORS_ALLOWED_ORIGINS must not be wildcard in %s", c.Env)
+	}
+	if c.IsStrictEnv() {
+		for _, origin := range strings.Split(origins, ",") {
+			if err := validateHTTPURL("CORS_ALLOWED_ORIGINS", origin, false); err != nil {
+				return err
+			}
+			if c.IsProduction() && isLocalhostURL(origin) {
+				return fmt.Errorf("CORS_ALLOWED_ORIGINS must not use localhost in production")
+			}
+		}
+	}
+	c.CORS.AllowedOrigins = origins
+	return nil
+}
+
+func validateHTTPURL(name, value string, requireHTTPS bool) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s contains an empty URL", name)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must contain valid http/https URLs", name)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https URLs", name)
+	}
+	if requireHTTPS && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use https in production", name)
+	}
+	return nil
+}
+
+func isLocalEnv(env string) bool {
+	return env == "local" || env == "development" || env == "test"
+}
+
+func isLocalhostURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func isUnsafeSecret(value string, additional ...string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	disallowed := []string{"secret", "password", "dev", "changeme", "change-me", "guest", "admin"}
+	disallowed = append(disallowed, additional...)
+	for _, item := range disallowed {
+		if normalized == strings.ToLower(strings.TrimSpace(item)) {
+			return true
+		}
+	}
+	return false
 }

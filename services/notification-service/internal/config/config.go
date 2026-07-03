@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -19,6 +20,8 @@ const (
 	// MinProductionJWTSecretLength is the minimum acceptable secret length in
 	// production.
 	MinProductionJWTSecretLength = 32
+	MinProductionTokenLength     = 32
+	MinProductionDBPassword      = 16
 
 	// DefaultDevelopmentInternalToken is the shared service-to-service token used
 	// for local development. Trip Service presents it on internal endpoints.
@@ -29,7 +32,7 @@ const (
 // (path passed via the -config flag) with environment-variable overrides, then
 // validated.
 type Config struct {
-	Env        string          `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production"`
+	Env        string          `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
 	HTTPServer HTTPServer      `yaml:"http_server" validate:"required"`
 	Postgres   postgres.Config `yaml:"postgres" validate:"required"`
 	JWT        JWTConfig       `yaml:"jwt" validate:"required"`
@@ -191,6 +194,15 @@ func Load(path string) (*Config, error) {
 	if err := cfg.validateWebPush(); err != nil {
 		return nil, err
 	}
+	if err := cfg.validatePostgres(); err != nil {
+		return nil, err
+	}
+	if err := cfg.validateCORS(); err != nil {
+		return nil, err
+	}
+	if err := cfg.validatePublicURLs(); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
@@ -213,6 +225,10 @@ func (c *Config) IsProduction() bool {
 	return c.Env == "production"
 }
 
+func (c *Config) IsStrictEnv() bool {
+	return c.Env == "staging" || c.Env == "production"
+}
+
 // SSEHeartbeatInterval returns the configured heartbeat period.
 func (c *Config) SSEHeartbeatInterval() time.Duration {
 	return time.Duration(c.SSE.HeartbeatSeconds) * time.Second
@@ -229,7 +245,7 @@ func (c *Config) WebPushTimeout() time.Duration {
 }
 
 func (c *Config) applyDefaults() {
-	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && c.Env == "development" {
+	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && isLocalEnv(c.Env) {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
@@ -256,15 +272,15 @@ func (c *Config) validateJWTSecret() error {
 	if secret == "" {
 		return fmt.Errorf("JWT_ACCESS_SECRET is required")
 	}
-	if !c.IsProduction() {
+	if !c.IsStrictEnv() {
 		c.JWT.AccessSecret = secret
 		return nil
 	}
-	if secret == DefaultDevelopmentJWTSecret {
-		return fmt.Errorf("JWT_ACCESS_SECRET must not use the development default in production")
+	if isUnsafeSecret(secret, DefaultDevelopmentJWTSecret) {
+		return fmt.Errorf("JWT_ACCESS_SECRET must not use a development default in %s", c.Env)
 	}
 	if len(secret) < MinProductionJWTSecretLength {
-		return fmt.Errorf("JWT_ACCESS_SECRET must be at least %d characters in production", MinProductionJWTSecretLength)
+		return fmt.Errorf("JWT_ACCESS_SECRET must be at least %d characters in %s", MinProductionJWTSecretLength, c.Env)
 	}
 	c.JWT.AccessSecret = secret
 	return nil
@@ -275,8 +291,11 @@ func (c *Config) validateInternalToken() error {
 	if token == "" {
 		return fmt.Errorf("INTERNAL_SERVICE_TOKEN is required")
 	}
-	if c.IsProduction() && token == DefaultDevelopmentInternalToken {
-		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use the development default in production")
+	if c.IsStrictEnv() && isUnsafeSecret(token, DefaultDevelopmentInternalToken) {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use a development default in %s", c.Env)
+	}
+	if c.IsStrictEnv() && len(token) < MinProductionTokenLength {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must be at least %d characters in %s", MinProductionTokenLength, c.Env)
 	}
 	c.Internal.ServiceToken = token
 	return nil
@@ -293,6 +312,9 @@ func (c *Config) validateEmail() error {
 		}
 		if strings.TrimSpace(c.Email.SMTP.FromEmail) == "" {
 			return fmt.Errorf("SMTP_FROM_EMAIL is required when EMAIL_PROVIDER=smtp")
+		}
+		if c.IsStrictEnv() && strings.TrimSpace(c.Email.SMTP.Password) == "" {
+			return fmt.Errorf("SMTP_PASSWORD is required when EMAIL_PROVIDER=smtp in %s", c.Env)
 		}
 	}
 	return nil
@@ -319,5 +341,110 @@ func (c *Config) validateWebPush() error {
 	if c.WebPush.Enabled && strings.TrimSpace(c.WebPush.Subject) == "" {
 		return fmt.Errorf("WEB_PUSH_SUBJECT is required when web push is enabled")
 	}
+	if c.IsStrictEnv() && c.WebPush.Enabled && isUnsafeSecret(c.WebPush.VAPIDPrivateKey) {
+		return fmt.Errorf("WEB_PUSH_VAPID_PRIVATE_KEY must not use a development default in %s", c.Env)
+	}
 	return nil
+}
+
+func (c *Config) validatePostgres() error {
+	password := strings.TrimSpace(c.Postgres.Password)
+	if password == "" {
+		return fmt.Errorf("POSTGRES_PASSWORD is required")
+	}
+	if c.IsStrictEnv() {
+		if isUnsafeSecret(password, "postgres") {
+			return fmt.Errorf("POSTGRES_PASSWORD must not use a development default in %s", c.Env)
+		}
+		if len(password) < MinProductionDBPassword {
+			return fmt.Errorf("POSTGRES_PASSWORD must be at least %d characters in %s", MinProductionDBPassword, c.Env)
+		}
+	}
+	c.Postgres.Password = password
+	return nil
+}
+
+func (c *Config) validateCORS() error {
+	origins := strings.TrimSpace(c.CORS.AllowedOrigins)
+	if origins == "" {
+		if c.IsStrictEnv() {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS is required in %s", c.Env)
+		}
+		return nil
+	}
+	if c.IsStrictEnv() && origins == "*" {
+		return fmt.Errorf("CORS_ALLOWED_ORIGINS must not be wildcard in %s", c.Env)
+	}
+	if c.IsStrictEnv() {
+		for _, origin := range strings.Split(origins, ",") {
+			if err := validateHTTPURL("CORS_ALLOWED_ORIGINS", origin, false); err != nil {
+				return err
+			}
+			if c.IsProduction() && isLocalhostURL(origin) {
+				return fmt.Errorf("CORS_ALLOWED_ORIGINS must not use localhost in production")
+			}
+		}
+	}
+	c.CORS.AllowedOrigins = origins
+	return nil
+}
+
+func (c *Config) validatePublicURLs() error {
+	publicWeb := strings.TrimRight(strings.TrimSpace(c.Email.PublicWebBaseURL), "/")
+	if publicWeb == "" {
+		return fmt.Errorf("PUBLIC_WEB_BASE_URL is required")
+	}
+	if err := validateHTTPURL("PUBLIC_WEB_BASE_URL", publicWeb, c.IsProduction()); err != nil {
+		if c.IsStrictEnv() || c.Email.Enabled {
+			return err
+		}
+	}
+	if c.IsProduction() && isLocalhostURL(publicWeb) {
+		return fmt.Errorf("PUBLIC_WEB_BASE_URL must not use localhost in production")
+	}
+	c.Email.PublicWebBaseURL = publicWeb
+	return nil
+}
+
+func validateHTTPURL(name, value string, requireHTTPS bool) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s contains an empty URL", name)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must contain valid http/https URLs", name)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https URLs", name)
+	}
+	if requireHTTPS && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use https in production", name)
+	}
+	return nil
+}
+
+func isLocalhostURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func isLocalEnv(env string) bool {
+	return env == "local" || env == "development" || env == "test"
+}
+
+func isUnsafeSecret(value string, additional ...string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	disallowed := []string{"secret", "password", "dev", "changeme", "change-me", "guest", "admin"}
+	disallowed = append(disallowed, additional...)
+	for _, item := range disallowed {
+		if normalized == strings.ToLower(strings.TrimSpace(item)) {
+			return true
+		}
+	}
+	return false
 }

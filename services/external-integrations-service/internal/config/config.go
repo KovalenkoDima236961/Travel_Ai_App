@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -29,12 +30,16 @@ const (
 
 	DefaultDevelopmentJWTSecret     = "change-me-in-development"
 	DefaultDevelopmentInternalToken = "dev-internal-service-token"
+	DefaultDevelopmentCalendarKey   = "dev-calendar-token-key-32-bytes!"
+	MinProductionJWTSecretLength    = 32
+	MinProductionTokenLength        = 32
+	MinProductionDBPassword         = 16
 )
 
 // Config is the root application configuration. It is loaded from a YAML file
 // with environment-variable overrides, then validated during bootstrap.
 type Config struct {
-	Env                  string                     `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production test"`
+	Env                  string                     `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
 	HTTPServer           HTTPServer                 `yaml:"http_server" validate:"required"`
 	Postgres             postgres.Config            `yaml:"postgres" validate:"required"`
 	Auth                 AuthConfig                 `yaml:"auth" validate:"required"`
@@ -348,9 +353,24 @@ func Load(path string) (*Config, error) {
 		if cfg.Calendar.GoogleClientSecret == "" {
 			return nil, fmt.Errorf("GOOGLE_OAUTH_CLIENT_SECRET is required when CALENDAR_PROVIDER=google")
 		}
+		if err := validateHTTPURL("GOOGLE_OAUTH_REDIRECT_URL", cfg.Calendar.GoogleRedirectURL, cfg.IsProduction()); err != nil {
+			return nil, err
+		}
 	}
 	if cfg.Calendar.Enabled && len(cfg.Calendar.Scopes()) == 0 {
 		return nil, fmt.Errorf("GOOGLE_CALENDAR_SCOPES is required when calendar is enabled")
+	}
+	if err := cfg.validateProviders(); err != nil {
+		return nil, err
+	}
+	if err := cfg.validatePostgres(); err != nil {
+		return nil, err
+	}
+	if err := cfg.validateCORS(); err != nil {
+		return nil, err
+	}
+	if err := cfg.validatePublicURLs(); err != nil {
+		return nil, err
 	}
 
 	return &cfg, nil
@@ -359,8 +379,10 @@ func Load(path string) (*Config, error) {
 // IsProduction reports whether the service runs in a production profile.
 func (c *Config) IsProduction() bool { return c.Env == "production" }
 
+func (c *Config) IsStrictEnv() bool { return c.Env == "staging" || c.Env == "production" }
+
 func (c *Config) applyDefaults() {
-	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && c.Env == "development" {
+	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && isLocalEnv(c.Env) {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
@@ -376,8 +398,11 @@ func (c *Config) validateSecrets() error {
 	if jwtSecret == "" {
 		return fmt.Errorf("JWT_ACCESS_SECRET is required")
 	}
-	if c.IsProduction() && jwtSecret == DefaultDevelopmentJWTSecret {
-		return fmt.Errorf("JWT_ACCESS_SECRET must not use the development default in production")
+	if c.IsStrictEnv() && isUnsafeSecret(jwtSecret, DefaultDevelopmentJWTSecret) {
+		return fmt.Errorf("JWT_ACCESS_SECRET must not use a development default in %s", c.Env)
+	}
+	if c.IsStrictEnv() && len(jwtSecret) < MinProductionJWTSecretLength {
+		return fmt.Errorf("JWT_ACCESS_SECRET must be at least %d characters in %s", MinProductionJWTSecretLength, c.Env)
 	}
 	c.Auth.JWTAccessSecret = jwtSecret
 
@@ -385,8 +410,11 @@ func (c *Config) validateSecrets() error {
 	if internalToken == "" {
 		return fmt.Errorf("INTERNAL_SERVICE_TOKEN is required")
 	}
-	if c.IsProduction() && internalToken == DefaultDevelopmentInternalToken {
-		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use the development default in production")
+	if c.IsStrictEnv() && isUnsafeSecret(internalToken, DefaultDevelopmentInternalToken) {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must not use a development default in %s", c.Env)
+	}
+	if c.IsStrictEnv() && len(internalToken) < MinProductionTokenLength {
+		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must be at least %d characters in %s", MinProductionTokenLength, c.Env)
 	}
 	c.Internal.ServiceToken = internalToken
 
@@ -394,10 +422,163 @@ func (c *Config) validateSecrets() error {
 	if c.Calendar.Enabled {
 		switch len([]byte(key)) {
 		case 16, 24, 32:
+			if c.IsStrictEnv() && isUnsafeSecret(key, DefaultDevelopmentCalendarKey) {
+				return fmt.Errorf("CALENDAR_TOKEN_ENCRYPTION_KEY must not use a development default in %s", c.Env)
+			}
 			c.Calendar.EncryptionKey = key
 		default:
 			return fmt.Errorf("CALENDAR_TOKEN_ENCRYPTION_KEY must be 16, 24, or 32 bytes")
 		}
 	}
 	return nil
+}
+
+func (c *Config) validateProviders() error {
+	switch c.PlaceProvider.Provider {
+	case PlaceProviderMock:
+	case PlaceProviderFoursquare:
+		if c.PlaceProvider.FoursquareAPIKey == "" {
+			return fmt.Errorf("FOURSQUARE_API_KEY is required when PLACE_PROVIDER=foursquare")
+		}
+	default:
+		return fmt.Errorf("PLACE_PROVIDER must be mock or foursquare")
+	}
+
+	switch c.RouteProvider.Provider {
+	case RouteProviderMock:
+	case RouteProviderORS:
+		if c.RouteProvider.ORSAPIKey == "" {
+			return fmt.Errorf("ORS_API_KEY is required when ROUTE_PROVIDER=ors")
+		}
+	default:
+		return fmt.Errorf("ROUTE_PROVIDER must be mock or ors")
+	}
+
+	switch c.WeatherProvider.Provider {
+	case WeatherProviderMock:
+	case WeatherProviderOpenWeather:
+		if c.WeatherProvider.OpenWeatherAPIKey == "" {
+			return fmt.Errorf("OPENWEATHER_API_KEY is required when WEATHER_PROVIDER=openweathermap")
+		}
+	default:
+		return fmt.Errorf("WEATHER_PROVIDER must be mock or openweathermap")
+	}
+
+	switch c.ExchangeRateProvider.Provider {
+	case ExchangeRateProviderMock:
+	case ExchangeRateProviderHost, ExchangeRateProviderOpenExchangeRates, ExchangeRateProviderAPI:
+		if c.ExchangeRateProvider.APIKey == "" {
+			return fmt.Errorf("EXCHANGE_RATE_API_KEY is required when EXCHANGE_RATE_PROVIDER=%s", c.ExchangeRateProvider.Provider)
+		}
+	default:
+		return fmt.Errorf("EXCHANGE_RATE_PROVIDER must be mock, exchangerate_host, openexchangerates, or exchangerate_api")
+	}
+
+	switch c.PriceProvider.Provider {
+	case PriceProviderMock:
+	case PriceProviderAPI:
+		if c.PriceProvider.APIKey == "" {
+			return fmt.Errorf("PRICE_API_KEY is required when PRICE_PROVIDER=api")
+		}
+	default:
+		return fmt.Errorf("PRICE_PROVIDER must be mock or api")
+	}
+	return nil
+}
+
+func (c *Config) validatePostgres() error {
+	password := strings.TrimSpace(c.Postgres.Password)
+	if password == "" {
+		return fmt.Errorf("POSTGRES_PASSWORD is required")
+	}
+	if c.IsStrictEnv() {
+		if isUnsafeSecret(password, "postgres") {
+			return fmt.Errorf("POSTGRES_PASSWORD must not use a development default in %s", c.Env)
+		}
+		if len(password) < MinProductionDBPassword {
+			return fmt.Errorf("POSTGRES_PASSWORD must be at least %d characters in %s", MinProductionDBPassword, c.Env)
+		}
+	}
+	c.Postgres.Password = password
+	return nil
+}
+
+func (c *Config) validateCORS() error {
+	origins := strings.TrimSpace(c.CORS.AllowedOrigins)
+	if origins == "" {
+		if c.IsStrictEnv() {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS is required in %s", c.Env)
+		}
+		return nil
+	}
+	if c.IsStrictEnv() && origins == "*" {
+		return fmt.Errorf("CORS_ALLOWED_ORIGINS must not be wildcard in %s", c.Env)
+	}
+	if c.IsStrictEnv() {
+		for _, origin := range strings.Split(origins, ",") {
+			if err := validateHTTPURL("CORS_ALLOWED_ORIGINS", origin, false); err != nil {
+				return err
+			}
+			if c.IsProduction() && isLocalhostURL(origin) {
+				return fmt.Errorf("CORS_ALLOWED_ORIGINS must not use localhost in production")
+			}
+		}
+	}
+	c.CORS.AllowedOrigins = origins
+	return nil
+}
+
+func (c *Config) validatePublicURLs() error {
+	if c.Calendar.Enabled {
+		if err := validateHTTPURL("PUBLIC_WEB_BASE_URL", c.Calendar.PublicWebBaseURL, c.IsProduction()); err != nil {
+			return err
+		}
+		if c.IsProduction() && isLocalhostURL(c.Calendar.PublicWebBaseURL) {
+			return fmt.Errorf("PUBLIC_WEB_BASE_URL must not use localhost in production")
+		}
+	}
+	return nil
+}
+
+func validateHTTPURL(name, value string, requireHTTPS bool) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", name)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must be a valid http/https URL", name)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https", name)
+	}
+	if requireHTTPS && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use https in production", name)
+	}
+	return nil
+}
+
+func isLocalhostURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func isLocalEnv(env string) bool {
+	return env == "local" || env == "development" || env == "test"
+}
+
+func isUnsafeSecret(value string, additional ...string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	disallowed := []string{"secret", "password", "dev", "changeme", "change-me", "guest", "admin"}
+	disallowed = append(disallowed, additional...)
+	for _, item := range disallowed {
+		if normalized == strings.ToLower(strings.TrimSpace(item)) {
+			return true
+		}
+	}
+	return false
 }

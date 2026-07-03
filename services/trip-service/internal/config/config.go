@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -11,11 +12,20 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
+const (
+	DefaultDevelopmentJWTSecret         = "change-me-in-development"
+	DefaultDevelopmentInternalToken     = "dev-internal-service-token"
+	DefaultDevelopmentPublicShareSecret = "dev-public-share-secret-change-me"
+	MinProductionJWTSecretLength        = 32
+	MinProductionTokenLength            = 32
+	MinProductionDBPassword             = 16
+)
+
 // Config is the root application configuration. It is loaded from a YAML file
 // (path passed via the -config flag) with environment-variable overrides, then
 // validated using the project's validation package.
 type Config struct {
-	Env                string                   `yaml:"env" env:"APP_ENV" env-default:"development" validate:"required,oneof=development production"`
+	Env                string                   `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
 	HTTPServer         HTTPServer               `yaml:"http_server"`
 	Auth               AuthConfig               `yaml:"auth"`
 	CORS               CORSConfig               `yaml:"cors"`
@@ -218,6 +228,8 @@ type PublicSharingConfig struct {
 // IsProduction reports whether the service runs in a production profile.
 func (c *Config) IsProduction() bool { return c.Env == "production" }
 
+func (c *Config) IsStrictEnv() bool { return c.Env == "staging" || c.Env == "production" }
+
 // PresenceHeartbeatInterval returns the configured presence heartbeat period.
 func (c *Config) PresenceHeartbeatInterval() time.Duration {
 	return time.Duration(c.Presence.HeartbeatSeconds) * time.Second
@@ -296,12 +308,15 @@ func Load(path string) (*Config, error) {
 	if err := validator.Validate(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+	if err := cfg.validateStrictConfig(); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
 
 func (c *Config) applyDefaults() {
-	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && c.Env == "development" {
+	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && isLocalEnv(c.Env) {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
 	if strings.TrimSpace(c.CORS.AllowedMethods) == "" {
@@ -310,4 +325,270 @@ func (c *Config) applyDefaults() {
 	if strings.TrimSpace(c.CORS.AllowedHeaders) == "" {
 		c.CORS.AllowedHeaders = "Content-Type,Authorization"
 	}
+}
+
+func (c *Config) validateStrictConfig() error {
+	if err := c.validatePostgres(); err != nil {
+		return err
+	}
+	if err := c.validateAuth(); err != nil {
+		return err
+	}
+	if err := c.validateCORS(); err != nil {
+		return err
+	}
+	if err := c.validateServiceURLs(); err != nil {
+		return err
+	}
+	if err := c.validatePublicSharing(); err != nil {
+		return err
+	}
+	if err := c.validateGenerationJobs(); err != nil {
+		return err
+	}
+	if err := c.validateInternalTokens(); err != nil {
+		return err
+	}
+	if err := c.validateOps(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) validatePostgres() error {
+	password := strings.TrimSpace(c.Postgres.Password)
+	if password == "" {
+		return fmt.Errorf("POSTGRES_PASSWORD is required")
+	}
+	if c.IsStrictEnv() {
+		if isUnsafeSecret(password, "postgres") {
+			return fmt.Errorf("POSTGRES_PASSWORD must not use a development default in %s", c.Env)
+		}
+		if len(password) < MinProductionDBPassword {
+			return fmt.Errorf("POSTGRES_PASSWORD must be at least %d characters in %s", MinProductionDBPassword, c.Env)
+		}
+	}
+	c.Postgres.Password = password
+	return nil
+}
+
+func (c *Config) validateAuth() error {
+	secret := strings.TrimSpace(c.Auth.JWTAccessSecret)
+	if secret == "" {
+		return fmt.Errorf("JWT_ACCESS_SECRET is required")
+	}
+	if c.IsStrictEnv() {
+		if isUnsafeSecret(secret, DefaultDevelopmentJWTSecret) {
+			return fmt.Errorf("JWT_ACCESS_SECRET must not use a development default in %s", c.Env)
+		}
+		if len(secret) < MinProductionJWTSecretLength {
+			return fmt.Errorf("JWT_ACCESS_SECRET must be at least %d characters in %s", MinProductionJWTSecretLength, c.Env)
+		}
+	}
+	c.Auth.JWTAccessSecret = secret
+	if c.IsStrictEnv() && !c.Auth.Required {
+		return fmt.Errorf("AUTH_REQUIRED must be true in %s", c.Env)
+	}
+	return nil
+}
+
+func (c *Config) validateCORS() error {
+	origins := strings.TrimSpace(c.CORS.AllowedOrigins)
+	if origins == "" {
+		if c.IsStrictEnv() {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS is required in %s", c.Env)
+		}
+		return nil
+	}
+	if c.IsStrictEnv() && origins == "*" {
+		return fmt.Errorf("CORS_ALLOWED_ORIGINS must not be wildcard in %s", c.Env)
+	}
+	if c.IsStrictEnv() {
+		for _, origin := range strings.Split(origins, ",") {
+			if err := validateHTTPURL("CORS_ALLOWED_ORIGINS", origin, false); err != nil {
+				return err
+			}
+			if c.IsProduction() && isLocalhostURL(origin) {
+				return fmt.Errorf("CORS_ALLOWED_ORIGINS must not use localhost in production")
+			}
+		}
+	}
+	c.CORS.AllowedOrigins = origins
+	return nil
+}
+
+func (c *Config) validateServiceURLs() error {
+	checks := []struct {
+		name         string
+		value        string
+		enabled      bool
+		requireHTTPS bool
+	}{
+		{"AI_PLANNING_SERVICE_URL", c.ItineraryGenerator.AIPlanningServiceURL, strings.TrimSpace(c.ItineraryGenerator.Mode) == "http", false},
+		{"USER_SERVICE_URL", c.UserContext.UserServiceURL, c.UserContext.Enabled, false},
+		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.WeatherContext.ExternalIntegrationsServiceURL, c.WeatherContext.Enabled, false},
+		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.PlaceEnrichment.ExternalIntegrationsServiceURL, c.PlaceEnrichment.Enabled, false},
+		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.PriceEnrichment.ExternalIntegrationsServiceURL, c.PriceEnrichment.Enabled, false},
+		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.CalendarSync.ExternalIntegrationsServiceURL, c.CalendarSync.Enabled, false},
+		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.BudgetConversion.ExternalIntegrationsServiceURL, c.BudgetConversion.Enabled, false},
+		{"NOTIFICATION_SERVICE_URL", c.Notifications.NotificationServiceURL, c.Notifications.Enabled, false},
+		{"AUTH_SERVICE_URL", c.UserLookup.AuthServiceURL, true, false},
+		{"PUBLIC_WEB_BASE_URL", c.PublicSharing.PublicWebBaseURL, c.PublicSharing.Enabled, c.IsProduction()},
+	}
+	for _, check := range checks {
+		if !check.enabled {
+			continue
+		}
+		if err := validateHTTPURL(check.name, check.value, check.requireHTTPS); err != nil {
+			if c.IsStrictEnv() || check.name == "PUBLIC_WEB_BASE_URL" {
+				return err
+			}
+		}
+	}
+	publicWeb := strings.TrimRight(strings.TrimSpace(c.PublicSharing.PublicWebBaseURL), "/")
+	if c.IsProduction() && c.PublicSharing.Enabled && isLocalhostURL(publicWeb) {
+		return fmt.Errorf("PUBLIC_WEB_BASE_URL must not use localhost in production")
+	}
+	c.PublicSharing.PublicWebBaseURL = publicWeb
+	return nil
+}
+
+func (c *Config) validatePublicSharing() error {
+	if !c.PublicSharing.Enabled {
+		return nil
+	}
+	secret := strings.TrimSpace(c.PublicSharing.PublicShareAccessSecret)
+	if secret == "" {
+		return fmt.Errorf("PUBLIC_SHARE_ACCESS_SECRET is required when public sharing is enabled")
+	}
+	if c.IsStrictEnv() {
+		if isUnsafeSecret(secret, DefaultDevelopmentPublicShareSecret) {
+			return fmt.Errorf("PUBLIC_SHARE_ACCESS_SECRET must not use a development default in %s", c.Env)
+		}
+		if len(secret) < MinProductionTokenLength {
+			return fmt.Errorf("PUBLIC_SHARE_ACCESS_SECRET must be at least %d characters in %s", MinProductionTokenLength, c.Env)
+		}
+	}
+	c.PublicSharing.PublicShareAccessSecret = secret
+	return nil
+}
+
+func (c *Config) validateGenerationJobs() error {
+	if !c.GenerationJobs.Enabled || c.GenerationJobs.DispatchMode != "queue" {
+		return nil
+	}
+	return validateRabbitMQURL("RABBITMQ_URL", c.GenerationJobs.RabbitMQURL, c.IsStrictEnv())
+}
+
+func (c *Config) validateInternalTokens() error {
+	tokens := []struct {
+		name    string
+		value   string
+		enabled bool
+	}{
+		{"INTERNAL_SERVICE_TOKEN", c.PriceEnrichment.InternalServiceToken, c.PriceEnrichment.Enabled},
+		{"INTERNAL_SERVICE_TOKEN", c.CalendarSync.InternalServiceToken, c.CalendarSync.Enabled},
+		{"INTERNAL_SERVICE_TOKEN", c.BudgetConversion.InternalServiceToken, c.BudgetConversion.Enabled},
+		{"NOTIFICATION_SERVICE_TOKEN", c.Notifications.NotificationServiceToken, c.Notifications.Enabled},
+	}
+	for _, token := range tokens {
+		if !token.enabled {
+			continue
+		}
+		if err := validateTokenValue(token.name, token.value, c.Env, c.IsStrictEnv()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Config) validateOps() error {
+	if !c.Ops.DashboardEnabled {
+		return nil
+	}
+	if c.IsStrictEnv() && strings.TrimSpace(c.Ops.AdminEmails) == "" {
+		return fmt.Errorf("OPS_ADMIN_EMAILS is required when OPS_DASHBOARD_ENABLED=true in %s", c.Env)
+	}
+	return validateTokenValue("OPS_INTERNAL_SERVICE_TOKEN", c.Ops.InternalServiceToken, c.Env, c.IsStrictEnv())
+}
+
+func validateTokenValue(name, value, env string, strict bool) error {
+	token := strings.TrimSpace(value)
+	if token == "" {
+		return fmt.Errorf("%s is required", name)
+	}
+	if strict {
+		if isUnsafeSecret(token, DefaultDevelopmentInternalToken) {
+			return fmt.Errorf("%s must not use a development default in %s", name, env)
+		}
+		if len(token) < MinProductionTokenLength {
+			return fmt.Errorf("%s must be at least %d characters in %s", name, MinProductionTokenLength, env)
+		}
+	}
+	return nil
+}
+
+func validateHTTPURL(name, value string, requireHTTPS bool) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", name)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must be a valid http/https URL", name)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https", name)
+	}
+	if requireHTTPS && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use https in production", name)
+	}
+	return nil
+}
+
+func validateRabbitMQURL(name, value string, strict bool) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", name)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must be a valid amqp/amqps URL", name)
+	}
+	if parsed.Scheme != "amqp" && parsed.Scheme != "amqps" {
+		return fmt.Errorf("%s must use amqp or amqps", name)
+	}
+	if strict && parsed.User != nil {
+		username := parsed.User.Username()
+		password, _ := parsed.User.Password()
+		if strings.EqualFold(username, "guest") || isUnsafeSecret(password, "guest") {
+			return fmt.Errorf("%s must not use guest credentials in staging or production", name)
+		}
+	}
+	return nil
+}
+
+func isLocalhostURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func isLocalEnv(env string) bool {
+	return env == "local" || env == "development" || env == "test"
+}
+
+func isUnsafeSecret(value string, additional ...string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	disallowed := []string{"secret", "password", "dev", "changeme", "change-me", "guest", "admin"}
+	disallowed = append(disallowed, additional...)
+	for _, item := range disallowed {
+		if normalized == strings.ToLower(strings.TrimSpace(item)) {
+			return true
+		}
+	}
+	return false
 }
