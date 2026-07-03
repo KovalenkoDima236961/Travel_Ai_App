@@ -92,6 +92,7 @@ import {
   getCachedTrip,
   updateCachedTripItinerary
 } from "@/lib/offline/trip-cache";
+import { recordPwaEngagement } from "@/lib/pwa/pwa-detection";
 import {
   discardMutation,
   enqueueItineraryUpdate,
@@ -557,6 +558,12 @@ function TripDetailPageContent() {
     pendingOfflineMutation,
     tripQuery.data
   ]);
+
+  useEffect(() => {
+    if (displayedTrip) {
+      recordPwaEngagement();
+    }
+  }, [displayedTrip?.id]);
 
   if (!displayedTrip && (tripQuery.isPending || offlineCacheLoading)) {
     return (

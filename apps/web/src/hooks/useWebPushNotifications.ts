@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   getPushPublicKey,
   getPushStatus,
@@ -27,14 +27,18 @@ export type WebPushState = {
 };
 
 export function useWebPushNotifications(): WebPushState {
-  const supported = useMemo(() => isPushSupported(), []);
-  const [permission, setPermission] = useState<PushPermission>(() =>
-    supported ? Notification.permission : "unsupported"
-  );
+  const [supported, setSupported] = useState(false);
+  const [permission, setPermission] = useState<PushPermission>("unsupported");
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSubscriptions, setActiveSubscriptions] = useState<number | undefined>();
+
+  useEffect(() => {
+    const nextSupported = isPushSupported();
+    setSupported(nextSupported);
+    setPermission(nextSupported ? Notification.permission : "unsupported");
+  }, []);
 
   const refreshStatus = useCallback(async () => {
     if (!supported) {

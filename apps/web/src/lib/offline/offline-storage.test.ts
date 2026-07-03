@@ -3,7 +3,10 @@ import { ApiError } from "@/lib/api/client";
 import {
   cacheTripSnapshot,
   clearOfflineData,
-  getCachedTrip
+  clearOfflineDataForUser,
+  deleteCachedTrip,
+  getCachedTrip,
+  listCachedTrips
 } from "@/lib/offline/trip-cache";
 import {
   discardMutation,
@@ -70,6 +73,38 @@ describe("offline trip cache", () => {
     await clearOfflineData("user-1");
 
     expect(await getCachedTrip("trip-1", "user-1")).toBeNull();
+  });
+
+  it("lists and deletes cached trips only for the current user", async () => {
+    await cacheTripSnapshot({
+      userId: "user-1",
+      trip: { ...sampleTrip(), id: "trip-1", destination: "Rome" }
+    });
+    await cacheTripSnapshot({
+      userId: "user-1",
+      trip: { ...sampleTrip(), id: "trip-2", destination: "Paris" }
+    });
+    await cacheTripSnapshot({
+      userId: "user-2",
+      trip: { ...sampleTrip(), id: "trip-3", userId: "user-2", destination: "Lisbon" }
+    });
+
+    expect(await listCachedTrips("user-1")).toHaveLength(2);
+    expect(
+      (await listCachedTrips("user-1"))
+        .map((record) => record.trip.destination)
+        .sort()
+    ).toEqual(["Paris", "Rome"]);
+
+    await deleteCachedTrip("trip-3", "user-1");
+    expect(await getCachedTrip("trip-3", "user-2")).not.toBeNull();
+
+    await deleteCachedTrip("trip-1", "user-1");
+    expect((await listCachedTrips("user-1")).map((record) => record.tripId)).toEqual(["trip-2"]);
+
+    await clearOfflineDataForUser("user-1");
+    expect(await listCachedTrips("user-1")).toHaveLength(0);
+    expect(await getCachedTrip("trip-3", "user-2")).not.toBeNull();
   });
 });
 

@@ -225,6 +225,57 @@ Manual no-cache test:
 3. Open a private trip detail URL.
 4. Confirm the page says the trip is not available offline yet.
 
+## PWA Install And Offline Trips
+
+Manual Chromium install test:
+
+1. Start the app and log in with a supported Chromium-family browser.
+2. Open `/trips`, then open a trip detail page successfully.
+3. Wait at least 10 seconds.
+4. Confirm the install banner appears only on authenticated app pages.
+5. Click `Install`, accept the browser install prompt, and confirm the app opens
+   or is listed as installed.
+6. Confirm the install banner no longer appears in standalone mode.
+7. Repeat in a normal browser tab, click `Not now`, reload, and confirm the
+   prompt is suppressed for the dismissal window.
+
+Manual iOS/Safari install test:
+
+1. Open the app in iOS Safari and log in.
+2. Open `/settings`.
+3. Confirm `App and offline access` shows iOS manual install status.
+4. Tap `Show install instructions`.
+5. Confirm the steps say to use Safari Share -> Add to Home Screen.
+6. Add to Home Screen manually, open Travel AI from the Home Screen, and confirm
+   the app is detected as installed/standalone.
+
+Manual offline trips management test:
+
+1. Open a private trip online so it is cached.
+2. Open `/offline-trips`.
+3. Confirm the trip appears with destination, dates, cached time, revision, and
+   an `Open` action.
+4. Turn off network and open the cached trip from `/offline-trips`.
+5. Confirm the offline banner and saved trip data appear.
+6. Create an offline itinerary draft and return to `/offline-trips`.
+7. Confirm the trip shows `Pending changes`, status, `Sync now`, and
+   `Discard pending changes`.
+8. Turn network back on and click `Sync now`; confirm the pending badge clears.
+9. Click `Remove offline copy`, confirm, and verify the trip disappears.
+10. Cache another trip, create an offline draft, click `Clear offline data`, and
+    confirm the stronger unsynced-changes warning is shown before data is
+    removed.
+
+Manual update handling test:
+
+1. Run the app with the service worker enabled.
+2. Change `public/sw.js` or deploy a new build locally, then reload the app.
+3. Confirm the update banner appears when the new worker is waiting.
+4. With no pending offline changes, click `Refresh to update` and confirm the
+   app reloads.
+5. Repeat with a pending offline itinerary draft and confirm the banner links to
+   `/offline-trips` instead of showing a direct refresh button.
+
 ## Observability
 
 1. Open Prometheus at `http://localhost:9090`.

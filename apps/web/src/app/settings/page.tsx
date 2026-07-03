@@ -7,6 +7,7 @@ import { PushNotificationSettings } from "@/components/notifications/PushNotific
 import { NotificationPreferencesSection } from "@/components/settings/NotificationPreferencesSection";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { ProfileForm } from "@/components/settings/ProfileForm";
+import { PwaSettingsSection } from "@/components/settings/PwaSettingsSection";
 import { SettingsSkeleton } from "@/components/settings/SettingsSkeleton";
 import {
   getMyPreferences,
@@ -104,7 +105,11 @@ function SettingsPageContent() {
             onSubmit={(values) => preferencesMutation.mutate(values)}
           />
 
-          <PushNotificationSettings />
+          <PwaSettingsSection />
+
+          <div id="push-notifications">
+            <PushNotificationSettings />
+          </div>
 
           <NotificationPreferencesSection />
         </div>

@@ -54,7 +54,7 @@ flowchart LR
 
 | Area | Path | Port | Responsibility |
 | ---- | ---- | ---- | -------------- |
-| Web app | [apps/web](apps/web/README.md) | `3000` | Trip UX, collaboration, exports, notifications, calendar controls. |
+| Web app | [apps/web](apps/web/README.md) | `3000` | Trip UX, collaboration, exports, notifications, calendar controls, PWA install/offline experience. |
 | Auth | [services/auth-service](services/auth-service/README.md) | `8082` | Email/password auth, JWT access tokens, refresh-token rotation, internal user lookup. |
 | Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Trip ownership, collaborators, itinerary revisions, jobs, budgets, comments, shares, activity. |
 | Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile and preference data scoped by Auth JWT `sub`. |
@@ -104,6 +104,9 @@ Key product capabilities:
 - Offline Trip Mode v1 for previously opened private trips: IndexedDB cached
   trip snapshots, cached itinerary/budget/accommodation viewing, queued offline
   itinerary edits, and revision-safe sync with the same diff/merge recovery.
+- Advanced PWA Install Experience v1: strong manifest, install prompt,
+  iOS Add to Home Screen instructions, installed-app detection, safe service
+  worker update banner, `/offline-trips`, and settings integration.
 - Asynchronous full generation, day/item regeneration, quality improvement, and
   budget optimization jobs.
 - Version history, restore, comments, activity feed, presence, and advisory edit

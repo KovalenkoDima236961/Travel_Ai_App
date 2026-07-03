@@ -61,6 +61,58 @@ export async function getCachedTrip(
   return cloneOfflineValue(record);
 }
 
+export async function listCachedTrips(userId: string): Promise<CachedTripRecord[]> {
+  const normalizedUserId = userId.trim();
+  if (!normalizedUserId) {
+    return [];
+  }
+
+  const db = await getOfflineDb();
+  const records = await db.getAll("cachedTrips");
+  return records
+    .filter((record) => record.userId === normalizedUserId)
+    .sort((left, right) => right.cachedAt.localeCompare(left.cachedAt))
+    .map(cloneOfflineValue);
+}
+
+export async function deleteCachedTrip(tripId: string, userId: string): Promise<void> {
+  const normalizedUserId = userId.trim();
+  if (!tripId || !normalizedUserId) {
+    return;
+  }
+
+  const db = await getOfflineDb();
+  const record = await db.get("cachedTrips", tripId);
+  if (!record || record.userId !== normalizedUserId) {
+    return;
+  }
+
+  await db.delete("cachedTrips", tripId);
+}
+
+export async function getOfflineStorageEstimate(): Promise<{
+  usage?: number;
+  quota?: number;
+}> {
+  if (typeof navigator === "undefined" || !navigator.storage?.estimate) {
+    return {};
+  }
+
+  try {
+    const estimate = await navigator.storage.estimate();
+    return {
+      usage: estimate.usage,
+      quota: estimate.quota
+    };
+  } catch {
+    return {};
+  }
+}
+
+export async function clearOfflineDataForUser(userId: string): Promise<void> {
+  await clearOfflineData(userId);
+}
+
 export async function updateCachedTripItinerary(input: {
   tripId: string;
   userId: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -10,6 +11,7 @@ import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
 import { Card } from "@/components/ui/Card";
 import { buttonStyles } from "@/components/ui/Button";
 import { listSharedTrips, listTrips, tripKeys } from "@/lib/api/trips";
+import { recordPwaEngagement } from "@/lib/pwa/pwa-detection";
 import { formatDate } from "@/lib/utils";
 import type { SharedTripSummary } from "@/types/collaboration";
 
@@ -30,6 +32,12 @@ function TripsPageContent() {
     queryKey: tripKeys.shared(),
     queryFn: listSharedTrips
   });
+
+  useEffect(() => {
+    if (tripsQuery.isSuccess || sharedTripsQuery.isSuccess) {
+      recordPwaEngagement();
+    }
+  }, [sharedTripsQuery.isSuccess, tripsQuery.isSuccess]);
 
   return (
     <PageContainer>

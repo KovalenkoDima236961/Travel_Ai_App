@@ -50,7 +50,7 @@ or tighter path filtering, such as notification and calendar OAuth calls.
 | Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
 | Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
 | Export | Browser-generated PDF and `.ics` downloads for private and public views. |
-| Offline | Previously opened private trips can be viewed from IndexedDB, edited as offline itinerary drafts, and synced later with revision conflict recovery. |
+| Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip cache, offline itinerary drafts, and revision conflict recovery. |
 
 ## Source Layout
 
@@ -61,7 +61,9 @@ apps/web
 ├── src/lib/api                     # Service clients and DTO adapters
 ├── src/lib                         # Hooks, formatting, export, notifications
 ├── src/types                       # Shared TypeScript types
-├── public/sw.js                    # Browser push service worker
+├── public/icons                    # PWA icons (placeholder assets in v1)
+├── public/screenshots              # PWA install screenshots (placeholder assets in v1)
+├── public/sw.js                    # Browser push, update, and offline fallback service worker
 └── package.json
 ```
 
@@ -146,6 +148,7 @@ flowchart TD
     TripDetail --> Budget["Budget and proposals"]
     TripDetail --> Activity["Activity / comments / presence"]
     Home --> Settings["/settings"]
+    Home --> OfflineTrips["/offline-trips"]
     Home --> Notifications["/notifications"]
     Home --> Share["/share/{shareToken}"]
 ```
@@ -260,6 +263,43 @@ Current v1 limitations:
   collaboration management need internet access.
 - Multi-device offline merge, CRDTs, native mobile offline storage, offline AI
   generation, and encrypted IndexedDB are out of scope.
+
+## PWA Install Experience
+
+Advanced PWA Install Experience v1 is frontend-only. The app manifest at
+`/manifest.json` includes install metadata, local icons, shortcuts for trips,
+offline trips, new trip, and notifications, plus generated placeholder
+screenshots. Replace the placeholder icons and screenshots with final branded
+art before a production launch.
+
+Authenticated users can see a respectful install banner after meaningful trip
+engagement and a delay. Chromium-family browsers use the `beforeinstallprompt`
+event without asking for notification permission. iOS Safari users get manual
+Add to Home Screen instructions. The app detects standalone display mode,
+including iOS `navigator.standalone`, and hides install prompts once installed.
+
+`public/sw.js` remains the single service worker for browser push. It also keeps
+a conservative offline fallback for navigations to `/offline`, caches only the
+small app shell assets, and does not broadly cache API responses. Service worker
+updates wait for explicit user action: if no offline drafts are pending, the app
+shows `Refresh to update`; if pending offline itinerary changes exist, it links
+to `/offline-trips` instead of refreshing automatically.
+
+`/offline-trips` lists cached trips for the current user, shows pending offline
+mutation status, supports sync/discard actions, and allows cached copies or all
+offline data to be removed after confirmation. The settings page includes an
+`App and offline access` section with install status, storage estimate, cached
+trip count, pending change count, clear data controls, and passive push status.
+
+PWA limitations:
+
+- Install support depends on browser and platform.
+- iOS requires Safari Share -> Add to Home Screen.
+- Offline trips must be opened online once before they are available offline.
+- Clearing offline data removes cached trips and pending offline changes stored
+  on this device.
+- App updates may require a refresh, and refresh is not offered directly while
+  offline drafts are pending.
 
 ## Notifications And Push
 

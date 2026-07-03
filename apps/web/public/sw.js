@@ -1,3 +1,13 @@
+const APP_SHELL_CACHE = "travel-ai-app-shell-v2";
+const APP_SHELL_URLS = [
+  "/offline",
+  "/manifest.json",
+  "/icons/icon-192x192.png",
+  "/icons/icon-512x512.png",
+  "/icons/maskable-icon-192x192.png",
+  "/icons/maskable-icon-512x512.png"
+];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -5,7 +15,6 @@ self.addEventListener("install", (event) => {
       .then((cache) => cache.addAll(APP_SHELL_URLS))
       .catch(() => undefined)
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -15,12 +24,18 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== APP_SHELL_CACHE)
+            .filter((key) => key.startsWith("travel-ai-app-shell-") && key !== APP_SHELL_CACHE)
             .map((key) => caches.delete(key))
         )
       )
       .then(() => clients.claim())
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -76,9 +91,6 @@ self.addEventListener("push", (event) => {
     })
   );
 });
-
-const APP_SHELL_CACHE = "travel-ai-app-shell-v1";
-const APP_SHELL_URLS = ["/offline"];
 
 async function cacheFirst(request) {
   const cached = await caches.match(request);
