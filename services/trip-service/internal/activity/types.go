@@ -4,8 +4,13 @@ package activity
 // vocabulary stays consistent across recording call sites, the API, and tests.
 const (
 	// Trip.
-	EventTripCreated       = "trip_created"
-	EventTripBudgetUpdated = "trip_budget_updated"
+	EventTripCreated             = "trip_created"
+	EventTripBudgetUpdated       = "trip_budget_updated"
+	EventTripCreatedFromTemplate = "trip_created_from_template"
+
+	// Templates.
+	EventTemplateCreated  = "template_created"
+	EventTemplateArchived = "template_archived"
 
 	// Accommodation.
 	EventAccommodationAdded   = "accommodation_added"
@@ -53,6 +58,7 @@ const (
 // Entity type constants describe the kind of object an event refers to.
 const (
 	EntityTrip             = "trip"
+	EntityTripTemplate     = "trip_template"
 	EntityAccommodation    = "accommodation"
 	EntityItinerary        = "itinerary"
 	EntityItineraryDay     = "itinerary_day"
@@ -69,6 +75,9 @@ const (
 var knownEventTypes = map[string]struct{}{
 	EventTripCreated:                 {},
 	EventTripBudgetUpdated:           {},
+	EventTripCreatedFromTemplate:     {},
+	EventTemplateCreated:             {},
+	EventTemplateArchived:            {},
 	EventAccommodationAdded:          {},
 	EventAccommodationUpdated:        {},
 	EventAccommodationRemoved:        {},

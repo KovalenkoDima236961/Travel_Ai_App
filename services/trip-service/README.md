@@ -55,6 +55,7 @@ and graceful shutdown.
 | Accommodation | One private structured stay per trip, included in AI/budget/route context. |
 | Sharing | One public read-only link per trip, optional expiry/password unlock. |
 | Calendar | Per-trip/user sync state; provider operations delegated to External Integrations. |
+| Trip templates | Private/workspace reusable itinerary structures with sanitized JSON, shifted-date instantiation, and workspace role enforcement. |
 
 ## Revision-Safe Writes
 
@@ -136,6 +137,41 @@ or itinerary JSON.
 | Activity | `GET /trips/{id}/activity`, `GET /trips/{id}/activity/stream` |
 | Sharing | `GET/POST/PATCH/DELETE /trips/{id}/share`, public share status/unlock/read routes |
 | Calendar | `GET/POST/DELETE /trips/{id}/calendar-sync/google*` |
+| Trip templates | `GET /trip-templates`, `POST /trips/{id}/templates`, `GET/PATCH /trip-templates/{templateId}`, archive/duplicate/create-trip routes, `GET /workspaces/{workspaceId}/templates` |
+
+## Trip Templates
+
+Trip Templates v1 lives in Trip Service and stores reusable private or
+workspace-scoped itinerary structure in `trip_templates`. Templates include
+metadata, destination hints, duration, tags, approximate item costs, and a
+versioned `template_json` payload with `schemaVersion=1` and per-day
+`dayOffset` values.
+
+Visibility:
+
+- `private`: visible, editable, usable, duplicable, and archivable only by the
+  creator.
+- `workspace`: visible to active workspace members. Owner/admin can edit or
+  archive any workspace template; members can edit/archive their own; viewers
+  can view only and cannot create trips from templates.
+
+Saving a trip as a template requires edit access to the source trip. The
+sanitizer keeps reusable day/item structure, place display data, and approximate
+estimated costs, but removes comments, collaborators, activity/version history,
+public share state, calendar sync IDs, booking/availability snapshots, provider
+raw metadata, presence/edit locks, job metadata, exact dates, and notification
+data.
+
+Creating a trip from a template does not call AI and does not refresh providers.
+It creates a personal or workspace trip, shifts day offsets from the requested
+start date, writes a completed itinerary snapshot with
+`CREATED_FROM_TEMPLATE`, records `trip_created_from_template`, and leaves
+availability unchecked. Template prices are copied as approximate manual costs
+with a verification note.
+
+Limitations: templates are private/workspace only in v1; no marketplace,
+ratings, comments, visual content editor, AI adaptation, destination
+transformation, bookings, or availability refresh is included.
 
 Private routes require `Authorization: Bearer <accessToken>` when
 `AUTH_REQUIRED=true`. Public share routes use opaque share tokens and optional

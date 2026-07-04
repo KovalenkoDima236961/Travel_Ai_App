@@ -17,6 +17,7 @@ const (
 	ItineraryVersionSourceRegenerateItem            ItineraryVersionSource = "REGENERATE_ITEM"
 	ItineraryVersionSourceBudgetOptimizationApplied ItineraryVersionSource = "BUDGET_OPTIMIZATION_APPLIED"
 	ItineraryVersionSourceRestored                  ItineraryVersionSource = "RESTORED"
+	ItineraryVersionSourceCreatedFromTemplate       ItineraryVersionSource = "CREATED_FROM_TEMPLATE"
 )
 
 // ItineraryVersion is a full JSONB snapshot of a trip itinerary at one point in

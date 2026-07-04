@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { TripForm } from "@/components/trips/TripForm";
+import { buttonStyles } from "@/components/ui/Button";
 
 export default function NewTripPage() {
   return (
@@ -19,6 +21,9 @@ export default function NewTripPage() {
             Add the core trip details. You can generate the itinerary after the trip is
             created.
           </p>
+          <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/templates">
+            Start from template
+          </Link>
         </div>
         <TripForm />
       </PageContainer>

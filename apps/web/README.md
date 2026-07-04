@@ -41,6 +41,7 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
+| Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, and create new trips from templates. |
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
@@ -146,14 +147,17 @@ flowchart TD
     Home["/"] --> Login["/login"]
     Home --> Register["/register"]
     Home --> Trips["/trips"]
+    Home --> Templates["/templates"]
     Home --> Workspaces["/workspaces"]
     Workspaces --> WorkspaceDetail["/workspaces/{workspaceId}"]
     WorkspaceDetail --> WorkspaceAnalytics["/workspaces/{workspaceId}/analytics"]
     WorkspaceDetail --> WorkspaceBudgets["/workspaces/{workspaceId}/budgets"]
     WorkspaceBudgets --> WorkspaceBudgetDetail["/workspaces/{workspaceId}/budgets/{budgetId}"]
     Workspaces --> WorkspaceSettings["/workspaces/{workspaceId}/settings"]
+    WorkspaceDetail --> WorkspaceTemplates["/workspaces/{workspaceId}/templates"]
     Workspaces --> WorkspaceInvites["/workspace-invitations"]
     Trips --> TripDetail["/trips/{id}"]
+    Templates --> TemplateDetail["/templates/{templateId}"]
     TripDetail --> TripAnalytics["/trips/{id}/analytics"]
     Trips --> Invitations["Pending invitations"]
     TripDetail --> Edit["Itinerary edit mode"]
@@ -186,6 +190,7 @@ not represent payments, and do not split or settle costs between members.
 | ------- | ------------- |
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
 | Trip list/detail | `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}` |
+| Templates | `GET /trip-templates`, `POST /trips/{id}/templates`, `GET/PATCH /trip-templates/{id}`, archive/duplicate/create-trip routes, `GET /workspaces/{workspaceId}/templates` |
 | Workspaces | `/workspaces`, `/workspaces/{id}`, `/workspaces/{id}/members*`, `/workspace-invitations*` through `/api/user-service` |
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Itinerary writes | `PUT /trips/{id}/itinerary`, version restore, day/item regeneration compatibility routes |
@@ -199,6 +204,22 @@ not represent payments, and do not split or settle costs between members.
 | Availability | `POST /availability/search` through the External Integrations API/proxy |
 | Calendar | `/calendar/google/*`, `/trips/{id}/calendar-sync/google/*` |
 | Notifications | `/notifications*`, `/notifications/preferences`, `/notifications/push/*` |
+
+## Trip Templates
+
+The web app exposes Trip Templates v1 at `/templates`,
+`/templates/{templateId}`, and `/workspaces/{workspaceId}/templates`.
+Editable completed trip detail pages show `Save as template`; templates can be
+used to create new personal or workspace trips.
+
+Workspace owner/admin/member roles can save and use workspace templates.
+Workspace viewers can browse them but cannot create workspace trips from them.
+Template previews are read-only in v1; only metadata can be edited.
+
+Limitations shown in the UI: templates copy itinerary structure and approximate
+costs only. They do not reuse live availability, booking links, comments,
+collaborators, share links, or calendar sync state, and prices should be
+verified before booking.
 
 ## Revision-Safe Editing
 

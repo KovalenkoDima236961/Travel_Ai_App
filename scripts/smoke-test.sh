@@ -1000,6 +1000,48 @@ request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerar
 assert_2xx "Workspace member itinerary edit"
 WORKSPACE_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
+echo "Checking workspace trip template flow..."
+WORKSPACE_TEMPLATE_PAYLOAD="$(jq -nc --arg workspaceId "${WORKSPACE_ID}" '{
+  title:"Smoke workspace template",
+  description:"Reusable workspace smoke itinerary",
+  visibility:"workspace",
+  workspaceId:$workspaceId,
+  destinationHint:"Paris",
+  defaultCurrency:"EUR",
+  tags:["workspace","smoke"]
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/templates" "${ACCESS_TOKEN}" "${WORKSPACE_TEMPLATE_PAYLOAD}"
+assert_status "Save workspace trip template" "201"
+WORKSPACE_TEMPLATE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${WORKSPACE_TEMPLATE_ID}" ]]; then
+  echo "Workspace template response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/templates" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "List workspace templates as member"
+if ! jq -e --arg id "${WORKSPACE_TEMPLATE_ID}" '.templates | any(.id == $id and .visibility == "workspace")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Workspace member could not list workspace template." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+CREATE_FROM_WORKSPACE_TEMPLATE_PAYLOAD="$(jq -nc --arg workspaceId "${WORKSPACE_ID}" '{
+  title:"Smoke workspace trip from template",
+  destination:"Paris",
+  startDate:"2026-10-01",
+  workspaceId:$workspaceId,
+  travelers:2,
+  pace:"balanced"
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-templates/${WORKSPACE_TEMPLATE_ID}/create-trip" "${COLLAB_ACCESS_TOKEN}" "${CREATE_FROM_WORKSPACE_TEMPLATE_PAYLOAD}"
+assert_status "Create workspace trip from template as member" "201"
+WORKSPACE_TEMPLATE_TRIP_WORKSPACE_ID="$(jq -r '.workspaceId // empty' <<<"${LAST_BODY}")"
+if [[ "${WORKSPACE_TEMPLATE_TRIP_WORKSPACE_ID}" != "${WORKSPACE_ID}" ]]; then
+  echo "Workspace template-created trip did not target expected workspace." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 request_with_bearer GET "${USER_SERVICE_URL}/workspaces/${WORKSPACE_ID}/members" "${ACCESS_TOKEN}"
 assert_2xx "List workspace members"
 WORKSPACE_MEMBER_ID="$(jq -r --arg userId "${COLLAB_USER_ID}" '.members[] | select(.userId == $userId) | .id' <<<"${LAST_BODY}")"
@@ -1016,6 +1058,8 @@ assert_notification_has "Workspace role changed notification" "${COLLAB_ACCESS_T
 WORKSPACE_VIEWER_EDIT_PAYLOAD="$(jq -nc --argjson itinerary "${WORKSPACE_MEMBER_ITINERARY}" --argjson revision "${WORKSPACE_TRIP_REVISION}" '{itinerary:$itinerary,expectedItineraryRevision:$revision}')"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${WORKSPACE_VIEWER_EDIT_PAYLOAD}"
 assert_status "Workspace viewer itinerary edit" "403"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-templates/${WORKSPACE_TEMPLATE_ID}/create-trip" "${COLLAB_ACCESS_TOKEN}" "${CREATE_FROM_WORKSPACE_TEMPLATE_PAYLOAD}"
+assert_status "Workspace viewer create trip from template" "403"
 
 echo "Checking workspace shared budget flow..."
 WORKSPACE_BUDGET_PAYLOAD="$(jq -nc '{
@@ -1277,6 +1321,66 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
   exit 1
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
+
+echo "Checking private trip template flow..."
+PRIVATE_TEMPLATE_PAYLOAD="$(jq -nc '{
+  title:"Smoke private template",
+  description:"Reusable smoke itinerary",
+  visibility:"private",
+  destinationHint:"Rome",
+  defaultCurrency:"EUR",
+  tags:["smoke","city-break"]
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/templates" "${ACCESS_TOKEN}" "${PRIVATE_TEMPLATE_PAYLOAD}"
+assert_status "Save private trip template" "201"
+PRIVATE_TEMPLATE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${PRIVATE_TEMPLATE_ID}" ]]; then
+  echo "Private template response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.templateJson.schemaVersion == 1 and (.templateJson.days[0].dayOffset == 0)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Private template did not include expected versioned dayOffset payload." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if jq -e '.. | objects | has("placeEnrichment") or has("priceEnrichment") or has("availability")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Template payload retained enrichment or availability metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trip-templates?visibility=private" "${ACCESS_TOKEN}"
+assert_2xx "List private trip templates"
+if ! jq -e --arg id "${PRIVATE_TEMPLATE_ID}" '.templates | any(.id == $id)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Private template was not visible in template list." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+CREATE_FROM_PRIVATE_TEMPLATE_PAYLOAD="$(jq -nc '{
+  title:"Smoke trip from private template",
+  destination:"Rome",
+  startDate:"2026-09-10",
+  budget:{amount:700,currency:"EUR"},
+  travelers:2,
+  pace:"balanced"
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-templates/${PRIVATE_TEMPLATE_ID}/create-trip" "${ACCESS_TOKEN}" "${CREATE_FROM_PRIVATE_TEMPLATE_PAYLOAD}"
+assert_status "Create trip from private template" "201"
+PRIVATE_TEMPLATE_TRIP_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+PRIVATE_TEMPLATE_TRIP_STATUS="$(jq -r '.status // empty' <<<"${LAST_BODY}")"
+PRIVATE_TEMPLATE_TRIP_START="$(jq -r '.startDate // empty' <<<"${LAST_BODY}")"
+if [[ -z "${PRIVATE_TEMPLATE_TRIP_ID}" || "${PRIVATE_TEMPLATE_TRIP_STATUS}" != "COMPLETED" || "${PRIVATE_TEMPLATE_TRIP_START}" != "2026-09-10" ]]; then
+  echo "Trip created from private template did not include expected completed trip metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${PRIVATE_TEMPLATE_TRIP_ID}/itinerary/versions" "${ACCESS_TOKEN}"
+assert_2xx "List private template-created trip versions"
+if ! jq -e '.items | any(.source == "CREATED_FROM_TEMPLATE")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Template-created trip did not record CREATED_FROM_TEMPLATE version source." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 echo "Checking budget summary reflects generated itinerary costs..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"

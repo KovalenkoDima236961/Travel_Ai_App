@@ -28,6 +28,9 @@ export function AppHeader() {
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/trips">
                 Trips
               </Link>
+              <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/templates">
+                Templates
+              </Link>
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/offline-trips">
                 Offline Trips
               </Link>

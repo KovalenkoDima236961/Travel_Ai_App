@@ -40,6 +40,7 @@ import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/components/trips/OptimizeDayOrderDialog";
 import { PlaceEnrichmentReviewPanel } from "@/components/trips/PlaceEnrichmentReviewPanel";
 import { ShareTripPanel } from "@/components/trips/ShareTripPanel";
+import { SaveTripAsTemplateDialog } from "@/components/templates/SaveTripAsTemplateDialog";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { ItineraryView, type RegeneratingTarget } from "@/components/trips/ItineraryView";
@@ -193,6 +194,7 @@ function TripDetailPageContent() {
   const [cachedTripRecord, setCachedTripRecord] = useState<CachedTripRecord | null>(null);
   const [offlineCacheLoading, setOfflineCacheLoading] = useState(false);
   const [offlineUnavailable, setOfflineUnavailable] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
 
   const offlineSync = useOfflineSync({
     userId: currentUserId,
@@ -657,6 +659,7 @@ function TripDetailPageContent() {
   const canGenerate = canMutateTrip && (trip.status === "DRAFT" || trip.status === "FAILED");
   const canEditItinerary =
     canEditTripAccess && trip.status === "COMPLETED" && Boolean(trip.itinerary);
+  const canSaveTemplate = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const canSyncCalendar = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const editingRevisionChanged =
     isEditing &&
@@ -1832,14 +1835,25 @@ function TripDetailPageContent() {
                   {canEditItinerary ? (
                     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
                       {exportTrip ? <ExportTripMenu exportTrip={exportTrip} /> : <span />}
-                      <Button
-                        disabled={editLock.loading}
-                        onClick={startEditing}
-                        type="button"
-                        variant="secondary"
-                      >
-                        {editLock.loading ? "Checking..." : "Edit itinerary"}
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        {canSaveTemplate ? (
+                          <Button
+                            onClick={() => setSaveTemplateOpen(true)}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Save as template
+                          </Button>
+                        ) : null}
+                        <Button
+                          disabled={editLock.loading}
+                          onClick={startEditing}
+                          type="button"
+                          variant="secondary"
+                        >
+                          {editLock.loading ? "Checking..." : "Edit itinerary"}
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
                   <PlaceEnrichmentReviewPanel
@@ -1999,6 +2013,14 @@ function TripDetailPageContent() {
         onClose={() => setBudgetOptimizationDialogOpen(false)}
         onSubmit={createBudgetOptimization}
         open={budgetOptimizationDialogOpen}
+        trip={trip}
+      />
+      <SaveTripAsTemplateDialog
+        onClose={() => setSaveTemplateOpen(false)}
+        onSaved={(template) => {
+          setSuccessMessage(`Template saved: ${template.title}`);
+        }}
+        open={saveTemplateOpen}
         trip={trip}
       />
     </PageContainer>

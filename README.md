@@ -123,6 +123,9 @@ Key product capabilities:
 - Workspace Shared Budgets v1: owner/admin-managed workspace budget limits,
   primary budget utilization in analytics, read-only member/viewer summaries,
   over-budget insights, and CSV/PDF budget reports for planning estimates.
+- Trip Templates v1: users can save completed trips as sanitized private or
+  workspace templates, browse a template library, and create new trips from
+  templates with shifted dates and unchecked live availability.
 - Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
   email, and browser push integrations behind mock-first provider boundaries.
 - Provider Quota & Rate-Limit Management v1: External Integrations Service

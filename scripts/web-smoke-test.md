@@ -187,6 +187,29 @@ Use local Grafana credentials `admin` / `admin`.
 17. Confirm the viewer can open the budget list and detail page.
 18. Confirm create, edit, make-primary, and archive controls are not visible.
 
+## Trip Template Flow
+
+1. Create or open a completed trip with itinerary items and costs.
+2. Click `Save as template`.
+3. Save it as a private template.
+4. Open `/templates` and confirm the template appears with private visibility,
+   destination, duration, estimate, and tags.
+5. Open the template detail page and confirm the itinerary preview uses day
+   offsets instead of fixed dates.
+6. Click `Use template`.
+7. Enter a new destination and start date.
+8. Create the trip and confirm the new trip is completed with copied itinerary
+   items and the new start date.
+9. Save a workspace trip as a workspace template.
+10. Open `/workspaces/{workspaceId}/templates` and confirm members can see it.
+11. Confirm a workspace viewer can view templates but cannot create a workspace
+    trip from one.
+12. Archive a template and confirm it disappears from active template lists.
+
+Template limitations: live availability, booking links, provider snapshots,
+comments, collaborators, public share links, and calendar sync metadata are not
+copied. Prices are approximate and should be verified.
+
 ## Collaborative Merge Recovery
 
 Manual test safe merge:
