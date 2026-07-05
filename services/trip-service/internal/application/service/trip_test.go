@@ -397,6 +397,47 @@ func (m *mockRepo) ListSharedTripsByUser(_ context.Context, _ uuid.UUID) ([]enti
 	return []entity.SharedTrip{}, nil
 }
 
+func (m *mockRepo) CreateTripTraveler(_ context.Context, traveler *entity.TripTraveler) (*entity.TripTraveler, error) {
+	out := *traveler
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	return &out, nil
+}
+
+func (m *mockRepo) GetTripTravelerByID(_ context.Context, _, _ uuid.UUID) (*entity.TripTraveler, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripTravelersByTrip(_ context.Context, _ uuid.UUID) ([]entity.TripTraveler, error) {
+	return []entity.TripTraveler{}, nil
+}
+
+func (m *mockRepo) ListActiveTripTravelersByTrip(_ context.Context, _ uuid.UUID) ([]entity.TripTraveler, error) {
+	return []entity.TripTraveler{}, nil
+}
+
+func (m *mockRepo) UpdateTripTraveler(_ context.Context, traveler *entity.TripTraveler) (*entity.TripTraveler, error) {
+	out := *traveler
+	out.UpdatedAt = time.Now()
+	return &out, nil
+}
+
+func (m *mockRepo) RemoveTripTraveler(_ context.Context, _, _ uuid.UUID) (*entity.TripTraveler, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) GetTripTravelerByLinkedUser(_ context.Context, _, _ uuid.UUID) (*entity.TripTraveler, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CountActiveTravelersByTrip(_ context.Context, _ uuid.UUID) (int, error) {
+	return 0, nil
+}
+
 func (m *mockRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
 	if m.shareErr != nil {
 		return nil, m.shareErr

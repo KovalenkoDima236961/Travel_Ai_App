@@ -664,6 +664,166 @@ func (r *Repository) ListSharedTripsByUser(ctx context.Context, userID uuid.UUID
 	return r.listCollaborativeTripsByStatus(ctx, userID, entity.CollaboratorStatusAccepted)
 }
 
+func (r *Repository) CreateTripTraveler(ctx context.Context, traveler *entity.TripTraveler) (*entity.TripTraveler, error) {
+	query, args, err := r.db.Builder.
+		Insert("trip_travelers").
+		Columns(dto.TripTravelerInsertColumns()...).
+		Values(dto.TripTravelerInsertValues(traveler)...).
+		Suffix("RETURNING " + dto.TripTravelerColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build create trip traveler: %w", err)
+	}
+
+	created, err := dto.ScanTripTraveler(r.db.QueryRow(ctx, query, args...))
+	if storage.UniqueConstraintViolation(err) {
+		return nil, domainerrs.ErrConflict
+	}
+	return created, err
+}
+
+func (r *Repository) GetTripTravelerByID(ctx context.Context, tripID, travelerID uuid.UUID) (*entity.TripTraveler, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripTravelerColumns).
+		From("trip_travelers").
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"id":      dto.IDArg(travelerID),
+		}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get trip traveler: %w", err)
+	}
+
+	return dto.ScanTripTraveler(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ListTripTravelersByTrip(ctx context.Context, tripID uuid.UUID) ([]entity.TripTraveler, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripTravelerColumns).
+		From("trip_travelers").
+		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
+		Where(sq.NotEq{"status": string(entity.TripTravelerStatusRemoved)}).
+		OrderBy("created_at ASC", "id ASC").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list trip travelers: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query trip travelers: %w", err)
+	}
+	defer rows.Close()
+
+	return dto.ScanTripTravelerRows(rows)
+}
+
+func (r *Repository) ListActiveTripTravelersByTrip(ctx context.Context, tripID uuid.UUID) ([]entity.TripTraveler, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripTravelerColumns).
+		From("trip_travelers").
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"status":  string(entity.TripTravelerStatusActive),
+		}).
+		OrderBy("created_at ASC", "id ASC").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list active trip travelers: %w", err)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query active trip travelers: %w", err)
+	}
+	defer rows.Close()
+
+	return dto.ScanTripTravelerRows(rows)
+}
+
+func (r *Repository) UpdateTripTraveler(ctx context.Context, traveler *entity.TripTraveler) (*entity.TripTraveler, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_travelers").
+		Set("name", traveler.Name).
+		Set("email", dto.TextPtrArg(traveler.Email)).
+		Set("role", string(traveler.Role)).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(traveler.TripID),
+			"id":      dto.IDArg(traveler.ID),
+		}).
+		Where(sq.NotEq{"status": string(entity.TripTravelerStatusRemoved)}).
+		Suffix("RETURNING " + dto.TripTravelerColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build update trip traveler: %w", err)
+	}
+
+	updated, err := dto.ScanTripTraveler(r.db.QueryRow(ctx, query, args...))
+	if storage.UniqueConstraintViolation(err) {
+		return nil, domainerrs.ErrConflict
+	}
+	return updated, err
+}
+
+func (r *Repository) RemoveTripTraveler(ctx context.Context, tripID, travelerID uuid.UUID) (*entity.TripTraveler, error) {
+	query, args, err := r.db.Builder.
+		Update("trip_travelers").
+		Set("status", string(entity.TripTravelerStatusRemoved)).
+		Set("removed_at", sq.Expr("NOW()")).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"id":      dto.IDArg(travelerID),
+		}).
+		Where(sq.NotEq{"status": string(entity.TripTravelerStatusRemoved)}).
+		Suffix("RETURNING " + dto.TripTravelerColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build remove trip traveler: %w", err)
+	}
+
+	return dto.ScanTripTraveler(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) GetTripTravelerByLinkedUser(ctx context.Context, tripID, linkedUserID uuid.UUID) (*entity.TripTraveler, error) {
+	query, args, err := r.db.Builder.
+		Select(dto.TripTravelerColumns).
+		From("trip_travelers").
+		Where(sq.Eq{
+			"trip_id":        dto.IDArg(tripID),
+			"linked_user_id": dto.IDArg(linkedUserID),
+			"status":         string(entity.TripTravelerStatusActive),
+		}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get trip traveler by linked user: %w", err)
+	}
+
+	return dto.ScanTripTraveler(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) CountActiveTravelersByTrip(ctx context.Context, tripID uuid.UUID) (int, error) {
+	query, args, err := r.db.Builder.
+		Select("COUNT(*)").
+		From("trip_travelers").
+		Where(sq.Eq{
+			"trip_id": dto.IDArg(tripID),
+			"status":  string(entity.TripTravelerStatusActive),
+		}).
+		ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("build count active trip travelers: %w", err)
+	}
+
+	var count int
+	if err := r.db.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count active trip travelers: %w", err)
+	}
+	return count, nil
+}
+
 func (r *Repository) listCollaborativeTripsByStatus(ctx context.Context, userID uuid.UUID, status entity.CollaboratorStatus) ([]entity.SharedTrip, error) {
 	query, args, err := r.db.Builder.
 		Select(

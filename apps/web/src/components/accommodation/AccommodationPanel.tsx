@@ -21,9 +21,10 @@ import type { Trip } from "@/types/trip";
 type AccommodationPanelProps = {
   trip: Trip;
   canEdit: boolean;
+  onOpenCostSplit?: () => void;
 };
 
-export function AccommodationPanel({ trip, canEdit }: AccommodationPanelProps) {
+export function AccommodationPanel({ trip, canEdit, onOpenCostSplit }: AccommodationPanelProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -101,7 +102,11 @@ export function AccommodationPanel({ trip, canEdit }: AccommodationPanelProps) {
           />
         </div>
       ) : (
-        <AccommodationSummary accommodation={accommodation} defaultCurrency={defaultCurrency} />
+        <AccommodationSummary
+          accommodation={accommodation}
+          defaultCurrency={defaultCurrency}
+          onOpenCostSplit={onOpenCostSplit}
+        />
       )}
     </Card>
   );
@@ -109,10 +114,12 @@ export function AccommodationPanel({ trip, canEdit }: AccommodationPanelProps) {
 
 function AccommodationSummary({
   accommodation,
-  defaultCurrency
+  defaultCurrency,
+  onOpenCostSplit
 }: {
   accommodation: TripAccommodation | null;
   defaultCurrency: string;
+  onOpenCostSplit?: () => void;
 }) {
   if (!accommodation) {
     return (
@@ -155,6 +162,18 @@ function AccommodationSummary({
         <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-slate-700">
           {accommodation.notes}
         </p>
+      ) : null}
+
+      {onOpenCostSplit ? (
+        <Button
+          disabled={cost?.amount == null}
+          onClick={onOpenCostSplit}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          {cost?.amount == null ? "Add cost first" : "Split accommodation cost"}
+        </Button>
       ) : null}
     </div>
   );

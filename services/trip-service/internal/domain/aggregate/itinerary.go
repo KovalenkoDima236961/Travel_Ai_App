@@ -46,12 +46,21 @@ type ItineraryItem struct {
 // present, is an uppercase ISO-like 3-letter code; an empty currency is treated
 // as the trip/itinerary currency by budget computations.
 type EstimatedCost struct {
-	Amount     *float64 `json:"amount,omitempty"`
-	Currency   string   `json:"currency,omitempty"`
-	Category   string   `json:"category,omitempty"`
-	Confidence string   `json:"confidence,omitempty"`
-	Source     string   `json:"source,omitempty"`
-	Note       string   `json:"note,omitempty"`
+	Amount     *float64       `json:"amount,omitempty"`
+	Currency   string         `json:"currency,omitempty"`
+	Category   string         `json:"category,omitempty"`
+	Confidence string         `json:"confidence,omitempty"`
+	Source     string         `json:"source,omitempty"`
+	Note       string         `json:"note,omitempty"`
+	Split      *CostSplitRule `json:"split,omitempty"`
+}
+
+// CostSplitRule is planning-only metadata that describes how one estimated
+// cost should be allocated across trip travelers.
+type CostSplitRule struct {
+	Type        string             `json:"type"`
+	TravelerIDs []string           `json:"travelerIds,omitempty"`
+	Percentages map[string]float64 `json:"percentages,omitempty"`
 }
 
 // UnmarshalJSON accepts both the structured object form and the legacy bare

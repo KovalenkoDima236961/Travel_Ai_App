@@ -1492,6 +1492,7 @@ func newAuthTestRouterWithOptions(t *testing.T, authCfg config.AuthConfig, extra
 		sharesByTrip:                map[uuid.UUID]entity.TripShare{},
 		sharesByToken:               map[string]entity.TripShare{},
 		budgetOptimizationProposals: []entity.BudgetOptimizationProposal{},
+		tripTravelers:               map[uuid.UUID]entity.TripTraveler{},
 	}
 	gen := routeTestGenerator{}
 	opts := []service.Option{
@@ -1536,6 +1537,7 @@ type routeTestRepo struct {
 	calendarSyncs               []entity.TripCalendarSync
 	budgetOptimizationProposals []entity.BudgetOptimizationProposal
 	workspaceBudgets            map[uuid.UUID]entity.WorkspaceBudget
+	tripTravelers               map[uuid.UUID]entity.TripTraveler
 }
 
 func (r *routeTestRepo) CreateTripActivityEvent(_ context.Context, event *entity.TripActivityEvent) (*entity.TripActivityEvent, error) {
@@ -2047,6 +2049,98 @@ func (r *routeTestRepo) listSharedTripsByCollaborator(userID uuid.UUID, status e
 		out = append(out, entity.SharedTrip{Trip: trip, Collaborator: collaborator})
 	}
 	return out, nil
+}
+
+func (r *routeTestRepo) CreateTripTraveler(_ context.Context, traveler *entity.TripTraveler) (*entity.TripTraveler, error) {
+	now := time.Now().UTC()
+	out := *traveler
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	r.tripTravelers[out.ID] = out
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetTripTravelerByID(_ context.Context, tripID, travelerID uuid.UUID) (*entity.TripTraveler, error) {
+	traveler, ok := r.tripTravelers[travelerID]
+	if !ok || traveler.TripID != tripID {
+		return nil, domainerrs.ErrNotFound
+	}
+	return &traveler, nil
+}
+
+func (r *routeTestRepo) ListTripTravelersByTrip(_ context.Context, tripID uuid.UUID) ([]entity.TripTraveler, error) {
+	out := make([]entity.TripTraveler, 0)
+	for _, traveler := range r.tripTravelers {
+		if traveler.TripID == tripID && traveler.Status != entity.TripTravelerStatusRemoved {
+			out = append(out, traveler)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (r *routeTestRepo) ListActiveTripTravelersByTrip(_ context.Context, tripID uuid.UUID) ([]entity.TripTraveler, error) {
+	out := make([]entity.TripTraveler, 0)
+	for _, traveler := range r.tripTravelers {
+		if traveler.TripID == tripID && traveler.Status == entity.TripTravelerStatusActive {
+			out = append(out, traveler)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (r *routeTestRepo) UpdateTripTraveler(_ context.Context, traveler *entity.TripTraveler) (*entity.TripTraveler, error) {
+	existing, ok := r.tripTravelers[traveler.ID]
+	if !ok || existing.TripID != traveler.TripID || existing.Status == entity.TripTravelerStatusRemoved {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *traveler
+	out.Status = existing.Status
+	out.CreatedAt = existing.CreatedAt
+	out.CreatedByUserID = existing.CreatedByUserID
+	out.LinkedUserID = existing.LinkedUserID
+	out.UpdatedAt = time.Now().UTC()
+	r.tripTravelers[out.ID] = out
+	return &out, nil
+}
+
+func (r *routeTestRepo) RemoveTripTraveler(_ context.Context, tripID, travelerID uuid.UUID) (*entity.TripTraveler, error) {
+	traveler, ok := r.tripTravelers[travelerID]
+	if !ok || traveler.TripID != tripID || traveler.Status == entity.TripTravelerStatusRemoved {
+		return nil, domainerrs.ErrNotFound
+	}
+	now := time.Now().UTC()
+	traveler.Status = entity.TripTravelerStatusRemoved
+	traveler.RemovedAt = &now
+	traveler.UpdatedAt = now
+	r.tripTravelers[travelerID] = traveler
+	return &traveler, nil
+}
+
+func (r *routeTestRepo) GetTripTravelerByLinkedUser(_ context.Context, tripID, linkedUserID uuid.UUID) (*entity.TripTraveler, error) {
+	for _, traveler := range r.tripTravelers {
+		if traveler.TripID == tripID &&
+			traveler.LinkedUserID != nil &&
+			*traveler.LinkedUserID == linkedUserID &&
+			traveler.Status == entity.TripTravelerStatusActive {
+			return &traveler, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CountActiveTravelersByTrip(_ context.Context, tripID uuid.UUID) (int, error) {
+	count := 0
+	for _, traveler := range r.tripTravelers {
+		if traveler.TripID == tripID && traveler.Status == entity.TripTravelerStatusActive {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (r *routeTestRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {

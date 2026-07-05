@@ -1,3 +1,5 @@
+import type { CostSplitRule } from "@/types/cost-splitting";
+
 export type Budget = {
   amount: number;
   currency: string;
@@ -23,6 +25,7 @@ export type EstimatedCost = {
   confidence?: CostConfidence | null;
   source?: CostSource | null;
   note?: string | null;
+  split?: CostSplitRule | null;
 };
 
 export type BudgetDaySummary = {

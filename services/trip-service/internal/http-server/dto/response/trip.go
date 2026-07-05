@@ -79,6 +79,22 @@ type TripCollaborator struct {
 	RemovedAt       *time.Time                `json:"removedAt,omitempty"`
 }
 
+type TripTraveler struct {
+	ID           uuid.UUID                 `json:"id"`
+	TripID       uuid.UUID                 `json:"tripId"`
+	Name         string                    `json:"name"`
+	Email        *string                   `json:"email,omitempty"`
+	LinkedUserID *uuid.UUID                `json:"linkedUserId,omitempty"`
+	Role         entity.TripTravelerRole   `json:"role"`
+	Status       entity.TripTravelerStatus `json:"status"`
+	CreatedAt    time.Time                 `json:"createdAt"`
+	UpdatedAt    time.Time                 `json:"updatedAt"`
+}
+
+type TripTravelersEnvelope struct {
+	Travelers []TripTraveler `json:"travelers"`
+}
+
 type CollaborationInvitation struct {
 	CollaboratorID  uuid.UUID               `json:"collaboratorId"`
 	TripID          uuid.UUID               `json:"tripId"`
@@ -224,6 +240,28 @@ func NewTripCollaborators(infos []appdto.TripCollaboratorInfo) []TripCollaborato
 		items = append(items, NewTripCollaborator(info))
 	}
 	return items
+}
+
+func NewTripTraveler(traveler *entity.TripTraveler) TripTraveler {
+	return TripTraveler{
+		ID:           traveler.ID,
+		TripID:       traveler.TripID,
+		Name:         traveler.Name,
+		Email:        traveler.Email,
+		LinkedUserID: traveler.LinkedUserID,
+		Role:         traveler.Role,
+		Status:       traveler.Status,
+		CreatedAt:    traveler.CreatedAt,
+		UpdatedAt:    traveler.UpdatedAt,
+	}
+}
+
+func NewTripTravelers(travelers []entity.TripTraveler) TripTravelersEnvelope {
+	items := make([]TripTraveler, 0, len(travelers))
+	for i := range travelers {
+		items = append(items, NewTripTraveler(&travelers[i]))
+	}
+	return TripTravelersEnvelope{Travelers: items}
 }
 
 func NewCollaborationInvitations(invitations []appdto.CollaborationInvitation) []CollaborationInvitation {

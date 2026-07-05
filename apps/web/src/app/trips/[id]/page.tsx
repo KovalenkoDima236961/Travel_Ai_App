@@ -34,6 +34,8 @@ import {
   validateEditableItinerary
 } from "@/components/trips/ItineraryEditor";
 import { BudgetPanel } from "@/components/budget/BudgetPanel";
+import { CostSplitRuleEditor } from "@/components/cost-splitting/CostSplitRuleEditor";
+import { CostSplittingPanel } from "@/components/cost-splitting/CostSplittingPanel";
 import { DistanceSummary } from "@/components/trips/DistanceSummary";
 import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
@@ -52,6 +54,11 @@ import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { activityKeys } from "@/lib/api/activity";
 import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
 import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
+import {
+  costSplittingKeys,
+  updateAccommodationCostSplit,
+  updateItemCostSplit
+} from "@/lib/api/cost-splitting";
 import {
   applyBudgetOptimizationProposal,
   budgetOptimizationKeys,
@@ -83,7 +90,9 @@ import { useRouteEstimates } from "@/lib/hooks/useRouteEstimates";
 import { useBudgetOptimizationProposals } from "@/lib/hooks/useBudgetOptimizationProposals";
 import { useGenerationJob } from "@/lib/hooks/useGenerationJob";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useCostSplittingSummary } from "@/hooks/useCostSplittingSummary";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useTripTravelers } from "@/hooks/useTripTravelers";
 import { getDayDistanceSummaries } from "@/lib/itinerary/distance-utils";
 import { applyConflictResolutions, mergeItineraries } from "@/lib/itinerary/diff-merge/merge";
 import { cloneItinerary } from "@/lib/itinerary/diff-merge/normalize";
@@ -114,6 +123,7 @@ import type {
   BudgetOptimizationProposal
 } from "@/types/budget-optimization";
 import type { EstimatedCost } from "@/types/budget";
+import type { CostSplitRule } from "@/types/cost-splitting";
 import type {
   AvailabilityOption,
   AvailabilityResultByItem,
@@ -137,6 +147,7 @@ import type {
   SyncResult
 } from "@/lib/offline/types";
 import type { Itinerary, Trip } from "@/types/trip";
+import { getCostAmount, getCostCurrency } from "@/lib/budget/format";
 
 type MergeRecoveryState = {
   latestTrip: Trip;
@@ -144,6 +155,10 @@ type MergeRecoveryState = {
   resolutions: ConflictResolutionMap;
   offlineMutation?: PendingItineraryMutation;
 };
+
+type CostSplitEditorTarget =
+  | { type: "item"; dayNumber: number; itemIndex: number }
+  | { type: "accommodation" };
 
 export default function TripDetailPage() {
   return (
@@ -190,6 +205,8 @@ function TripDetailPageContent() {
   const [availabilityResultsByItem, setAvailabilityResultsByItem] =
     useState<AvailabilityResultByItem>({});
   const [availabilityApplyError, setAvailabilityApplyError] = useState<string | null>(null);
+  const [costSplitTarget, setCostSplitTarget] = useState<CostSplitEditorTarget | null>(null);
+  const [costSplitError, setCostSplitError] = useState<string | null>(null);
   const [lockWarning, setLockWarning] = useState<EditLockView | null>(null);
   const [cachedTripRecord, setCachedTripRecord] = useState<CachedTripRecord | null>(null);
   const [offlineCacheLoading, setOfflineCacheLoading] = useState(false);
@@ -248,6 +265,56 @@ function TripDetailPageContent() {
   const discardBudgetOptimizationMutation = useMutation({
     mutationFn: (proposal: BudgetOptimizationProposal) =>
       discardBudgetOptimizationProposal(tripId, proposal.id)
+  });
+
+  const updateItemCostSplitMutation = useMutation({
+    mutationFn: ({
+      target,
+      split
+    }: {
+      target: Extract<CostSplitEditorTarget, { type: "item" }>;
+      split: CostSplitRule;
+    }) => {
+      if (!displayedTrip) {
+        throw new Error("Trip is not loaded.");
+      }
+      return updateItemCostSplit(
+        tripId,
+        target.dayNumber,
+        target.itemIndex,
+        displayedTrip.itineraryRevision,
+        split
+      );
+    },
+    onSuccess: async (result) => {
+      queryClient.setQueryData(tripKeys.detail(tripId), result.trip);
+      setCostSplitTarget(null);
+      setCostSplitError(null);
+      await invalidateCostSplitDependents(result.trip);
+      setSuccessMessage("Cost split updated.");
+    },
+    onError: (error) => {
+      if (isItineraryConflictError(error)) {
+        setCostSplitError("This itinerary changed. Reload latest version before updating the split.");
+        void tripQuery.refetch();
+        return;
+      }
+      setCostSplitError(getErrorMessage(error, "Could not update the cost split."));
+    }
+  });
+
+  const updateAccommodationCostSplitMutation = useMutation({
+    mutationFn: (split: CostSplitRule) => updateAccommodationCostSplit(tripId, split),
+    onSuccess: async (updatedTrip) => {
+      queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
+      setCostSplitTarget(null);
+      setCostSplitError(null);
+      await invalidateCostSplitDependents(updatedTrip);
+      setSuccessMessage("Accommodation split updated.");
+    },
+    onError: (error) => {
+      setCostSplitError(getErrorMessage(error, "Could not update the accommodation split."));
+    }
   });
 
   const cancelGenerationJobMutation = useMutation({
@@ -325,6 +392,16 @@ function TripDetailPageContent() {
   // private trip (owner/editor/viewer) may read and add comments. Counts power
   // the per-item badges. The public share page never mounts this page.
   const tripAccess = displayedTrip?.access;
+  const costSplittingEnabled = onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess);
+  const tripTravelersQuery = useTripTravelers({
+    tripId,
+    enabled: costSplittingEnabled
+  });
+  const costSplittingSummaryQuery = useCostSplittingSummary({
+    tripId,
+    currency: displayedTrip?.budgetCurrency ?? "EUR",
+    enabled: costSplittingEnabled
+  });
   const budgetOptimizationProposalsQuery = useBudgetOptimizationProposals({
     tripId,
     status: "pending",
@@ -671,6 +748,21 @@ function TripDetailPageContent() {
           (day, index) => (day.day || index + 1) === optimizingDayNumber
         ) ?? null
       : null;
+  const costSplittingSummary = costSplittingSummaryQuery.data ?? null;
+  const activeTripTravelers =
+    tripTravelersQuery.data?.travelers.filter((traveler) => traveler.status === "active") ?? [];
+  const perPersonAverage =
+    costSplittingSummary && costSplittingSummary.summary.travelerCount > 0
+      ? {
+          amount:
+            costSplittingSummary.summary.allocatedTotal /
+            costSplittingSummary.summary.travelerCount,
+          currency: costSplittingSummary.currency
+        }
+      : null;
+  const costSplitTargetDetails = costSplitTarget
+    ? getCostSplitTargetDetails(trip, costSplitTarget)
+    : null;
 
   function enterEditMode() {
     if (!trip.itinerary) {
@@ -1157,6 +1249,26 @@ function TripDetailPageContent() {
     setSuccessMessage(message);
   }
 
+  async function invalidateCostSplitDependents(updatedTrip: Trip) {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
+      queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+      queryClient.invalidateQueries({ queryKey: costSplittingKeys.all }),
+      queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
+    ]);
+    if (currentUserId) {
+      await cacheTripSnapshot({
+        userId: currentUserId,
+        trip: updatedTrip,
+        budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null,
+        accommodation: updatedTrip.accommodation ?? null
+      });
+    }
+    await tripQuery.refetch();
+  }
+
   function clearEditSession() {
     setIsEditing(false);
     setDraftItinerary(null);
@@ -1230,6 +1342,19 @@ function TripDetailPageContent() {
     setBudgetOptimizationDefaultDayNumber(dayNumber ?? null);
     setBudgetOptimizationError(null);
     setBudgetOptimizationDialogOpen(true);
+  }
+
+  function saveCostSplit(split: CostSplitRule) {
+    if (!costSplitTarget) {
+      return;
+    }
+    setCostSplitError(null);
+    setSuccessMessage(null);
+    if (costSplitTarget.type === "item") {
+      updateItemCostSplitMutation.mutate({ target: costSplitTarget, split });
+      return;
+    }
+    updateAccommodationCostSplitMutation.mutate(split);
   }
 
   async function createBudgetOptimization(input: BudgetOptimizationJobRequest) {
@@ -1626,9 +1751,18 @@ function TripDetailPageContent() {
               createBudgetOptimizationMutation.isPending ||
               hasActiveGenerationJob
             }
+            perPersonAverage={perPersonAverage}
             trip={trip}
           />
-          <AccommodationPanel canEdit={canMutateTrip} trip={trip} />
+          <AccommodationPanel
+            canEdit={canMutateTrip}
+            onOpenCostSplit={
+              canMutateTrip && trip.accommodation?.estimatedCost?.amount != null
+                ? () => setCostSplitTarget({ type: "accommodation" })
+                : undefined
+            }
+            trip={trip}
+          />
 
           {presenceEnabled ? (
             <TripPresenceIndicator
@@ -1747,6 +1881,24 @@ function TripDetailPageContent() {
                 onApply={applyBudgetOptimization}
                 onDiscard={discardBudgetOptimization}
                 proposals={budgetOptimizationProposalsQuery.data ?? []}
+              />
+
+              <CostSplittingPanel
+                canEdit={canMutateTrip}
+                offline={offlineDataMode}
+                onEditAccommodationSplit={
+                  trip.accommodation?.estimatedCost?.amount != null
+                    ? () => setCostSplitTarget({ type: "accommodation" })
+                    : undefined
+                }
+                onEditItemSplit={(dayNumber, itemIndex) =>
+                  setCostSplitTarget({ type: "item", dayNumber, itemIndex })
+                }
+                summary={costSplittingSummary}
+                summaryLoading={costSplittingSummaryQuery.isLoading}
+                travelers={tripTravelersQuery.data?.travelers ?? []}
+                travelersLoading={tripTravelersQuery.isLoading}
+                trip={trip}
               />
 
               <PresenceEditingWarning
@@ -1880,6 +2032,12 @@ function TripDetailPageContent() {
                       canMutateTrip ? applyAvailabilityPrice : undefined
                     }
                     onAvailabilityResult={handleAvailabilityResult}
+                    onOpenCostSplit={
+                      canMutateTrip
+                        ? (dayNumber, itemIndex) =>
+                            setCostSplitTarget({ type: "item", dayNumber, itemIndex })
+                        : undefined
+                    }
                     onRegenerateDay={canMutateTrip ? regenerateDay : undefined}
                     onRegenerateItem={canMutateTrip ? regenerateItem : undefined}
                     regeneratingTarget={activeRegeneratingTarget}
@@ -2023,6 +2181,26 @@ function TripDetailPageContent() {
         open={saveTemplateOpen}
         trip={trip}
       />
+      {costSplitTargetDetails ? (
+        <CostSplitRuleEditor
+          costAmount={costSplitTargetDetails.amount}
+          costCurrency={costSplitTargetDetails.currency}
+          currentSplit={costSplitTargetDetails.currentSplit}
+          error={costSplitError}
+          isSaving={
+            updateItemCostSplitMutation.isPending ||
+            updateAccommodationCostSplitMutation.isPending
+          }
+          onClose={() => {
+            setCostSplitTarget(null);
+            setCostSplitError(null);
+          }}
+          onSave={saveCostSplit}
+          open={Boolean(costSplitTarget)}
+          title={costSplitTargetDetails.title}
+          travelers={activeTripTravelers}
+        />
+      ) : null}
     </PageContainer>
   );
 }
@@ -2050,6 +2228,46 @@ function withPendingOfflineItinerary(
     ...trip,
     itinerary: mutation.draftItinerary,
     itineraryRevision: mutation.baseRevision
+  };
+}
+
+function getCostSplitTargetDetails(
+  trip: Trip,
+  target: CostSplitEditorTarget
+): {
+  title: string;
+  amount: number;
+  currency: string;
+  currentSplit?: CostSplitRule | null;
+} | null {
+  if (target.type === "accommodation") {
+    const cost = trip.accommodation?.estimatedCost;
+    const amount = getCostAmount(cost);
+    if (amount == null) {
+      return null;
+    }
+    return {
+      title: "Split accommodation cost",
+      amount,
+      currency: getCostCurrency(cost) ?? trip.budgetCurrency ?? "EUR",
+      currentSplit: cost?.split ?? null
+    };
+  }
+
+  const day = (trip.itinerary?.days ?? []).find(
+    (candidate, index) => (candidate.day || index + 1) === target.dayNumber
+  );
+  const item = day?.items?.[target.itemIndex] ?? null;
+  const cost = item?.estimatedCost;
+  const amount = getCostAmount(cost);
+  if (!item || amount == null) {
+    return null;
+  }
+  return {
+    title: `Split ${item.name}`,
+    amount,
+    currency: getCostCurrency(cost) ?? trip.budgetCurrency ?? "EUR",
+    currentSplit: cost?.split ?? null
   };
 }
 

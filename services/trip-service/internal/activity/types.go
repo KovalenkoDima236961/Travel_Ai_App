@@ -7,6 +7,9 @@ const (
 	EventTripCreated             = "trip_created"
 	EventTripBudgetUpdated       = "trip_budget_updated"
 	EventTripCreatedFromTemplate = "trip_created_from_template"
+	EventTripTravelerAdded       = "trip_traveler_added"
+	EventTripTravelerUpdated     = "trip_traveler_updated"
+	EventTripTravelerRemoved     = "trip_traveler_removed"
 
 	// Templates.
 	EventTemplateCreated  = "template_created"
@@ -23,6 +26,8 @@ const (
 	EventDayRegenerated              = "day_regenerated"
 	EventItemRegenerated             = "item_regenerated"
 	EventVersionRestored             = "version_restored"
+	EventCostSplitUpdated            = "cost_split_updated"
+	EventAccommodationSplitUpdated   = "accommodation_split_updated"
 	EventGenerationJobFailed         = "generation_job_failed"
 	EventBudgetOptimizationRequested = "budget_optimization_requested"
 	EventBudgetOptimizationProposed  = "budget_optimization_proposed"
@@ -58,6 +63,7 @@ const (
 // Entity type constants describe the kind of object an event refers to.
 const (
 	EntityTrip             = "trip"
+	EntityTripTraveler     = "trip_traveler"
 	EntityTripTemplate     = "trip_template"
 	EntityAccommodation    = "accommodation"
 	EntityItinerary        = "itinerary"
@@ -76,6 +82,9 @@ var knownEventTypes = map[string]struct{}{
 	EventTripCreated:                 {},
 	EventTripBudgetUpdated:           {},
 	EventTripCreatedFromTemplate:     {},
+	EventTripTravelerAdded:           {},
+	EventTripTravelerUpdated:         {},
+	EventTripTravelerRemoved:         {},
 	EventTemplateCreated:             {},
 	EventTemplateArchived:            {},
 	EventAccommodationAdded:          {},
@@ -86,6 +95,8 @@ var knownEventTypes = map[string]struct{}{
 	EventDayRegenerated:              {},
 	EventItemRegenerated:             {},
 	EventVersionRestored:             {},
+	EventCostSplitUpdated:            {},
+	EventAccommodationSplitUpdated:   {},
 	EventGenerationJobFailed:         {},
 	EventBudgetOptimizationRequested: {},
 	EventBudgetOptimizationProposed:  {},

@@ -51,7 +51,7 @@ and graceful shutdown.
 | Workspaces | Personal vs workspace trips, workspace role checks via User Service, combined effective access. |
 | Activity | Persistent audit feed plus in-memory SSE best-effort updates. |
 | Comments | Private item comments, counts, edit/delete permissions. |
-| Budget | Trip budget, workspace shared budgets, item/accommodation costs, multi-currency summaries, analytics, proposals. |
+| Budget | Trip budget, workspace shared budgets, item/accommodation costs, multi-currency summaries, cost splitting, analytics, proposals. |
 | Accommodation | One private structured stay per trip, included in AI/budget/route context. |
 | Sharing | One public read-only link per trip, optional expiry/password unlock. |
 | Calendar | Per-trip/user sync state; provider operations delegated to External Integrations. |
@@ -129,6 +129,7 @@ or itinerary JSON.
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |
 | Budget | `GET /trips/{id}/budget-summary`, `PUT /trips/{id}/budget`, budget optimization job/proposal routes |
 | Workspace budgets | `GET/POST /workspaces/{workspaceId}/budgets`, `GET/PATCH /workspaces/{workspaceId}/budgets/{budgetId}`, `POST /archive`, `POST /make-primary`, summary routes |
+| Cost splitting | `/trips/{id}/travelers`, `GET /trips/{id}/cost-splitting/summary`, item/accommodation cost-split update routes |
 | Cost analytics | `GET /trips/{id}/analytics/costs`, `GET /workspaces/{workspaceId}/analytics/costs` |
 | Accommodation | `GET /trips/{id}/accommodation`, `PUT /trips/{id}/accommodation`, `DELETE /trips/{id}/accommodation` |
 | Collaboration | collaborator CRUD/accept/decline, `GET /collaboration/invitations` |
@@ -233,6 +234,44 @@ Limitations: costs are estimates for planning only; exchange rates may be
 approximate; provider prices and availability may change; missing estimates can
 make totals incomplete; reports are not accounting, tax, invoice, payment, or
 financial-advice features.
+
+## Cost Splitting
+
+Cost Splitting Between Travelers v1 is a planning-only allocation layer over
+existing itinerary and accommodation estimates. It does not create payment,
+settlement, reimbursement, debt, invoice, accounting, or booking records.
+
+Data lives in `trip_travelers` for the roster. Individual split rules are stored
+inline on `estimatedCost.split` for itinerary items and accommodation costs.
+Supported rule types are:
+
+- `all_equal`: split the cost evenly across active trip travelers.
+- `selected_equal`: split evenly across the selected active traveler IDs.
+- `custom_percentages`: allocate by traveler ID percentages that must total
+  100 for saved rules.
+
+Routes:
+
+- `GET /trips/{id}/travelers`
+- `POST /trips/{id}/travelers`
+- `PATCH /trips/{id}/travelers/{travelerId}`
+- `DELETE /trips/{id}/travelers/{travelerId}` soft-removes a traveler.
+- `GET /trips/{id}/cost-splitting/summary?currency=EUR`
+- `PATCH /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/cost-split`
+- `PATCH /trips/{id}/accommodation/cost-split`
+
+Owners and editors can manage travelers and split rules. Viewers can read the
+roster and summary. Item split updates are revision-safe and increment
+`itineraryRevision`; accommodation split updates do not. The summary is computed
+at request time, defaults unconfigured costs to `all_equal`, includes
+accommodation once, applies existing budget currency conversion rules, and
+reports missing estimates, invalid references, and unassigned costs.
+
+Limitations: v1 has no balances owed, payments, invitations from traveler rows,
+group chat, receipt images, tax/tip handling, recurring expenses, booking
+checkout, or settlement workflow. Removed travelers are retained for audit
+visibility but are excluded from active allocations unless a stale rule still
+references them, in which case the summary reports an invalid split.
 
 ## Workspace Shared Budgets
 

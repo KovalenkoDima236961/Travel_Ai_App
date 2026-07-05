@@ -10,7 +10,7 @@ import {
   getTripItemDate
 } from "@/lib/itinerary/opening-hours-utils";
 import { formatDate, formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
-import { costBadgeLabel, isManualCost, isProviderCost } from "@/lib/budget/format";
+import { costBadgeLabel, getCostAmount, isManualCost, isProviderCost } from "@/lib/budget/format";
 import { Button } from "@/components/ui/Button";
 import { CommentButton } from "@/components/comments/CommentButton";
 import { makeCommentItemKey } from "@/lib/comments/comment-counts";
@@ -48,6 +48,7 @@ type ItineraryViewProps = {
     option: AvailabilityOption,
     result: AvailabilitySearchResponse
   ) => Promise<void>;
+  onOpenCostSplit?: (dayNumber: number, itemIndex: number) => void;
   comments?: CommentControls;
 };
 
@@ -62,6 +63,7 @@ export function ItineraryView({
   onRegenerateItem,
   onAvailabilityResult,
   onApplyAvailabilityPrice,
+  onOpenCostSplit,
   comments
 }: ItineraryViewProps) {
   if (!itinerary.days || itinerary.days.length === 0) {
@@ -267,6 +269,17 @@ export function ItineraryView({
                         regeneratingTarget.itemIndex === index
                           ? "Regenerating..."
                           : "Regenerate item"}
+                      </Button>
+                    ) : null}
+                    {onOpenCostSplit ? (
+                      <Button
+                        disabled={disabled || getCostAmount(item.estimatedCost) == null}
+                        onClick={() => onOpenCostSplit(dayNumber, index)}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        {getCostAmount(item.estimatedCost) == null ? "Add cost first" : "Split cost"}
                       </Button>
                     ) : null}
                     {comments ? (

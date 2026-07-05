@@ -233,9 +233,14 @@ function TripCostAnalyticsPageContent() {
             <CostWarningsPanel warnings={analytics.warnings} />
           </div>
 
-          <Link className={buttonStyles({ variant: "secondary" })} href={`/trips/${tripId}`}>
-            Open itinerary
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link className={buttonStyles({ variant: "secondary" })} href={`/trips/${tripId}`}>
+              Open itinerary
+            </Link>
+            <Link className={buttonStyles({ variant: "secondary" })} href={`/trips/${tripId}#cost-splitting`}>
+              View per-traveler split
+            </Link>
+          </div>
         </div>
       ) : null}
     </PageContainer>

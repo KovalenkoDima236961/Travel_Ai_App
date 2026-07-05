@@ -16,6 +16,7 @@ const (
 	ItineraryVersionSourceRegenerateDay             ItineraryVersionSource = "REGENERATE_DAY"
 	ItineraryVersionSourceRegenerateItem            ItineraryVersionSource = "REGENERATE_ITEM"
 	ItineraryVersionSourceBudgetOptimizationApplied ItineraryVersionSource = "BUDGET_OPTIMIZATION_APPLIED"
+	ItineraryVersionSourceCostSplitUpdated          ItineraryVersionSource = "COST_SPLIT_UPDATED"
 	ItineraryVersionSourceRestored                  ItineraryVersionSource = "RESTORED"
 	ItineraryVersionSourceCreatedFromTemplate       ItineraryVersionSource = "CREATED_FROM_TEMPLATE"
 )

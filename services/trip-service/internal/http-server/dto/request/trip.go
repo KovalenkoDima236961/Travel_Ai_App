@@ -80,6 +80,64 @@ func (r UpdateTripAccommodation) ToInput() appdto.UpdateTripAccommodationInput {
 	return appdto.UpdateTripAccommodationInput{Accommodation: r.Accommodation}
 }
 
+type CreateTripTraveler struct {
+	Name         string                  `json:"name"`
+	Email        *string                 `json:"email"`
+	LinkedUserID *string                 `json:"linkedUserId"`
+	Role         entity.TripTravelerRole `json:"role"`
+}
+
+func (r CreateTripTraveler) ToInput() (appdto.CreateTripTravelerInput, error) {
+	var linkedUserID *uuid.UUID
+	if r.LinkedUserID != nil && strings.TrimSpace(*r.LinkedUserID) != "" {
+		parsed, err := uuid.Parse(strings.TrimSpace(*r.LinkedUserID))
+		if err != nil {
+			return appdto.CreateTripTravelerInput{}, fmt.Errorf("invalid linkedUserId")
+		}
+		linkedUserID = &parsed
+	}
+	return appdto.CreateTripTravelerInput{
+		Name:         r.Name,
+		Email:        r.Email,
+		LinkedUserID: linkedUserID,
+		Role:         r.Role,
+	}, nil
+}
+
+type UpdateTripTraveler struct {
+	Name  *string                  `json:"name"`
+	Email *string                  `json:"email"`
+	Role  *entity.TripTravelerRole `json:"role"`
+}
+
+func (r UpdateTripTraveler) ToInput() appdto.UpdateTripTravelerInput {
+	return appdto.UpdateTripTravelerInput{
+		Name:  r.Name,
+		Email: r.Email,
+		Role:  r.Role,
+	}
+}
+
+type UpdateItemCostSplit struct {
+	ExpectedItineraryRevision *int                     `json:"expectedItineraryRevision"`
+	Split                     *aggregate.CostSplitRule `json:"split"`
+}
+
+func (r UpdateItemCostSplit) ToInput() appdto.UpdateItemCostSplitInput {
+	return appdto.UpdateItemCostSplitInput{
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+		Split:                     r.Split,
+	}
+}
+
+type UpdateAccommodationCostSplit struct {
+	Split *aggregate.CostSplitRule `json:"split"`
+}
+
+func (r UpdateAccommodationCostSplit) ToInput() appdto.UpdateAccommodationCostSplitInput {
+	return appdto.UpdateAccommodationCostSplitInput{Split: r.Split}
+}
+
 type budgetBody struct {
 	Amount   *float64 `json:"amount"`
 	Currency string   `json:"currency"`

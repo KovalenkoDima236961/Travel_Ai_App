@@ -46,7 +46,7 @@ notification streams, and calendar OAuth calls.
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
-| Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, cost analytics dashboards, optimization proposals. |
+| Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
 | Availability | Per-item availability checks, provider prices, external booking links, and apply-price updates. |
 | Context | Weather cards, route/distance estimates, accommodation routing anchors. |
@@ -184,6 +184,25 @@ Workspace budget routes:
 Workspace budgets are planning estimates only. They do not block trip edits, do
 not represent payments, and do not split or settle costs between members.
 
+## Cost Splitting Between Travelers
+
+Private trip detail pages include a cost-splitting section for completed trips.
+Owners and editors can add trip travelers, edit names/emails/roles, remove
+travelers, and assign item or accommodation costs as equal, selected-equal, or
+custom percentage splits. Viewers can read the roster and summary but cannot
+change allocations.
+
+The itinerary and accommodation panels expose split controls only for costs that
+already have an estimate. The summary shows estimated total, allocated total,
+unassigned costs, defaulted rules, invalid rules, per-traveler totals,
+category/day breakdowns, and item-level detail. CSV and PDF exports are generated
+in the browser from the summary response.
+
+Limitations: this is planning allocation only. It does not collect money, settle
+debts, create reimbursements, invite users from traveler rows, or replace
+booking/payment/accounting tools. Offline mode can show cached trip costs, but
+traveler management and split-rule writes require the online private API.
+
 ## Service Calls By Feature
 
 | Feature | Primary calls |
@@ -199,6 +218,7 @@ not represent payments, and do not split or settle costs between members.
 | Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |
 | Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, `/workspaces/{workspaceId}/budgets*`, budget optimization job/proposal routes |
+| Cost splitting | `/trips/{id}/travelers`, `/trips/{id}/cost-splitting/summary`, item/accommodation cost-split update routes |
 | Cost analytics | `/trips/{id}/analytics/costs`, `/workspaces/{workspaceId}/analytics/costs`; browser-generated CSV/PDF reports |
 | Places/routes/weather | `/places/search`, `/places/{placeId}`, `/routes/estimate`, `/weather/forecast` |
 | Availability | `POST /availability/search` through the External Integrations API/proxy |

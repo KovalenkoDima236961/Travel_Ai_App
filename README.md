@@ -117,6 +117,9 @@ Key product capabilities:
 - Public read-only share links with optional expiration and password unlock.
 - Budget summaries with multi-currency conversion, accommodation cost support,
   provider ticket estimates, and reviewable AI budget proposals.
+- Cost Splitting Between Travelers v1: trip traveler roster, per-item and
+  accommodation allocation rules, per-traveler summaries, and CSV/PDF exports
+  for planning estimates.
 - Cost Analytics Dashboard v1 with trip and workspace cost rollups, expensive
   item insights, missing estimate warnings, and browser-generated CSV/PDF cost
   reports.

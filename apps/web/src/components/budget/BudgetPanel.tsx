@@ -17,6 +17,7 @@ type BudgetPanelProps = {
   canEdit: boolean;
   offline?: boolean;
   offlineSummary?: BudgetSummary | null;
+  perPersonAverage?: { amount: number; currency: string } | null;
   optimizationDisabled?: boolean;
   onOpenBudgetOptimization?: (dayNumber: number) => void;
 };
@@ -26,6 +27,7 @@ export function BudgetPanel({
   canEdit,
   offline = false,
   offlineSummary,
+  perPersonAverage = null,
   optimizationDisabled = false,
   onOpenBudgetOptimization
 }: BudgetPanelProps) {
@@ -95,6 +97,7 @@ export function BudgetPanel({
           isLoading={!offline && summaryQuery.isLoading}
           onOpenBudgetOptimization={canEdit ? onOpenBudgetOptimization : undefined}
           optimizationDisabled={optimizationDisabled}
+          perPersonAverage={perPersonAverage}
           summary={summary ?? null}
         />
       )}
@@ -107,12 +110,14 @@ function BudgetSummaryView({
   currency,
   isLoading,
   optimizationDisabled,
+  perPersonAverage,
   onOpenBudgetOptimization
 }: {
   summary: BudgetSummary | null;
   currency: string;
   isLoading: boolean;
   optimizationDisabled: boolean;
+  perPersonAverage?: { amount: number; currency: string } | null;
   onOpenBudgetOptimization?: (dayNumber: number) => void;
 }) {
   if (isLoading) {
@@ -136,6 +141,12 @@ function BudgetSummaryView({
           value={hasBudget ? formatMoney(summary.tripBudget, currency) : "No budget set"}
         />
         <SummaryRow label="Estimated total" value={formatApproxMoney(summary.estimatedTotal, currency)} />
+        {perPersonAverage ? (
+          <SummaryRow
+            label="Estimated per-person average"
+            value={formatApproxMoney(perPersonAverage.amount, perPersonAverage.currency)}
+          />
+        ) : null}
         {hasBudget ? (
           <SummaryRow
             emphasis={overBudget ? "danger" : "ok"}

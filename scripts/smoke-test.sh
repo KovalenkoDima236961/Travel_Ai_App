@@ -1579,6 +1579,109 @@ if [[ "${BUDGET_CONVERSION_ENABLED:-true}" != "false" ]]; then
 fi
 echo "Budget tracking checks passed."
 
+echo "Checking cost splitting traveler roster and allocation summary..."
+COST_TRAVELER_ONE_PAYLOAD="$(jq -nc '{name:"Alex Smoke",email:"alex.split@example.com",role:"traveler"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers" "${ACCESS_TOKEN}" "${COST_TRAVELER_ONE_PAYLOAD}"
+assert_status "Create first cost-split traveler" "201"
+COST_TRAVELER_ONE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${COST_TRAVELER_ONE_ID}" ]]; then
+  echo "First cost-split traveler response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+COST_TRAVELER_TWO_PAYLOAD="$(jq -nc '{name:"Blair Smoke",email:"blair.split@example.com",role:"traveler"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers" "${ACCESS_TOKEN}" "${COST_TRAVELER_TWO_PAYLOAD}"
+assert_status "Create second cost-split traveler" "201"
+COST_TRAVELER_TWO_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${COST_TRAVELER_TWO_ID}" ]]; then
+  echo "Second cost-split traveler response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers/${COST_TRAVELER_TWO_ID}" "${ACCESS_TOKEN}" '{"name":"Blair Updated","role":"traveler"}'
+assert_2xx "Update cost-split traveler"
+if ! jq -e '.name == "Blair Updated" and .status == "active"' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Updated cost-split traveler response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers" "${ACCESS_TOKEN}"
+assert_2xx "List cost-split travelers"
+if ! jq -e --arg one "${COST_TRAVELER_ONE_ID}" --arg two "${COST_TRAVELER_TWO_ID}" '.travelers | length == 2 and any(.id == $one and .status == "active") and any(.id == $two and .name == "Blair Updated")' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Traveler list did not include the expected active travelers." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/cost-splitting/summary?currency=EUR" "${ACCESS_TOKEN}"
+assert_2xx "Get initial cost-splitting summary"
+if ! jq -e '.summary.travelerCount == 2 and .summary.estimatedTotal > 0 and .summary.allocatedTotal > 0 and .summary.defaultSplitCount >= 1 and (.travelers | length == 2)' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Initial cost-splitting summary did not include expected default allocations." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+SELECTED_SPLIT_PAYLOAD="$(
+  jq -nc \
+    --arg travelerId "${COST_TRAVELER_ONE_ID}" \
+    --argjson revision "${TRIP_REVISION}" \
+    '{expectedItineraryRevision:$revision,split:{type:"selected_equal",travelerIds:[$travelerId]}}'
+)"
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/days/1/items/0/cost-split" "${ACCESS_TOKEN}" "${SELECTED_SPLIT_PAYLOAD}"
+assert_2xx "Update itinerary item cost split"
+TRIP_REVISION="$(jq -r '.trip.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if ! jq -e '.trip.itinerary.days[0].items[0].estimatedCost.split.type == "selected_equal"' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Updated itinerary item did not include selected_equal split." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+CUSTOM_ACCOMMODATION_SPLIT_PAYLOAD="$(
+  jq -nc \
+    --arg one "${COST_TRAVELER_ONE_ID}" \
+    --arg two "${COST_TRAVELER_TWO_ID}" \
+    '{split:{type:"custom_percentages",percentages:{($one):25,($two):75}}}'
+)"
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation/cost-split" "${ACCESS_TOKEN}" "${CUSTOM_ACCOMMODATION_SPLIT_PAYLOAD}"
+assert_2xx "Update accommodation cost split"
+if ! jq -e '.accommodation.estimatedCost.split.type == "custom_percentages"' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Accommodation response did not include custom_percentages split." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/cost-splitting/summary?currency=EUR" "${ACCESS_TOKEN}"
+assert_2xx "Get cost-splitting summary after split updates"
+if ! jq -e --arg one "${COST_TRAVELER_ONE_ID}" --arg two "${COST_TRAVELER_TWO_ID}" '
+  .summary.travelerCount == 2
+  and .summary.allocatedTotal > 0
+  and .summary.invalidSplitCount == 0
+  and (.travelers | any(.travelerId == $one and .allocatedTotal > 0 and (.items | any(.splitType == "selected_equal"))))
+  and (.travelers | any(.travelerId == $two and .allocatedTotal > 0 and (.items | any(.type == "accommodation" and .splitType == "custom_percentages"))))
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Cost-splitting summary did not reflect selected/custom split rules." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers/${COST_TRAVELER_TWO_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Remove cost-split traveler"
+if ! jq -e '.success == true' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Remove traveler response did not confirm success." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/cost-splitting/summary?currency=EUR" "${ACCESS_TOKEN}"
+assert_2xx "Get cost-splitting summary after traveler removal"
+if ! jq -e '.summary.travelerCount == 1 and .summary.invalidSplitCount >= 1 and .summary.unassignedTotal > 0 and (.unassignedCosts | length >= 1)' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Cost-splitting summary did not surface the removed-traveler stale split as invalid/unassigned." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking trip cost analytics reflects budget tracking data..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/analytics/costs?currency=EUR" "${ACCESS_TOKEN}"
 assert_2xx "Get trip cost analytics"
@@ -1784,6 +1887,22 @@ request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "$
 assert_2xx "Viewer get budget summary"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${COLLAB_ACCESS_TOKEN}" '{"budget":{"amount":1000,"currency":"EUR"}}'
 assert_status "Viewer update budget" "403"
+
+echo "Checking accepted viewer can read but cannot mutate cost splitting..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer list cost-split travelers"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/cost-splitting/summary?currency=EUR" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer get cost-splitting summary"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers" "${COLLAB_ACCESS_TOKEN}" "${COST_TRAVELER_ONE_PAYLOAD}"
+assert_status "Viewer create cost-split traveler" "403"
+VIEWER_SPLIT_PAYLOAD="$(
+  jq -nc \
+    --arg travelerId "${COST_TRAVELER_ONE_ID}" \
+    --argjson revision "${TRIP_REVISION}" \
+    '{expectedItineraryRevision:$revision,split:{type:"selected_equal",travelerIds:[$travelerId]}}'
+)"
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/days/1/items/0/cost-split" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_SPLIT_PAYLOAD}"
+assert_status "Viewer update itinerary cost split" "403"
 
 echo "Checking viewer can read but cannot mutate accommodation..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${COLLAB_ACCESS_TOKEN}"
@@ -2577,6 +2696,11 @@ assert_activity_has "Owner activity feed" "itinerary_generated"
 assert_activity_has "Owner activity feed" "comment_created"
 assert_activity_has "Owner activity feed" "accommodation_added"
 assert_activity_has "Owner activity feed" "accommodation_removed"
+assert_activity_has "Owner activity feed" "trip_traveler_added"
+assert_activity_has "Owner activity feed" "trip_traveler_updated"
+assert_activity_has "Owner activity feed" "trip_traveler_removed"
+assert_activity_has "Owner activity feed" "cost_split_updated"
+assert_activity_has "Owner activity feed" "accommodation_split_updated"
 assert_activity_has "Owner activity feed" "collaborator_invited"
 assert_activity_has "Owner activity feed" "collaborator_accepted"
 assert_activity_has "Owner activity feed" "collaborator_removed"

@@ -86,8 +86,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/accommodation", h.GetAccommodation)
 		r.Put("/{id}/accommodation", h.UpdateAccommodation)
 		r.Delete("/{id}/accommodation", h.DeleteAccommodation)
+		r.Patch("/{id}/accommodation/cost-split", h.UpdateAccommodationCostSplit)
 		r.Get("/{id}/budget-summary", h.GetBudgetSummary)
 		r.Get("/{id}/analytics/costs", h.GetTripCostAnalytics)
+		r.Get("/{id}/cost-splitting/summary", h.GetCostSplittingSummary)
 		r.Put("/{id}/budget", h.UpdateTripBudget)
 		r.Get("/{id}/share", h.GetShare)
 		r.Post("/{id}/share", h.CreateShare)
@@ -106,6 +108,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/collaborators", h.ListTripCollaborators)
 		r.Patch("/{id}/collaborators/{collaboratorId}", h.UpdateTripCollaborator)
 		r.Delete("/{id}/collaborators/{collaboratorId}", h.RemoveTripCollaborator)
+		r.Get("/{id}/travelers", h.ListTripTravelers)
+		r.Post("/{id}/travelers", h.CreateTripTraveler)
+		r.Patch("/{id}/travelers/{travelerId}", h.UpdateTripTraveler)
+		r.Delete("/{id}/travelers/{travelerId}", h.RemoveTripTraveler)
 		r.Post("/{id}/collaborators/{collaboratorId}/accept", h.AcceptTripCollaborator)
 		r.Post("/{id}/collaborators/{collaboratorId}/decline", h.DeclineTripCollaborator)
 		r.Post("/{id}/generate", h.Generate)
@@ -124,6 +130,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/itinerary/versions/{versionId}/restore", h.RestoreItineraryVersion)
 		r.Post("/{id}/itinerary/days/{dayNumber}/regenerate", h.RegenerateDay)
 		r.Post("/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate", h.RegenerateItem)
+		r.Patch("/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/cost-split", h.UpdateItemCostSplit)
 		r.Get("/{id}/comments", h.ListComments)
 		r.Post("/{id}/comments", h.CreateComment)
 		r.Get("/{id}/comments/counts", h.ListCommentCounts)
@@ -336,6 +343,24 @@ func (h *Handler) DeleteAccommodation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
+func (h *Handler) UpdateAccommodationCostSplit(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var req request.UpdateAccommodationCostSplit
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	updated, err := h.svc.UpdateAccommodationCostSplit(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTrip(updated))
+}
+
 // GetBudgetSummary handles GET /trips/{id}/budget-summary. Any accepted
 // collaborator (owner/editor/viewer) may read it.
 func (h *Handler) GetBudgetSummary(w http.ResponseWriter, r *http.Request) {
@@ -365,6 +390,23 @@ func (h *Handler) GetTripCostAnalytics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.svc.GetTripCostAnalytics(r.Context(), id, currency)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) GetCostSplittingSummary(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	currency, ok := parseCurrencyQuery(w, r)
+	if !ok {
+		return
+	}
+	result, err := h.svc.GetCostSplittingSummary(r.Context(), id, currency)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -585,6 +627,80 @@ func (h *Handler) RemoveTripCollaborator(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := h.svc.RemoveTripCollaborator(r.Context(), id, collaboratorID); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) ListTripTravelers(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	travelers, err := h.svc.ListTripTravelers(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripTravelers(travelers))
+}
+
+func (h *Handler) CreateTripTraveler(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var req request.CreateTripTraveler
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	input, err := req.ToInput()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	traveler, err := h.svc.CreateTripTraveler(r.Context(), id, input)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, response.NewTripTraveler(traveler))
+}
+
+func (h *Handler) UpdateTripTraveler(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	travelerID, ok := parseUUIDParam(w, r, "travelerId", "invalid traveler id")
+	if !ok {
+		return
+	}
+	var req request.UpdateTripTraveler
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	traveler, err := h.svc.UpdateTripTraveler(r.Context(), id, travelerID, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripTraveler(traveler))
+}
+
+func (h *Handler) RemoveTripTraveler(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	travelerID, ok := parseUUIDParam(w, r, "travelerId", "invalid traveler id")
+	if !ok {
+		return
+	}
+	if _, err := h.svc.RemoveTripTraveler(r.Context(), id, travelerID); err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
@@ -1000,6 +1116,33 @@ func (h *Handler) RegenerateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response.NewTrip(t))
+}
+
+func (h *Handler) UpdateItemCostSplit(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	dayNumber, ok := parseURLInt(w, r, "dayNumber")
+	if !ok {
+		return
+	}
+	itemIndex, ok := parseURLInt(w, r, "itemIndex")
+	if !ok {
+		return
+	}
+	var req request.UpdateItemCostSplit
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	t, err := h.svc.UpdateItemCostSplit(r.Context(), id, dayNumber, itemIndex, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"trip": response.NewTrip(t)})
 }
 
 // ListItineraryVersions handles GET /trips/{id}/itinerary/versions.

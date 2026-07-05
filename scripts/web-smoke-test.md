@@ -449,6 +449,32 @@ Trip dashboard:
 10. Open the public share URL in a logged-out window and confirm there is no
     link to private cost analytics.
 
+## Cost Splitting Between Travelers
+
+1. Open a completed private trip with at least one itinerary item cost and one
+   accommodation cost.
+2. In the cost-splitting section, add two travelers with distinct names and
+   emails.
+3. Confirm the default summary splits unconfigured costs equally and shows a
+   default-split warning/count.
+4. On an itinerary item with a cost, click `Split cost`, choose selected-equal,
+   select one traveler, and save.
+5. Confirm that item appears fully under that traveler in the per-traveler
+   detail and the itinerary revision updates.
+6. On the accommodation cost, choose custom percentages such as 25/75 and save.
+7. Confirm the per-traveler totals and accommodation detail reflect those
+   percentages.
+8. Download the cost-splitting CSV and PDF and confirm they include the summary,
+   traveler allocations, unassigned/default warnings, and planning disclaimer.
+9. Remove one traveler and confirm stale split rules referencing that traveler
+   are surfaced as invalid/unassigned instead of silently reallocating money.
+10. Log in as an accepted viewer collaborator and confirm the cost-splitting
+    summary is readable but traveler and split edit controls are hidden.
+
+Limitations: cost splitting is planning-only. It does not create payments,
+settlements, reimbursements, invoices, receipts, bookings, or accounting
+records.
+
 Workspace dashboard:
 
 1. Create or open a workspace with at least two trips, including one over budget
