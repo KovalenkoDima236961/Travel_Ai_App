@@ -10,6 +10,7 @@ from app.schemas.itinerary import (
     RegenerateDayResponse,
     RegenerateItemResponse,
 )
+from app.schemas.template_adaptation import TemplateAdaptationResponse
 
 _TOP_LEVEL_KEYS = {"days"}
 _DAY_RESPONSE_KEYS = {"day"}
@@ -124,6 +125,33 @@ def parse_budget_optimization_response(
         raise LLMResponseParseError("Budget optimization proposal must include changes")
     for index, item in enumerate(response.proposed_day.items, start=1):
         _ensure_item_values_valid(item, f"Proposed day item {index}")
+    return response
+
+
+def parse_template_adaptation_response(
+    response_text: str,
+    expected_days: int,
+) -> TemplateAdaptationResponse:
+    parsed = _parse_json(response_text)
+    if not isinstance(parsed, dict):
+        raise LLMResponseParseError("LLM response must be a JSON object")
+    if "itinerary" not in parsed:
+        raise LLMResponseParseError("LLM response must contain an 'itinerary' field")
+
+    try:
+        response = TemplateAdaptationResponse.model_validate(parsed)
+    except ValidationError as exc:
+        raise LLMResponseParseError(
+            "LLM response did not match template adaptation schema"
+        ) from exc
+
+    if len(response.itinerary.days) != expected_days:
+        raise LLMResponseParseError(
+            f"Expected {expected_days} adapted day(s), received {len(response.itinerary.days)}"
+        )
+    for day in response.itinerary.days:
+        if len(day.items) < 1:
+            raise LLMResponseParseError("Each adapted day must include at least one item")
     return response
 
 

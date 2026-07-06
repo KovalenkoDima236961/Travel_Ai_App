@@ -13,6 +13,7 @@ from app.services.generator_factory import (
     get_itinerary_generator,
     get_knowledge_search_service,
 )
+from app.services.template_adapter import get_template_adapter
 
 
 def create_app() -> FastAPI:
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
         destination_knowledge_provider=destination_knowledge_provider,
         knowledge_search_service=knowledge_search_service,
     )
+    template_adapter = get_template_adapter(settings)
 
     app = FastAPI(
         title="AI Planning Service",
@@ -33,6 +35,7 @@ def create_app() -> FastAPI:
     )
     app.state.settings = settings
     app.state.itinerary_generator = generator
+    app.state.template_adapter = template_adapter
     app.state.destination_knowledge_provider = destination_knowledge_provider
     app.state.knowledge_search_service = knowledge_search_service
     register_exception_handlers(app)

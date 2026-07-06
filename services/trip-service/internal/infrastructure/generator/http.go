@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
@@ -103,6 +104,184 @@ type aiPlanningOptimizeBudgetDayRequest struct {
 	UserPreferences  *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
 	WeatherForecast  *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
 	Accommodation    *aggregate.Accommodation         `json:"accommodation,omitempty"`
+}
+
+type aiPlanningAdaptTemplateRequest struct {
+	Template    templateadaptation.Template    `json:"template"`
+	Target      aiPlanningAdaptTarget          `json:"target"`
+	Constraints templateadaptation.Constraints `json:"constraints"`
+	Context     *aiPlanningAdaptContext        `json:"context,omitempty"`
+}
+
+type aiPlanningAdaptTarget struct {
+	Destination  string                    `json:"destination"`
+	StartDate    string                    `json:"startDate"`
+	DurationDays int                       `json:"durationDays"`
+	Budget       *templateadaptation.Money `json:"budget,omitempty"`
+	Travelers    int                       `json:"travelers"`
+	Pace         string                    `json:"pace"`
+	Interests    []string                  `json:"interests"`
+	Avoid        []string                  `json:"avoid"`
+}
+
+type aiPlanningAdaptContext struct {
+	UserProfile     *usercontext.UserProfile     `json:"userProfile,omitempty"`
+	UserPreferences *usercontext.UserPreferences `json:"userPreferences,omitempty"`
+}
+
+type aiPlanningAdaptResponse struct {
+	Itinerary         aiPlanningAdaptedItinerary  `json:"itinerary"`
+	AdaptationSummary aiPlanningAdaptationSummary `json:"adaptationSummary"`
+}
+
+type aiPlanningAdaptedItinerary struct {
+	Title       string                 `json:"title"`
+	Destination string                 `json:"destination"`
+	StartDate   string                 `json:"startDate"`
+	Days        []aiPlanningAdaptedDay `json:"days"`
+}
+
+type aiPlanningAdaptedDay struct {
+	Date  string                  `json:"date"`
+	Title string                  `json:"title"`
+	Items []aiPlanningAdaptedItem `json:"items"`
+}
+
+type aiPlanningAdaptedItem struct {
+	Name          string                            `json:"name"`
+	Type          string                            `json:"type"`
+	Description   string                            `json:"description"`
+	Time          string                            `json:"time"`
+	StartTime     string                            `json:"startTime"`
+	EndTime       string                            `json:"endTime"`
+	Place         *templateadaptation.TemplatePlace `json:"place"`
+	EstimatedCost *aggregate.EstimatedCost          `json:"estimatedCost"`
+	Notes         string                            `json:"notes"`
+}
+
+type aiPlanningAdaptationSummary struct {
+	SourceDurationDays int      `json:"sourceDurationDays"`
+	TargetDurationDays int      `json:"targetDurationDays"`
+	PreservedStructure bool     `json:"preservedStructure"`
+	ChangedDestination bool     `json:"changedDestination"`
+	FallbackUsed       bool     `json:"fallbackUsed"`
+	MajorChanges       []string `json:"majorChanges"`
+	Warnings           []string `json:"warnings"`
+}
+
+// AdaptTemplate calls AI Planning Service /adapt-template and maps the adapted
+// itinerary into the internal aggregate. The returned itinerary is still a
+// draft: prices are estimates and availability is unchecked.
+func (g *AIPlanningHTTPGenerator) AdaptTemplate(ctx context.Context, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error) {
+	payload := aiPlanningAdaptTemplateRequest{
+		Template: input.Template,
+		Target: aiPlanningAdaptTarget{
+			Destination:  input.Target.Destination,
+			StartDate:    input.Target.StartDate,
+			DurationDays: input.Target.DurationDays,
+			Budget:       input.Target.Budget,
+			Travelers:    input.Target.Travelers,
+			Pace:         input.Target.Pace,
+			Interests:    nonNilStrings(input.Target.Interests),
+			Avoid:        nonNilStrings(input.Target.Avoid),
+		},
+		Constraints: input.Constraints,
+	}
+	if input.UserProfile != nil || input.UserPreferences != nil {
+		payload.Context = &aiPlanningAdaptContext{
+			UserProfile:     input.UserProfile,
+			UserPreferences: input.UserPreferences,
+		}
+	}
+
+	var result aiPlanningAdaptResponse
+	if err := g.postJSON(ctx, input.TripID, "adapt-template", payload, &result); err != nil {
+		return nil, err
+	}
+	if len(result.Itinerary.Days) == 0 {
+		return nil, fmt.Errorf("ai planning service returned empty adapted itinerary days")
+	}
+	return mapAdaptResponse(result, input), nil
+}
+
+func mapAdaptResponse(result aiPlanningAdaptResponse, input templateadaptation.AdaptInput) *templateadaptation.AdaptResult {
+	days := make([]aggregate.ItineraryDay, 0, len(result.Itinerary.Days))
+	for index, day := range result.Itinerary.Days {
+		items := make([]aggregate.ItineraryItem, 0, len(day.Items))
+		for _, item := range day.Items {
+			items = append(items, mapAdaptedItem(item))
+		}
+		title := strings.TrimSpace(day.Title)
+		if title == "" {
+			title = fmt.Sprintf("Day %d", index+1)
+		}
+		days = append(days, aggregate.ItineraryDay{
+			Day:   index + 1,
+			Title: title,
+			Items: items,
+		})
+	}
+
+	currency := defaultCurrency
+	if input.Target.Budget != nil && input.Target.Budget.Currency != "" {
+		currency = input.Target.Budget.Currency
+	}
+	itinerary := aggregate.Itinerary{
+		Destination: input.Target.Destination,
+		Summary:     strings.TrimSpace(result.Itinerary.Title),
+		Travelers:   int32(input.Target.Travelers),
+		Pace:        input.Target.Pace,
+		Currency:    currency,
+		Days:        days,
+		GeneratedAt: time.Now().UTC(),
+		Source:      "ai_template_adaptation",
+	}
+	summary := templateadaptation.Summary{
+		SourceDurationDays: result.AdaptationSummary.SourceDurationDays,
+		TargetDurationDays: result.AdaptationSummary.TargetDurationDays,
+		PreservedStructure: result.AdaptationSummary.PreservedStructure,
+		ChangedDestination: result.AdaptationSummary.ChangedDestination,
+		FallbackUsed:       result.AdaptationSummary.FallbackUsed,
+		MajorChanges:       nonNilStrings(result.AdaptationSummary.MajorChanges),
+		Warnings:           nonNilStrings(result.AdaptationSummary.Warnings),
+	}
+	return &templateadaptation.AdaptResult{Itinerary: itinerary, Summary: summary}
+}
+
+func mapAdaptedItem(item aiPlanningAdaptedItem) aggregate.ItineraryItem {
+	timeValue := strings.TrimSpace(item.Time)
+	if timeValue == "" {
+		timeValue = strings.TrimSpace(item.StartTime)
+		if end := strings.TrimSpace(item.EndTime); end != "" {
+			timeValue = strings.TrimSpace(timeValue + " - " + end)
+		}
+	}
+	note := strings.TrimSpace(item.Notes)
+	if note == "" {
+		note = strings.TrimSpace(item.Description)
+	}
+	var place *aggregate.PlaceRef
+	if item.Place != nil && strings.TrimSpace(item.Place.Name) != "" {
+		place = &aggregate.PlaceRef{
+			Name:     strings.TrimSpace(item.Place.Name),
+			Category: strings.TrimSpace(item.Place.Category),
+		}
+	}
+	return aggregate.ItineraryItem{
+		Time:          timeValue,
+		Type:          strings.TrimSpace(item.Type),
+		Name:          strings.TrimSpace(item.Name),
+		Note:          note,
+		EstimatedCost: item.EstimatedCost,
+		Place:         place,
+	}
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 // NewAIPlanningHTTPGenerator constructs an HTTP generator with a validated base

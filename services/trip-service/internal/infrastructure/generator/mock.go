@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
@@ -271,6 +272,154 @@ func (g *MockItineraryGenerator) OptimizeBudgetDay(_ context.Context, input budg
 		Warnings:    []string{"Savings and prices are approximate estimates for review."},
 		ProposedDay: proposed,
 	}, nil
+}
+
+// AdaptTemplate produces a deterministic template adaptation: it renames items
+// with a "<destination> version of ..." prefix, preserves the day/item
+// structure, and trims/extends the plan to the target duration. It mirrors the
+// AI Planning Service mock adapter so mock mode stays predictable in tests.
+func (g *MockItineraryGenerator) AdaptTemplate(_ context.Context, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error) {
+	target := input.Target
+	if target.DurationDays < 1 {
+		return nil, fmt.Errorf("target duration must be at least 1")
+	}
+	destination := strings.TrimSpace(target.Destination)
+	currency := defaultCurrency
+	if target.Budget != nil && strings.TrimSpace(target.Budget.Currency) != "" {
+		currency = strings.ToUpper(strings.TrimSpace(target.Budget.Currency))
+	}
+
+	sourceDays := append([]templateadaptation.TemplateDay(nil), input.Template.Days...)
+	sortTemplateDays(sourceDays)
+
+	days := make([]aggregate.ItineraryDay, 0, target.DurationDays)
+	usedSource := len(sourceDays)
+	if usedSource > target.DurationDays {
+		usedSource = target.DurationDays
+	}
+	for i := 0; i < usedSource; i++ {
+		days = append(days, mockAdaptDay(sourceDays[i], i, destination, currency))
+	}
+	for i := usedSource; i < target.DurationDays; i++ {
+		days = append(days, aggregate.ItineraryDay{
+			Day:   i + 1,
+			Title: fmt.Sprintf("Flexible exploration day in %s", destination),
+			Items: []aggregate.ItineraryItem{{
+				Time: "10:00",
+				Type: "activity",
+				Name: fmt.Sprintf("Flexible exploration in %s", destination),
+				Note: "Added to extend the template to the requested duration; customize freely.",
+			}},
+		})
+	}
+
+	summary := templateadaptation.Summary{
+		SourceDurationDays: input.Template.DurationDays,
+		TargetDurationDays: target.DurationDays,
+		PreservedStructure: input.Constraints.PreserveStructure,
+		ChangedDestination: true,
+		MajorChanges:       []string{fmt.Sprintf("Adapted the template structure to %s.", destination)},
+		Warnings: []string{
+			"Estimated prices are approximate and should be verified.",
+			"Availability and opening hours must be checked before booking.",
+		},
+	}
+	if target.DurationDays < len(sourceDays) {
+		summary.MajorChanges = append(summary.MajorChanges,
+			fmt.Sprintf("Trimmed the plan from %d to %d day(s).", len(sourceDays), target.DurationDays))
+	} else if target.DurationDays > len(sourceDays) {
+		summary.MajorChanges = append(summary.MajorChanges,
+			fmt.Sprintf("Extended the plan from %d to %d day(s).", len(sourceDays), target.DurationDays))
+	}
+
+	return &templateadaptation.AdaptResult{
+		Itinerary: aggregate.Itinerary{
+			Destination: destination,
+			Summary:     fmt.Sprintf("%s trip adapted from template", destination),
+			Travelers:   int32(target.Travelers),
+			Pace:        target.Pace,
+			Currency:    currency,
+			Days:        days,
+			GeneratedAt: time.Now().UTC(),
+			Source:      "ai_template_adaptation",
+		},
+		Summary: summary,
+	}, nil
+}
+
+func mockAdaptDay(source templateadaptation.TemplateDay, index int, destination, currency string) aggregate.ItineraryDay {
+	items := make([]aggregate.ItineraryItem, 0, len(source.Items))
+	for _, item := range source.Items {
+		if strings.TrimSpace(item.Name) == "" {
+			continue
+		}
+		items = append(items, mockAdaptItem(item, destination, currency))
+	}
+	if len(items) == 0 {
+		items = append(items, aggregate.ItineraryItem{
+			Time: "10:00",
+			Type: "activity",
+			Name: fmt.Sprintf("Flexible exploration in %s", destination),
+			Note: "Customize this day for the destination.",
+		})
+	}
+	title := strings.TrimSpace(source.Title)
+	if title == "" {
+		title = fmt.Sprintf("Day %d in %s", index+1, destination)
+	} else if !strings.Contains(strings.ToLower(title), strings.ToLower(destination)) {
+		title = fmt.Sprintf("%s (%s)", title, destination)
+	}
+	return aggregate.ItineraryDay{Day: index + 1, Title: title, Items: items}
+}
+
+func mockAdaptItem(item templateadaptation.TemplateItem, destination, currency string) aggregate.ItineraryItem {
+	timeValue := strings.TrimSpace(item.Time)
+	if timeValue == "" {
+		timeValue = strings.TrimSpace(item.StartTime)
+		if end := strings.TrimSpace(item.EndTime); end != "" {
+			timeValue = strings.TrimSpace(timeValue + " - " + end)
+		}
+	}
+	note := strings.TrimSpace(item.Notes)
+	if note == "" {
+		note = strings.TrimSpace(item.Description)
+	}
+	if note == "" {
+		note = fmt.Sprintf("Adapted from the template for %s; verify details.", destination)
+	}
+	var cost *aggregate.EstimatedCost
+	if item.EstimatedCost != nil && item.EstimatedCost.Amount != nil {
+		c := *item.EstimatedCost
+		if strings.TrimSpace(c.Currency) == "" {
+			c.Currency = currency
+		}
+		c.Source = "ai"
+		c.Note = "Estimated from the template; verify current price."
+		cost = &c
+	}
+	var place *aggregate.PlaceRef
+	if item.Place != nil && strings.TrimSpace(item.Place.Name) != "" {
+		place = &aggregate.PlaceRef{
+			Name:     strings.TrimSpace(destination + " " + item.Place.Name),
+			Category: strings.TrimSpace(item.Place.Category),
+		}
+	}
+	return aggregate.ItineraryItem{
+		Time:          timeValue,
+		Type:          strings.TrimSpace(item.Type),
+		Name:          fmt.Sprintf("%s version of %s", destination, strings.TrimSpace(item.Name)),
+		Note:          note,
+		EstimatedCost: cost,
+		Place:         place,
+	}
+}
+
+func sortTemplateDays(days []templateadaptation.TemplateDay) {
+	for i := 1; i < len(days); i++ {
+		for j := i; j > 0 && days[j-1].DayOffset > days[j].DayOffset; j-- {
+			days[j-1], days[j] = days[j], days[j-1]
+		}
+	}
 }
 
 func weatherForDay(forecast *weathercontext.WeatherForecast, dayNumber int) *weathercontext.WeatherDay {

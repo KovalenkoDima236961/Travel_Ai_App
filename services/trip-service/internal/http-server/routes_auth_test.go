@@ -29,6 +29,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
@@ -2621,6 +2622,20 @@ func (routeTestGenerator) OptimizeBudgetDay(_ context.Context, input budgetoptim
 			Currency:               input.BudgetContext.Currency,
 		}},
 		ProposedDay: proposedDay,
+	}, nil
+}
+
+func (routeTestGenerator) AdaptTemplate(_ context.Context, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error) {
+	return &templateadaptation.AdaptResult{
+		Itinerary: aggregate.Itinerary{
+			Destination: input.Target.Destination,
+			Days: []aggregate.ItineraryDay{{
+				Day:   1,
+				Title: "Adapted day",
+				Items: []aggregate.ItineraryItem{{Time: "10:00", Type: "activity", Name: "Adapted activity"}},
+			}},
+		},
+		Summary: templateadaptation.Summary{ChangedDestination: true},
 	}, nil
 }
 

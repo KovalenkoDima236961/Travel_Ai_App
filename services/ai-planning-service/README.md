@@ -39,6 +39,7 @@ flowchart TD
 | `POST` | `/regenerate-day` | Replace one itinerary day. |
 | `POST` | `/regenerate-item` | Replace one itinerary item. |
 | `POST` | `/optimize-budget/day` | Return a reviewable cheaper-day proposal. |
+| `POST` | `/adapt-template` | Adapt a reusable template to a new destination/duration/budget. |
 | `GET` | `/destination-context` | List curated destination context. |
 | `GET` | `/destination-context/{destination}` | Read one destination context. |
 | `POST` | `/destination-context/{destination}/preview-prompt` | Development prompt preview. |
@@ -94,6 +95,54 @@ ITINERARY_GENERATOR_MODE=ollama
 ```
 
 Unknown modes fail startup.
+
+## Template Adaptation
+
+`POST /adapt-template` adapts a reusable trip template to a new destination,
+duration, budget, pace, travelers, and interests while preserving the template's
+planning structure and rhythm. It is a draft, not a confirmed plan.
+
+Request body: `{ template, target, constraints, context? }`.
+- `template` — sanitized structure `{ schemaVersion, durationDays, days[] }`
+  (Trip Service strips private metadata before sending it).
+- `target` — `{ destination, startDate, durationDays, budget?, travelers, pace,
+  interests[], avoid[] }`.
+- `constraints` — `{ preserveStructure, adaptCosts, preserveMealStructure,
+  preserveActivityDensity, specialInstructions? }`.
+
+Response body: `{ itinerary: { title, destination, startDate, days[] },
+adaptationSummary: { sourceDurationDays, targetDurationDays, preservedStructure,
+changedDestination, fallbackUsed, majorChanges[], warnings[] } }`.
+
+Modes (config, defaulting to `ITINERARY_GENERATOR_MODE` when unset):
+
+```bash
+AI_TEMPLATE_ADAPTATION_ENABLED=true
+AI_TEMPLATE_ADAPTATION_MODE=mock            # mock | ollama
+AI_TEMPLATE_ADAPTATION_TIMEOUT_SECONDS=120
+AI_TEMPLATE_ADAPTATION_FALLBACK_ENABLED=true # ollama -> mock fallback on failure
+```
+
+- **mock** — deterministic: adapts destination/title/dates, preserves day/item
+  structure, renames items (`"<destination> version of <name>"`), shifts dates
+  from the target start date, trims days for shorter targets, and appends
+  `Flexible exploration day` placeholders for longer targets. No external calls.
+- **ollama** — builds a strict-JSON prompt with preservation rules
+  (day rhythm, morning/afternoon/evening structure, meal/rest structure,
+  per-day density, category mix, budget level) and adaptation rules
+  (local places, transport, cost estimates, duration). It parses, validates, and
+  attempts one repair pass; on failure it can fall back to the mock adapter.
+
+Validation (looser than generation — it does **not** enforce the pace-based
+items-per-day rule so template density is preserved): day count must equal the
+target duration, item types/times must be valid, and costs must be non-negative.
+Warnings flag a probably-too-low budget, intense compression, uncertain prices,
+availability that must be checked, and limited destination context.
+
+**Limitations:** adaptation is a reviewable draft, not a booking. Costs are
+estimates, availability and opening hours must be verified, substitutions may be
+imperfect, and the model never claims confirmed bookings or guaranteed
+availability.
 
 ## Local Development
 

@@ -41,7 +41,7 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
-| Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, and create new trips from templates. |
+| Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, create new trips from templates, and adapt templates to a new destination with AI. |
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
@@ -209,7 +209,7 @@ traveler management and split-rule writes require the online private API.
 | ------- | ------------- |
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
 | Trip list/detail | `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}` |
-| Templates | `GET /trip-templates`, `POST /trips/{id}/templates`, `GET/PATCH /trip-templates/{id}`, archive/duplicate/create-trip routes, `GET /workspaces/{workspaceId}/templates` |
+| Templates | `GET /trip-templates`, `POST /trips/{id}/templates`, `GET/PATCH /trip-templates/{id}`, archive/duplicate/create-trip routes, `POST /trip-templates/{id}/adaptation-jobs`, `GET /workspaces/{workspaceId}/templates` |
 | Workspaces | `/workspaces`, `/workspaces/{id}`, `/workspaces/{id}/members*`, `/workspace-invitations*` through `/api/user-service` |
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Itinerary writes | `PUT /trips/{id}/itinerary`, version restore, day/item regeneration compatibility routes |
@@ -240,6 +240,32 @@ Limitations shown in the UI: templates copy itinerary structure and approximate
 costs only. They do not reuse live availability, booking links, comments,
 collaborators, share links, or calendar sync state, and prices should be
 verified before booking.
+
+### Adapt with AI
+
+The template detail page and library cards show `Adapt with AI` alongside
+`Use template directly` for anyone who can use the template (hidden for workspace
+viewers). The dialog (`AdaptTemplateWithAiDialog`) collects a title, destination,
+start date, duration, scope (personal or an editable workspace), optional budget,
+travelers, pace, interests, avoid list, special instructions, and a
+"fallback to a deterministic copy" checkbox (default on). Submitting creates the
+draft trip plus a `template_adaptation` job and shows an inline status card
+(Queued → Adapting → Completed/Failed) that polls until terminal:
+
+- **Completed** shows the adaptation summary (major changes + warnings) and an
+  `Open trip` button.
+- **Failed** shows the error and offers `Use template directly`.
+
+The created trip page shows a banner ("Created by AI adapting a template… please
+review costs, availability, and timing"), including a fallback notice when the
+deterministic copy was used. Workspace-adapted trips are created as draft
+approval status (review the approval checklist — nothing is auto-submitted), and
+availability cards stay unchecked until you check items manually.
+
+**Limitations:** AI adaptation produces a reviewable draft, not a confirmed plan.
+Costs are estimates, availability and opening hours must be checked, booking is
+never automatic, and substitutions can be imperfect. Workspace trips still
+require approval when your workflow uses it.
 
 ## Revision-Safe Editing
 

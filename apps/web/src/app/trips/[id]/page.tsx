@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AccommodationPanel } from "@/components/accommodation/AccommodationPanel";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AiAdaptedTripBanner } from "@/components/trips/AiAdaptedTripBanner";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { TripApprovalBadge } from "@/components/approvals/TripApprovalBadge";
@@ -1677,6 +1678,8 @@ function TripDetailPageContent() {
         pendingCount={offlineSync.pendingCount}
         syncing={offlineSync.syncing}
       />
+
+      <AiAdaptedTripBanner className="mb-6" />
 
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>

@@ -106,6 +106,7 @@ Generation job types:
 - `quality_improvement_day`
 - `quality_improvement_item`
 - `budget_optimization_day`
+- `template_adaptation`
 
 Dispatch modes:
 
@@ -138,7 +139,7 @@ or itinerary JSON.
 | Activity | `GET /trips/{id}/activity`, `GET /trips/{id}/activity/stream` |
 | Sharing | `GET/POST/PATCH/DELETE /trips/{id}/share`, public share status/unlock/read routes |
 | Calendar | `GET/POST/DELETE /trips/{id}/calendar-sync/google*` |
-| Trip templates | `GET /trip-templates`, `POST /trips/{id}/templates`, `GET/PATCH /trip-templates/{templateId}`, archive/duplicate/create-trip routes, `GET /workspaces/{workspaceId}/templates` |
+| Trip templates | `GET /trip-templates`, `POST /trips/{id}/templates`, `GET/PATCH /trip-templates/{templateId}`, archive/duplicate/create-trip routes, `POST /trip-templates/{templateId}/adaptation-jobs`, `GET /workspaces/{workspaceId}/templates` |
 
 ## Trip Templates
 
@@ -171,8 +172,46 @@ availability unchecked. Template prices are copied as approximate manual costs
 with a verification note.
 
 Limitations: templates are private/workspace only in v1; no marketplace,
-ratings, comments, visual content editor, AI adaptation, destination
-transformation, bookings, or availability refresh is included.
+ratings, comments, visual content editor, bookings, or availability refresh is
+included.
+
+### AI Template Adaptation
+
+`POST /trip-templates/{templateId}/adaptation-jobs` re-targets a template to a
+new destination, duration, budget, pace, travelers, and interests using AI. It
+reuses the `trip_generation_jobs` table with the `template_adaptation` job type:
+
+1. Validates the request (title 2–120, destination 2–120, `durationDays` 1–30,
+   optional budget `amount >= 0`/3-letter currency, travelers 1–50, pace
+   relaxed/balanced/intensive, ≤20 interests/avoid, ≤1000-char instructions).
+2. Enforces permissions: the caller must be able to use the template
+   (owner for private; owner/admin/member for workspace templates — viewers
+   cannot adapt), and must have create access to the target workspace when a
+   `workspaceId` is provided.
+3. Creates a **draft** trip up front (so the existing
+   `GET /trips/{id}/generation-jobs/{jobId}` status endpoint works) and queues a
+   job whose `payload` holds the target/constraints (the template body is never
+   stored in the job — the worker re-loads it by id and re-checks access).
+
+The worker builds a sanitized AI request (day/item structure only — no template
+metadata or provider ids reach the prompt), calls AI Planning Service
+`/adapt-template`, validates/normalizes the result through the same path as
+deterministic template instantiation, saves a first itinerary version with
+source `CREATED_FROM_TEMPLATE_AI` (metadata `source: ai_template_adaptation`,
+`templateId`, `templateTitle`, `fallbackUsed`), runs fail-open place/price
+enrichment, records `trip_created_from_ai_template_adaptation`, and stores the
+adaptation summary in the job's `result_payload`.
+
+Fallback: when the AI call fails and `fallbackToDeterministic=true` (default),
+the worker creates a deterministic template copy instead and marks
+`adaptationSummary.fallbackUsed=true`; with fallback disabled the job fails with
+`ai_adaptation_failed`. Failure error codes: `template_not_found`,
+`template_access_denied`, `target_workspace_access_denied`,
+`ai_adaptation_failed`, `validation_failed`, `deterministic_fallback_failed`,
+`provider_enrichment_failed`.
+
+Workspace-adapted trips are created as `draft` approval status and are **not**
+auto-submitted; availability stays unchecked; costs are copied as estimates.
 
 Private routes require `Authorization: Bearer <accessToken>` when
 `AUTH_REQUIRED=true`. Public share routes use opaque share tokens and optional

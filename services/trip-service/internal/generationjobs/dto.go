@@ -18,6 +18,30 @@ type CreateRequest struct {
 	Payload                   json.RawMessage          `json:"payload,omitempty"`
 }
 
+// TemplateAdaptationBudget is the optional target budget in an adaptation job
+// request.
+type TemplateAdaptationBudget struct {
+	Amount   *float64 `json:"amount"`
+	Currency string   `json:"currency"`
+}
+
+// CreateTemplateAdaptationRequest is the decoded POST body for
+// /trip-templates/{templateId}/adaptation-jobs.
+type CreateTemplateAdaptationRequest struct {
+	Title                   string                    `json:"title"`
+	Destination             string                    `json:"destination"`
+	StartDate               string                    `json:"startDate"`
+	DurationDays            int                       `json:"durationDays"`
+	WorkspaceID             *uuid.UUID                `json:"workspaceId"`
+	Budget                  *TemplateAdaptationBudget `json:"budget"`
+	Travelers               *int32                    `json:"travelers"`
+	Pace                    string                    `json:"pace"`
+	Interests               []string                  `json:"interests"`
+	Avoid                   []string                  `json:"avoid"`
+	SpecialInstructions     string                    `json:"specialInstructions"`
+	FallbackToDeterministic *bool                     `json:"fallbackToDeterministic"`
+}
+
 type JobEnvelope struct {
 	Job JobResponse `json:"job"`
 }
@@ -38,6 +62,7 @@ type JobResponse struct {
 	DayNumber                 *int                       `json:"dayNumber"`
 	ItemIndex                 *int                       `json:"itemIndex"`
 	Payload                   json.RawMessage            `json:"payload,omitempty"`
+	ResultPayload             json.RawMessage            `json:"resultPayload,omitempty"`
 	ErrorCode                 *string                    `json:"errorCode"`
 	ErrorMessage              *string                    `json:"errorMessage"`
 	ResultItineraryRevision   *int                       `json:"resultItineraryRevision"`
@@ -72,6 +97,7 @@ func NewJobResponse(job *entity.GenerationJob) JobResponse {
 		DayNumber:                 job.DayNumber,
 		ItemIndex:                 job.ItemIndex,
 		Payload:                   job.Payload,
+		ResultPayload:             job.ResultPayload,
 		ErrorCode:                 job.ErrorCode,
 		ErrorMessage:              job.ErrorMessage,
 		ResultItineraryRevision:   job.ResultItineraryRevision,

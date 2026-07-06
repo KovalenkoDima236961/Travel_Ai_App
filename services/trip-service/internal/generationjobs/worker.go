@@ -2,6 +2,7 @@ package generationjobs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"runtime/debug"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
@@ -235,7 +237,7 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 	processCtx, cancel := context.WithTimeout(ctx, w.cfg.MaxRunning)
 	defer cancel()
 
-	updatedTrip, processErr := w.process(processCtx, job)
+	updatedTrip, resultPayload, processErr := w.process(processCtx, job)
 	if processErr != nil {
 		code, message := ClassifyJobError(processErr)
 		if errors.Is(processCtx.Err(), context.DeadlineExceeded) {
@@ -253,6 +255,15 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 			return result, nil
 		}
 		return result, w.failJob(ctx, job, code, message)
+	}
+
+	if len(resultPayload) > 0 {
+		if err := w.repo.SetGenerationJobResultPayload(ctx, job.ID, resultPayload); err != nil {
+			w.log.Warn("failed to persist generation job result payload",
+				zap.String("job_id", job.ID.String()),
+				zap.Error(err),
+			)
+		}
 	}
 
 	completed, err := w.repo.CompleteGenerationJob(ctx, job.ID, updatedTrip.ItineraryRevision)
@@ -279,20 +290,24 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 	}, nil
 }
 
-func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entity.Trip, error) {
+// process runs the job and returns the updated trip and an optional JSON result
+// payload (template adaptation returns its adaptation summary here; other job
+// types return nil).
+func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entity.Trip, json.RawMessage, error) {
 	switch job.JobType {
 	case entity.GenerationJobTypeFullGeneration:
-		return w.trips.GenerateForActor(
+		trip, err := w.trips.GenerateForActor(
 			ctx,
 			job.TripID,
 			job.RequestedByUserID,
 			job.ExpectedItineraryRevision,
 		)
+		return trip, nil, err
 	case entity.GenerationJobTypeDayRegeneration, entity.GenerationJobTypeQualityImprovementDay:
 		if job.DayNumber == nil {
-			return nil, apperrs.NewInvalidInput("dayNumber is required")
+			return nil, nil, apperrs.NewInvalidInput("dayNumber is required")
 		}
-		return w.trips.RegenerateDayForActor(
+		trip, err := w.trips.RegenerateDayForActor(
 			ctx,
 			job.TripID,
 			job.RequestedByUserID,
@@ -300,11 +315,12 @@ func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entit
 			safeInstruction(job),
 			job.ExpectedItineraryRevision,
 		)
+		return trip, nil, err
 	case entity.GenerationJobTypeItemRegeneration, entity.GenerationJobTypeQualityImprovementItem:
 		if job.DayNumber == nil || job.ItemIndex == nil {
-			return nil, apperrs.NewInvalidInput("dayNumber and itemIndex are required")
+			return nil, nil, apperrs.NewInvalidInput("dayNumber and itemIndex are required")
 		}
-		return w.trips.RegenerateItemForActor(
+		trip, err := w.trips.RegenerateItemForActor(
 			ctx,
 			job.TripID,
 			job.RequestedByUserID,
@@ -313,11 +329,12 @@ func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entit
 			safeInstruction(job),
 			job.ExpectedItineraryRevision,
 		)
+		return trip, nil, err
 	case entity.GenerationJobTypeBudgetOptimizationDay:
 		if job.DayNumber == nil {
-			return nil, apperrs.NewInvalidInput("dayNumber is required")
+			return nil, nil, apperrs.NewInvalidInput("dayNumber is required")
 		}
-		return w.trips.OptimizeBudgetDayForActor(
+		trip, err := w.trips.OptimizeBudgetDayForActor(
 			ctx,
 			job.TripID,
 			job.RequestedByUserID,
@@ -327,8 +344,17 @@ func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entit
 			job.ExpectedItineraryRevision,
 			budgetoptimization.DecodeJobPayload(job.Payload),
 		)
+		return trip, nil, err
+	case entity.GenerationJobTypeTemplateAdaptation:
+		return w.trips.AdaptTemplateForActor(
+			ctx,
+			job.TripID,
+			job.RequestedByUserID,
+			job.ExpectedItineraryRevision,
+			job.Payload,
+		)
 	default:
-		return nil, apperrs.NewInvalidInput("jobType is invalid")
+		return nil, nil, apperrs.NewInvalidInput("jobType is invalid")
 	}
 }
 
@@ -384,6 +410,12 @@ func (w *Worker) failStaleRunningJobs(ctx context.Context) error {
 func ClassifyJobError(err error) (string, string) {
 	if err == nil {
 		return "", ""
+	}
+
+	// Template adaptation errors carry their own stable code/message.
+	var adaptErr *templateadaptation.Error
+	if errors.As(err, &adaptErr) {
+		return adaptErr.Code, truncateSafeMessage(adaptErr.Message)
 	}
 
 	// Provider rate-limit / quota errors are classified first so an exhausted
@@ -453,7 +485,7 @@ func safeProviderLimitMessage(limitErr *providerlimit.Error, fallback string) st
 
 func IsRetryableErrorCode(code string) bool {
 	switch code {
-	case ErrorAIGeneration, ErrorEnrichment, ErrorUnknown,
+	case ErrorAIGeneration, ErrorEnrichment, ErrorUnknown, ErrorAIAdaptationFailed,
 		ErrorProviderRateLimited, ErrorProviderLimitsUnavailable:
 		return true
 	default:

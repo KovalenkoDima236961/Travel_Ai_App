@@ -16,6 +16,7 @@ const (
 	GenerationJobTypeQualityImprovementDay  GenerationJobType = "quality_improvement_day"
 	GenerationJobTypeQualityImprovementItem GenerationJobType = "quality_improvement_item"
 	GenerationJobTypeBudgetOptimizationDay  GenerationJobType = "budget_optimization_day"
+	GenerationJobTypeTemplateAdaptation     GenerationJobType = "template_adaptation"
 )
 
 type GenerationJobStatus string
@@ -39,6 +40,7 @@ type GenerationJob struct {
 	DayNumber                 *int
 	ItemIndex                 *int
 	Payload                   json.RawMessage
+	ResultPayload             json.RawMessage
 	CorrelationID             *string
 	RequestID                 *string
 	RetriedFromJobID          *uuid.UUID

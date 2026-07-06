@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { AdaptTemplateWithAiDialog } from "@/components/templates/AdaptTemplateWithAiDialog";
 import { CreateTripFromTemplateDialog } from "@/components/templates/CreateTripFromTemplateDialog";
 import { TemplateItineraryPreview } from "@/components/templates/TemplateItineraryPreview";
 import { Button, buttonStyles } from "@/components/ui/Button";
@@ -29,6 +30,7 @@ function TemplateDetailPageContent() {
   const templateQuery = useTripTemplate(params.templateId);
   const mutations = useTripTemplateMutations();
   const [useDialogOpen, setUseDialogOpen] = useState(false);
+  const [adaptDialogOpen, setAdaptDialogOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
   const template = templateQuery.data ?? null;
@@ -106,8 +108,13 @@ function TemplateDetailPageContent() {
             </div>
             <div className="flex flex-wrap gap-2">
               {template.access.canUse ? (
-                <Button onClick={() => setUseDialogOpen(true)} type="button">
-                  Use template
+                <Button onClick={() => setUseDialogOpen(true)} type="button" variant="secondary">
+                  Use template directly
+                </Button>
+              ) : null}
+              {template.access.canUse ? (
+                <Button onClick={() => setAdaptDialogOpen(true)} type="button">
+                  Adapt with AI
                 </Button>
               ) : null}
               {template.access.canEdit ? (
@@ -171,6 +178,15 @@ function TemplateDetailPageContent() {
           <CreateTripFromTemplateDialog
             onClose={() => setUseDialogOpen(false)}
             open={useDialogOpen}
+            template={template}
+          />
+          <AdaptTemplateWithAiDialog
+            onClose={() => setAdaptDialogOpen(false)}
+            onUseDirectly={() => {
+              setAdaptDialogOpen(false);
+              setUseDialogOpen(true);
+            }}
+            open={adaptDialogOpen}
             template={template}
           />
           <TemplateMetadataDialog

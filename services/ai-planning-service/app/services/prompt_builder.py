@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 from app.schemas.destination_context import DestinationContext
@@ -9,6 +10,7 @@ from app.schemas.itinerary import (
     RegenerateItemRequest,
 )
 from app.schemas.knowledge import KnowledgeSearchResult
+from app.schemas.template_adaptation import TemplateAdaptationRequest
 
 _ITEMS_PER_DAY_BY_PACE = {
     "relaxed": 3,
@@ -473,6 +475,245 @@ Rules:
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
+
+
+_TEMPLATE_ADAPTATION_OUTPUT_SCHEMA = """{
+  "itinerary": {
+    "title": "string",
+    "destination": "string",
+    "startDate": "YYYY-MM-DD",
+    "days": [
+      {
+        "date": "YYYY-MM-DD",
+        "title": "string",
+        "items": [
+          {
+            "name": "string",
+            "type": "place",
+            "description": "string",
+            "startTime": "09:00",
+            "endTime": "10:30",
+            "place": {"name": "string", "category": "string"},
+            "estimatedCost": {
+              "amount": 18,
+              "currency": "EUR",
+              "category": "ticket",
+              "confidence": "medium",
+              "source": "ai"
+            },
+            "notes": "string"
+          }
+        ]
+      }
+    ]
+  },
+  "adaptationSummary": {
+    "sourceDurationDays": 3,
+    "targetDurationDays": 3,
+    "preservedStructure": true,
+    "changedDestination": true,
+    "majorChanges": ["string"],
+    "warnings": ["string"]
+  }
+}"""
+
+
+def build_template_adaptation_prompt(request: TemplateAdaptationRequest) -> str:
+    """Build the strict-JSON prompt for adapting a template to a new target."""
+    target = request.target
+    constraints = request.constraints
+
+    return f"""
+You are a travel itinerary adaptation engine for a web-based travel planning
+application. You take an existing reusable trip template and adapt it to a new
+destination and constraints while preserving the template's planning structure
+and rhythm.
+
+Return ONLY valid JSON. Do not include markdown, explanations, comments, or code
+fences. The JSON must exactly match this schema and must not include any other
+top-level fields:
+{_TEMPLATE_ADAPTATION_OUTPUT_SCHEMA}
+
+SOURCE TEMPLATE SUMMARY:
+{_template_summary_section(request)}
+
+TARGET TRIP REQUIREMENTS:
+{_target_requirements_section(request)}
+
+PRESERVATION RULES (keep from the template):
+- Preserve the day rhythm and the morning/afternoon/evening structure.
+- Preserve the meal and rest structure{_flag(constraints.preserve_meal_structure)}.
+- Preserve the number of activities per day proportional to the pace and the
+  template's density{_flag(constraints.preserve_activity_density)}.
+- Preserve the category mix (sightseeing, food, culture, transport, rest).
+- Preserve the overall budget level and the traveler-friendliness of the plan.
+- Preserve the template's intent and pacing{_flag(constraints.preserve_structure)}.
+
+ADAPTATION RULES (change for the target):
+- Adapt place names, local attractions, and destination-specific context to
+  {target.destination}.
+- Adapt local transport assumptions to {target.destination}.
+- Adapt cost estimates to the target destination and budget{_flag(constraints.adapt_costs)}.
+- Respect the target pace, interests, and avoid list.
+- Keep realistic time windows in HH:MM 24-hour format and keep items time-ordered.
+- Adapt activity order where it makes the day flow better.
+
+DURATION ADAPTATION RULES:
+- If the target duration equals the template duration, preserve the day count.
+- If the target duration is shorter, compress/trim lower-priority days while
+  preserving must-do structure; do not overload the remaining days.
+- If the target duration is longer, extend with additional destination-relevant
+  days that preserve the original rhythm; do not duplicate identical activities.
+- The output MUST contain exactly {target.duration_days} day object(s), dated from
+  {target.start_date.isoformat()} onward (one calendar day per day object).
+
+OUTPUT REQUIREMENTS:
+- Each item must include name, type, and a helpful note tailored to
+  {target.destination}.
+- Use only these item types: place, food, activity, transport, rest.
+- Include estimatedCost as an object {{amount, currency, category, confidence,
+  source "ai"}} where a cost is reasonable, or null for free/uncertain items.
+- Prefer the target budget currency for estimatedCost.currency.
+- Include a concise adaptationSummary describing the major changes and warnings.
+
+SAFETY AND PRODUCT CONSTRAINTS:
+- Do not claim any booking is confirmed and do not guarantee availability.
+- Do not invent exact provider prices; mark all costs as estimates.
+- Do not assume places are closed or unavailable unless the context says so.
+- Avoid unsafe or illegal activities and respect the avoid list.
+- Prices are estimates that the user must verify; availability must be checked.
+
+{_special_instructions_section(constraints)}
+Return ONLY the JSON described above. Do not include any text outside the JSON.
+""".strip()
+
+
+def build_template_adaptation_repair_prompt(
+    request: TemplateAdaptationRequest,
+    invalid_response_text: str,
+    validation_error: str,
+) -> str:
+    return f"""
+You previously generated a template adaptation JSON response, but it was invalid.
+
+Validation error:
+{validation_error}
+
+Required schema:
+{_TEMPLATE_ADAPTATION_OUTPUT_SCHEMA}
+
+SOURCE TEMPLATE SUMMARY:
+{_template_summary_section(request)}
+
+TARGET TRIP REQUIREMENTS:
+{_target_requirements_section(request)}
+
+Invalid previous response:
+{invalid_response_text}
+
+Return ONLY corrected JSON. The itinerary MUST contain exactly
+{request.target.duration_days} day object(s). Do not include markdown,
+explanations, comments, code fences, or fields outside the schema. Preserve the
+template's rhythm and adapt places/costs to {request.target.destination}.
+Prices remain estimates; do not claim bookings or guaranteed availability.
+""".strip()
+
+
+def _template_summary_section(request: TemplateAdaptationRequest) -> str:
+    template = request.template
+    # Only sanitized structure is included. Private metadata (source trip IDs,
+    # summary, tags) is intentionally excluded from the prompt.
+    days_payload = [
+        {
+            "dayOffset": day.day_offset,
+            "title": day.title,
+            "items": [
+                {
+                    key: value
+                    for key, value in {
+                        "name": item.name,
+                        "type": item.type,
+                        "startTime": item.start_time or item.time,
+                        "endTime": item.end_time,
+                        "category": item.place.category if item.place else None,
+                        "estimatedCost": (
+                            _compact_cost(item.estimated_cost)
+                            if item.estimated_cost is not None
+                            else None
+                        ),
+                        "notes": item.notes or item.description,
+                    }.items()
+                    if value is not None
+                }
+                for item in day.items
+            ],
+        }
+        for day in template.days
+    ]
+    lines = [
+        f"- Template duration: {template.duration_days} day(s)",
+        f"- Template days and items (JSON): {json.dumps(days_payload, ensure_ascii=False)}",
+    ]
+    return "\n".join(lines)
+
+
+def _target_requirements_section(request: TemplateAdaptationRequest) -> str:
+    target = request.target
+    budget = (
+        f"{target.budget.amount} {target.budget.currency}"
+        if target.budget is not None
+        else "not provided"
+    )
+    interests = ", ".join(target.interests) if target.interests else "general sightseeing"
+    avoid = ", ".join(target.avoid) if target.avoid else "none"
+    lines = [
+        f"- Destination: {target.destination}",
+        f"- Start date: {target.start_date.isoformat()}",
+        f"- Duration: {target.duration_days} day(s)",
+        f"- Budget: {budget}",
+        f"- Travelers: {target.travelers}",
+        f"- Pace: {target.pace}",
+        f"- Interests: {interests}",
+        f"- Avoid: {avoid}",
+    ]
+    context = request.context
+    if context is not None and context.destination_context:
+        lines.append(
+            "- Destination context (JSON): "
+            + json.dumps(context.destination_context, ensure_ascii=False)[:1500]
+        )
+    if context is not None and context.weather_context:
+        lines.append(
+            "- Weather context (JSON): "
+            + json.dumps(context.weather_context, ensure_ascii=False)[:1500]
+        )
+    return "\n".join(lines)
+
+
+def _special_instructions_section(constraints: object) -> str:
+    special = getattr(constraints, "special_instructions", None)
+    if not special:
+        return ""
+    return f"SPECIAL INSTRUCTIONS:\n- {special}\n\n"
+
+
+def _flag(enabled: bool) -> str:
+    return "" if enabled else " (relaxed for this request)"
+
+
+def _compact_cost(cost: object) -> dict:
+    amount = getattr(cost, "amount", None)
+    if amount is not None:
+        amount = int(amount) if amount == amount.to_integral_value() else float(amount)
+    return {
+        key: value
+        for key, value in {
+            "amount": amount,
+            "currency": getattr(cost, "currency", None),
+            "category": getattr(cost, "category", None),
+        }.items()
+        if value is not None
+    }
 
 
 def build_regenerate_day_repair_prompt(

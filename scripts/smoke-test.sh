@@ -1540,6 +1540,73 @@ if ! jq -e '.items | any(.source == "CREATED_FROM_TEMPLATE")' <<<"${LAST_BODY}" 
   exit 1
 fi
 
+echo "Adapting the private template with AI (mock mode)..."
+ADAPTATION_JOB_PAYLOAD="$(jq -nc '{
+  title:"Smoke AI adaptation to Vienna",
+  destination:"Vienna",
+  startDate:"2026-10-01",
+  durationDays:3,
+  budget:{amount:700,currency:"EUR"},
+  travelers:2,
+  pace:"balanced",
+  interests:["museums","food"],
+  avoid:["nightclubs"],
+  specialInstructions:"Make it suitable for first-time visitors.",
+  fallbackToDeterministic:true
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-templates/${PRIVATE_TEMPLATE_ID}/adaptation-jobs" "${ACCESS_TOKEN}" "${ADAPTATION_JOB_PAYLOAD}"
+assert_status "Create template adaptation job" "202"
+ADAPTATION_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+ADAPTED_TRIP_ID="$(jq -r '.job.tripId // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ADAPTATION_JOB_ID}" || -z "${ADAPTED_TRIP_ID}" ]]; then
+  echo "Template adaptation job did not return job id and draft trip id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.job.jobType == "template_adaptation" and .job.status == "queued"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Template adaptation job did not start as a queued template_adaptation job." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+poll_generation_job "Template adaptation" "${ADAPTED_TRIP_ID}" "${ADAPTATION_JOB_ID}" "${ACCESS_TOKEN}"
+if ! jq -e '.job.status == "completed"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Template adaptation job did not complete." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.job.resultPayload.targetDurationDays == 3' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Template adaptation job did not store an adaptation summary result payload." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${ADAPTED_TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch AI-adapted trip"
+if ! jq -e '.destination == "Vienna" and .days == 3' <<<"${LAST_BODY}" >/dev/null; then
+  echo "AI-adapted trip did not adapt destination to Vienna with 3 days." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${ADAPTED_TRIP_ID}/itinerary/versions" "${ACCESS_TOKEN}"
+assert_2xx "List AI-adapted trip versions"
+if ! jq -e '.items | any(.source == "CREATED_FROM_TEMPLATE_AI")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "AI-adapted trip did not record CREATED_FROM_TEMPLATE_AI version source." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${ADAPTED_TRIP_ID}/activity" "${ACCESS_TOKEN}"
+assert_2xx "List AI-adapted trip activity"
+assert_activity_has "AI-adapted trip activity" "trip_created_from_ai_template_adaptation"
+
+echo "Rejecting an invalid template adaptation duration..."
+INVALID_ADAPTATION_PAYLOAD="$(jq -nc '{title:"Bad duration",destination:"Vienna",startDate:"2026-10-01",durationDays:40}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-templates/${PRIVATE_TEMPLATE_ID}/adaptation-jobs" "${ACCESS_TOKEN}" "${INVALID_ADAPTATION_PAYLOAD}"
+assert_status "Reject invalid adaptation duration" "400"
+
+echo "Blocking another user from adapting a private template..."
+OTHER_ADAPTATION_PAYLOAD="$(jq -nc '{title:"Not allowed",destination:"Vienna",startDate:"2026-10-01",durationDays:3}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-templates/${PRIVATE_TEMPLATE_ID}/adaptation-jobs" "${COLLAB_ACCESS_TOKEN}" "${OTHER_ADAPTATION_PAYLOAD}"
+assert_status "Block other user from adapting private template" "404"
+
 echo "Checking budget summary reflects generated itinerary costs..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
 assert_2xx "Get budget summary"

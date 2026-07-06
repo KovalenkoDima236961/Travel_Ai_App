@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
@@ -41,6 +42,7 @@ type Repository interface {
 	MarkOpsGenerationJobFailed(ctx context.Context, id uuid.UUID, startedBefore time.Time, errorCode, errorMessage string) (*entity.GenerationJob, error)
 	MarkStaleRunningGenerationJobsFailed(ctx context.Context, startedBefore time.Time, errorCode string, errorMessage string) (int64, error)
 	CreateOpsAuditEvent(ctx context.Context, event OpsAuditEvent) error
+	SetGenerationJobResultPayload(ctx context.Context, id uuid.UUID, payload json.RawMessage) error
 }
 
 type TripService interface {
@@ -49,6 +51,8 @@ type TripService interface {
 	RegenerateDayForActor(ctx context.Context, tripID, actorUserID uuid.UUID, dayNumber int, instruction string, expectedRevision int) (*entity.Trip, error)
 	RegenerateItemForActor(ctx context.Context, tripID, actorUserID uuid.UUID, dayNumber, itemIndex int, instruction string, expectedRevision int) (*entity.Trip, error)
 	OptimizeBudgetDayForActor(ctx context.Context, tripID, actorUserID uuid.UUID, jobID *uuid.UUID, dayNumber int, instruction string, expectedRevision int, payload budgetoptimization.JobPayload) (*entity.Trip, error)
+	PrepareTemplateAdaptation(ctx context.Context, templateID uuid.UUID, in appdto.CreateTemplateAdaptationInput) (*entity.Trip, json.RawMessage, error)
+	AdaptTemplateForActor(ctx context.Context, tripID, actorUserID uuid.UUID, expectedRevision int, requestPayload json.RawMessage) (*entity.Trip, json.RawMessage, error)
 	RecordGenerationJobFailed(ctx context.Context, tripID, requesterID, jobID uuid.UUID, jobType entity.GenerationJobType, errorCode, errorMessage string)
 }
 
@@ -136,45 +140,103 @@ func (s *Service) Create(ctx context.Context, tripID uuid.UUID, req CreateReques
 		tripobs.RecordBudgetOptimizationJobCreated()
 	}
 
+	return s.dispatchGenerationJob(ctx, job)
+}
+
+// dispatchGenerationJob publishes a queued job to the worker queue (queue mode)
+// or leaves it for the in-process poller (in-process mode), marking the job
+// failed when a required publish cannot be completed and fail-open is disabled.
+func (s *Service) dispatchGenerationJob(ctx context.Context, job *entity.GenerationJob) (*entity.GenerationJob, error) {
 	if s.cfg.QueueMode() {
-		recordGenerationJobDispatch(req.JobType, string(s.cfg.DispatchMode))
+		recordGenerationJobDispatch(job.JobType, string(s.cfg.DispatchMode))
 		if s.publisher == nil {
-			recordGenerationJobDispatchFailed(req.JobType, ErrorJobDispatchFailed)
-			failed, _ := s.repo.FailGenerationJob(
-				ctx,
-				job.ID,
-				ErrorJobDispatchFailed,
-				"Generation job could not be dispatched.",
-			)
+			recordGenerationJobDispatchFailed(job.JobType, ErrorJobDispatchFailed)
+			failed, _ := s.repo.FailGenerationJob(ctx, job.ID, ErrorJobDispatchFailed, "Generation job could not be dispatched.")
 			if failed != nil {
 				recordGenerationJobStatus(failed.JobType, failed.Status)
 			}
 			return nil, ErrJobDispatchFailed
 		}
 		publishCtx, cancel := context.WithTimeout(ctx, s.cfg.PublishTimeout)
-		err = s.publisher.PublishGenerationJob(publishCtx, NewQueueMessageFromContext(ctx, job))
+		err := s.publisher.PublishGenerationJob(publishCtx, NewQueueMessageFromContext(ctx, job))
 		cancel()
 		if err != nil {
-			recordGenerationJobDispatchFailed(req.JobType, ErrorJobDispatchFailed)
+			recordGenerationJobDispatchFailed(job.JobType, ErrorJobDispatchFailed)
 			if s.cfg.PublishFailOpen {
 				return job, nil
 			}
-			failed, _ := s.repo.FailGenerationJob(
-				ctx,
-				job.ID,
-				ErrorJobDispatchFailed,
-				"Generation job could not be dispatched.",
-			)
+			failed, _ := s.repo.FailGenerationJob(ctx, job.ID, ErrorJobDispatchFailed, "Generation job could not be dispatched.")
 			if failed != nil {
 				recordGenerationJobStatus(failed.JobType, failed.Status)
 			}
 			return nil, ErrJobDispatchFailed
 		}
 	} else {
-		recordGenerationJobDispatch(req.JobType, string(s.cfg.DispatchMode))
+		recordGenerationJobDispatch(job.JobType, string(s.cfg.DispatchMode))
+	}
+	return job, nil
+}
+
+// CreateTemplateAdaptation creates the draft trip and a queued template
+// adaptation job, then dispatches it. The draft trip is created up front (like
+// full generation) so the existing per-trip job status endpoint works, and the
+// adaptation request is stored in the job payload for the worker.
+func (s *Service) CreateTemplateAdaptation(ctx context.Context, templateID uuid.UUID, req CreateTemplateAdaptationRequest) (*entity.GenerationJob, error) {
+	startedAt := time.Now()
+	if !s.cfg.Enabled {
+		return nil, ErrDisabled
 	}
 
-	return job, nil
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	fallback := true
+	if req.FallbackToDeterministic != nil {
+		fallback = *req.FallbackToDeterministic
+	}
+	in := appdto.CreateTemplateAdaptationInput{
+		Title:                   req.Title,
+		Destination:             req.Destination,
+		StartDate:               req.StartDate,
+		DurationDays:            req.DurationDays,
+		WorkspaceID:             req.WorkspaceID,
+		Travelers:               req.Travelers,
+		Pace:                    req.Pace,
+		Interests:               req.Interests,
+		Avoid:                   req.Avoid,
+		SpecialInstructions:     req.SpecialInstructions,
+		FallbackToDeterministic: fallback,
+	}
+	if req.Budget != nil {
+		in.BudgetAmount = req.Budget.Amount
+		in.BudgetCurrency = req.Budget.Currency
+	}
+
+	trip, payload, err := s.trips.PrepareTemplateAdaptation(ctx, templateID, in)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, requestID, correlationID := observability.EnsureRequestIDs(ctx)
+	job, err := s.repo.CreateGenerationJob(ctx, &entity.GenerationJob{
+		ID:                        uuid.New(),
+		TripID:                    trip.ID,
+		RequestedByUserID:         user.ID,
+		JobType:                   entity.GenerationJobTypeTemplateAdaptation,
+		Status:                    entity.GenerationJobStatusQueued,
+		ExpectedItineraryRevision: trip.ItineraryRevision,
+		Payload:                   payload,
+		CorrelationID:             &correlationID,
+		RequestID:                 &requestID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	recordGenerationJobCreated(entity.GenerationJobTypeTemplateAdaptation, time.Since(startedAt))
+
+	return s.dispatchGenerationJob(ctx, job)
 }
 
 func (s *Service) Get(ctx context.Context, tripID, jobID uuid.UUID) (*entity.GenerationJob, error) {

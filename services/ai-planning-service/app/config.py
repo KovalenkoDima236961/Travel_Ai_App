@@ -11,6 +11,10 @@ class Settings(BaseModel):
     http_port: int = Field(default=8000, ge=1, le=65535)
     log_level: str = "INFO"
     itinerary_generator_mode: str = "mock"
+    template_adaptation_enabled: bool = True
+    template_adaptation_mode: str = "mock"
+    template_adaptation_timeout_seconds: float = Field(default=120, gt=0)
+    template_adaptation_fallback_enabled: bool = True
     ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_timeout_seconds: float = Field(default=60, gt=0)
@@ -108,6 +112,17 @@ def get_settings() -> Settings:
         http_port=_env_int("HTTP_PORT", 8000),
         log_level=_env_string("LOG_LEVEL", "INFO").upper(),
         itinerary_generator_mode=_env_string("ITINERARY_GENERATOR_MODE", "mock"),
+        template_adaptation_enabled=_env_bool("AI_TEMPLATE_ADAPTATION_ENABLED", True),
+        template_adaptation_mode=_env_string(
+            "AI_TEMPLATE_ADAPTATION_MODE",
+            _env_string("ITINERARY_GENERATOR_MODE", "mock"),
+        ),
+        template_adaptation_timeout_seconds=_env_float(
+            "AI_TEMPLATE_ADAPTATION_TIMEOUT_SECONDS", 120
+        ),
+        template_adaptation_fallback_enabled=_env_bool(
+            "AI_TEMPLATE_ADAPTATION_FALLBACK_ENABLED", True
+        ),
         ollama_base_url=_env_string("OLLAMA_BASE_URL", "http://ollama:11434"),
         ollama_model=_env_string("OLLAMA_MODEL", "llama3.1:8b"),
         ollama_timeout_seconds=_env_float("OLLAMA_TIMEOUT_SECONDS", 60),
@@ -137,6 +152,11 @@ def _validate_startup_settings(settings: Settings) -> None:
     mode = settings.itinerary_generator_mode.strip().lower()
     if mode not in {"mock", "ollama"}:
         raise ValueError("ITINERARY_GENERATOR_MODE must be mock or ollama")
+    adaptation_mode = settings.template_adaptation_mode.strip().lower()
+    if adaptation_mode not in {"mock", "ollama"}:
+        raise ValueError("AI_TEMPLATE_ADAPTATION_MODE must be mock or ollama")
+    if adaptation_mode == "ollama":
+        _validate_http_url("OLLAMA_BASE_URL", settings.ollama_base_url)
     if settings.is_strict_env and settings.log_llm_payloads:
         raise ValueError("LOG_LLM_PAYLOADS must be false in staging or production")
     if mode == "ollama":

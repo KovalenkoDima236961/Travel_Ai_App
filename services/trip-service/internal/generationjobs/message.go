@@ -93,7 +93,8 @@ func IsSupportedJobType(jobType entity.GenerationJobType) bool {
 		entity.GenerationJobTypeItemRegeneration,
 		entity.GenerationJobTypeQualityImprovementDay,
 		entity.GenerationJobTypeQualityImprovementItem,
-		entity.GenerationJobTypeBudgetOptimizationDay:
+		entity.GenerationJobTypeBudgetOptimizationDay,
+		entity.GenerationJobTypeTemplateAdaptation:
 		return true
 	default:
 		return false

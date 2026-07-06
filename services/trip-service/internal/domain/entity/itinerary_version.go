@@ -19,6 +19,7 @@ const (
 	ItineraryVersionSourceCostSplitUpdated          ItineraryVersionSource = "COST_SPLIT_UPDATED"
 	ItineraryVersionSourceRestored                  ItineraryVersionSource = "RESTORED"
 	ItineraryVersionSourceCreatedFromTemplate       ItineraryVersionSource = "CREATED_FROM_TEMPLATE"
+	ItineraryVersionSourceCreatedFromTemplateAI     ItineraryVersionSource = "CREATED_FROM_TEMPLATE_AI"
 )
 
 // ItineraryVersion is a full JSONB snapshot of a trip itinerary at one point in

@@ -4,12 +4,13 @@ package activity
 // vocabulary stays consistent across recording call sites, the API, and tests.
 const (
 	// Trip.
-	EventTripCreated             = "trip_created"
-	EventTripBudgetUpdated       = "trip_budget_updated"
-	EventTripCreatedFromTemplate = "trip_created_from_template"
-	EventTripTravelerAdded       = "trip_traveler_added"
-	EventTripTravelerUpdated     = "trip_traveler_updated"
-	EventTripTravelerRemoved     = "trip_traveler_removed"
+	EventTripCreated                         = "trip_created"
+	EventTripBudgetUpdated                   = "trip_budget_updated"
+	EventTripCreatedFromTemplate             = "trip_created_from_template"
+	EventTripCreatedFromAITemplateAdaptation = "trip_created_from_ai_template_adaptation"
+	EventTripTravelerAdded                   = "trip_traveler_added"
+	EventTripTravelerUpdated                 = "trip_traveler_updated"
+	EventTripTravelerRemoved                 = "trip_traveler_removed"
 
 	// Templates.
 	EventTemplateCreated  = "template_created"
@@ -86,51 +87,52 @@ const (
 // knownEventTypes is the set of event types this version recognises. Recording
 // an unknown type is allowed (forward-compat) but is logged so typos surface.
 var knownEventTypes = map[string]struct{}{
-	EventTripCreated:                 {},
-	EventTripBudgetUpdated:           {},
-	EventTripCreatedFromTemplate:     {},
-	EventTripTravelerAdded:           {},
-	EventTripTravelerUpdated:         {},
-	EventTripTravelerRemoved:         {},
-	EventTemplateCreated:             {},
-	EventTemplateArchived:            {},
-	EventAccommodationAdded:          {},
-	EventAccommodationUpdated:        {},
-	EventAccommodationRemoved:        {},
-	EventItineraryGenerated:          {},
-	EventItineraryUpdated:            {},
-	EventDayRegenerated:              {},
-	EventItemRegenerated:             {},
-	EventVersionRestored:             {},
-	EventCostSplitUpdated:            {},
-	EventAccommodationSplitUpdated:   {},
-	EventGenerationJobFailed:         {},
-	EventBudgetOptimizationRequested: {},
-	EventBudgetOptimizationProposed:  {},
-	EventBudgetOptimizationApplied:   {},
-	EventBudgetOptimizationDiscarded: {},
-	EventBudgetOptimizationFailed:    {},
-	EventCommentCreated:              {},
-	EventCommentUpdated:              {},
-	EventCommentDeleted:              {},
-	EventCollaboratorInvited:         {},
-	EventCollaboratorAccepted:        {},
-	EventCollaboratorDeclined:        {},
-	EventCollaboratorRoleChanged:     {},
-	EventCollaboratorRemoved:         {},
-	EventShareCreated:                {},
-	EventShareUpdated:                {},
-	EventShareDisabled:               {},
-	EventSharePasswordEnabled:        {},
-	EventSharePasswordDisabled:       {},
-	EventShareExpirationUpdated:      {},
-	EventCalendarSynced:              {},
-	EventCalendarSyncRemoved:         {},
-	EventTripSubmittedForApproval:    {},
-	EventTripApproved:                {},
-	EventTripChangesRequested:        {},
-	EventTripApprovalCancelled:       {},
-	EventTripApprovalResetToDraft:    {},
+	EventTripCreated:                         {},
+	EventTripBudgetUpdated:                   {},
+	EventTripCreatedFromTemplate:             {},
+	EventTripCreatedFromAITemplateAdaptation: {},
+	EventTripTravelerAdded:                   {},
+	EventTripTravelerUpdated:                 {},
+	EventTripTravelerRemoved:                 {},
+	EventTemplateCreated:                     {},
+	EventTemplateArchived:                    {},
+	EventAccommodationAdded:                  {},
+	EventAccommodationUpdated:                {},
+	EventAccommodationRemoved:                {},
+	EventItineraryGenerated:                  {},
+	EventItineraryUpdated:                    {},
+	EventDayRegenerated:                      {},
+	EventItemRegenerated:                     {},
+	EventVersionRestored:                     {},
+	EventCostSplitUpdated:                    {},
+	EventAccommodationSplitUpdated:           {},
+	EventGenerationJobFailed:                 {},
+	EventBudgetOptimizationRequested:         {},
+	EventBudgetOptimizationProposed:          {},
+	EventBudgetOptimizationApplied:           {},
+	EventBudgetOptimizationDiscarded:         {},
+	EventBudgetOptimizationFailed:            {},
+	EventCommentCreated:                      {},
+	EventCommentUpdated:                      {},
+	EventCommentDeleted:                      {},
+	EventCollaboratorInvited:                 {},
+	EventCollaboratorAccepted:                {},
+	EventCollaboratorDeclined:                {},
+	EventCollaboratorRoleChanged:             {},
+	EventCollaboratorRemoved:                 {},
+	EventShareCreated:                        {},
+	EventShareUpdated:                        {},
+	EventShareDisabled:                       {},
+	EventSharePasswordEnabled:                {},
+	EventSharePasswordDisabled:               {},
+	EventShareExpirationUpdated:              {},
+	EventCalendarSynced:                      {},
+	EventCalendarSyncRemoved:                 {},
+	EventTripSubmittedForApproval:            {},
+	EventTripApproved:                        {},
+	EventTripChangesRequested:                {},
+	EventTripApprovalCancelled:               {},
+	EventTripApprovalResetToDraft:            {},
 }
 
 // IsKnownEventType reports whether the event type is part of the recognised

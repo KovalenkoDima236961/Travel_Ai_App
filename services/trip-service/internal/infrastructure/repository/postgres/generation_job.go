@@ -326,6 +326,32 @@ func (r *Repository) CompleteGenerationJob(
 	return dto.ScanGenerationJob(r.db.QueryRow(ctx, query, args...))
 }
 
+// SetGenerationJobResultPayload stores an arbitrary JSON result payload (used by
+// template adaptation to persist the adaptation summary) without changing the
+// job status. It is a no-op when the payload is empty.
+func (r *Repository) SetGenerationJobResultPayload(
+	ctx context.Context,
+	id uuid.UUID,
+	payload json.RawMessage,
+) error {
+	if len(payload) == 0 {
+		return nil
+	}
+	query, args, err := r.db.Builder.
+		Update("trip_generation_jobs").
+		Set("result_payload", []byte(payload)).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{"id": dto.IDArg(id)}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build set generation job result payload: %w", err)
+	}
+	if _, err := r.db.Exec(ctx, query, args...); err != nil {
+		return fmt.Errorf("set generation job result payload: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) FailGenerationJob(
 	ctx context.Context,
 	id uuid.UUID,

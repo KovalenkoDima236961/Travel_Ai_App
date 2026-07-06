@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { AdaptTemplateWithAiDialog } from "@/components/templates/AdaptTemplateWithAiDialog";
 import { CreateTripFromTemplateDialog } from "@/components/templates/CreateTripFromTemplateDialog";
 import { TripTemplateCard } from "@/components/templates/TripTemplateCard";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +25,7 @@ function TemplatesPageContent() {
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<TripTemplate | null>(null);
+  const [adaptTemplate, setAdaptTemplate] = useState<TripTemplate | null>(null);
   const params = useMemo(
     () => ({
       visibility,
@@ -132,6 +134,7 @@ function TemplatesPageContent() {
           {templates.map((template) => (
             <TripTemplateCard
               key={template.id}
+              onAdapt={setAdaptTemplate}
               onArchive={archiveTemplate}
               onDuplicate={duplicateTemplate}
               onUse={setSelectedTemplate}
@@ -145,6 +148,15 @@ function TemplatesPageContent() {
         onClose={() => setSelectedTemplate(null)}
         open={Boolean(selectedTemplate)}
         template={selectedTemplate}
+      />
+      <AdaptTemplateWithAiDialog
+        onClose={() => setAdaptTemplate(null)}
+        onUseDirectly={(template) => {
+          setAdaptTemplate(null);
+          setSelectedTemplate(template);
+        }}
+        open={Boolean(adaptTemplate)}
+        template={adaptTemplate}
       />
     </PageContainer>
   );

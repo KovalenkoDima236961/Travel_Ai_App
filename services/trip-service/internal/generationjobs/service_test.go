@@ -2,12 +2,14 @@ package generationjobs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
@@ -40,6 +42,46 @@ func TestServiceCreateQueueModePublishesMessage(t *testing.T) {
 	msg := publisher.messages[0]
 	if msg.JobID != job.ID || msg.TripID != tripID || msg.JobType != entity.GenerationJobTypeFullGeneration {
 		t.Fatalf("published message mismatch: %+v", msg)
+	}
+}
+
+func TestServiceCreateTemplateAdaptationDispatches(t *testing.T) {
+	userID := uuid.New()
+	tripID := uuid.New()
+	templateID := uuid.New()
+	repo := &fakeJobRepo{}
+	publisher := &fakePublisher{}
+	svc := NewService(
+		repo,
+		fakeTripService{trip: &entity.Trip{ID: tripID, ItineraryRevision: 0}},
+		Config{Enabled: true, DispatchMode: DispatchModeQueue, PublishTimeout: time.Second},
+		WithPublisher(publisher),
+	)
+
+	job, err := svc.CreateTemplateAdaptation(
+		auth.WithUser(context.Background(), auth.AuthenticatedUser{ID: userID}),
+		templateID,
+		CreateTemplateAdaptationRequest{
+			Title:        "Vienna weekend",
+			Destination:  "Vienna",
+			StartDate:    "2026-09-10",
+			DurationDays: 3,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create template adaptation job: %v", err)
+	}
+	if job.JobType != entity.GenerationJobTypeTemplateAdaptation {
+		t.Fatalf("expected template_adaptation job type, got %s", job.JobType)
+	}
+	if job.TripID != tripID {
+		t.Fatalf("expected job attached to draft trip %s, got %s", tripID, job.TripID)
+	}
+	if len(publisher.messages) != 1 {
+		t.Fatalf("expected one published message, got %d", len(publisher.messages))
+	}
+	if publisher.messages[0].JobType != entity.GenerationJobTypeTemplateAdaptation {
+		t.Fatalf("expected template_adaptation queue message, got %s", publisher.messages[0].JobType)
 	}
 }
 
@@ -101,9 +143,10 @@ func (f *fakePublisher) PublishGenerationJob(_ context.Context, msg QueueMessage
 }
 
 type fakeJobRepo struct {
-	job        *entity.GenerationJob
-	failedCode string
-	staleCalls int
+	job              *entity.GenerationJob
+	failedCode       string
+	staleCalls       int
+	resultPayloadSet json.RawMessage
 }
 
 func (f *fakeJobRepo) CreateGenerationJob(_ context.Context, job *entity.GenerationJob) (*entity.GenerationJob, error) {
@@ -271,6 +314,14 @@ func (f *fakeJobRepo) CreateOpsAuditEvent(context.Context, OpsAuditEvent) error 
 	return nil
 }
 
+func (f *fakeJobRepo) SetGenerationJobResultPayload(_ context.Context, _ uuid.UUID, payload json.RawMessage) error {
+	f.resultPayloadSet = payload
+	if f.job != nil {
+		f.job.ResultPayload = payload
+	}
+	return nil
+}
+
 type fakeTripService struct {
 	trip *entity.Trip
 }
@@ -293,6 +344,14 @@ func (f fakeTripService) RegenerateItemForActor(context.Context, uuid.UUID, uuid
 
 func (f fakeTripService) OptimizeBudgetDayForActor(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, int, string, int, budgetoptimization.JobPayload) (*entity.Trip, error) {
 	return &entity.Trip{ItineraryRevision: 1}, nil
+}
+
+func (f fakeTripService) PrepareTemplateAdaptation(context.Context, uuid.UUID, appdto.CreateTemplateAdaptationInput) (*entity.Trip, json.RawMessage, error) {
+	return f.trip, json.RawMessage(`{}`), nil
+}
+
+func (f fakeTripService) AdaptTemplateForActor(context.Context, uuid.UUID, uuid.UUID, int, json.RawMessage) (*entity.Trip, json.RawMessage, error) {
+	return &entity.Trip{ItineraryRevision: 1}, json.RawMessage(`{}`), nil
 }
 
 func (f fakeTripService) RecordGenerationJobFailed(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, entity.GenerationJobType, string, string) {

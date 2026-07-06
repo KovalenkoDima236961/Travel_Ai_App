@@ -12,6 +12,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
 )
@@ -164,6 +165,32 @@ func (h *Handler) CreateTripFromTemplate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusCreated, response.NewTrip(trip))
+}
+
+// CreateTemplateAdaptationJob starts an AI template adaptation: it creates a
+// draft trip re-targeted to the request and queues a background job that fills
+// in the adapted itinerary. The response is the queued job; the client polls
+// the existing per-trip generation job status endpoint using the returned trip.
+func (h *Handler) CreateTemplateAdaptationJob(w http.ResponseWriter, r *http.Request) {
+	templateID, ok := parseUUIDParam(w, r, "templateId", "invalid template id")
+	if !ok {
+		return
+	}
+	if h.generationJobs == nil {
+		writeError(w, http.StatusServiceUnavailable, "generation jobs are not configured")
+		return
+	}
+	var req generationjobs.CreateTemplateAdaptationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	job, err := h.generationJobs.CreateTemplateAdaptation(r.Context(), templateID, req)
+	if err != nil {
+		h.writeGenerationJobError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, generationjobs.NewJobEnvelope(job))
 }
 
 func (h *Handler) parseListTripTemplatesInput(w http.ResponseWriter, r *http.Request) (appdto.ListTripTemplatesInput, bool) {

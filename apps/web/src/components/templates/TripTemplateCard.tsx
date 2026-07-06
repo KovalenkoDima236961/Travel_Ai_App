@@ -11,13 +11,15 @@ type TripTemplateCardProps = {
   onArchive?: (template: TripTemplate) => void;
   onDuplicate?: (template: TripTemplate) => void;
   onUse?: (template: TripTemplate) => void;
+  onAdapt?: (template: TripTemplate) => void;
 };
 
 export function TripTemplateCard({
   template,
   onArchive,
   onDuplicate,
-  onUse
+  onUse,
+  onAdapt
 }: TripTemplateCardProps) {
   return (
     <Card className="flex h-full flex-col gap-5 transition hover:-translate-y-0.5 hover:border-primary-100 hover:shadow-lg">
@@ -72,8 +74,13 @@ export function TripTemplateCard({
         >
           View
         </Link>
+        {template.access.canUse && onAdapt ? (
+          <Button onClick={() => onAdapt(template)} size="sm" type="button">
+            Adapt with AI
+          </Button>
+        ) : null}
         {template.access.canUse && onUse ? (
-          <Button onClick={() => onUse(template)} size="sm" type="button">
+          <Button onClick={() => onUse(template)} size="sm" type="button" variant="secondary">
             Use template
           </Button>
         ) : null}

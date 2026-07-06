@@ -14,7 +14,7 @@ import (
 )
 
 const GenerationJobColumns = "id, trip_id, requested_by_user_id, job_type, status, " +
-	"expected_itinerary_revision, instruction, day_number, item_index, payload, correlation_id, request_id, retried_from_job_id, error_code, " +
+	"expected_itinerary_revision, instruction, day_number, item_index, payload, result_payload, correlation_id, request_id, retried_from_job_id, error_code, " +
 	"error_message, result_itinerary_revision, created_at, started_at, completed_at, " +
 	"cancelled_at, updated_at"
 
@@ -63,6 +63,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		dayNumber                     pgtype.Int4
 		itemIndex                     pgtype.Int4
 		payloadRaw                    []byte
+		resultPayloadRaw              []byte
 		correlationID                 pgtype.Text
 		requestID                     pgtype.Text
 		retriedFromJobID              pgtype.UUID
@@ -87,6 +88,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		&dayNumber,
 		&itemIndex,
 		&payloadRaw,
+		&resultPayloadRaw,
 		&correlationID,
 		&requestID,
 		&retriedFromJobID,
@@ -117,6 +119,7 @@ func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
 		DayNumber:                 fromPgIntPtr(dayNumber),
 		ItemIndex:                 fromPgIntPtr(itemIndex),
 		Payload:                   payloadRaw,
+		ResultPayload:             resultPayloadRaw,
 		CorrelationID:             fromPgText(correlationID),
 		RequestID:                 fromPgText(requestID),
 		RetriedFromJobID:          fromPgUUID(retriedFromJobID),

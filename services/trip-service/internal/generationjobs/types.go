@@ -20,6 +20,13 @@ const (
 	ErrorProviderRateLimited       = "provider_rate_limited"
 	ErrorProviderQuotaExceeded     = "provider_quota_exceeded"
 	ErrorProviderLimitsUnavailable = "provider_limits_unavailable"
+
+	// Template adaptation error codes (see internal/templateadaptation).
+	ErrorTemplateNotFound            = "template_not_found"
+	ErrorTemplateAccessDenied        = "template_access_denied"
+	ErrorTargetWorkspaceAccessDenied = "target_workspace_access_denied"
+	ErrorAIAdaptationFailed          = "ai_adaptation_failed"
+	ErrorDeterministicFallbackFailed = "deterministic_fallback_failed"
 )
 
 const maxInstructionLength = 2000

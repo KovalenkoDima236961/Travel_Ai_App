@@ -230,6 +230,35 @@ Template limitations: live availability, booking links, provider snapshots,
 comments, collaborators, public share links, and calendar sync metadata are not
 copied. Prices are approximate and should be verified.
 
+## AI Template Adaptation Flow
+
+1. Open a template detail page (or a template library card) that you can use.
+2. Confirm both `Use template directly` and `Adapt with AI` actions are shown.
+   For a workspace template where you are only a viewer, confirm `Adapt with AI`
+   is hidden.
+3. Click `Adapt with AI`.
+4. Enter a new destination, start date, duration, budget, pace, and a couple of
+   interests. Optionally add special instructions. Leave the
+   `deterministic copy` fallback checkbox enabled.
+5. If a workspace is selected in the switcher, confirm the scope defaults to that
+   workspace and that viewer-only workspaces are not selectable.
+6. Submit and watch the inline job status advance (Queued → Adapting → Completed).
+7. On completion, confirm the summary lists the major changes and warnings, then
+   click `Open trip`.
+8. On the created trip, confirm:
+   - the banner says the trip was created by AI adapting a template,
+   - the destination, dates, and duration match what you requested,
+   - availability cards show an unchecked status (nothing was auto-checked),
+   - for a workspace trip, the approval status is `draft` with a
+     `Review approval checklist` call to action (nothing is auto-submitted).
+9. To exercise fallback, run the flow with AI in mock mode (deterministic) or,
+   if available, a mock failure mode; when fallback is used the completion screen
+   and trip banner both say a deterministic template copy was created instead.
+
+AI adaptation limitations: the result is a reviewable draft, not a confirmed
+plan. Costs are estimates, availability and opening hours must be checked,
+booking is never automatic, and substitutions can be imperfect.
+
 ## Collaborative Merge Recovery
 
 Manual test safe merge:

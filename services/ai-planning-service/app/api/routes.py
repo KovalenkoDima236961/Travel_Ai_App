@@ -23,8 +23,14 @@ from app.schemas.itinerary import (
     RegenerateItemRequest,
     RegenerateItemResponse,
 )
+from app.schemas.template_adaptation import (
+    TemplateAdaptationRequest,
+    TemplateAdaptationResponse,
+)
 from app.services.chroma_client import create_persistent_chroma_client
 from app.services.itinerary_generator import ItineraryGenerator
+from app.services.template_adaptation_validator import TemplateAdaptationValidationError
+from app.services.template_adapter import TemplateAdapter, validate_adaptation
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +39,10 @@ router = APIRouter()
 
 def get_configured_itinerary_generator(request: Request) -> ItineraryGenerator:
     return request.app.state.itinerary_generator
+
+
+def get_configured_template_adapter(request: Request) -> TemplateAdapter:
+    return request.app.state.template_adapter
 
 
 @router.get("/health")
@@ -197,6 +207,40 @@ def optimize_budget_day(
     except Exception as exc:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to optimize itinerary budget") from exc
+
+
+@router.post("/adapt-template", response_model=TemplateAdaptationResponse)
+def adapt_template(
+    request: TemplateAdaptationRequest,
+    http_request: Request,
+    adapter: TemplateAdapter = Depends(get_configured_template_adapter),
+) -> TemplateAdaptationResponse | JSONResponse:
+    operation = "adapt_template"
+    settings: Settings = http_request.app.state.settings
+    if not settings.template_adaptation_enabled:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "template adaptation is disabled"},
+        )
+    mode = settings.template_adaptation_mode.strip().lower()
+    started_at = time.monotonic()
+    try:
+        response = adapter.adapt(request)
+        # Attach validation warnings (mock output is not validated internally) and
+        # reject structurally-invalid output so a broken adaptation never returns.
+        validate_adaptation(request, response)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
+    except TemplateAdaptationValidationError as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        record_ai_validation_failure(operation)
+        raise ItineraryGenerationError("Failed to adapt template") from exc
+    except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise
+    except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise ItineraryGenerationError("Failed to adapt template") from exc
 
 
 def _generator_mode(request: Request) -> str:

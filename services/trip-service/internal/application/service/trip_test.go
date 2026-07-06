@@ -22,6 +22,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
@@ -899,6 +900,36 @@ type mockGenerator struct {
 	optimizeErr           error
 	optimizeCalled        bool
 	capturedOptimizeInput budgetoptimization.OptimizeDayInput
+	adaptResult           *templateadaptation.AdaptResult
+	adaptErr              error
+	adaptCalled           bool
+	capturedAdaptInput    templateadaptation.AdaptInput
+}
+
+func (g *mockGenerator) AdaptTemplate(_ context.Context, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error) {
+	g.adaptCalled = true
+	g.capturedAdaptInput = input
+	if g.adaptErr != nil {
+		return nil, g.adaptErr
+	}
+	if g.adaptResult != nil {
+		return g.adaptResult, nil
+	}
+	return &templateadaptation.AdaptResult{
+		Itinerary: aggregate.Itinerary{
+			Destination: input.Target.Destination,
+			Days: []aggregate.ItineraryDay{{
+				Day:   1,
+				Title: "Adapted day",
+				Items: []aggregate.ItineraryItem{{Time: "10:00", Type: "activity", Name: "Adapted activity"}},
+			}},
+		},
+		Summary: templateadaptation.Summary{
+			SourceDurationDays: input.Template.DurationDays,
+			TargetDurationDays: input.Target.DurationDays,
+			ChangedDestination: true,
+		},
+	}, nil
 }
 
 func (g *mockGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {

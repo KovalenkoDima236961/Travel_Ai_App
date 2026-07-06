@@ -4,7 +4,8 @@ export type GenerationJobType =
   | "item_regeneration"
   | "quality_improvement_day"
   | "quality_improvement_item"
-  | "budget_optimization_day";
+  | "budget_optimization_day"
+  | "template_adaptation";
 
 export type GenerationJobStatus =
   | "queued"
@@ -24,6 +25,7 @@ export type GenerationJob = {
   dayNumber?: number | null;
   itemIndex?: number | null;
   payload?: unknown;
+  resultPayload?: unknown;
   errorCode?: string | null;
   errorMessage?: string | null;
   resultItineraryRevision?: number | null;

@@ -152,6 +152,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{templateId}/archive", h.ArchiveTripTemplate)
 		r.Post("/{templateId}/duplicate", h.DuplicateTripTemplate)
 		r.Post("/{templateId}/create-trip", h.CreateTripFromTemplate)
+		r.Post("/{templateId}/adaptation-jobs", h.CreateTemplateAdaptationJob)
 	})
 	r.Get("/workspaces/{workspaceId}/analytics/costs", h.GetWorkspaceCostAnalytics)
 	r.Get("/workspaces/{workspaceId}/templates", h.ListWorkspaceTripTemplates)

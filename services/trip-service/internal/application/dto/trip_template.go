@@ -60,6 +60,24 @@ type CreateTripFromTemplateInput struct {
 	Pace           string
 }
 
+// CreateTemplateAdaptationInput is the validated request to start an AI template
+// adaptation job. It creates a draft trip re-targeted to a new destination.
+type CreateTemplateAdaptationInput struct {
+	Title                   string
+	Destination             string
+	StartDate               string
+	DurationDays            int
+	WorkspaceID             *uuid.UUID
+	BudgetAmount            *float64
+	BudgetCurrency          string
+	Travelers               *int32
+	Pace                    string
+	Interests               []string
+	Avoid                   []string
+	SpecialInstructions     string
+	FallbackToDeterministic bool
+}
+
 type TripTemplateAccess struct {
 	Role         string
 	Source       string
