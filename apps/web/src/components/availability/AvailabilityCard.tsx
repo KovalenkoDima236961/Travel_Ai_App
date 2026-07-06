@@ -41,6 +41,60 @@ type AvailabilityCardProps = {
 
 const AVAILABILITY_STALE_MS = 15 * 60 * 1000;
 
+// Mirror the External Integrations Service thresholds
+// (AVAILABILITY_MIN_MATCH_CONFIDENCE / AVAILABILITY_LOW_CONFIDENCE_THRESHOLD).
+// Below MIN a match is never applied without disabling; between MIN and LOW the
+// user must confirm before applying a "possible match" price.
+const MIN_APPLY_CONFIDENCE = 0.55;
+const LOW_CONFIDENCE_THRESHOLD = 0.65;
+
+const PROVIDER_LABELS: Record<string, string> = {
+  ticketmaster: "Ticketmaster",
+  viator: "Viator",
+  getyourguide: "GetYourGuide",
+  tiqets: "Tiqets",
+  mock: "Mock"
+};
+
+function providerLabel(result: AvailabilitySearchResponse) {
+  if (result.fallbackUsed) {
+    return "Fallback estimate";
+  }
+  return (
+    result.providerDisplayName ||
+    PROVIDER_LABELS[result.provider?.toLowerCase() ?? ""] ||
+    result.provider ||
+    "Provider"
+  );
+}
+
+function confidenceLabel(confidence: number): "High" | "Medium" | "Low" {
+  if (confidence >= 0.8) {
+    return "High";
+  }
+  if (confidence >= LOW_CONFIDENCE_THRESHOLD) {
+    return "Medium";
+  }
+  return "Low";
+}
+
+function optionConfidence(
+  option: AvailabilityOption,
+  result: AvailabilitySearchResponse
+): number {
+  return option.matchConfidence ?? result.match?.confidence ?? 0;
+}
+
+// A match is "very low" when the provider did not return a confident overall
+// match or the option scored below the apply threshold. The apply-price action
+// is disabled in that case; the booking link and details stay available.
+function isVeryLowConfidence(
+  option: AvailabilityOption,
+  result: AvailabilitySearchResponse
+): boolean {
+  return !result.match?.matched || optionConfidence(option, result) < MIN_APPLY_CONFIDENCE;
+}
+
 export function AvailabilityCard({
   trip,
   dayNumber,
@@ -107,6 +161,19 @@ export function AvailabilityCard({
     if (!onApplyPrice || !result || !option.price) {
       return;
     }
+    const confidence = optionConfidence(option, result);
+    if (isVeryLowConfidence(option, result)) {
+      // Very low / no confident match: apply is disabled in the UI; guard anyway.
+      return;
+    }
+    if (confidence < LOW_CONFIDENCE_THRESHOLD) {
+      const confirmed = window.confirm(
+        "This is only a possible match. Confirm this is the correct place or event before applying its price."
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
     if (isManualCost(item.estimatedCost)) {
       const confirmed = window.confirm(
         "This item already has a manually edited cost. Replace it?"
@@ -171,12 +238,31 @@ export function AvailabilityCard({
       {result ? (
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-            <span>{result.providerDisplayName || result.provider}</span>
+            <ProviderBadge label={providerLabel(result)} fallback={result.fallbackUsed} />
             <span>{checkedLabel(result.checkedAt)}</span>
             {result.match?.matched ? (
-              <span>{Math.round(result.match.confidence * 100)}% match</span>
-            ) : null}
+              <span
+                className="font-medium text-slate-600"
+                title={`${Math.round(result.match.confidence * 100)}% match confidence`}
+              >
+                {confidenceLabel(result.match.confidence)} confidence
+              </span>
+            ) : (
+              <span className="font-medium text-amber-800">Possible match</span>
+            )}
           </div>
+
+          {result.fallbackUsed ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs leading-5 text-amber-900">
+              Real availability provider unavailable; showing a fallback estimate. This is not
+              verified real-world availability.
+            </p>
+          ) : !result.match?.matched && result.options.length > 0 ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs leading-5 text-amber-900">
+              Possible match only. Verify this is the correct place or activity before applying a
+              price.
+            </p>
+          ) : null}
 
           {primaryOption ? (
             <OptionSummary
@@ -184,6 +270,7 @@ export function AvailabilityCard({
               currentCost={item.estimatedCost}
               disabled={disabled || applyingOptionId === primaryOption.id}
               isApplying={applyingOptionId === primaryOption.id}
+              lowConfidence={isVeryLowConfidence(primaryOption, result)}
               onApplyPrice={onApplyPrice ? () => applyPrice(primaryOption) : undefined}
               option={primaryOption}
             />
@@ -203,6 +290,7 @@ export function AvailabilityCard({
                   disabled={disabled || applyingOptionId === option.id}
                   isApplying={applyingOptionId === option.id}
                   key={option.id}
+                  lowConfidence={isVeryLowConfidence(option, result)}
                   onApplyPrice={onApplyPrice ? () => applyPrice(option) : undefined}
                   option={option}
                 />
@@ -234,6 +322,7 @@ function OptionSummary({
   compact = false,
   disabled,
   isApplying,
+  lowConfidence,
   onApplyPrice
 }: {
   option: AvailabilityOption;
@@ -242,6 +331,7 @@ function OptionSummary({
   compact?: boolean;
   disabled: boolean;
   isApplying: boolean;
+  lowConfidence: boolean;
   onApplyPrice?: () => void;
 }) {
   const currentAmount = getCostAmount(currentCost);
@@ -257,6 +347,7 @@ function OptionSummary({
     difference > 0 &&
     (difference >= 10 || ((currentAmount ?? 0) > 0 && difference / (currentAmount ?? 1) >= 0.2));
   const bookingUrl = safeBookingUrl(option.bookingUrl);
+  const locationLabel = formatOptionLocation(option.location);
 
   return (
     <div className={cn("rounded-md border border-slate-200 bg-white p-3", compact && "p-2")}>
@@ -266,15 +357,21 @@ function OptionSummary({
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
             {option.price ? (
               <span className="font-semibold text-slate-800">
-                From {formatMoney(option.price.amount, option.price.currency)}
+                {formatPriceAmount(option.price)}
               </span>
             ) : null}
             <span>{formatPriceType(option.priceType)}</span>
+            {option.date ? <span>{option.date}</span> : null}
             {option.startTimes?.length ? (
               <span>{option.startTimes.slice(0, 3).join(", ")}</span>
             ) : null}
             {option.durationMinutes ? <span>{option.durationMinutes} min</span> : null}
           </div>
+          {locationLabel ? (
+            <p className="mt-1 truncate text-xs text-slate-500" title={locationLabel}>
+              {locationLabel}
+            </p>
+          ) : null}
           {currentAmount != null && option.price ? (
             <p className="mt-1 text-xs text-slate-500">
               Current estimate: {formatMoney(currentAmount, currentCurrency)} · Provider option:{" "}
@@ -287,6 +384,11 @@ function OptionSummary({
               Provider price is higher than current estimate.
             </p>
           ) : null}
+          {(option.warnings ?? []).map((warning) => (
+            <p className="mt-1 text-xs text-slate-500" key={warning}>
+              {warning}
+            </p>
+          ))}
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
           {bookingUrl ? (
@@ -295,25 +397,71 @@ function OptionSummary({
               href={bookingUrl}
               rel="noopener noreferrer"
               target="_blank"
+              title="Booking is completed on the provider site."
             >
-              Book externally
+              View on provider
             </a>
           ) : null}
           {option.price && onApplyPrice ? (
-            <Button
-              disabled={disabled}
-              onClick={onApplyPrice}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              {isApplying ? "Updating..." : "Use this price"}
-            </Button>
+            lowConfidence ? (
+              <span
+                className="self-center text-xs font-medium text-amber-800"
+                title="Verify this is the correct match before applying its price."
+              >
+                Verify to apply
+              </span>
+            ) : (
+              <Button
+                disabled={disabled}
+                onClick={onApplyPrice}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                {isApplying ? "Updating..." : "Apply price estimate"}
+              </Button>
+            )
           ) : null}
         </div>
       </div>
     </div>
   );
+}
+
+function ProviderBadge({ label, fallback }: { label: string; fallback: boolean }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full border px-2 py-0.5 text-xs font-medium",
+        fallback
+          ? "border-amber-200 bg-amber-50 text-amber-800"
+          : "border-slate-200 bg-white text-slate-700"
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function formatPriceAmount(price: NonNullable<AvailabilityOption["price"]>) {
+  const money = formatMoney(price.amount, price.currency);
+  switch (price.qualifier) {
+    case "from":
+      return `From ${money}`;
+    case "estimate":
+      return `Est. ${money}`;
+    case "exact":
+      return money;
+    default:
+      return `From ${money}`;
+  }
+}
+
+function formatOptionLocation(location: AvailabilityOption["location"]) {
+  if (!location) {
+    return "";
+  }
+  return [location.name, location.address].filter(Boolean).join(" · ");
 }
 
 function StatusBadge({ status, fallback }: { status: AvailabilityStatus; fallback: boolean }) {

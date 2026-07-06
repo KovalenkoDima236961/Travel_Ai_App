@@ -36,6 +36,19 @@ export type PriceEnrichmentMeta = {
 
 export type PriceEnrichment = PriceEnrichmentMeta;
 
+// AvailabilityCheckMeta is a lightweight snapshot persisted on an item when a
+// user applies a provider availability result. Mirrors the Trip Service
+// aggregate.AvailabilityCheckMeta and feeds the approval checklist signals.
+export type AvailabilityCheckMeta = {
+  provider?: string;
+  status?: "available" | "limited" | "unavailable" | "unknown" | string;
+  checkedAt?: string;
+  matchConfidence?: number;
+  selectedOptionId?: string;
+  fallbackUsed?: boolean;
+  priceChanged?: boolean;
+};
+
 export type ItineraryItem = {
   time: string;
   type: "place" | "food" | "activity" | "transport" | "rest" | string;
@@ -45,6 +58,7 @@ export type ItineraryItem = {
   place?: Place | null;
   placeEnrichment?: PlaceEnrichment | null;
   priceEnrichment?: PriceEnrichment | null;
+  availabilityCheck?: AvailabilityCheckMeta | null;
 };
 
 export type ItineraryDay = {

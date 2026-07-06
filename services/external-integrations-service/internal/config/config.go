@@ -26,6 +26,7 @@ const (
 	PriceProviderMock                     = "mock"
 	PriceProviderAPI                      = "api"
 	AvailabilityProviderMock              = "mock"
+	AvailabilityProviderTicketmaster      = "ticketmaster"
 	AvailabilityProviderGetYourGuide      = "getyourguide"
 	AvailabilityProviderViator            = "viator"
 	AvailabilityProviderTiqets            = "tiqets"
@@ -171,12 +172,39 @@ type AvailabilityConfig struct {
 	CacheTTLSeconds int    `yaml:"cache_ttl_seconds" env:"AVAILABILITY_CACHE_TTL_SECONDS" env-default:"900"`
 	DefaultCurrency string `yaml:"default_currency" env:"AVAILABILITY_DEFAULT_CURRENCY" env-default:"EUR"`
 
+	// Matching thresholds shared by every real provider adapter. A match below
+	// MinMatchConfidence is never surfaced as available (status becomes unknown);
+	// a match below LowConfidenceThreshold is labelled a "possible match" and the
+	// UI requires confirmation before applying the price. MaxOptions caps how many
+	// normalized options are returned to keep responses small.
+	MinMatchConfidence     float64 `yaml:"min_match_confidence" env:"AVAILABILITY_MIN_MATCH_CONFIDENCE" env-default:"0.55"`
+	LowConfidenceThreshold float64 `yaml:"low_confidence_threshold" env:"AVAILABILITY_LOW_CONFIDENCE_THRESHOLD" env-default:"0.65"`
+	MaxOptions             int     `yaml:"max_options" env:"AVAILABILITY_MAX_OPTIONS" env-default:"10"`
+
+	// Ticketmaster Discovery API (events/concerts/sports/theatre). Opt-in via
+	// AVAILABILITY_PROVIDER=ticketmaster. The key is backend-only. Rate-limit and
+	// daily-quota controls are shared with the other real availability providers
+	// through the central AVAILABILITY_* provider-limit bucket.
+	TicketmasterAPIKey         string `yaml:"ticketmaster_api_key" env:"TICKETMASTER_API_KEY"`
+	TicketmasterBaseURL        string `yaml:"ticketmaster_base_url" env:"TICKETMASTER_BASE_URL" env-default:"https://app.ticketmaster.com/discovery/v2"`
+	TicketmasterTimeoutSeconds int    `yaml:"ticketmaster_timeout_seconds" env:"TICKETMASTER_TIMEOUT_SECONDS" env-default:"8"`
+	TicketmasterCacheTTLSecond int    `yaml:"ticketmaster_cache_ttl_seconds" env:"TICKETMASTER_CACHE_TTL_SECONDS" env-default:"1800"`
+
 	GetYourGuideAPIKey  string `yaml:"getyourguide_api_key" env:"GETYOURGUIDE_API_KEY"`
 	GetYourGuideBaseURL string `yaml:"getyourguide_base_url" env:"GETYOURGUIDE_BASE_URL"`
 	ViatorAPIKey        string `yaml:"viator_api_key" env:"VIATOR_API_KEY"`
 	ViatorBaseURL       string `yaml:"viator_base_url" env:"VIATOR_BASE_URL"`
 	TiqetsAPIKey        string `yaml:"tiqets_api_key" env:"TIQETS_API_KEY"`
 	TiqetsBaseURL       string `yaml:"tiqets_base_url" env:"TIQETS_BASE_URL"`
+}
+
+// EffectiveCacheTTLSeconds returns the availability cache TTL, preferring the
+// Ticketmaster-specific TTL when the active provider is Ticketmaster.
+func (a AvailabilityConfig) EffectiveCacheTTLSeconds() int {
+	if a.Provider == AvailabilityProviderTicketmaster && a.TicketmasterCacheTTLSecond > 0 {
+		return a.TicketmasterCacheTTLSecond
+	}
+	return a.CacheTTLSeconds
 }
 
 type CalendarConfig struct {
@@ -409,6 +437,29 @@ func Load(path string) (*Config, error) {
 	if cfg.Availability.DefaultCurrency == "" {
 		cfg.Availability.DefaultCurrency = "EUR"
 	}
+	if cfg.Availability.MinMatchConfidence <= 0 || cfg.Availability.MinMatchConfidence > 1 {
+		cfg.Availability.MinMatchConfidence = 0.55
+	}
+	if cfg.Availability.LowConfidenceThreshold <= 0 || cfg.Availability.LowConfidenceThreshold > 1 {
+		cfg.Availability.LowConfidenceThreshold = 0.65
+	}
+	if cfg.Availability.LowConfidenceThreshold < cfg.Availability.MinMatchConfidence {
+		cfg.Availability.LowConfidenceThreshold = cfg.Availability.MinMatchConfidence
+	}
+	if cfg.Availability.MaxOptions <= 0 {
+		cfg.Availability.MaxOptions = 10
+	}
+	cfg.Availability.TicketmasterAPIKey = strings.TrimSpace(cfg.Availability.TicketmasterAPIKey)
+	cfg.Availability.TicketmasterBaseURL = strings.TrimRight(strings.TrimSpace(cfg.Availability.TicketmasterBaseURL), "/")
+	if cfg.Availability.TicketmasterBaseURL == "" {
+		cfg.Availability.TicketmasterBaseURL = "https://app.ticketmaster.com/discovery/v2"
+	}
+	if cfg.Availability.TicketmasterTimeoutSeconds <= 0 {
+		cfg.Availability.TicketmasterTimeoutSeconds = cfg.Availability.TimeoutSeconds
+	}
+	if cfg.Availability.TicketmasterCacheTTLSecond <= 0 {
+		cfg.Availability.TicketmasterCacheTTLSecond = 1800
+	}
 	cfg.Availability.GetYourGuideAPIKey = strings.TrimSpace(cfg.Availability.GetYourGuideAPIKey)
 	cfg.Availability.GetYourGuideBaseURL = strings.TrimRight(strings.TrimSpace(cfg.Availability.GetYourGuideBaseURL), "/")
 	cfg.Availability.ViatorAPIKey = strings.TrimSpace(cfg.Availability.ViatorAPIKey)
@@ -579,6 +630,13 @@ func (c *Config) validateProviders() error {
 	if c.Availability.Enabled {
 		switch c.Availability.Provider {
 		case AvailabilityProviderMock:
+		case AvailabilityProviderTicketmaster:
+			if c.Availability.TicketmasterAPIKey == "" {
+				return fmt.Errorf("TICKETMASTER_API_KEY is required when AVAILABILITY_PROVIDER=ticketmaster")
+			}
+			if err := validateHTTPURL("TICKETMASTER_BASE_URL", c.Availability.TicketmasterBaseURL, c.IsProduction()); err != nil {
+				return err
+			}
 		case AvailabilityProviderGetYourGuide:
 			if c.Availability.GetYourGuideAPIKey == "" {
 				return fmt.Errorf("GETYOURGUIDE_API_KEY is required when AVAILABILITY_PROVIDER=getyourguide")
@@ -601,7 +659,7 @@ func (c *Config) validateProviders() error {
 				return err
 			}
 		default:
-			return fmt.Errorf("AVAILABILITY_PROVIDER must be mock, getyourguide, viator, or tiqets")
+			return fmt.Errorf("AVAILABILITY_PROVIDER must be mock, ticketmaster, getyourguide, viator, or tiqets")
 		}
 	}
 	return nil

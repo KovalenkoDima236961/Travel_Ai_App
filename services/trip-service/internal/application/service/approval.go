@@ -371,7 +371,7 @@ func (s *Service) computeChecklistCore(ctx context.Context, trip *entity.Trip, h
 // callers (the queue) can also read derived signals like the estimated total.
 func (s *Service) computeChecklistWithInput(ctx context.Context, trip *entity.Trip, hasWorkspaceBudget bool) (approvals.Checklist, approvals.ChecklistInput, error) {
 	itinerary := parseItineraryLenient(trip.Itinerary)
-	itemCount, bookable, unchecked := countItineraryItems(itinerary)
+	counts := countItineraryItems(itinerary)
 
 	travelers, err := s.repo.ListActiveTripTravelersByTrip(ctx, trip.ID)
 	if err != nil {
@@ -387,36 +387,68 @@ func (s *Service) computeChecklistWithInput(ctx context.Context, trip *entity.Tr
 	}
 
 	in := approvals.ChecklistInput{
-		ItineraryDayCount:          len(itinerary.Days),
-		ItineraryItemCount:         itemCount,
-		HasTripBudget:              trip.BudgetAmount != nil,
-		TripBudgetAmount:           valueOrZeroFloat(trip.BudgetAmount),
-		EstimatedTotal:             summary.Summary.EstimatedTotal,
-		HasWorkspaceBudget:         hasWorkspaceBudget,
-		TravelerCount:              summary.Summary.TravelerCount,
-		UnassignedCostCount:        len(summary.UnassignedCosts),
-		InvalidSplitCount:          summary.Summary.InvalidSplitCount,
-		MissingEstimateCount:       summary.Summary.MissingEstimateCount,
-		DefaultSplitCount:          summary.Summary.DefaultSplitCount,
-		BookableItemCount:          bookable,
-		AvailabilityUncheckedCount: unchecked,
+		ItineraryDayCount:              len(itinerary.Days),
+		ItineraryItemCount:             counts.items,
+		HasTripBudget:                  trip.BudgetAmount != nil,
+		TripBudgetAmount:               valueOrZeroFloat(trip.BudgetAmount),
+		EstimatedTotal:                 summary.Summary.EstimatedTotal,
+		HasWorkspaceBudget:             hasWorkspaceBudget,
+		TravelerCount:                  summary.Summary.TravelerCount,
+		UnassignedCostCount:            len(summary.UnassignedCosts),
+		InvalidSplitCount:              summary.Summary.InvalidSplitCount,
+		MissingEstimateCount:           summary.Summary.MissingEstimateCount,
+		DefaultSplitCount:              summary.Summary.DefaultSplitCount,
+		BookableItemCount:              counts.bookable,
+		AvailabilityUncheckedCount:     counts.unchecked,
+		AvailabilityLowConfidenceCount: counts.lowConfidence,
+		AvailabilityUnavailableCount:   counts.unavailable,
+		AvailabilityPriceChangedCount:  counts.priceChanged,
+		AvailabilityFallbackCount:      counts.fallback,
 	}
 	return approvals.Calculate(in), in, nil
 }
 
-func countItineraryItems(it aggregate.Itinerary) (items, bookable, unchecked int) {
+// availabilityLowConfidenceThreshold mirrors AVAILABILITY_LOW_CONFIDENCE_THRESHOLD
+// in the External Integrations Service: applied matches below it are flagged for
+// verification in the approval checklist.
+const availabilityLowConfidenceThreshold = 0.65
+
+type itineraryCounts struct {
+	items, bookable, unchecked                         int
+	lowConfidence, unavailable, priceChanged, fallback int
+}
+
+func countItineraryItems(it aggregate.Itinerary) itineraryCounts {
+	var counts itineraryCounts
 	for _, day := range it.Days {
 		for i := range day.Items {
-			items++
-			if day.Items[i].Place != nil {
-				bookable++
-				if day.Items[i].PriceEnrichment == nil {
-					unchecked++
+			item := day.Items[i]
+			counts.items++
+			if item.Place != nil {
+				counts.bookable++
+				// An item is "checked" once it has either a price-enrichment or an
+				// applied availability-check snapshot.
+				if item.PriceEnrichment == nil && item.AvailabilityCheck == nil {
+					counts.unchecked++
+				}
+			}
+			if check := item.AvailabilityCheck; check != nil {
+				if check.FallbackUsed {
+					counts.fallback++
+				}
+				if check.PriceChanged {
+					counts.priceChanged++
+				}
+				if check.Status == "unavailable" {
+					counts.unavailable++
+				}
+				if check.MatchConfidence > 0 && check.MatchConfidence < availabilityLowConfidenceThreshold {
+					counts.lowConfidence++
 				}
 			}
 		}
 	}
-	return items, bookable, unchecked
+	return counts
 }
 
 func (s *Service) buildApprovalState(

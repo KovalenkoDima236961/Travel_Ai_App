@@ -81,12 +81,32 @@ Use local Grafana credentials `admin` / `admin`.
     place address/provider and, when confidence is present, a percentage.
 18. If at least two generated auto-matched places have coordinates, confirm map
     markers and distance estimates appear before any manual place attachment.
-19. On a ticketed attraction/activity item, click `Check availability`.
-20. Confirm the card shows a provider status, checked time, price/start-time
-    option when available, and an external booking link that opens in a new tab.
-21. Click `Use this price` on an available option and confirm the budget summary
-    refreshes after the item cost is saved.
-22. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+19. On a ticketed attraction/activity/event item, click `Check availability`.
+20. Confirm the card shows a provider **badge** (Ticketmaster, Mock, or
+    "Fallback estimate"), a top-level status, a "Checked N minutes ago" label, a
+    High/Medium/Low confidence label, and — when available — an option with a
+    price (note the `From`/`Est.` qualifier), venue, date/start times, and a
+    `View on provider` link. Click that link and confirm it opens the provider
+    site in a **new tab**; no in-app checkout appears.
+21. If the item already has an estimate, confirm the card shows the provider-vs-
+    current price difference and warns when the provider price is notably higher.
+22. Click `Apply price estimate` on a confident option and confirm the budget
+    summary and cost analytics refresh after the item cost is saved. If the item
+    had a cost-split rule, confirm the split is preserved.
+23. For a low-confidence / unmatched result, confirm the card shows a
+    "Possible match" warning and a `Verify to apply` hint instead of the apply
+    button (medium-confidence apply prompts for confirmation first).
+24. On a non-bookable item (rest/walk/note), confirm no availability card or a
+    "not needed" state is shown — no error.
+25. Open the workspace trip approval panel after applying an availability price
+    and confirm the checklist reflects the checked item; if the applied match was
+    low-confidence, the price changed, or fallback data was used, confirm the
+    corresponding availability warning/info rows appear (they do not block
+    submission).
+26. To test fallback: unset `TICKETMASTER_API_KEY` (or force a provider error)
+    with `AVAILABILITY_FALLBACK_TO_MOCK=true` and confirm the card shows a
+    "Fallback estimate" badge and a clear not-verified warning.
+27. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
 
 ## Queue Worker Recovery
 
@@ -517,16 +537,24 @@ Workspace dashboard:
    result shows the cache indicator when `AVAILABILITY_CACHE_ENABLED=true`.
 7. Click the booking link and confirm it opens externally; the app should not
    embed checkout or ask for payment details.
-8. Click `Use this price`, confirm the replace-cost prompt when the item already
-   has an estimate, and accept.
+8. Click `Apply price estimate`, confirm the replace-cost prompt when the item
+   already has an estimate, and accept.
 9. Confirm the item now shows a provider-filled ticket/activity cost, the budget
    panel recalculates, and version history records a manual itinerary update.
 10. Open `Trip Quality Checks` before checking a bookable item and confirm it can
-    show an availability-unchecked issue. After checking, confirm unavailable or
-    higher-than-estimate provider prices appear as quality warnings when relevant.
+    show an availability-unchecked issue. After applying a provider price, confirm
+    a low-confidence match, a notably changed price, or fallback data each surface
+    as the matching checklist warning/info row (none block submission).
 11. Stop only the External Integrations Service and click `Check availability`;
     confirm the card shows a safe unavailable/error state and the trip page does
     not crash. Restart the service afterward.
+12. **Real provider (optional):** set `AVAILABILITY_PROVIDER=ticketmaster` and a
+    valid `TICKETMASTER_API_KEY`, restart External Integrations, and check
+    availability on an event/concert item. Confirm the provider badge reads
+    `Ticketmaster` and results carry venue/date/booking links. Because provider
+    data changes, do not assert specific event names or prices. With a missing/
+    invalid key and `AVAILABILITY_FALLBACK_TO_MOCK=true`, confirm the card falls
+    back to a clearly-labelled "Fallback estimate".
 
 ## Accommodation Planning
 

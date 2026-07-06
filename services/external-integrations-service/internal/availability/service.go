@@ -42,7 +42,17 @@ func (s *Service) SearchAvailability(ctx context.Context, input AvailabilitySear
 	fields = append(fields, observability.RequestIDFields(ctx)...)
 	s.log.Info("availability_search_started", fields...)
 
-	result, err := s.provider.SearchAvailability(ctx, input)
+	// Gate unsupported item types before the cache/quota/rate-limit chain so they
+	// never consume provider quota (task: do not spend quota on item types a
+	// provider cannot serve). providerSupportsItem forwards through every decorator
+	// to the real adapter; mock/unconfigured providers support everything.
+	var result *AvailabilitySearchResult
+	var err error
+	if !providerSupportsItem(s.provider, input.Item) {
+		result = unsupportedItemResult(provider, providerDisplayName(s.provider))
+	} else {
+		result, err = s.provider.SearchAvailability(ctx, input)
+	}
 	duration := time.Since(start)
 	if err != nil {
 		code := providerErrorKind(err)
@@ -95,6 +105,7 @@ func (s *Service) SearchAvailability(ctx context.Context, input AvailabilitySear
 	extobs.RecordProviderRequest(provider, availabilityOperation, resultLabel, duration)
 	recordAvailabilityRequest(provider, resultLabel, duration)
 	recordAvailabilityOptions(provider, len(result.Options))
+	recordAvailabilityMatchConfidence(result.Provider, availabilityConfidenceBucket(result.Match))
 
 	completeFields := []zap.Field{
 		zap.String("provider", result.Provider),
@@ -139,9 +150,30 @@ func normalizeResult(result *AvailabilitySearchResult) error {
 			if !currencyPattern.MatchString(option.Price.Currency) || option.Price.Amount < 0 {
 				return &ProviderError{Provider: result.Provider, Kind: providerErrorMalformed}
 			}
+			if option.Price.Qualifier == "" {
+				option.Price.Qualifier = PriceQualifierUnknown
+			}
 		}
 	}
 	return nil
+}
+
+// availabilityConfidenceBucket buckets a match confidence for the low-cardinality
+// metric. Unmatched results always bucket as "none" regardless of raw score.
+func availabilityConfidenceBucket(match AvailabilityMatch) string {
+	if !match.Matched {
+		return ConfidenceBucketNone
+	}
+	switch {
+	case match.Confidence >= 0.80:
+		return ConfidenceBucketHigh
+	case match.Confidence >= 0.55:
+		return ConfidenceBucketMedium
+	case match.Confidence > 0:
+		return ConfidenceBucketLow
+	default:
+		return ConfidenceBucketNone
+	}
 }
 
 func statusFromOptions(options []AvailabilityOption) AvailabilityStatus {

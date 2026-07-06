@@ -30,14 +30,15 @@ type ItineraryDay struct {
 
 // ItineraryItem is a single planned activity within a day.
 type ItineraryItem struct {
-	Time            string               `json:"time"`
-	Type            string               `json:"type"`
-	Name            string               `json:"name"`
-	Note            string               `json:"note,omitempty"`
-	EstimatedCost   *EstimatedCost       `json:"estimatedCost,omitempty"`
-	Place           *PlaceRef            `json:"place,omitempty"`
-	PlaceEnrichment *PlaceEnrichmentMeta `json:"placeEnrichment,omitempty"`
-	PriceEnrichment *PriceEnrichmentMeta `json:"priceEnrichment,omitempty"`
+	Time              string                 `json:"time"`
+	Type              string                 `json:"type"`
+	Name              string                 `json:"name"`
+	Note              string                 `json:"note,omitempty"`
+	EstimatedCost     *EstimatedCost         `json:"estimatedCost,omitempty"`
+	Place             *PlaceRef              `json:"place,omitempty"`
+	PlaceEnrichment   *PlaceEnrichmentMeta   `json:"placeEnrichment,omitempty"`
+	PriceEnrichment   *PriceEnrichmentMeta   `json:"priceEnrichment,omitempty"`
+	AvailabilityCheck *AvailabilityCheckMeta `json:"availabilityCheck,omitempty"`
 }
 
 // EstimatedCost is the structured, item-level cost estimate stored on an
@@ -138,4 +139,20 @@ type PriceEnrichmentMeta struct {
 	ReviewStatus    string  `json:"reviewStatus,omitempty"`
 	UpdatedAt       string  `json:"updatedAt,omitempty"`
 	Reason          string  `json:"reason,omitempty"`
+}
+
+// AvailabilityCheckMeta is a lightweight snapshot of the last external
+// availability check a user applied to an item. It is optional, stored inside
+// the itinerary JSONB, and used by the approval checklist to surface richer
+// availability signals (low-confidence match, fallback data, price change). It
+// deliberately stores only summary fields — never the raw provider response,
+// full option lists, secrets, or booking-session data.
+type AvailabilityCheckMeta struct {
+	Provider         string  `json:"provider,omitempty"`
+	Status           string  `json:"status,omitempty"`
+	CheckedAt        string  `json:"checkedAt,omitempty"`
+	MatchConfidence  float64 `json:"matchConfidence,omitempty"`
+	SelectedOptionID string  `json:"selectedOptionId,omitempty"`
+	FallbackUsed     bool    `json:"fallbackUsed,omitempty"`
+	PriceChanged     bool    `json:"priceChanged,omitempty"`
 }

@@ -32,6 +32,7 @@ flowchart LR
     Rates --> RatesMock["mock"]
     Prices --> PricesMock["mock"]
     Availability --> AvailabilityMock["mock"]
+    Availability --> Ticketmaster["Ticketmaster<br/>Discovery API (real)"]
     Availability --> AvailabilityReal["GetYourGuide / Viator / Tiqets<br/>reserved adapters"]
     Calendar --> CalendarMock["mock"]
     Calendar --> Google["Google Calendar"]
@@ -78,12 +79,54 @@ Google Calendar directly.
 | Weather | `WEATHER_PROVIDER=mock` | `openweathermap` | `WEATHER_PROVIDER_FALLBACK_TO_MOCK` |
 | Exchange rates | `EXCHANGE_RATE_PROVIDER=mock` | reserved future adapters | `EXCHANGE_RATE_PROVIDER_FALLBACK_TO_MOCK` |
 | Prices | `PRICE_PROVIDER=mock` | reserved future API adapter | `PRICE_PROVIDER_FALLBACK_TO_MOCK` |
-| Availability | `AVAILABILITY_PROVIDER=mock` | `getyourguide`, `viator`, `tiqets` placeholders | `AVAILABILITY_FALLBACK_TO_MOCK` |
+| Availability | `AVAILABILITY_PROVIDER=mock` | `ticketmaster` (real); `getyourguide`, `viator`, `tiqets` placeholders | `AVAILABILITY_FALLBACK_TO_MOCK` |
 | Calendar | `CALENDAR_PROVIDER=mock` | `google` | none; validate config |
 
 Unsupported provider names fail startup. When fallback is enabled, missing keys
 or provider failures return mock data with `fallbackUsed: true` where the
 response shape supports it.
+
+### Availability provider architecture (Advanced Availability Provider Adapters v1)
+
+The availability port is a chain of decorators, all in `internal/availability`:
+`caching → guarded (quota/rate-limit) → fallback → real/mock provider`. The
+`/availability/search` contract is unchanged; real adapters only add
+backward-compatible response fields.
+
+- **Ticketmaster** (`AVAILABILITY_PROVIDER=ticketmaster`, requires
+  `TICKETMASTER_API_KEY`) is the first real adapter. It uses the Discovery API
+  Event Search endpoint (`GET /discovery/v2/events.json`, `apikey` query param).
+  Adapter-specific code is isolated in `ticketmaster_*.go` so it is easy to
+  replace or disable. Supported item types: `event`, `concert`, `sports`,
+  `theatre`, `show`, `festival`, `performance` (+ synonyms). Unsupported types
+  (`rest`, `walk`, `note`, `restaurant`, …) return `status: "unknown"` **without
+  a network call**, so they never consume provider quota.
+- **Matching / confidence**: each event is scored deterministically — title
+  token overlap (≤0.35), venue (≤0.20), destination/city (≤0.15), date (≤0.15),
+  category (≤0.10), coordinate proximity (≤0.05). A best score below
+  `AVAILABILITY_MIN_MATCH_CONFIDENCE` (default 0.55) is never marked available
+  (status becomes `unknown`, `match.matched=false`, options kept as
+  low-confidence candidates). Scores below `AVAILABILITY_LOW_CONFIDENCE_THRESHOLD`
+  (default 0.65) add a verify warning.
+- **Prices** are never invented. A Ticketmaster `priceRanges` min becomes the
+  amount with `price.qualifier="from"`; an exact single value uses `"exact"`; no
+  price range yields `price: null`.
+- **Cache** (`internal/availability/cache.go`) is checked *before* quota so a
+  cache hit costs no quota. Ticketmaster uses `TICKETMASTER_CACHE_TTL_SECONDS`
+  (default 1800), otherwise `AVAILABILITY_CACHE_TTL_SECONDS`. Cached responses
+  set `cached: true`.
+- **Quota/rate-limit**: real availability providers share the `AVAILABILITY_*`
+  provider-limit bucket. On limit with fallback enabled, the response is mock/
+  fallback data with `fallbackUsed: true` and a provider warning — it never
+  claims `provider: "ticketmaster"` on a fallback.
+- **Error classification** (`ticketmaster_client.go`): 401/403 → `auth_config`,
+  429 → `rate_limited`, 5xx → `unavailable`, malformed body → `bad_response`,
+  timeout → `timeout`. Errors are sanitized before reaching HTTP clients.
+
+Tours/activities adapters (GetYourGuide/Viator/Tiqets) remain reserved
+placeholders; their config keys exist but they return `unavailable` until a real
+adapter with verified current docs is implemented. Multi-provider merging is
+future work — one active provider at a time in v1.
 
 ## Main Data Shapes
 
@@ -184,10 +227,22 @@ curl -X POST "http://localhost:8084/availability/search" \
 ```
 
 Responses use `status` values `available`, `limited`, `unavailable`, or
-`unknown`. Options include normalized price, price type, start times, duration,
-safe HTTPS booking URL, provider display name, warnings, and cache metadata.
+`unknown`. The top-level object includes `provider`, `providerDisplayName`,
+`fallbackUsed`, `cached`, `checkedAt`, `cacheExpiresAt`, `match`
+(`matched`, `confidence`, `matchedName`, `providerEntityId`, `providerUrl`), an
+`options[]` list, and `warnings[]`. Each option includes normalized `price`
+(`amount`, `currency`, `qualifier` = `exact`/`from`/`estimate`/`unknown`),
+`priceType`, `startTimes`, `date`, `durationMinutes`, a safe HTTPS `bookingUrl`,
+`providerEntityId`, `location` (venue name/address/lat/lng), `matchConfidence`,
+and per-option `warnings`. All fields are additive and backward-compatible.
 The endpoint checks availability only; checkout and in-app bookings are out of
-scope for v1.
+scope for v1. Results are provider availability, not booking guarantees.
+
+To exercise the real Ticketmaster adapter locally, set
+`AVAILABILITY_PROVIDER=ticketmaster` and `TICKETMASTER_API_KEY=...`, then search
+for an event-shaped item (`"type":"concert"`). Provider data changes, so assert
+on the response shape and `provider` value rather than specific event names or
+prices.
 
 ## Important Configuration
 
@@ -201,7 +256,7 @@ scope for v1.
 | `ROUTE_PROVIDER`, `ORS_API_KEY` | Route provider selection and key. |
 | `WEATHER_PROVIDER`, `OPENWEATHER_API_KEY` | Weather provider selection and key. |
 | `EXCHANGE_RATE_*`, `PRICE_*` | Currency and attraction price settings. |
-| `AVAILABILITY_*`, `GETYOURGUIDE_*`, `VIATOR_*`, `TIQETS_*` | Availability provider selection, cache, fallback, and reserved real-provider settings. |
+| `AVAILABILITY_*`, `TICKETMASTER_*`, `GETYOURGUIDE_*`, `VIATOR_*`, `TIQETS_*` | Availability provider selection, matching thresholds, cache, fallback, the real Ticketmaster adapter, and reserved real-provider settings. |
 | `GOOGLE_CALENDAR_ENABLED`, `CALENDAR_PROVIDER` | Calendar sync provider mode. |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URL` | Real Google OAuth settings. |
 | `CALENDAR_TOKEN_ENCRYPTION_KEY` | AES-GCM key for stored calendar tokens. |
@@ -275,7 +330,8 @@ Existing `external_provider_*` metrics are unchanged.
 Availability also exposes `availability_search_requests_total`,
 `availability_search_duration_seconds`, `availability_options_returned_total`,
 `availability_cache_hits_total`, `availability_cache_misses_total`,
-`availability_fallback_total`, and `availability_errors_total`.
+`availability_fallback_total`, `availability_errors_total`, and
+`availability_match_confidence_total` (bucketed `high`/`medium`/`low`/`none`).
 
 **Ops** endpoints (`/ops/providers/quotas*`, admin-only) expose usage, blocked,
 fallback counts, remaining quota, and status

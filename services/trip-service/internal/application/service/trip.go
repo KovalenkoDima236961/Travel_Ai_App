@@ -1047,6 +1047,9 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 			if err := validateAndNormalizePriceEnrichment(item.PriceEnrichment, "itinerary.days[%d].items[%d].priceEnrichment", dayIndex, itemIndex); err != nil {
 				return nil, err
 			}
+			if err := validateAndNormalizeAvailabilityCheck(item.AvailabilityCheck, "itinerary.days[%d].items[%d].availabilityCheck", dayIndex, itemIndex); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -1363,6 +1366,41 @@ func validateAndNormalizePriceEnrichment(meta *aggregate.PriceEnrichmentMeta, pa
 	meta.Reason = strings.TrimSpace(meta.Reason)
 	if len(meta.Reason) > maxPriceEnrichmentReason {
 		return apperrs.NewInvalidInput("%s.reason must be at most %d characters", label, maxPriceEnrichmentReason)
+	}
+	return nil
+}
+
+// availabilityCheckStatuses are the availability statuses accepted from the web
+// when a user applies a provider availability result to an item.
+const maxAvailabilityCheckProvider = 40
+
+func validateAndNormalizeAvailabilityCheck(meta *aggregate.AvailabilityCheckMeta, path string, args ...any) error {
+	if meta == nil {
+		return nil
+	}
+
+	label := path
+	if len(args) > 0 {
+		label = fmt.Sprintf(path, args...)
+	}
+
+	meta.Provider = strings.TrimSpace(meta.Provider)
+	if len(meta.Provider) > maxAvailabilityCheckProvider {
+		return apperrs.NewInvalidInput("%s.provider must be at most %d characters", label, maxAvailabilityCheckProvider)
+	}
+	meta.Status = strings.TrimSpace(strings.ToLower(meta.Status))
+	switch meta.Status {
+	case "", "available", "limited", "unavailable", "unknown":
+	default:
+		return apperrs.NewInvalidInput("%s.status must be one of available, limited, unavailable, unknown", label)
+	}
+	if meta.MatchConfidence < 0 || meta.MatchConfidence > 1 {
+		return apperrs.NewInvalidInput("%s.matchConfidence must be between 0 and 1", label)
+	}
+	meta.CheckedAt = strings.TrimSpace(meta.CheckedAt)
+	meta.SelectedOptionID = strings.TrimSpace(meta.SelectedOptionID)
+	if len(meta.SelectedOptionID) > 200 {
+		return apperrs.NewInvalidInput("%s.selectedOptionId must be at most 200 characters", label)
 	}
 	return nil
 }

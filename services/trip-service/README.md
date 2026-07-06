@@ -378,6 +378,20 @@ warnings never block and can be acknowledged (stored in the submit event's
 checklist snapshot). To keep the checklist lightweight, `workspace_budget_status`
 is an existence check rather than a full cross-trip budget evaluation.
 
+**Availability signals (Advanced Availability Provider Adapters v1).** When a
+user applies a provider availability result to an item, the Web App persists a
+lightweight `availabilityCheck` snapshot on the itinerary item
+(`aggregate.AvailabilityCheckMeta`: `provider`, `status`, `checkedAt`,
+`matchConfidence`, `selectedOptionId`, `fallbackUsed`, `priceChanged` — never the
+raw provider response, option lists, or secrets). It round-trips through the
+existing itinerary update path (`expectedItineraryRevision` conflict detection
+preserved) and is validated/bounded in `validateAndNormalizeAvailabilityCheck`.
+The checklist reads these to append richer **warning/info** checks only when
+present: `availability_low_confidence`, `availability_unavailable`,
+`availability_price_changed` (warnings) and `availability_fallback` (info). None
+block submission in v1. An item counts as availability-checked once it has either
+a price-enrichment or an applied `availabilityCheck`.
+
 ### Reset on edit
 
 After a **successful** material change to an approved or pending workspace trip,

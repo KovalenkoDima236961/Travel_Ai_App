@@ -44,6 +44,10 @@ func (p *cachingProvider) Name() string { return p.next.Name() }
 
 func (p *cachingProvider) DisplayName() string { return providerDisplayName(p.next) }
 
+func (p *cachingProvider) SupportsItem(item AvailabilityItem) bool {
+	return providerSupportsItem(p.next, item)
+}
+
 func (p *cachingProvider) SearchAvailability(ctx context.Context, req AvailabilitySearchRequest) (*AvailabilitySearchResult, error) {
 	key := availabilityCacheKey(p.providerName, req)
 	if cached, ok := p.cache.Get(key); ok {
@@ -131,6 +135,21 @@ func copyResult(in AvailabilitySearchResult) AvailabilitySearchResult {
 		}
 		if option.StartTimes != nil {
 			out.Options[i].StartTimes = append([]string(nil), option.StartTimes...)
+		}
+		if option.Warnings != nil {
+			out.Options[i].Warnings = append([]string(nil), option.Warnings...)
+		}
+		if option.Location != nil {
+			location := *option.Location
+			if option.Location.Latitude != nil {
+				lat := *option.Location.Latitude
+				location.Latitude = &lat
+			}
+			if option.Location.Longitude != nil {
+				lng := *option.Location.Longitude
+				location.Longitude = &lng
+			}
+			out.Options[i].Location = &location
 		}
 		if option.Metadata != nil {
 			out.Options[i].Metadata = make(map[string]any, len(option.Metadata))

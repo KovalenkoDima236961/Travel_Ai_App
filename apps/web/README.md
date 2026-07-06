@@ -48,7 +48,7 @@ notification streams, and calendar OAuth calls.
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
 | Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
-| Availability | Per-item availability checks, provider prices, external booking links, and apply-price updates. |
+| Availability | Per-item availability checks with a provider badge (Ticketmaster/Mock/Fallback), match-confidence label, price qualifier (`From`/`Est.`), venue/date, price-difference vs the current estimate, safe external booking links, low-confidence/fallback warnings, and apply-price updates that preserve cost-split rules. |
 | Context | Weather cards, route/distance estimates, accommodation routing anchors. |
 | Sharing | Public read-only share links, expiration, password unlock, sanitized exports. |
 | Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
@@ -307,6 +307,27 @@ Reports are generated in the browser:
 Limitations: costs are estimates for planning only; provider prices,
 availability, exchange rates, and booking costs may change; analytics are not
 accounting, tax, invoice, payment, debt-splitting, or financial-advice reports.
+
+### Availability card
+
+`AvailabilityCard` calls `POST /availability/search` (via the External
+Integrations API client — provider keys stay backend-only) for likely-bookable
+items. It shows the top-level status (Available / Limited / Unavailable /
+Unknown), a provider badge (Ticketmaster, Mock, or **Fallback estimate**),
+a "Checked N minutes ago" label, a High/Medium/Low match-confidence label, and
+each option's price with its qualifier (`From`/`Est.`/exact), venue, date, start
+times, and per-option warnings. When the item already has an estimate, the card
+shows the provider-vs-current price difference and flags notable increases.
+Applying a price ("Apply price estimate") sets `estimatedCost` with
+`source: "provider"`, preserves any existing cost-split rule, records a
+`priceEnrichment` + lightweight `availabilityCheck` on the item via the normal
+itinerary save (with revision-conflict detection), and notes that the final
+price must be verified. Low-confidence / unmatched results disable apply and show
+a "Verify to apply" hint; medium-confidence apply requires confirmation. Booking
+links open the provider site in a new tab (`target="_blank"`,
+`rel="noopener noreferrer"`) — booking is completed on the provider site; there
+is no in-app checkout, and fallback/mock data is clearly not verified real-world
+availability.
 
 ## Offline Trip Mode
 

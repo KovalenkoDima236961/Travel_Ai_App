@@ -32,13 +32,17 @@ const (
 // Checklist item keys. These are stable identifiers reused by the API, the UI,
 // and acknowledged-warning payloads, so they must not change casually.
 const (
-	KeyItineraryExists         = "itinerary_exists"
-	KeyBudgetExists            = "budget_exists"
-	KeyWorkspaceBudgetStatus   = "workspace_budget_status"
-	KeyTripBudgetStatus        = "trip_budget_status"
-	KeyCostSplittingConfigured = "cost_splitting_configured"
-	KeyAvailabilityChecked     = "availability_checked"
-	KeyMissingCostEstimates    = "missing_cost_estimates"
+	KeyItineraryExists           = "itinerary_exists"
+	KeyBudgetExists              = "budget_exists"
+	KeyWorkspaceBudgetStatus     = "workspace_budget_status"
+	KeyTripBudgetStatus          = "trip_budget_status"
+	KeyCostSplittingConfigured   = "cost_splitting_configured"
+	KeyAvailabilityChecked       = "availability_checked"
+	KeyAvailabilityLowConfidence = "availability_low_confidence"
+	KeyAvailabilityUnavailable   = "availability_unavailable"
+	KeyAvailabilityPriceChanged  = "availability_price_changed"
+	KeyAvailabilityFallback      = "availability_fallback"
+	KeyMissingCostEstimates      = "missing_cost_estimates"
 )
 
 // ChecklistItem is one evaluated check.
@@ -91,6 +95,13 @@ type ChecklistInput struct {
 	// Availability / bookable items.
 	BookableItemCount          int
 	AvailabilityUncheckedCount int
+	// Richer availability signals from applied provider results (persisted in
+	// itinerary item metadata). These never block submission; they surface as
+	// warnings/info so reviewers know the availability data's quality.
+	AvailabilityLowConfidenceCount int
+	AvailabilityUnavailableCount   int
+	AvailabilityPriceChangedCount  int
+	AvailabilityFallbackCount      int
 }
 
 // Calculate evaluates every check and rolls up the overall status and counts.
@@ -106,6 +117,9 @@ func Calculate(in ChecklistInput) Checklist {
 		availabilityItem(in),
 		missingEstimatesItem(in),
 	}
+	// Richer availability signals are appended only when present so the checklist
+	// stays clean for trips without applied provider results.
+	items = append(items, availabilitySignalItems(in)...)
 
 	checklist := Checklist{Items: items}
 	for _, item := range items {
@@ -247,6 +261,50 @@ func availabilityItem(in ChecklistInput) ChecklistItem {
 		item.Message = "Bookable items have availability information."
 	}
 	return item
+}
+
+// availabilitySignalItems returns the richer availability checks that only apply
+// when the user has applied provider results. They are warnings/info and never
+// block submission (see task: no availability issue blocks approval in v1).
+func availabilitySignalItems(in ChecklistInput) []ChecklistItem {
+	var items []ChecklistItem
+	if in.AvailabilityUnavailableCount > 0 {
+		items = append(items, ChecklistItem{
+			Key:      KeyAvailabilityUnavailable,
+			Status:   ItemStatusWarning,
+			Severity: SeverityWarning,
+			Title:    "Items reported unavailable",
+			Message:  "Some items were reported unavailable by the availability provider. Reconsider or re-check them.",
+		})
+	}
+	if in.AvailabilityLowConfidenceCount > 0 {
+		items = append(items, ChecklistItem{
+			Key:      KeyAvailabilityLowConfidence,
+			Status:   ItemStatusWarning,
+			Severity: SeverityWarning,
+			Title:    "Low-confidence availability matches",
+			Message:  "Some availability results were low-confidence matches. Verify they refer to the correct place or event.",
+		})
+	}
+	if in.AvailabilityPriceChangedCount > 0 {
+		items = append(items, ChecklistItem{
+			Key:      KeyAvailabilityPriceChanged,
+			Status:   ItemStatusWarning,
+			Severity: SeverityWarning,
+			Title:    "Provider prices differ from estimates",
+			Message:  "Applied provider prices differ noticeably from the previous estimates. Review the trip budget.",
+		})
+	}
+	if in.AvailabilityFallbackCount > 0 {
+		items = append(items, ChecklistItem{
+			Key:      KeyAvailabilityFallback,
+			Status:   ItemStatusInfo,
+			Severity: SeverityInfo,
+			Title:    "Fallback availability data",
+			Message:  "Some availability results came from fallback/estimated data, not a verified provider check.",
+		})
+	}
+	return items
 }
 
 func missingEstimatesItem(in ChecklistInput) ChecklistItem {

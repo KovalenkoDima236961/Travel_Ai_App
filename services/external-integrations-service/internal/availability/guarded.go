@@ -45,6 +45,10 @@ func (p *guardedProvider) Name() string { return p.next.Name() }
 
 func (p *guardedProvider) DisplayName() string { return providerDisplayName(p.next) }
 
+func (p *guardedProvider) SupportsItem(item AvailabilityItem) bool {
+	return providerSupportsItem(p.next, item)
+}
+
 func (p *guardedProvider) SearchAvailability(ctx context.Context, req AvailabilitySearchRequest) (*AvailabilitySearchResult, error) {
 	decision, _ := p.guard.CheckAndReserve(ctx, providerlimits.ProviderCall{
 		Provider:      p.providerName,

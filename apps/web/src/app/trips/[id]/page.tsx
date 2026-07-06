@@ -1469,13 +1469,16 @@ function TripDetailPageContent() {
       return;
     }
 
+    const providerName = result.providerDisplayName || result.provider || "availability provider";
     const nextCost: EstimatedCost = {
       amount: option.price.amount,
       currency: option.price.currency,
       category: availabilityCostCategory(currentItem),
       source: "provider",
-      confidence: "high",
-      note: `Availability provider price checked at ${result.checkedAt}; may change.`
+      confidence: result.match?.matched && result.match.confidence >= 0.8 ? "high" : "medium",
+      note: `Applied from ${providerName} availability result. Verify the final price before booking.`,
+      // Preserve any cost-splitting rule already configured on this item.
+      ...(currentItem.estimatedCost?.split ? { split: currentItem.estimatedCost.split } : {})
     };
     const nextItinerary: Itinerary = {
       ...trip.itinerary,
@@ -1499,6 +1502,18 @@ function TripDetailPageContent() {
                     reviewStatus: "changed",
                     updatedAt: result.checkedAt,
                     reason: "availability_provider_price"
+                  },
+                  availabilityCheck: {
+                    provider: result.provider,
+                    status: option.availability ?? result.status,
+                    checkedAt: result.checkedAt,
+                    matchConfidence: option.matchConfidence ?? result.match?.confidence ?? 0,
+                    selectedOptionId: option.id,
+                    fallbackUsed: result.fallbackUsed,
+                    priceChanged: isSignificantPriceChange(
+                      currentItem.estimatedCost,
+                      option.price
+                    )
                   }
                 }
               : item
@@ -2422,6 +2437,28 @@ function availabilityCostCategory(item: {
     return "activity";
   }
   return "ticket";
+}
+
+// isSignificantPriceChange reports whether an applied provider price differs
+// notably from the item's previous estimate (same currency). Mirrors the
+// AvailabilityCard "higher than estimate" threshold: >= 10 absolute or >= 20%.
+function isSignificantPriceChange(
+  currentCost: EstimatedCost | null | undefined,
+  price: { amount: number; currency: string } | null | undefined
+): boolean {
+  if (!price) {
+    return false;
+  }
+  const currentAmount = getCostAmount(currentCost);
+  const currentCurrency = getCostCurrency(currentCost);
+  if (currentAmount == null || !currentCurrency) {
+    return false;
+  }
+  if (currentCurrency.toUpperCase() !== price.currency.toUpperCase()) {
+    return false;
+  }
+  const diff = Math.abs(price.amount - currentAmount);
+  return diff >= 10 || (currentAmount > 0 && diff / currentAmount >= 0.2);
 }
 
 function formatAccessSource(source: string) {

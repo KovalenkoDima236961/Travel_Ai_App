@@ -143,6 +143,14 @@ Key product capabilities:
   before calling real providers, with controlled `provider_rate_limited` /
   `provider_quota_exceeded` errors, worker retry classification, and an Ops
   Dashboard Provider Quotas panel.
+- Advanced Availability Provider Adapters v1: a real **Ticketmaster** Discovery
+  API adapter behind the stable `/availability/search` abstraction, with
+  deterministic matching/confidence scoring, conservative low-confidence
+  handling, provider-specific caching (checked before quota), shared quota/
+  rate-limit and fallback behavior, an enriched availability UI (provider badge,
+  confidence, price differences, venue, external booking links), and richer
+  approval-checklist availability warnings. Mock stays the default/fallback; no
+  in-app booking or payments.
 
 ## Quick Start
 

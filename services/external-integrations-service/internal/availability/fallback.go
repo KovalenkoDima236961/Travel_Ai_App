@@ -31,6 +31,10 @@ func (p *fallbackProvider) Name() string { return p.primary.Name() }
 
 func (p *fallbackProvider) DisplayName() string { return providerDisplayName(p.primary) }
 
+func (p *fallbackProvider) SupportsItem(item AvailabilityItem) bool {
+	return providerSupportsItem(p.primary, item)
+}
+
 func (p *fallbackProvider) SearchAvailability(ctx context.Context, req AvailabilitySearchRequest) (*AvailabilitySearchResult, error) {
 	result, err := p.primary.SearchAvailability(ctx, req)
 	if err == nil {

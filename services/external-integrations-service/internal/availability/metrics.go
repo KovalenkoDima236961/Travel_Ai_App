@@ -40,6 +40,10 @@ var (
 		prometheus.CounterOpts{Name: "availability_errors_total", Help: "Total availability errors."},
 		[]string{"provider", "error_code"},
 	)
+	availabilityMatchConfidence = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "availability_match_confidence_total", Help: "Availability results by match-confidence bucket."},
+		[]string{"provider", "bucket"},
+	)
 )
 
 func init() {
@@ -51,6 +55,7 @@ func init() {
 		availabilityCacheMisses,
 		availabilityFallback,
 		availabilityErrors,
+		availabilityMatchConfidence,
 	)
 }
 
@@ -82,6 +87,10 @@ func recordAvailabilityFallback(provider, reason string) {
 
 func recordAvailabilityError(provider, code string) {
 	availabilityErrors.WithLabelValues(metricValue(provider), metricValue(code)).Inc()
+}
+
+func recordAvailabilityMatchConfidence(provider, bucket string) {
+	availabilityMatchConfidence.WithLabelValues(metricValue(provider), metricValue(bucket)).Inc()
 }
 
 func metricValue(value string) string {

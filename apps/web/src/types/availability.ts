@@ -14,9 +14,20 @@ export type AvailabilityProviderResult =
 
 export type AvailabilityPriceType = "per_person" | "per_group" | "total" | "unknown";
 
+// Qualifier describes how precise a price is, orthogonal to priceType (the unit).
+export type AvailabilityPriceQualifier = "exact" | "from" | "estimate" | "unknown";
+
 export type AvailabilityPrice = {
   amount: number;
   currency: string;
+  qualifier?: AvailabilityPriceQualifier;
+};
+
+export type AvailabilityLocation = {
+  name?: string;
+  address?: string;
+  lat?: number | null;
+  lng?: number | null;
 };
 
 export type AvailabilityOption = {
@@ -27,11 +38,16 @@ export type AvailabilityOption = {
   price?: AvailabilityPrice | null;
   priceType: AvailabilityPriceType;
   startTimes?: string[];
+  date?: string;
   durationMinutes?: number | null;
   bookingUrl?: string;
   providerName: string;
+  providerEntityId?: string;
+  location?: AvailabilityLocation | null;
+  matchConfidence?: number;
   cancellationPolicy?: string;
   instantConfirmation?: boolean | null;
+  warnings?: string[];
   metadata?: Record<string, unknown>;
 };
 
@@ -39,6 +55,8 @@ export type AvailabilityMatch = {
   matched: boolean;
   confidence: number;
   matchedName?: string;
+  providerEntityId?: string;
+  providerUrl?: string;
 };
 
 export type AvailabilitySearchRequest = {

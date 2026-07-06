@@ -161,6 +161,73 @@ func TestCalculate_AvailabilityOKWhenNoBookableItems(t *testing.T) {
 	}
 }
 
+func TestCalculate_NoAvailabilitySignalItemsWhenAbsent(t *testing.T) {
+	c := Calculate(baseReadyInput())
+	for _, key := range []string{
+		KeyAvailabilityLowConfidence,
+		KeyAvailabilityUnavailable,
+		KeyAvailabilityPriceChanged,
+		KeyAvailabilityFallback,
+	} {
+		if _, ok := findItem(c, key); ok {
+			t.Fatalf("expected %q to be absent when no signal present", key)
+		}
+	}
+}
+
+func TestCalculate_AvailabilityLowConfidenceWarns(t *testing.T) {
+	in := baseReadyInput()
+	in.AvailabilityLowConfidenceCount = 1
+	c := Calculate(in)
+	item, ok := findItem(c, KeyAvailabilityLowConfidence)
+	if !ok || item.Status != ItemStatusWarning || item.Severity != SeverityWarning {
+		t.Fatalf("expected low-confidence warning, got %+v ok=%v", item, ok)
+	}
+	if c.Status != ChecklistStatusWarning || !c.CanSubmit() {
+		t.Fatalf("low-confidence should warn but not block, got status=%q canSubmit=%v", c.Status, c.CanSubmit())
+	}
+}
+
+func TestCalculate_AvailabilityUnavailableWarns(t *testing.T) {
+	in := baseReadyInput()
+	in.AvailabilityUnavailableCount = 2
+	c := Calculate(in)
+	item, ok := findItem(c, KeyAvailabilityUnavailable)
+	if !ok || item.Status != ItemStatusWarning {
+		t.Fatalf("expected unavailable warning, got %+v ok=%v", item, ok)
+	}
+	if !c.CanSubmit() {
+		t.Fatal("unavailable items must not block submission in v1")
+	}
+}
+
+func TestCalculate_AvailabilityPriceChangedWarns(t *testing.T) {
+	in := baseReadyInput()
+	in.AvailabilityPriceChangedCount = 1
+	c := Calculate(in)
+	item, ok := findItem(c, KeyAvailabilityPriceChanged)
+	if !ok || item.Status != ItemStatusWarning {
+		t.Fatalf("expected price-changed warning, got %+v ok=%v", item, ok)
+	}
+}
+
+func TestCalculate_AvailabilityFallbackIsInfoAndDoesNotBlockOrWarn(t *testing.T) {
+	in := baseReadyInput()
+	in.AvailabilityFallbackCount = 1
+	c := Calculate(in)
+	item, ok := findItem(c, KeyAvailabilityFallback)
+	if !ok || item.Status != ItemStatusInfo || item.Severity != SeverityInfo {
+		t.Fatalf("expected fallback info item, got %+v ok=%v", item, ok)
+	}
+	// Info must not inflate the warning count or change the OK roll-up.
+	if c.Status != ChecklistStatusOK || c.WarningCount != 0 {
+		t.Fatalf("fallback info should keep status ok, got status=%q warnings=%d", c.Status, c.WarningCount)
+	}
+	if !c.CanSubmit() {
+		t.Fatal("fallback info must not block submission")
+	}
+}
+
 func TestCalculate_WorkspaceBudgetMissingWarns(t *testing.T) {
 	in := baseReadyInput()
 	in.HasWorkspaceBudget = false

@@ -43,7 +43,7 @@ func New(cfg *config.Config, guard *providerlimits.Guard, log *zap.Logger) (*Ser
 	)
 
 	if cfg.Availability.CacheEnabled {
-		ttl := time.Duration(cfg.Availability.CacheTTLSeconds) * time.Second
+		ttl := time.Duration(cfg.Availability.EffectiveCacheTTLSeconds()) * time.Second
 		if ttl <= 0 {
 			ttl = 15 * time.Minute
 		}
@@ -58,6 +58,26 @@ func selectProvider(provider string, cfg config.AvailabilityConfig, log *zap.Log
 	case config.AvailabilityProviderMock:
 		log.Info("availability provider configured", zap.String("provider", config.AvailabilityProviderMock))
 		return NewMockAvailabilityProvider(), nil
+	case config.AvailabilityProviderTicketmaster:
+		primary, err := newTicketmasterProvider(cfg, log)
+		if err != nil {
+			// A missing/invalid key surfaces as an auth_config ProviderError. In
+			// local/dev with fallback enabled we degrade to mock and stay healthy;
+			// otherwise startup fails so production never runs a dead provider.
+			if cfg.FallbackToMock {
+				log.Warn("ticketmaster availability provider unavailable, falling back to mock",
+					zap.String("provider", provider),
+					zap.String("errorType", providerErrorKind(err)),
+				)
+				return NewMockAvailabilityProvider(), nil
+			}
+			return nil, fmt.Errorf("init ticketmaster availability provider: %w", err)
+		}
+		log.Info("availability provider configured", zap.String("provider", config.AvailabilityProviderTicketmaster))
+		if cfg.FallbackToMock {
+			return newFallbackProvider(provider, primary, NewMockAvailabilityProvider(), log), nil
+		}
+		return primary, nil
 	case config.AvailabilityProviderGetYourGuide, config.AvailabilityProviderViator, config.AvailabilityProviderTiqets:
 		primary := &unconfiguredRealProvider{name: provider}
 		if cfg.FallbackToMock {
@@ -65,7 +85,7 @@ func selectProvider(provider string, cfg config.AvailabilityConfig, log *zap.Log
 		}
 		return primary, nil
 	default:
-		return nil, fmt.Errorf("unsupported AVAILABILITY_PROVIDER %q: supported providers: mock, getyourguide, viator, tiqets", cfg.Provider)
+		return nil, fmt.Errorf("unsupported AVAILABILITY_PROVIDER %q: supported providers: mock, ticketmaster, getyourguide, viator, tiqets", cfg.Provider)
 	}
 }
 

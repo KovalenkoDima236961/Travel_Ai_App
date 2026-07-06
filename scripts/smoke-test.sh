@@ -743,6 +743,52 @@ else
   echo "Availability cache disabled in this environment; skipping cache-hit assertion."
 fi
 
+echo "Checking availability for an unsupported item type returns unknown without a bookable option..."
+AVAILABILITY_UNSUPPORTED_PAYLOAD="$(
+  jq -nc '{
+    destination: "Rome",
+    date: "2026-08-10",
+    currency: "EUR",
+    travelers: {adults: 2, children: 0},
+    item: {name: "Lunch break near the forum", type: "rest", startTime: "12:30"}
+  }'
+)"
+request_with_bearer POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/availability/search" "${ACCESS_TOKEN}" "${AVAILABILITY_UNSUPPORTED_PAYLOAD}"
+assert_2xx "Availability search unsupported item"
+if ! jq -e '.status == "unknown" and (.options | length) == 0' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Expected unsupported item type to return unknown status with no options." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+# Optional real-provider smoke. Provider data changes constantly, so assert only
+# on the normalized shape and provider label — never specific event names/prices.
+if [[ "${AVAILABILITY_PROVIDER:-mock}" == "ticketmaster" && -n "${TICKETMASTER_API_KEY:-}" ]]; then
+  echo "Checking Ticketmaster availability provider (shape-only assertions)..."
+  TICKETMASTER_PAYLOAD="$(
+    jq -nc '{
+      destination: "London",
+      date: "2026-09-10",
+      currency: "GBP",
+      travelers: {adults: 2, children: 0},
+      item: {name: "Live concert", type: "concert", startTime: "19:30"}
+    }'
+  )"
+  request_with_bearer POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/availability/search" "${ACCESS_TOKEN}" "${TICKETMASTER_PAYLOAD}"
+  assert_2xx "Ticketmaster availability search"
+  if ! jq -e '
+    ((.provider == "ticketmaster") or (.fallbackUsed == true))
+    and (.status == "available" or .status == "limited" or .status == "unavailable" or .status == "unknown")
+    and (.options | type == "array")
+  ' >/dev/null <<<"${LAST_BODY}"; then
+    echo "Ticketmaster availability search did not return the expected normalized shape." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+else
+  echo "TICKETMASTER_API_KEY not set / provider not ticketmaster; skipping real-provider availability smoke."
+fi
+
 if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
   echo "Checking availability metrics after availability calls..."
   assert_metrics_contains "Availability search metrics" "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/metrics" "availability_search_requests_total"
