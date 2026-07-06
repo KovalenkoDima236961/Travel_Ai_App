@@ -60,6 +60,18 @@ export function isItineraryConflictError(error: unknown): error is ItineraryConf
   );
 }
 
+// getApiErrorMessage returns a user-facing message for any thrown value, using
+// the ApiError message when available and falling back to a generic string.
+export function getApiErrorMessage(
+  error: unknown,
+  fallback = "Something went wrong. Please try again."
+): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},

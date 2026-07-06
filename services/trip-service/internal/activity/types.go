@@ -58,6 +58,13 @@ const (
 	// Calendar sync.
 	EventCalendarSynced      = "calendar_synced"
 	EventCalendarSyncRemoved = "calendar_sync_removed"
+
+	// Approval workflow.
+	EventTripSubmittedForApproval = "trip_submitted_for_approval"
+	EventTripApproved             = "trip_approved"
+	EventTripChangesRequested     = "trip_changes_requested"
+	EventTripApprovalCancelled    = "trip_approval_cancelled"
+	EventTripApprovalResetToDraft = "trip_approval_reset_to_draft"
 )
 
 // Entity type constants describe the kind of object an event refers to.
@@ -119,6 +126,11 @@ var knownEventTypes = map[string]struct{}{
 	EventShareExpirationUpdated:      {},
 	EventCalendarSynced:              {},
 	EventCalendarSyncRemoved:         {},
+	EventTripSubmittedForApproval:    {},
+	EventTripApproved:                {},
+	EventTripChangesRequested:        {},
+	EventTripApprovalCancelled:       {},
+	EventTripApprovalResetToDraft:    {},
 }
 
 // IsKnownEventType reports whether the event type is part of the recognised

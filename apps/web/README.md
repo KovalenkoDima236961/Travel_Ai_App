@@ -413,6 +413,37 @@ Notification Service:
 Push is opt-in by explicit user action and requires `WEB_PUSH_ENABLED=true` plus
 VAPID keys on the Notification Service.
 
+## Workspace Approval Workflow
+
+Workspace trips show an **Approval** panel on the trip detail page
+(`components/approvals/TripApprovalPanel.tsx`) with a status badge, the readiness
+checklist, role-aware actions, and approval history:
+
+- Editors can **Submit for approval** (acknowledging warnings and adding an
+  optional note). Warnings are shown but never block submission; a missing
+  itinerary blocker does.
+- Owners/admins see **Approve** and **Request changes** (note required) for
+  pending trips; the submitter or an owner/admin can **Cancel** a pending
+  submission.
+- The panel warns that editing an approved or pending trip will move it back to
+  draft (the backend reset is authoritative). Personal trips show
+  "Approval not required".
+- Approval actions require connectivity; offline they are disabled with a note.
+
+The workspace approvals queue lives at `/workspaces/[workspaceId]/approvals`
+(linked from the workspace nav) and lists trips by status tabs (Pending, Changes
+requested, Draft, Approved, All) with per-status counts, checklist status, and
+Approve / Request changes actions for owners/admins.
+
+Data flows through `types/approval.ts`, `lib/api/approvals.ts`, and the
+`useTripApproval` / `useWorkspaceApprovals` hooks (TanStack Query), which
+invalidate the trip, approval state/history, activity, notifications, and the
+workspace queue after each action.
+
+Limitations: this is lightweight planning approval — it does not lock trips,
+support multi-step chains or delegation, and there are no offline approval
+mutations.
+
 ## Quality Checks
 
 ```bash

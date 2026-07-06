@@ -83,6 +83,83 @@ type mockRepo struct {
 	calendarSyncs []entity.TripCalendarSync
 
 	budgetOptimizationProposals []entity.BudgetOptimizationProposal
+
+	// Approval workflow.
+	approvalFields          *entity.TripApprovalFields
+	approvalFieldsErr       error
+	updateApprovalErr       error
+	updatedApprovalFields   *entity.TripApprovalFields
+	insertedApprovalEvents  []*entity.TripApprovalEvent
+	insertApprovalEventErr  error
+	approvalEvents          []entity.TripApprovalEvent
+	approvalEventsErr       error
+	workspaceApprovalRows   []entity.WorkspaceApprovalRow
+	workspaceApprovalErr    error
+	listApprovalsParams     entity.ListWorkspaceApprovalsParams
+	workspaceApprovalCounts entity.WorkspaceApprovalCounts
+	resetResult             *entity.ApprovalResetResult
+	resetErr                error
+	resetCalls              int
+}
+
+func (m *mockRepo) GetTripApprovalFields(_ context.Context, tripID uuid.UUID) (*entity.TripApprovalFields, error) {
+	if m.approvalFieldsErr != nil {
+		return nil, m.approvalFieldsErr
+	}
+	if m.approvalFields != nil {
+		cp := *m.approvalFields
+		return &cp, nil
+	}
+	return &entity.TripApprovalFields{TripID: tripID, Status: "not_required"}, nil
+}
+
+func (m *mockRepo) UpdateTripApprovalStatus(_ context.Context, fields *entity.TripApprovalFields) (*entity.TripApprovalFields, error) {
+	if m.updateApprovalErr != nil {
+		return nil, m.updateApprovalErr
+	}
+	cp := *fields
+	m.updatedApprovalFields = &cp
+	m.approvalFields = &cp
+	return &cp, nil
+}
+
+func (m *mockRepo) InsertTripApprovalEvent(_ context.Context, event *entity.TripApprovalEvent) (*entity.TripApprovalEvent, error) {
+	if m.insertApprovalEventErr != nil {
+		return nil, m.insertApprovalEventErr
+	}
+	e := *event
+	if e.ID == uuid.Nil {
+		e.ID = uuid.New()
+	}
+	if e.CreatedAt.IsZero() {
+		e.CreatedAt = time.Now()
+	}
+	m.insertedApprovalEvents = append(m.insertedApprovalEvents, &e)
+	return &e, nil
+}
+
+func (m *mockRepo) ListTripApprovalEventsByTrip(_ context.Context, _ uuid.UUID, _ int) ([]entity.TripApprovalEvent, error) {
+	return m.approvalEvents, m.approvalEventsErr
+}
+
+func (m *mockRepo) ListWorkspaceApprovals(_ context.Context, params entity.ListWorkspaceApprovalsParams) ([]entity.WorkspaceApprovalRow, error) {
+	m.listApprovalsParams = params
+	return m.workspaceApprovalRows, m.workspaceApprovalErr
+}
+
+func (m *mockRepo) CountWorkspaceApprovalsByStatus(_ context.Context, _ uuid.UUID) (entity.WorkspaceApprovalCounts, error) {
+	return m.workspaceApprovalCounts, nil
+}
+
+func (m *mockRepo) ResetApprovalStatusForTripIfActive(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*entity.ApprovalResetResult, error) {
+	m.resetCalls++
+	if m.resetErr != nil {
+		return nil, m.resetErr
+	}
+	if m.resetResult != nil {
+		return m.resetResult, nil
+	}
+	return &entity.ApprovalResetResult{Reset: false}, nil
 }
 
 func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, error) {

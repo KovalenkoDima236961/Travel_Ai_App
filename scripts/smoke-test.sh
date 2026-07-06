@@ -1000,6 +1000,107 @@ request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerar
 assert_2xx "Workspace member itinerary edit"
 WORKSPACE_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
+echo "Checking workspace trip approval workflow..."
+# Member sees the workspace trip as an approval draft and can submit it.
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Get workspace trip approval as member"
+if ! jq -e '.status == "draft" and .canSubmit == true' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Expected workspace trip approval to be a submittable draft." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+# Member submits for approval; owner is notified.
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/submit" "${COLLAB_ACCESS_TOKEN}" '{"note":"Ready for review."}'
+assert_2xx "Submit workspace trip for approval"
+if ! jq -e '.status == "pending_approval"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Submit did not move approval to pending_approval." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Owner notified of approval submission" "${ACCESS_TOKEN}" "trip_submitted_for_approval"
+
+# Owner sees the pending trip in the workspace approvals queue.
+request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/approvals?status=pending_approval" "${ACCESS_TOKEN}"
+assert_2xx "List workspace approvals as owner"
+if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.approvals | any(.tripId == $id and .approvalStatus == "pending_approval") and (.counts.pendingApproval >= 1)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Pending trip did not appear in the workspace approvals queue." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+# A member cannot approve; only owners/admins can.
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/approve" "${COLLAB_ACCESS_TOKEN}" '{}'
+assert_status "Member cannot approve workspace trip" "403"
+
+# Owner requests changes; the submitter is notified and can resubmit.
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/request-changes" "${ACCESS_TOKEN}" '{"decisionNote":"Please reduce accommodation cost and check availability."}'
+assert_2xx "Owner requests changes"
+if ! jq -e '.status == "changes_requested"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Request changes did not move approval to changes_requested." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Member notified of requested changes" "${COLLAB_ACCESS_TOKEN}" "trip_changes_requested"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Get workspace trip approval after changes requested"
+if ! jq -e '.status == "changes_requested" and .canSubmit == true' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Member should be able to resubmit after changes were requested." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/submit" "${COLLAB_ACCESS_TOKEN}" '{"note":"Updated per feedback."}'
+assert_2xx "Resubmit workspace trip for approval"
+
+# Owner approves; the submitter is notified.
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/approve" "${ACCESS_TOKEN}" '{"decisionNote":"Looks good."}'
+assert_2xx "Owner approves workspace trip"
+if ! jq -e '.status == "approved"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Approve did not move approval to approved." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Member notified of approval" "${COLLAB_ACCESS_TOKEN}" "trip_approved"
+
+# A material itinerary edit on an approved trip resets approval to draft.
+WORKSPACE_RESET_ITINERARY="$(jq -nc '{days:[{day:1,title:"Reset smoke day",items:[{time:"09:00",type:"activity",name:"Edit after approval",estimatedCost:{amount:70,currency:"EUR",category:"activity",confidence:"medium",source:"manual"}}]}]}')"
+WORKSPACE_RESET_EDIT_PAYLOAD="$(jq -nc --argjson itinerary "${WORKSPACE_RESET_ITINERARY}" --argjson revision "${WORKSPACE_TRIP_REVISION}" '{itinerary:$itinerary,expectedItineraryRevision:$revision}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${WORKSPACE_RESET_EDIT_PAYLOAD}"
+assert_2xx "Edit approved workspace trip itinerary"
+WORKSPACE_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Get workspace trip approval after material edit"
+if ! jq -e '.status == "draft"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Approval did not reset to draft after a material edit." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+# Approval history captures the decisions and the reset.
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/events" "${ACCESS_TOKEN}"
+assert_2xx "List workspace trip approval events"
+if ! jq -e '(.events | any(.eventType == "approved")) and (.events | any(.eventType == "reset_to_draft"))' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Approval history did not include the approved and reset_to_draft events." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+# Personal trips do not require approval and cannot be submitted.
+APPROVAL_PERSONAL_PAYLOAD="$(jq -nc '{destination:"Lisbon",days:2,travelers:1,pace:"balanced"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips" "${ACCESS_TOKEN}" "${APPROVAL_PERSONAL_PAYLOAD}"
+assert_status "Create personal trip for approval check" "201"
+APPROVAL_PERSONAL_TRIP_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${APPROVAL_PERSONAL_TRIP_ID}/approval" "${ACCESS_TOKEN}"
+assert_2xx "Get personal trip approval"
+if ! jq -e '.status == "not_required" and .canSubmit == false' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Personal trip approval should be not_required with no actions." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${APPROVAL_PERSONAL_TRIP_ID}/approval/submit" "${ACCESS_TOKEN}" '{}'
+assert_status "Personal trip cannot be submitted for approval" "400"
+
 echo "Checking workspace trip template flow..."
 WORKSPACE_TEMPLATE_PAYLOAD="$(jq -nc --arg workspaceId "${WORKSPACE_ID}" '{
   title:"Smoke workspace template",
@@ -1060,6 +1161,17 @@ request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerar
 assert_status "Workspace viewer itinerary edit" "403"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trip-templates/${WORKSPACE_TEMPLATE_ID}/create-trip" "${COLLAB_ACCESS_TOKEN}" "${CREATE_FROM_WORKSPACE_TEMPLATE_PAYLOAD}"
 assert_status "Workspace viewer create trip from template" "403"
+
+# A workspace viewer can read approval state but cannot submit or approve.
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Workspace viewer can view approval state"
+if ! jq -e '.canSubmit == false and .canApprove == false' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Workspace viewer should not be able to submit or approve." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/submit" "${COLLAB_ACCESS_TOKEN}" '{}'
+assert_status "Workspace viewer cannot submit for approval" "403"
 
 echo "Checking workspace shared budget flow..."
 WORKSPACE_BUDGET_PAYLOAD="$(jq -nc '{

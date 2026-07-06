@@ -138,6 +138,12 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Delete("/{id}/comments/{commentId}", h.DeleteComment)
 		r.Get("/{id}/activity", h.ListActivity)
 		r.Get("/{id}/activity/stream", h.StreamActivity)
+		r.Get("/{id}/approval", h.GetApproval)
+		r.Post("/{id}/approval/submit", h.SubmitApproval)
+		r.Post("/{id}/approval/approve", h.ApproveTrip)
+		r.Post("/{id}/approval/request-changes", h.RequestTripChanges)
+		r.Post("/{id}/approval/cancel", h.CancelApproval)
+		r.Get("/{id}/approval/events", h.ListApprovalEvents)
 	})
 	r.Route("/trip-templates", func(r chi.Router) {
 		r.Get("/", h.ListTripTemplates)
@@ -149,6 +155,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	})
 	r.Get("/workspaces/{workspaceId}/analytics/costs", h.GetWorkspaceCostAnalytics)
 	r.Get("/workspaces/{workspaceId}/templates", h.ListWorkspaceTripTemplates)
+	r.Get("/workspaces/{workspaceId}/approvals", h.ListWorkspaceApprovals)
 	r.Route("/workspaces/{workspaceId}/budgets", func(r chi.Router) {
 		r.Get("/", h.ListWorkspaceBudgets)
 		r.Post("/", h.CreateWorkspaceBudget)
@@ -1339,7 +1346,13 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var budgetConversion *apperrs.BudgetConversionError
 	var revisionRequired *apperrs.ExpectedItineraryRevisionRequiredError
 	var conflict *apperrs.ItineraryConflictError
+	var stateConflict *apperrs.ConflictError
 	switch {
+	case errors.As(err, &stateConflict):
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":   "conflict",
+			"message": stateConflict.Error(),
+		})
 	case errors.As(err, &revisionRequired):
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"error":   "expected_itinerary_revision_required",

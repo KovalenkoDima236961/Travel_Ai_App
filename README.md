@@ -129,6 +129,13 @@ Key product capabilities:
 - Trip Templates v1: users can save completed trips as sanitized private or
   workspace templates, browse a template library, and create new trips from
   templates with shifted dates and unchecked live availability.
+- Workspace Approval Workflow v1: workspace trips carry a lightweight approval
+  status (draft → pending → approved / changes requested / cancelled). Editors
+  submit trips for review against a readiness checklist, owners/admins approve or
+  request changes from a per-workspace approvals queue, material edits reset an
+  approved trip back to draft, and every action records approval history,
+  notifications, and activity. It is planning approval only — no locking, legal
+  signatures, or compliance workflow.
 - Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
   email, and browser push integrations behind mock-first provider boundaries.
 - Provider Quota & Rate-Limit Management v1: External Integrations Service

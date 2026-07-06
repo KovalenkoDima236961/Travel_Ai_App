@@ -153,6 +153,7 @@ type tripRepository interface {
 	ArchiveWorkspaceBudget(ctx context.Context, workspaceID, budgetID, actorUserID uuid.UUID) (*entity.WorkspaceBudget, error)
 	SetWorkspaceBudgetPrimary(ctx context.Context, workspaceID, budgetID uuid.UUID) (*entity.WorkspaceBudget, error)
 	CountWorkspaceBudgets(ctx context.Context, workspaceID uuid.UUID, status *entity.WorkspaceBudgetStatus) (int, error)
+	approvalRepository
 }
 
 type userContextProvider interface {
@@ -1430,7 +1431,16 @@ func (s *Service) saveItineraryWithVersion(
 		source,
 		metadata,
 	)
-	return updated, err
+	if err != nil {
+		return updated, err
+	}
+	// Any itinerary write (manual edit, day/item regeneration, version restore,
+	// generation completion) is a material change: if the workspace trip was
+	// approved or pending, move it back to draft. Best-effort and post-commit —
+	// this never fails the itinerary save. This is the single choke point for
+	// itinerary writes, so it also covers the async generation-job worker path.
+	s.ResetApprovalIfApproved(ctx, tripID, actorUserID, "Itinerary changed ("+string(source)+")")
+	return updated, nil
 }
 
 func requireExpectedItineraryRevision(expected *int) (int, error) {

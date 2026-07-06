@@ -80,6 +80,8 @@ func (s *Service) UpdateTripBudget(ctx context.Context, tripID uuid.UUID, in app
 		Metadata:    budgetActivityMetadata(updated),
 	})
 
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Trip budget changed")
+
 	return updated, nil
 }
 

@@ -100,6 +100,11 @@ var typeToCategory = map[string]string{
 	notifications.TypeWorkspaceMemberRemoved:      CategoryRoleChanges,
 	notifications.TypeWorkspaceRoleChanged:        CategoryRoleChanges,
 	notifications.TypeWorkspaceTripCreated:        CategoryTripUpdates,
+	notifications.TypeTripSubmittedForApproval:    CategoryCollaboration,
+	notifications.TypeTripApproved:                CategoryCollaboration,
+	notifications.TypeTripChangesRequested:        CategoryCollaboration,
+	notifications.TypeTripApprovalCancelled:       CategoryCollaboration,
+	notifications.TypeTripApprovalResetToDraft:    CategoryCollaboration,
 }
 
 // CategoryForNotificationType maps a notification type to its preference

@@ -22,6 +22,13 @@ const (
 	TypeWorkspaceBudgetArchived  = "workspace_budget_archived"
 	TypeWorkspaceBudgetExceeded  = "workspace_budget_exceeded"
 	TypeWorkspaceBudgetNearLimit = "workspace_budget_nearing_limit"
+
+	// Approval workflow.
+	TypeTripSubmittedForApproval = "trip_submitted_for_approval"
+	TypeTripApproved             = "trip_approved"
+	TypeTripChangesRequested     = "trip_changes_requested"
+	TypeTripApprovalCancelled    = "trip_approval_cancelled"
+	TypeTripApprovalResetToDraft = "trip_approval_reset_to_draft"
 )
 
 // Entity type constants describe the kind of object a notification refers to.

@@ -144,10 +144,19 @@ Current known types include:
 - `workspace_member_removed`
 - `workspace_role_changed`
 - `workspace_trip_created`
+- `trip_submitted_for_approval`
+- `trip_approved`
+- `trip_changes_requested`
+- `trip_approval_cancelled`
+- `trip_approval_reset_to_draft`
 
 Workspace invitations and accepted/declined events use the `collaboration`
 category, role/removal events use `role_changes`, and optional workspace trip
-created plus workspace budget events use `trip_updates`. Email templates link
+created plus workspace budget events use `trip_updates`. The five workspace
+approval types (`trip_submitted_for_approval`, `trip_approved`,
+`trip_changes_requested`, `trip_approval_cancelled`,
+`trip_approval_reset_to_draft`) use the `collaboration` category and carry only
+`tripId`, `workspaceId`, and `approvalStatus` in metadata. Email templates link
 workspace invites to `/workspace-invitations`, role changes to
 `/workspaces/{workspaceId}`, and never include secrets or full metadata.
 

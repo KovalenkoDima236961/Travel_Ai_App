@@ -1540,6 +1540,39 @@ type routeTestRepo struct {
 	tripTravelers               map[uuid.UUID]entity.TripTraveler
 }
 
+// --- approval workflow (route tests do not exercise approval endpoints; these
+// stubs satisfy the repository interface) ---
+
+func (r *routeTestRepo) GetTripApprovalFields(_ context.Context, tripID uuid.UUID) (*entity.TripApprovalFields, error) {
+	return &entity.TripApprovalFields{TripID: tripID, Status: "not_required"}, nil
+}
+
+func (r *routeTestRepo) UpdateTripApprovalStatus(_ context.Context, fields *entity.TripApprovalFields) (*entity.TripApprovalFields, error) {
+	cp := *fields
+	return &cp, nil
+}
+
+func (r *routeTestRepo) InsertTripApprovalEvent(_ context.Context, event *entity.TripApprovalEvent) (*entity.TripApprovalEvent, error) {
+	cp := *event
+	return &cp, nil
+}
+
+func (r *routeTestRepo) ListTripApprovalEventsByTrip(_ context.Context, _ uuid.UUID, _ int) ([]entity.TripApprovalEvent, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) ListWorkspaceApprovals(_ context.Context, _ entity.ListWorkspaceApprovalsParams) ([]entity.WorkspaceApprovalRow, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) CountWorkspaceApprovalsByStatus(_ context.Context, _ uuid.UUID) (entity.WorkspaceApprovalCounts, error) {
+	return entity.WorkspaceApprovalCounts{}, nil
+}
+
+func (r *routeTestRepo) ResetApprovalStatusForTripIfActive(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*entity.ApprovalResetResult, error) {
+	return &entity.ApprovalResetResult{Reset: false}, nil
+}
+
 func (r *routeTestRepo) CreateTripActivityEvent(_ context.Context, event *entity.TripActivityEvent) (*entity.TripActivityEvent, error) {
 	stored := *event
 	if stored.CreatedAt.IsZero() {

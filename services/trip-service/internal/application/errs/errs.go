@@ -52,6 +52,20 @@ func NewItineraryConflict(currentItineraryRevision int) *ItineraryConflictError 
 	return &ItineraryConflictError{CurrentItineraryRevision: currentItineraryRevision}
 }
 
+// ConflictError signals that a request is well-formed and authorized but not
+// valid for the resource's current state (e.g. approving a trip that is not
+// pending approval). The HTTP layer maps it to 409.
+type ConflictError struct {
+	Message string
+}
+
+func (e *ConflictError) Error() string { return e.Message }
+
+// NewConflict builds a ConflictError from a format string.
+func NewConflict(format string, args ...any) *ConflictError {
+	return &ConflictError{Message: fmt.Sprintf(format, args...)}
+}
+
 // DependencyError signals that an upstream dependency required by the use case
 // is unavailable or returned unusable data.
 type DependencyError struct {

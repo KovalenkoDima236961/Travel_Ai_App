@@ -113,6 +113,8 @@ func (s *Service) CreateTripTraveler(
 		},
 	})
 
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Travelers changed")
+
 	return created, nil
 }
 
@@ -182,6 +184,8 @@ func (s *Service) UpdateTripTraveler(
 		},
 	})
 
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Travelers changed")
+
 	return updated, nil
 }
 
@@ -216,6 +220,9 @@ func (s *Service) RemoveTripTraveler(ctx context.Context, tripID, travelerID uui
 			"travelerName": removed.Name,
 		},
 	})
+
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Travelers changed")
+
 	return removed, nil
 }
 
@@ -297,6 +304,9 @@ func (s *Service) UpdateItemCostSplit(
 			"splitType": split.Type,
 		},
 	})
+
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Cost split changed")
+
 	return updated, nil
 }
 
@@ -347,6 +357,9 @@ func (s *Service) UpdateAccommodationCostSplit(
 			"splitType": split.Type,
 		},
 	})
+
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Cost split changed")
+
 	return updated, nil
 }
 

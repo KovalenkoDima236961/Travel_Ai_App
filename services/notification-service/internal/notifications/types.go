@@ -42,6 +42,13 @@ const (
 	TypeWorkspaceMemberRemoved      = "workspace_member_removed"
 	TypeWorkspaceRoleChanged        = "workspace_role_changed"
 	TypeWorkspaceTripCreated        = "workspace_trip_created"
+
+	// Approval workflow.
+	TypeTripSubmittedForApproval = "trip_submitted_for_approval"
+	TypeTripApproved             = "trip_approved"
+	TypeTripChangesRequested     = "trip_changes_requested"
+	TypeTripApprovalCancelled    = "trip_approval_cancelled"
+	TypeTripApprovalResetToDraft = "trip_approval_reset_to_draft"
 )
 
 // Entity type constants describe the kind of object a notification refers to.
@@ -86,6 +93,11 @@ var knownTypes = map[string]struct{}{
 	TypeWorkspaceMemberRemoved:      {},
 	TypeWorkspaceRoleChanged:        {},
 	TypeWorkspaceTripCreated:        {},
+	TypeTripSubmittedForApproval:    {},
+	TypeTripApproved:                {},
+	TypeTripChangesRequested:        {},
+	TypeTripApprovalCancelled:       {},
+	TypeTripApprovalResetToDraft:    {},
 }
 
 // IsKnownType reports whether the notification type is part of the recognised

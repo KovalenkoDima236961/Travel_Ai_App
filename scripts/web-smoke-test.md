@@ -1026,6 +1026,38 @@ at once: the trip **owner** and a **second user** (collaborator).
 12. Open the public share link (`/share/<shareToken>`) in a logged-out session
     and confirm there is **no** notification bell.
 
+## Workspace Approval Workflow (Trip Service + Web)
+
+Use two browsers: workspace owner A and member B (from the Workspaces flow).
+
+1. As A, create a workspace and invite B as `member`; B accepts.
+2. As B, switch to the workspace and create a workspace trip, then generate or
+   edit an itinerary so it has at least one day and one activity.
+3. As B, open the trip detail page. Confirm the **Approval** panel shows a
+   **Draft** badge and a checklist. Warnings (missing budget, availability, etc.)
+   are listed but do not block submission.
+4. As B, click **Submit for approval**. Optionally acknowledge warnings and add a
+   note, then submit. Confirm the badge changes to **Pending approval**.
+5. As A, open `/workspaces/<id>/approvals`. Confirm the trip appears under
+   **Pending** with the submitter, checklist status, and estimated total, and
+   that the counts row reflects one pending item.
+6. As A, click **Request changes**, enter a required note, and submit. Confirm
+   the trip moves to **Changes requested** and B receives a notification.
+7. As B, confirm the trip detail shows **Changes requested** with the reviewer
+   note, edit as needed, and resubmit.
+8. As A, click **Approve** (optional note). Confirm the badge shows **Approved**
+   and B is notified.
+9. As B, edit the itinerary (or budget/travelers/cost split). Confirm the badge
+   returns to **Draft** and the panel notes it must be resubmitted. The panel
+   also warns before editing an approved trip.
+10. As A, change B's role to `viewer`. Confirm B can still open the approval
+    panel read-only but the **Submit for approval** button is gone and the API
+    rejects submission.
+11. Open a personal trip and confirm the approval panel reads
+    **Approval not required** with no actions.
+12. While offline (DevTools → Network → Offline), confirm approval actions are
+    disabled with an "Approval actions require internet" note.
+
 ## Troubleshooting
 
 ### Optional Ops Dashboard Check

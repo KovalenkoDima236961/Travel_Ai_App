@@ -8,6 +8,8 @@ import { AccommodationPanel } from "@/components/accommodation/AccommodationPane
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { TripApprovalBadge } from "@/components/approvals/TripApprovalBadge";
+import { TripApprovalPanel } from "@/components/approvals/TripApprovalPanel";
 import { BudgetOptimizationProposalCard } from "@/components/budget-optimization/BudgetOptimizationProposalCard";
 import { BudgetOptimizationRequestDialog } from "@/components/budget-optimization/BudgetOptimizationRequestDialog";
 import { CalendarSyncPanel } from "@/components/calendar/CalendarSyncPanel";
@@ -1686,6 +1688,7 @@ function TripDetailPageContent() {
                 Access: {formatAccessSource(access.source)}
               </span>
             ) : null}
+            {trip.workspaceId ? <TripApprovalBadge tripId={trip.id} /> : null}
           </div>
         </div>
         {canGenerate ? (
@@ -1772,6 +1775,7 @@ function TripDetailPageContent() {
             />
           ) : null}
 
+          {trip.workspaceId ? <TripApprovalPanel tripId={trip.id} /> : null}
           {canManageShare ? <ShareTripPanel tripId={trip.id} /> : null}
           {onlineActionsEnabled && trip.status === "COMPLETED" && trip.itinerary ? (
             <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />

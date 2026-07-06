@@ -30,11 +30,12 @@ const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
 func InsertColumns() []string {
 	return []string{
 		"user_id", "workspace_id", "destination", "start_date", "days", "budget_amount",
-		"budget_currency", "travelers", "interests", "pace", "status",
+		"budget_currency", "travelers", "interests", "pace", "status", "approval_status",
 	}
 }
 
-// InsertValues returns the values for InsertColumns, in matching order.
+// InsertValues returns the values for InsertColumns, in matching order. Workspace
+// trips start life as an approval draft; personal trips are not_required.
 func InsertValues(t *entity.Trip) ([]any, error) {
 	interests, err := marshalInterests(t.Interests)
 	if err != nil {
@@ -43,8 +44,18 @@ func InsertValues(t *entity.Trip) ([]any, error) {
 	return []any{
 		toPgUUIDPtr(t.UserID), toPgUUIDPtr(t.WorkspaceID), t.Destination, toPgDate(t.StartDate), t.Days,
 		toPgNumeric(t.BudgetAmount), toPgText(t.BudgetCurrency), t.Travelers,
-		interests, t.Pace, string(t.Status),
+		interests, t.Pace, string(t.Status), initialApprovalStatus(t.WorkspaceID),
 	}, nil
+}
+
+// initialApprovalStatus returns the approval status a freshly created trip should
+// carry: draft for workspace trips (so they can be submitted), not_required for
+// personal trips.
+func initialApprovalStatus(workspaceID *uuid.UUID) string {
+	if workspaceID != nil {
+		return "draft"
+	}
+	return "not_required"
 }
 
 // IDArg encodes a trip id for use in a WHERE clause.

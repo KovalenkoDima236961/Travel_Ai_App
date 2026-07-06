@@ -316,6 +316,94 @@ Limitations: workspace budgets do not block trip edits, do not represent actual
 payments, do not split costs between members, and are not accounting, tax,
 invoice, reimbursement, or billing records.
 
+## Workspace Approval Workflow
+
+A lightweight review/approval flow for **workspace** trips. Personal trips are
+always `not_required` and expose no approval actions.
+
+### Storage
+
+Approval state lives on the `trips` table (added in migration `000020`):
+
+`approval_status`, `approval_submitted_at/_by_user_id`,
+`approval_approved_at/_by_user_id`, `approval_changes_requested_at/_by_user_id`,
+`approval_cancelled_at/_by_user_id`, `approval_note`, `approval_decision_note`,
+and `approval_last_status_changed_at/_by_user_id`. Indexes cover
+`(workspace_id, approval_status)`, `approval_submitted_at`, and
+`approval_approved_at`.
+
+Approval history is kept separately in `trip_approval_events`
+(`event_type`, `from_status`, `to_status`, `note`, `checklist_snapshot` JSONB)
+so decisions have a durable trail independent of the generic activity feed.
+
+### Statuses and transitions
+
+- `not_required` — personal trip; approval does not apply.
+- `draft` — default for new/backfilled workspace trips; submittable.
+- `pending_approval` — submitted, awaiting owner/admin review.
+- `changes_requested` — owner/admin asked for changes; editable and resubmittable.
+- `approved` — owner/admin approved.
+- `cancelled` — a pending submission was withdrawn; resubmittable.
+
+Submit is allowed from `draft`, `changes_requested`, or `cancelled`.
+Approve / request-changes / cancel are only allowed from `pending_approval`.
+
+### Endpoints
+
+| Method | Path | Who |
+| --- | --- | --- |
+| `GET` | `/trips/{id}/approval` | any user with trip view access |
+| `POST` | `/trips/{id}/approval/submit` | trip editor/owner (workspace trip) |
+| `POST` | `/trips/{id}/approval/approve` | workspace owner/admin |
+| `POST` | `/trips/{id}/approval/request-changes` | workspace owner/admin (note required) |
+| `POST` | `/trips/{id}/approval/cancel` | submitter or workspace owner/admin |
+| `GET` | `/trips/{id}/approval/events` | any user with trip view access |
+| `GET` | `/workspaces/{workspaceId}/approvals` | any active workspace member |
+
+`GET /approval` returns the state, a freshly computed checklist, and per-caller
+`canSubmit/canApprove/canRequestChanges/canCancel` flags. The workspace queue
+returns rows (with checklist status, warning/critical counts, estimated total),
+per-status `counts`, and a `nextCursor`; it defaults to the active review set
+(pending, changes requested, draft) and accepts
+`status=pending_approval|changes_requested|approved|draft|cancelled|all`.
+
+### Checklist
+
+The pure calculator (`internal/approvals`) evaluates: `itinerary_exists`
+(the only **blocker**), `budget_exists`, `workspace_budget_status`,
+`trip_budget_status`, `cost_splitting_configured`, `availability_checked`, and
+`missing_cost_estimates` (all warnings). Submission is blocked only by a failing
+blocker (a missing itinerary), a missing permission, or a non-workspace trip;
+warnings never block and can be acknowledged (stored in the submit event's
+checklist snapshot). To keep the checklist lightweight, `workspace_budget_status`
+is an existence check rather than a full cross-trip budget evaluation.
+
+### Reset on edit
+
+After a **successful** material change to an approved or pending workspace trip,
+`ResetApprovalIfApproved` atomically moves it back to `draft`, records a
+`reset_to_draft` event and activity, and notifies the previous submitter/approver.
+It is best-effort and post-commit, so it never fails or rolls back the edit.
+Material triggers: itinerary writes (manual edit, day/item regeneration, version
+restore, generation completion, budget-optimization apply — all via the single
+itinerary save path), plus budget, accommodation, cost-split, and traveler
+changes. Comments, activity, notifications, presence, sharing, calendar sync,
+export, and analytics are **not** material.
+
+### Notifications and activity
+
+Each action records a generic activity event (`trip_submitted_for_approval`,
+`trip_approved`, `trip_changes_requested`, `trip_approval_cancelled`,
+`trip_approval_reset_to_draft`) with `fromStatus`/`toStatus`/`noteSnippet`, and
+sends matching notifications (submit → owners/admins; approve/request-changes →
+submitter + trip editors; cancel → the other party; reset → previous
+submitter/approver), always excluding the actor. Notification metadata is limited
+to `tripId`, `workspaceId`, and `approvalStatus`.
+
+Limitations: approval is lightweight planning approval, not a legal/compliance
+workflow. It does not lock a trip from edits (editing an approved trip resets it
+to draft), has no multi-step chains, delegation, due dates, or SLA escalation.
+
 ## Important Configuration
 
 | Variable | Purpose |

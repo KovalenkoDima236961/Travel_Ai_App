@@ -79,6 +79,8 @@ func (s *Service) UpdateTripAccommodation(ctx context.Context, tripID uuid.UUID,
 		Metadata:    accommodationActivityMetadata(accommodation),
 	})
 
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Accommodation changed")
+
 	return updated, nil
 }
 
@@ -111,6 +113,8 @@ func (s *Service) DeleteTripAccommodation(ctx context.Context, tripID uuid.UUID)
 		EntityID:    activityEntityID(tripID),
 		Metadata:    accommodationActivityMetadata(current.Accommodation),
 	})
+
+	s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Accommodation removed")
 
 	return updated, nil
 }
