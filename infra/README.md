@@ -60,7 +60,7 @@ flowchart TD
     Prom --> AI
     Prom --> Worker
     Prom --> Rabbit
-    Grafana["grafana :3001"] --> Prom
+    Grafana["grafana :3030"] --> Prom
     Adminer["adminer :8081"] --> Postgres
 ```
 
@@ -81,7 +81,7 @@ flowchart TD
 | RabbitMQ UI | `http://localhost:15672` | `guest` / `guest`, local only. |
 | RabbitMQ metrics | `http://localhost:15692/metrics` | Prometheus scrape target. |
 | Prometheus | `http://localhost:9090` | Local metrics. |
-| Grafana | `http://localhost:3001` | `admin` / `admin`, local only. |
+| Grafana | `http://localhost:3030` | `admin` / `admin`, local only. |
 | Adminer | `http://localhost:8081` | PostgreSQL browser. |
 
 Adminer defaults:

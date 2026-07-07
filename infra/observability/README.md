@@ -16,7 +16,7 @@ flowchart LR
     AI["ai-planning-service<br/>/metrics"] --> Prom
     Worker["worker-service<br/>/metrics"] --> Prom
     Rabbit["RabbitMQ Prometheus<br/>:15692/metrics"] --> Prom
-    Prom --> Grafana["Grafana :3001"]
+    Prom --> Grafana["Grafana :3030"]
     Dashboards["Provisioned dashboards"] --> Grafana
 ```
 
@@ -31,7 +31,7 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 | Surface | URL | Notes |
 | ------- | --- | ----- |
 | Prometheus | `http://localhost:9090` | Scrape targets and PromQL. |
-| Grafana | `http://localhost:3001` | `admin` / `admin`, local only. |
+| Grafana | `http://localhost:3030` | `admin` / `admin`, local only. |
 | RabbitMQ metrics | `http://localhost:15692/metrics` | Scraped by Prometheus. |
 | RabbitMQ UI | `http://localhost:15672` | `guest` / `guest`, local only. |
 
