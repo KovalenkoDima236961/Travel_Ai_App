@@ -11,15 +11,17 @@ import (
 
 type ctxKey struct{}
 
-var once = &sync.Once{}
+var (
+	once sync.Once
+	root *zap.Logger
+)
 
 // InitLogger initialises the process logger.
 func InitLogger() *zap.Logger {
-	var logger *zap.Logger
 	once.Do(func() {
-		logger = buildLogger()
+		root = buildLogger()
 	})
-	return logger
+	return root
 }
 
 // FromCtx returns a logger stored in context.

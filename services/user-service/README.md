@@ -96,6 +96,16 @@ make migrate-up
 make migrate-down
 ```
 
+## Go Package Layout
+
+- `cmd/server` and `cmd/migrate` are thin executable entrypoints.
+- `internal/app` is the composition root: config, logger, dependencies, HTTP server, and shutdown lifecycle.
+- `internal/application`, `internal/domain`, and `internal/workspaces` contain user-service business rules.
+- `internal/authusers` and `internal/notifications` are outbound adapters to other Travel AI services.
+- `internal/httpserver` owns transport concerns: routing, middleware, request/response DTOs, and handlers.
+- `internal/repository/postgres` owns user profile and preference persistence.
+- `pkg` is reserved for project-agnostic plumbing that can be reused without knowing user-service domain rules: logger, shutdown stack, observability middleware, Postgres bootstrapping, and validation.
+
 ## Configuration
 
 | Variable | Default | Notes |
@@ -137,6 +147,7 @@ curl -X PATCH http://localhost:8083/users/me/preferences \
 
 ```bash
 make fmt
+make lint
 make vet
 make test
 make build

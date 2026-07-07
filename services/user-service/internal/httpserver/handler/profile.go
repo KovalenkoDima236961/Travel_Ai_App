@@ -12,8 +12,8 @@ import (
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/service"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/domain/errs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/dto/request"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/dto/request"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/validation"
 )
 

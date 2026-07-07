@@ -79,15 +79,6 @@ type CORSConfig struct {
 	AllowedHeaders string `yaml:"allowed_headers" env:"CORS_ALLOWED_HEADERS" env-default:"Content-Type,Authorization"`
 }
 
-// MustLoad loads and validates the configuration, panicking on any error.
-func MustLoad(path string) *Config {
-	cfg, err := Load(path)
-	if err != nil {
-		panic(fmt.Errorf("config: %w", err))
-	}
-	return cfg
-}
-
 // Load reads configuration from the given YAML path, or environment only when
 // path is empty, and validates it.
 func Load(path string) (*Config, error) {

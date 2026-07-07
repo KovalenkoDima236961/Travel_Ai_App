@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/infrastructure/repository/postgres/dto"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/repository/postgres/dto"
 	storage "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/storage/postgres"
 )
 

@@ -19,7 +19,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/domain/errs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/handler"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/validation"
 )
 

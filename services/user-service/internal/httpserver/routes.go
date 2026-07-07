@@ -12,8 +12,8 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/config"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/handler"
-	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/handler"
+	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/workspaces"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/observability"
 )

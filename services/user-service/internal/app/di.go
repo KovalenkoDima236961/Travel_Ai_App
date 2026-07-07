@@ -10,10 +10,10 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/authusers"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/config"
-	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/http-server/handler"
-	userrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/infrastructure/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/notifications"
+	userrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/workspaces"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/pkg/storage/postgres"
@@ -29,13 +29,18 @@ type container struct {
 
 // buildContainer constructs and wires dependencies in order:
 // postgres (with auto-migrations) -> validator -> repository -> service ->
-// handler -> router. Long-lived resources register themselves with closer.
-func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*container, error) {
+// handler -> router. Long-lived resources register themselves with shutdown.
+func buildContainer(
+	ctx context.Context,
+	cfg *config.Config,
+	log *zap.Logger,
+	shutdown *closer.Stack,
+) (*container, error) {
 	db, err := postgres.New(ctx, cfg.Postgres)
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
-	closer.Add("postgres", func(context.Context) error {
+	shutdown.Add("postgres", func(context.Context) error {
 		db.Close()
 		return nil
 	})
