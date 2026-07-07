@@ -7,13 +7,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
-from prometheus_client import (
-    CONTENT_TYPE_LATEST,
-    Counter,
-    Gauge,
-    Histogram,
-    generate_latest,
-)
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from starlette.responses import Response as StarletteResponse
 
 HEADER_REQUEST_ID = "X-Request-ID"

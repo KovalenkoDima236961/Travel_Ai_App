@@ -74,17 +74,17 @@ class MockTemplateAdapter:
         itinerary = AdaptedItinerary(
             title=f"{target.destination} trip",
             destination=target.destination,
-            startDate=target.start_date,
+            start_date=target.start_date,
             days=adapted_days,
         )
         summary = AdaptationSummary(
-            sourceDurationDays=request.template.duration_days,
-            targetDurationDays=target.duration_days,
-            preservedStructure=request.constraints.preserve_structure,
-            changedDestination=True,
-            majorChanges=major_changes,
+            source_duration_days=request.template.duration_days,
+            target_duration_days=target.duration_days,
+            preserved_structure=request.constraints.preserve_structure,
+            changed_destination=True,
+            major_changes=major_changes,
         )
-        return TemplateAdaptationResponse(itinerary=itinerary, adaptationSummary=summary)
+        return TemplateAdaptationResponse(itinerary=itinerary, adaptation_summary=summary)
 
     def _adapt_day(
         self,

@@ -1,10 +1,6 @@
 from decimal import Decimal
 
-from app.schemas.itinerary import (
-    EstimatedCost,
-    GenerateItineraryRequest,
-    ItineraryItem,
-)
+from app.schemas.itinerary import EstimatedCost, GenerateItineraryRequest, ItineraryItem
 from app.services.itinerary_generator import MockItineraryGenerator
 
 

@@ -8,6 +8,20 @@ Trip Service is the normal caller. The AI service does not own trips, users,
 jobs, notifications, or budgets in storage; it receives context, returns a
 validated JSON proposal/itinerary, and leaves persistence to Trip Service.
 
+## Project Structure
+
+- `app/main.py` is the ASGI entry point and only creates the FastAPI app.
+- `app/application.py` wires settings, app state, middleware, routes, and
+  service implementations.
+- `app/api/` contains route handlers and shared FastAPI dependency accessors.
+- `app/core/` contains cross-cutting infrastructure helpers such as exception
+  handling, readiness checks, and service-relative path resolution.
+- `app/schemas/` contains request and response contracts.
+- `app/services/` contains generator, RAG, validation, prompt, and template
+  adaptation logic.
+- `app/scripts/` contains operational scripts such as local knowledge indexing.
+- `tests/` keeps behavior tests close to the public service surface.
+
 ## Runtime Flow
 
 ```mermaid
@@ -146,6 +160,16 @@ availability.
 
 ## Local Development
 
+Poetry workflow:
+
+```bash
+cd services/ai-planning-service
+make poetry-install
+ITINERARY_GENERATOR_MODE=mock poetry run make run
+```
+
+Virtualenv/pip fallback:
+
 ```bash
 cd services/ai-planning-service
 python3 -m venv .venv
@@ -255,6 +279,12 @@ make fmt-check
 make lint
 make test
 make check
+```
+
+When using Poetry-managed dependencies, run checks through Poetry:
+
+```bash
+poetry run make check
 ```
 
 ## Observability And Safety

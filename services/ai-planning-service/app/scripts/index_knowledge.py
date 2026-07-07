@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import Settings, get_settings
+from app.core.paths import resolve_service_path
 from app.services.chroma_client import create_persistent_chroma_client
 from app.services.knowledge_chunker import chunk_text
 from app.services.ollama_embedding_client import OllamaEmbeddingClient
@@ -13,8 +14,8 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = get_settings()
-    knowledge_dir = _resolve_service_path(settings.rag_knowledge_dir)
-    chroma_dir = _resolve_service_path(settings.rag_chroma_dir)
+    knowledge_dir = resolve_service_path(settings.rag_knowledge_dir)
+    chroma_dir = resolve_service_path(settings.rag_chroma_dir)
 
     if not knowledge_dir.exists() or not knowledge_dir.is_dir():
         raise SystemExit(f"Knowledge directory does not exist: {knowledge_dir}")
@@ -101,19 +102,6 @@ def _iter_knowledge_files(knowledge_dir: Path) -> list[Path]:
         for path in knowledge_dir.rglob("*")
         if path.is_file() and path.suffix.lower() in supported_suffixes
     )
-
-
-def _resolve_service_path(raw_path: str) -> Path:
-    path = Path(raw_path)
-    if path.is_absolute():
-        return path
-
-    cwd_path = Path.cwd() / path
-    if cwd_path.exists():
-        return cwd_path
-
-    service_root = Path(__file__).resolve().parents[2]
-    return service_root / path
 
 
 if __name__ == "__main__":

@@ -1,8 +1,12 @@
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from app.api.dependencies import (
+    get_configured_destination_knowledge_provider,
+    get_configured_settings,
+)
 from app.config import Settings
 from app.schemas.destination_context import (
     DestinationContext,
@@ -17,16 +21,6 @@ from app.services.prompt_builder import build_itinerary_prompt
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def get_configured_settings(request: Request) -> Settings:
-    return request.app.state.settings
-
-
-def get_configured_destination_knowledge_provider(
-    request: Request,
-) -> DestinationKnowledgeProvider | None:
-    return getattr(request.app.state, "destination_knowledge_provider", None)
 
 
 @router.get("/destination-context", response_model=DestinationContextListResponse)

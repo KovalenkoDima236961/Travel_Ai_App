@@ -20,8 +20,11 @@ from app.schemas.itinerary import (
 
 class ItineraryGenerator(Protocol):
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse: ...
+
     def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse: ...
+
     def regenerate_item(self, request: RegenerateItemRequest) -> RegenerateItemResponse: ...
+
     def optimize_budget_day(
         self, request: OptimizeBudgetDayRequest
     ) -> BudgetOptimizationProposalResponse: ...
@@ -164,11 +167,11 @@ class MockItineraryGenerator:
                 f"{savings} {currency} with a cheaper activity alternative."
             ),
             scope="day",
-            dayNumber=request.day_number,
+            day_number=request.day_number,
             currency=currency,
-            baseDayEstimatedTotal=base_total,
-            proposedDayEstimatedTotal=proposed_total,
-            estimatedSavingsAmount=savings,
+            base_day_estimated_total=base_total,
+            proposed_day_estimated_total=proposed_total,
+            estimated_savings_amount=savings,
             confidence="medium",
             changes=[
                 BudgetOptimizationChange(
@@ -183,14 +186,14 @@ class MockItineraryGenerator:
             ],
             preservedItems=[
                 BudgetOptimizationPreservedItem(
-                    itemIndex=0,
-                    itemName=proposed_day.items[0].name,
+                    item_index=0,
+                    item_name=proposed_day.items[0].name,
                     reason="Preserved to keep the day structure recognizable.",
                 )
             ],
             tradeoffs=["The replacement is less premium but keeps the route and theme practical."],
             warnings=["Estimated savings are approximate and should be reviewed."],
-            proposedDay=proposed_day,
+            proposed_day=proposed_day,
         )
 
     def _title_for_day(self, request: GenerateItineraryRequest, day_number: int) -> str:

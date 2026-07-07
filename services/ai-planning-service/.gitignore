@@ -11,3 +11,4 @@ htmlcov/
 .coverage
 dist/
 build/
+docs/_build/

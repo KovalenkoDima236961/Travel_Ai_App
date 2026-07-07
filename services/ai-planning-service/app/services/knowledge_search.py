@@ -1,8 +1,8 @@
 import logging
-from pathlib import Path
 from typing import Any, Protocol
 
 from app.config import Settings
+from app.core.paths import resolve_service_path
 from app.schemas.knowledge import KnowledgeSearchResult
 from app.services.chroma_client import create_persistent_chroma_client
 from app.services.ollama_embedding_client import OllamaEmbeddingClient
@@ -104,7 +104,7 @@ class KnowledgeSearchService:
         try:
             client = create_persistent_chroma_client(
                 self._settings,
-                _resolve_service_path(self._settings.rag_chroma_dir),
+                resolve_service_path(self._settings.rag_chroma_dir),
             )
             self._collection = client.get_collection(
                 self._settings.rag_collection_name,
@@ -208,16 +208,3 @@ def _clean_metadata(metadata: Any) -> dict[str, str | int | float | bool]:
 
 def _normalize_destination(destination: str) -> str:
     return destination.strip().casefold()
-
-
-def _resolve_service_path(raw_path: str) -> Path:
-    path = Path(raw_path)
-    if path.is_absolute():
-        return path
-
-    cwd_path = Path.cwd() / path
-    if cwd_path.exists():
-        return cwd_path
-
-    service_root = Path(__file__).resolve().parents[2]
-    return service_root / path

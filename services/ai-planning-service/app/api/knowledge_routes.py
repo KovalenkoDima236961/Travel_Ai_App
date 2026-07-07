@@ -1,7 +1,8 @@
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 
+from app.api.dependencies import get_configured_knowledge_search_service, get_configured_settings
 from app.config import Settings
 from app.schemas.knowledge import KnowledgeSearchRequest, KnowledgeSearchResponse
 from app.services.knowledge_search import KnowledgeSearchService
@@ -9,14 +10,6 @@ from app.services.knowledge_search import KnowledgeSearchService
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def get_configured_settings(request: Request) -> Settings:
-    return request.app.state.settings
-
-
-def get_configured_knowledge_search_service(request: Request) -> KnowledgeSearchService | None:
-    return getattr(request.app.state, "knowledge_search_service", None)
 
 
 @router.post("/knowledge/search", response_model=KnowledgeSearchResponse)

@@ -1,7 +1,7 @@
 import logging
-from pathlib import Path
 
 from app.config import Settings
+from app.core.paths import resolve_service_path
 from app.services.destination_knowledge import (
     DestinationKnowledgeProvider,
     FileDestinationKnowledgeProvider,
@@ -47,7 +47,7 @@ def get_destination_knowledge_provider(settings: Settings) -> DestinationKnowled
     if not settings.destination_context_enabled:
         return None
 
-    data_dir = _resolve_destination_context_dir(settings.destination_context_dir)
+    data_dir = resolve_service_path(settings.destination_context_dir)
     if not data_dir.exists() or not data_dir.is_dir():
         logger.warning(
             "Destination context directory is missing or invalid",
@@ -62,16 +62,3 @@ def get_knowledge_search_service(settings: Settings) -> KnowledgeSearchService |
     if not settings.rag_enabled:
         return None
     return KnowledgeSearchService(settings=settings)
-
-
-def _resolve_destination_context_dir(raw_data_dir: str) -> Path:
-    data_dir = Path(raw_data_dir)
-    if data_dir.is_absolute():
-        return data_dir
-
-    cwd_data_dir = Path.cwd() / data_dir
-    if cwd_data_dir.exists():
-        return cwd_data_dir
-
-    service_root = Path(__file__).resolve().parents[2]
-    return service_root / data_dir

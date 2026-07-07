@@ -866,7 +866,7 @@ def _items_per_day_for_pace(pace: str) -> int:
     return _ITEMS_PER_DAY_BY_PACE.get(pace, _ITEMS_PER_DAY_BY_PACE["balanced"])
 
 
-def _partial_trip_section(request: RegenerateDayRequest) -> str:
+def _partial_trip_section(request: RegenerateDayRequest | OptimizeBudgetDayRequest) -> str:
     trip = request.trip
     budget = (
         f"{trip.budget_amount} {trip.budget_currency}"
@@ -889,7 +889,9 @@ def _partial_trip_section(request: RegenerateDayRequest) -> str:
     )
 
 
-def _partial_user_context_section(request: RegenerateDayRequest) -> str:
+def _partial_user_context_section(
+    request: RegenerateDayRequest | OptimizeBudgetDayRequest,
+) -> str:
     profile = request.user_profile
     preferences = request.user_preferences
     if profile is None and preferences is None:
