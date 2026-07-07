@@ -1,10 +1,10 @@
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import {
   formatAnalyticsLabel,
   formatAnalyticsMoney,
   formatPercent
 } from "@/components/analytics/format";
-import type { CostAmountBreakdown } from "@/types/cost-analytics";
+import type { CostAmountBreakdown } from "@/entities/cost-analytics/model";
 
 type CostBreakdownBarsProps = {
   title: string;

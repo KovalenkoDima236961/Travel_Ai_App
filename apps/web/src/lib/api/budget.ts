@@ -1,5 +1,5 @@
-import { apiFetch } from "@/lib/api/client";
-import type { Budget, BudgetSummary } from "@/types/budget";
+import { apiFetch } from "@/shared/api/client";
+import type { Budget, BudgetSummary } from "@/entities/budget/model";
 
 export const budgetKeys = {
   summary: (tripId: string) => ["trips", "detail", tripId, "budget-summary"] as const

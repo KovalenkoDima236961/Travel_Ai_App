@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
-import { getAccessToken } from "@/lib/auth/token-storage";
-import { getTripApiBaseUrl } from "@/lib/config";
+import { getAccessToken } from "@/shared/api/auth";
+import { getTripApiBaseUrl } from "@/shared/config";
 import { parseSSEChunk } from "@/lib/notifications/sse-parser";
-import type { ActivityStreamMessage, TripActivityEvent } from "@/types/activity";
+import type { ActivityStreamMessage, TripActivityEvent } from "@/entities/activity/model";
 
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;

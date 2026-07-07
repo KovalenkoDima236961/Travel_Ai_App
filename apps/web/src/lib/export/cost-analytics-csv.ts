@@ -2,7 +2,7 @@ import type {
   CostAmountBreakdown,
   TripCostAnalytics,
   WorkspaceCostAnalytics
-} from "@/types/cost-analytics";
+} from "@/entities/cost-analytics/model";
 
 const DISCLAIMER =
   "Costs are estimates for planning purposes only. Provider prices, availability, exchange rates, and booking costs may change.";

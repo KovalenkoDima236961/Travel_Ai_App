@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch } from "@/shared/api/client";
 import type {
   CostSplitRule,
   CostSplittingSummary,
@@ -6,8 +6,8 @@ import type {
   TripTraveler,
   TripTravelersResponse,
   UpdateTripTravelerInput
-} from "@/types/cost-splitting";
-import type { Trip } from "@/types/trip";
+} from "@/entities/cost-splitting/model";
+import type { Trip } from "@/entities/trip/model";
 
 export const costSplittingKeys = {
   all: ["cost-splitting"] as const,

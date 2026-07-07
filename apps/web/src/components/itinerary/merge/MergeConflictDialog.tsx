@@ -3,12 +3,12 @@
 import { ChangeSummaryList } from "@/components/itinerary/merge/ChangeSummaryList";
 import { ConflictResolutionList } from "@/components/itinerary/merge/ConflictResolutionList";
 import { MergedItineraryPreview } from "@/components/itinerary/merge/MergedItineraryPreview";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/shared/ui/button";
 import type {
   ConflictResolution,
   ConflictResolutionMap,
   ItineraryMergeResult
-} from "@/lib/itinerary/diff-merge/types";
+} from "@/entities/itinerary/model/diff-merge/types";
 
 type MergeConflictDialogProps = {
   mergeResult: ItineraryMergeResult;

@@ -16,8 +16,8 @@ import {
 } from "@/lib/offline/sync-queue";
 import type { CachedTripRecord, PendingItineraryMutation } from "@/lib/offline/types";
 import { formatDate } from "@/lib/utils";
-import { Button, buttonStyles } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Button, buttonStyles } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
 
 type OfflineTripsListProps = {
   userId: string;

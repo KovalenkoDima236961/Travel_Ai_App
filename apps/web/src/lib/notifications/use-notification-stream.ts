@@ -5,10 +5,10 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { notificationKeys } from "@/lib/api/notifications";
-import { getAccessToken } from "@/lib/auth/token-storage";
-import { getNotificationApiBaseUrl } from "@/lib/config";
+import { getAccessToken } from "@/shared/api/auth";
+import { getNotificationApiBaseUrl } from "@/shared/config";
 import { parseSSEChunk } from "@/lib/notifications/sse-parser";
-import type { NotificationCreatedStreamPayload } from "@/types/notifications";
+import type { NotificationCreatedStreamPayload } from "@/entities/notification/model";
 
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { Button, buttonStyles } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/shared/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 

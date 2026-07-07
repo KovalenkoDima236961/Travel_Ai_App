@@ -1,6 +1,6 @@
-import { formatApproxMoney, formatMoney } from "@/lib/budget/format";
+import { formatApproxMoney, formatMoney } from "@/entities/budget/model";
 import type { TripPdfLine } from "@/lib/export/trip-pdf-lines";
-import type { WorkspaceBudgetSummary } from "@/types/workspace-budget";
+import type { WorkspaceBudgetSummary } from "@/entities/workspace-budget/model";
 
 const DISCLAIMER =
   "Costs are estimates for planning purposes only. Provider prices, availability, exchange rates, and booking costs may change.";

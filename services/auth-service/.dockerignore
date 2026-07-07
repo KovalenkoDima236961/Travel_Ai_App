@@ -1,9 +1,22 @@
-.env
+# VCS / tooling
 .git
 .gitignore
+.dockerignore
+
+# Docker / Compose
 Dockerfile
 docker-compose.yml
-.dockerignore
+docker-compose.*.yml
+
+# Docs
+*.md
+
+# Env / secrets
+.env
+.env.*
+
+# Local Go caches & build artifacts (never needed in the image)
+.cache/
 bin/
-coverage.out
 tmp/
+coverage.out

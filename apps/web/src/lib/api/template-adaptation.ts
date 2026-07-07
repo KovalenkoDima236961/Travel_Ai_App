@@ -1,7 +1,7 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch } from "@/shared/api/client";
 import { getGenerationJob } from "@/lib/api/generation-jobs";
-import type { GenerationJob } from "@/types/generation-jobs";
-import type { TemplateAdaptationInput } from "@/types/template-adaptation";
+import type { GenerationJob } from "@/entities/generation-job/model";
+import type { TemplateAdaptationInput } from "@/entities/template-adaptation/model";
 
 type GenerationJobEnvelope = {
   job: GenerationJob;

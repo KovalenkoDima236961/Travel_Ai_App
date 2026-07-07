@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Select } from "@/components/ui/Select";
-import { buttonStyles } from "@/components/ui/Button";
+import { Select } from "@/shared/ui/select";
+import { buttonStyles } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 
 export function WorkspaceSwitcher() {

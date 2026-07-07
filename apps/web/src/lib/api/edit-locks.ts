@@ -1,9 +1,9 @@
-import { ApiError, apiFetch } from "@/lib/api/client";
+import { ApiError, apiFetch } from "@/shared/api/client";
 import type {
   AcquireEditLockResponse,
   EditLockView,
   ReleaseEditLockResponse
-} from "@/types/edit-locks";
+} from "@/entities/edit-lock/model";
 
 type EditLockConflictPayload = {
   acquired?: boolean;

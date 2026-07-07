@@ -1,12 +1,12 @@
 "use client";
 
 import { ChangeSummaryList } from "@/components/itinerary/merge/ChangeSummaryList";
-import { describeConflict } from "@/lib/itinerary/diff-merge/describe";
+import { describeConflict } from "@/entities/itinerary/model/diff-merge/describe";
 import type {
   ConflictResolution,
   ConflictResolutionMap,
   ItineraryMergeConflict
-} from "@/lib/itinerary/diff-merge/types";
+} from "@/entities/itinerary/model/diff-merge/types";
 
 type ConflictResolutionListProps = {
   conflicts: ItineraryMergeConflict[];

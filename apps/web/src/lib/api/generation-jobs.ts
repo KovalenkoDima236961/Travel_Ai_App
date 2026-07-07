@@ -1,9 +1,9 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch } from "@/shared/api/client";
 import type {
   CreateGenerationJobRequest,
   GenerationJob,
   GenerationJobsListResponse
-} from "@/types/generation-jobs";
+} from "@/entities/generation-job/model";
 
 type GenerationJobEnvelope = {
   job: GenerationJob;

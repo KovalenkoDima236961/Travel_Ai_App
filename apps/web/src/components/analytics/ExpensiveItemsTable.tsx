@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
 import {
   formatAnalyticsLabel,
   formatAnalyticsMoney,
   formatPercent
 } from "@/components/analytics/format";
-import type { ExpensiveCostItem } from "@/types/cost-analytics";
+import type { ExpensiveCostItem } from "@/entities/cost-analytics/model";
 
 type ExpensiveItemsTableProps = {
   items: ExpensiveCostItem[];

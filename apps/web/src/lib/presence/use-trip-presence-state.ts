@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 
 import { updateTripPresenceState } from "@/lib/api/presence";
-import type { PresenceState } from "@/types/presence";
+import type { PresenceState } from "@/entities/presence/model";
 
 export function useTripPresenceState(tripId: string, enabled: boolean) {
   return useCallback(

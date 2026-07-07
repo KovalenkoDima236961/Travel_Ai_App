@@ -1,21 +1,21 @@
 "use client";
 
 import { useMemo } from "react";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { analyzeItineraryQuality } from "@/lib/itinerary/quality-analyzer";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
+import { analyzeItineraryQuality } from "@/entities/itinerary/model/quality-analyzer";
 import {
   buildImproveDayInstruction,
   buildImproveItemInstruction
-} from "@/lib/itinerary/quality-instruction-builder";
+} from "@/entities/itinerary/model/quality-instruction-builder";
 import { cn } from "@/lib/utils";
-import type { AvailabilityResultByItem } from "@/types/availability";
-import type { BudgetSummary } from "@/types/budget";
-import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
-import type { QualityIssue, QualityIssueSeverity, QualityIssueType } from "@/types/quality";
-import type { RouteEstimate } from "@/types/route";
-import type { Trip } from "@/types/trip";
-import type { WeatherForecast } from "@/types/weather";
+import type { AvailabilityResultByItem } from "@/entities/availability/model";
+import type { BudgetSummary } from "@/entities/budget/model";
+import type { DayDistanceSummary } from "@/entities/itinerary/model/distance-utils";
+import type { QualityIssue, QualityIssueSeverity, QualityIssueType } from "@/entities/quality/model";
+import type { RouteEstimate } from "@/entities/route/model";
+import type { Trip } from "@/entities/trip/model";
+import type { WeatherForecast } from "@/entities/weather/model";
 
 type TripQualityChecksProps = {
   trip: Trip;

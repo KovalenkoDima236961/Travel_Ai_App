@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch } from "@/shared/api/client";
 import type {
   ApprovalDecisionInput,
   CancelApprovalInput,
@@ -7,7 +7,7 @@ import type {
   TripApprovalState,
   WorkspaceApprovalsResponse,
   WorkspaceApprovalStatusFilter
-} from "@/types/approval";
+} from "@/entities/approval/model";
 
 export const approvalKeys = {
   all: ["approvals"] as const,

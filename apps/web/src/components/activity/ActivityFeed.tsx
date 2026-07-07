@@ -1,12 +1,12 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/shared/ui/button";
 import { activityKeys, listTripActivity } from "@/lib/api/activity";
-import { formatActivityEvent } from "@/lib/activity/format-activity-event";
-import { groupActivityByDate } from "@/lib/activity/group-activity-by-date";
+import { formatActivityEvent } from "@/entities/activity/model";
+import { groupActivityByDate } from "@/entities/activity/model";
 import { formatDate } from "@/lib/utils";
-import type { TripActivityEvent } from "@/types/activity";
+import type { TripActivityEvent } from "@/entities/activity/model";
 
 const PAGE_SIZE = 30;
 

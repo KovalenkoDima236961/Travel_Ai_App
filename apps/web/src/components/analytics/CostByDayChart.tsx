@@ -1,10 +1,10 @@
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import {
   formatAnalyticsDate,
   formatAnalyticsMoney,
   formatPlainMoney
 } from "@/components/analytics/format";
-import type { CostByDay } from "@/types/cost-analytics";
+import type { CostByDay } from "@/entities/cost-analytics/model";
 
 type CostByDayChartProps = {
   days: CostByDay[];

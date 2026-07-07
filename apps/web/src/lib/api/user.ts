@@ -1,11 +1,11 @@
-import { apiFetch } from "@/lib/api/client";
-import { getUserApiBaseUrl } from "@/lib/config";
+import { apiFetch } from "@/shared/api/client";
+import { getUserApiBaseUrl } from "@/shared/config";
 import type {
   PatchUserPreferencesRequest,
   UpdateUserProfileRequest,
   UserPreferences,
   UserProfile
-} from "@/types/user";
+} from "@/entities/user/model";
 
 export const userKeys = {
   all: ["user"] as const,

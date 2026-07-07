@@ -1,0 +1,28 @@
+# This root .dockerignore governs ONLY the worker-service build — the single
+# Compose service that uses the repo root as its build context
+# (infra/docker-compose.yml: worker-service -> build.context: ..).
+#
+# services/worker-service/Dockerfile compiles just two Go modules:
+#   services/trip-service  and  services/worker-service
+# so we ignore everything and re-include only those. This keeps the build
+# context to a few MB instead of shipping ~5GB of local caches, node_modules,
+# .git history, other services, etc.
+
+# Ignore everything by default
+*
+
+# Re-include only what the worker build actually needs
+!services/trip-service
+!services/worker-service
+
+# Re-exclude heavy / secret paths inside the re-included service dirs
+services/trip-service/.cache
+services/trip-service/bin
+services/trip-service/tmp
+services/trip-service/coverage.out
+services/worker-service/.cache
+services/worker-service/bin
+services/worker-service/tmp
+services/worker-service/coverage.out
+**/.env
+**/.env.*

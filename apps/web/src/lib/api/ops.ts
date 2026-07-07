@@ -1,8 +1,8 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch } from "@/shared/api/client";
 import {
   getExternalIntegrationsApiBaseUrl,
   getWorkerApiBaseUrl
-} from "@/lib/config";
+} from "@/shared/config";
 import type {
   DLQMessage,
   OpsJob,
@@ -13,7 +13,7 @@ import type {
   ProviderStatus,
   QueueStatus,
   WorkerStatus
-} from "@/types/ops";
+} from "@/entities/ops/model";
 
 type OpsJobEnvelope = { job: OpsJob };
 type OpsRetryResponse = { retried: boolean; newJob: OpsJob };

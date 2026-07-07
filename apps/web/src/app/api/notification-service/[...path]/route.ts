@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getNotificationServiceInternalUrl } from "@/lib/config";
+import { getNotificationServiceInternalUrl } from "@/shared/config";
 
 type RouteContext = {
   params: Promise<{

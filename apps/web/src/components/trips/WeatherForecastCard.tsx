@@ -2,10 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import { cn, formatDate } from "@/lib/utils";
-import type { WeatherDay } from "@/types/weather";
+import type { WeatherDay } from "@/entities/weather/model";
 
 type WeatherForecastCardProps = {
   destination: string;

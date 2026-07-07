@@ -5,15 +5,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { CheckboxGroup } from "@/components/settings/CheckboxGroup";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
+import { Input } from "@/shared/ui/input";
+import { Select } from "@/shared/ui/select";
 import type {
   PatchUserPreferencesRequest,
   TravelPace,
   UserPreferences
-} from "@/types/user";
+} from "@/entities/user/model";
 
 const travelStyleOptions = [
   { value: "budget", label: "Budget" },

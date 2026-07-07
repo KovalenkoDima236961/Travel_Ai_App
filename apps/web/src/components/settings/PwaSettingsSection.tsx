@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { IosInstallInstructionsDialog } from "@/components/pwa/IosInstallInstructionsDialog";
-import { Button, buttonStyles } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Button, buttonStyles } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { useWebPushNotifications } from "@/hooks/useWebPushNotifications";
 import {

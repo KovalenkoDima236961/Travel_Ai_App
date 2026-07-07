@@ -1,5 +1,5 @@
-import { apiFetch } from "@/lib/api/client";
-import type { GenerationJob } from "@/types/generation-jobs";
+import { apiFetch } from "@/shared/api/client";
+import type { GenerationJob } from "@/entities/generation-job/model";
 import type {
   ApplyBudgetOptimizationProposalResponse,
   BudgetOptimizationJobRequest,
@@ -7,7 +7,7 @@ import type {
   BudgetOptimizationProposalEnvelope,
   BudgetOptimizationProposalListResponse,
   BudgetOptimizationProposalStatus
-} from "@/types/budget-optimization";
+} from "@/entities/budget-optimization/model";
 
 type GenerationJobEnvelope = {
   job: GenerationJob;

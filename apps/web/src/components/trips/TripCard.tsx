@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
-import type { Trip } from "@/types/trip";
+import type { Trip } from "@/entities/trip/model";
 import {
   formatBudget,
   formatDate,

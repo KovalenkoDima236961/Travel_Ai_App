@@ -1,19 +1,19 @@
-import { AvailabilityCard } from "@/components/availability/AvailabilityCard";
-import type { Itinerary } from "@/types/trip";
-import type { Trip } from "@/types/trip";
-import type { AvailabilityOption, AvailabilitySearchResponse } from "@/types/availability";
-import type { OpeningHoursInterval } from "@/types/place";
+import { AvailabilityCard } from "@/features/availability-search";
+import type { Itinerary } from "@/entities/trip/model";
+import type { Trip } from "@/entities/trip/model";
+import type { AvailabilityOption, AvailabilitySearchResponse } from "@/entities/availability/model";
+import type { OpeningHoursInterval } from "@/entities/place/model";
 import {
   formatOpeningHoursForDay,
   getDayOfWeekMondayBased,
   getOpeningStatus,
   getTripItemDate
-} from "@/lib/itinerary/opening-hours-utils";
+} from "@/entities/itinerary/model/opening-hours-utils";
 import { formatDate, formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
-import { costBadgeLabel, getCostAmount, isManualCost, isProviderCost } from "@/lib/budget/format";
-import { Button } from "@/components/ui/Button";
-import { CommentButton } from "@/components/comments/CommentButton";
-import { makeCommentItemKey } from "@/lib/comments/comment-counts";
+import { costBadgeLabel, getCostAmount, isManualCost, isProviderCost } from "@/entities/budget/model";
+import { Button } from "@/shared/ui/button";
+import { CommentButton } from "@/features/trip-comments";
+import { makeCommentItemKey } from "@/entities/comment/model";
 
 export type RegeneratingTarget =
   | { type: "day"; dayNumber: number }

@@ -1,4 +1,4 @@
-import { formatApproxMoney, formatMoney } from "@/lib/budget/format";
+import { formatApproxMoney, formatMoney } from "@/entities/budget/model";
 import type { TripPdfLine } from "@/lib/export/trip-pdf-lines";
 import type {
   CostAmountBreakdown,
@@ -6,7 +6,7 @@ import type {
   TripCostAnalytics,
   TripCostSummary,
   WorkspaceCostAnalytics
-} from "@/types/cost-analytics";
+} from "@/entities/cost-analytics/model";
 
 const DISCLAIMER =
   "Costs are estimates for planning purposes only. Provider prices, availability, exchange rates, and booking costs may change.";

@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
 import { useWebPushNotifications } from "@/hooks/useWebPushNotifications";
 
 export function PushNotificationSettings() {

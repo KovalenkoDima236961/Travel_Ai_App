@@ -1,5 +1,5 @@
-import { apiFetch, apiFetchPublic } from "@/lib/api/client";
-import { getNotificationApiBaseUrl } from "@/lib/config";
+import { apiFetch, apiFetchPublic } from "@/shared/api/client";
+import { getNotificationApiBaseUrl } from "@/shared/config";
 
 export const pushNotificationKeys = {
   publicKey: ["push-notifications", "public-key"] as const,

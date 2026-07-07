@@ -1,11 +1,11 @@
-import { apiFetch } from "@/lib/api/client";
-import { getNotificationApiBaseUrl } from "@/lib/config";
+import { apiFetch } from "@/shared/api/client";
+import { getNotificationApiBaseUrl } from "@/shared/config";
 import type {
   AppNotification,
   MarkNotificationResponse,
   NotificationsResponse,
   UnreadNotificationsResponse
-} from "@/types/notifications";
+} from "@/entities/notification/model";
 
 // React Query keys for notifications. Notifications are private, authenticated
 // data and are never fetched from the public share page.

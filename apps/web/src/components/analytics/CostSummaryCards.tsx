@@ -1,4 +1,4 @@
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import { cn } from "@/lib/utils";
 
 export type CostSummaryCard = {

@@ -9,8 +9,8 @@ import {
   formatApproxMoney,
   formatMoney as formatBudgetMoney,
   getCostAmount
-} from "@/lib/budget/format";
-import type { ItineraryItem } from "@/types/trip";
+} from "@/entities/budget/model";
+import type { ItineraryItem } from "@/entities/trip/model";
 
 export type TripPdfLineVariant =
   | "title"

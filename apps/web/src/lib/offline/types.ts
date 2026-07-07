@@ -1,6 +1,6 @@
-import type { TripAccommodation } from "@/types/accommodation";
-import type { BudgetSummary } from "@/types/budget";
-import type { Itinerary, Trip } from "@/types/trip";
+import type { TripAccommodation } from "@/entities/accommodation/model";
+import type { BudgetSummary } from "@/entities/budget/model";
+import type { Itinerary, Trip } from "@/entities/trip/model";
 
 export type OfflineMutationStatus =
   | "pending"

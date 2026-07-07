@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getExternalIntegrationsServiceInternalUrl } from "@/lib/config";
+import { getExternalIntegrationsServiceInternalUrl } from "@/shared/config";
 
 type RouteContext = {
   params: Promise<{

@@ -1,33 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { AttachPlaceDialog } from "@/components/places/AttachPlaceDialog";
-import { ItemCostEditor } from "@/components/budget/ItemCostEditor";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Textarea } from "@/components/ui/Textarea";
+import { AttachPlaceDialog } from "@/features/place-attachment";
+import { ItemCostEditor } from "@/features/trip-budget";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { Select } from "@/shared/ui/select";
+import { Textarea } from "@/shared/ui/textarea";
 import {
   canMoveItemDown,
   canMoveItemToDay,
   canMoveItemUp,
   moveItemToDay,
   moveItemWithinDay
-} from "@/lib/itinerary/editor-utils";
+} from "@/entities/itinerary/model/editor-utils";
 import {
   formatOpeningHoursForDay,
   getDayOfWeekMondayBased,
   getTripItemDate
-} from "@/lib/itinerary/opening-hours-utils";
-import type { OpeningHoursInterval } from "@/types/place";
-import type { Place } from "@/types/place";
-import type { Itinerary, ItineraryItem } from "@/types/trip";
+} from "@/entities/itinerary/model/opening-hours-utils";
+import type { OpeningHoursInterval } from "@/entities/place/model";
+import type { Place } from "@/entities/place/model";
+import type { Itinerary, ItineraryItem } from "@/entities/trip/model";
 
 export {
   normalizeItineraryForSave,
   prepareItineraryForEdit,
   validateEditableItinerary
-} from "@/lib/itinerary/editor-utils";
+} from "@/entities/itinerary/model/editor-utils";
 
 type ItineraryEditorProps = {
   itinerary: Itinerary;

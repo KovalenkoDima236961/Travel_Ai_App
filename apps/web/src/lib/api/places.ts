@@ -1,5 +1,5 @@
-import { getExternalIntegrationsServiceUrl } from "@/lib/config";
-import type { Place, SearchPlacesResponse } from "@/types/place";
+import { getExternalIntegrationsServiceUrl } from "@/shared/config";
+import type { Place, SearchPlacesResponse } from "@/entities/place/model";
 
 type ApiErrorPayload = {
   error?: string;

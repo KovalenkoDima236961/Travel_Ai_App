@@ -12,9 +12,9 @@ import type {
   NotificationCategory,
   NotificationChannel,
   NotificationPreference
-} from "@/types/notification-preferences";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+} from "@/entities/notification-preferences/model";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
 
 const channels: Array<{ value: NotificationChannel; title: string }> = [
   { value: "in_app", title: "In-app notifications" },

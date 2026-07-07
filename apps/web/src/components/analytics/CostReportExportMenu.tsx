@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/shared/ui/button";
 import {
   generateTripCostAnalyticsCsv,
   generateWorkspaceCostAnalyticsCsv
@@ -18,7 +18,7 @@ import {
 import type {
   TripCostAnalytics,
   WorkspaceCostAnalytics
-} from "@/types/cost-analytics";
+} from "@/entities/cost-analytics/model";
 
 type CostReportExportMenuProps =
   | {

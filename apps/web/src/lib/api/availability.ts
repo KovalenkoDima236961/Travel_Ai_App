@@ -1,9 +1,9 @@
-import { apiFetch } from "@/lib/api/client";
-import { getExternalIntegrationsApiBaseUrl } from "@/lib/config";
+import { apiFetch } from "@/shared/api/client";
+import { getExternalIntegrationsApiBaseUrl } from "@/shared/config";
 import type {
   AvailabilitySearchRequest,
   AvailabilitySearchResponse
-} from "@/types/availability";
+} from "@/entities/availability/model";
 
 export const availabilityKeys = {
   all: ["availability"] as const,

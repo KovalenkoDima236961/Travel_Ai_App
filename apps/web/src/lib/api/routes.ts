@@ -1,5 +1,5 @@
-import { getExternalIntegrationsServiceUrl } from "@/lib/config";
-import type { RouteEstimate, RouteEstimateRequest } from "@/types/route";
+import { getExternalIntegrationsServiceUrl } from "@/shared/config";
+import type { RouteEstimate, RouteEstimateRequest } from "@/entities/route/model";
 
 type ApiErrorPayload = {
   error?: string;

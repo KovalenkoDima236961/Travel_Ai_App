@@ -1,7 +1,7 @@
-import { costBadgeLabel } from "@/lib/budget/format";
+import { costBadgeLabel } from "@/entities/budget/model";
 import { slugifyForFilename } from "@/lib/export/export-filenames";
 import type { ExportTrip } from "@/lib/export/trip-export-adapter";
-import type { ItineraryItem } from "@/types/trip";
+import type { ItineraryItem } from "@/entities/trip/model";
 
 type ParsedTime = {
   hour: number;

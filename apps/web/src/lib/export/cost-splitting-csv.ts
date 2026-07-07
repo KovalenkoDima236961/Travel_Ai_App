@@ -1,4 +1,4 @@
-import type { CostSplittingSummary } from "@/types/cost-splitting";
+import type { CostSplittingSummary } from "@/entities/cost-splitting/model";
 
 const DISCLAIMER =
   "Estimated planning costs only. This is not a payment request, invoice, accounting record, or settlement calculation.";

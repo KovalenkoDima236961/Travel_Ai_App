@@ -1,22 +1,22 @@
-import { apiFetch, apiFetchPublic } from "@/lib/api/client";
+import { apiFetch, apiFetchPublic } from "@/shared/api/client";
 import type {
   ItineraryVersionDetail,
   ListItineraryVersionsResponse
-} from "@/types/itinerary-version";
+} from "@/entities/itinerary/model";
 import type {
   PublicShareStatus,
   PublicShareUnlockResponse,
   PublicTrip,
   TripShareInfo,
   UpdateTripShareRequest
-} from "@/types/share";
+} from "@/entities/share/model";
 import type {
   CollaborationInvitation,
   CollaboratorRole,
   SharedTripSummary,
   TripCollaborator
-} from "@/types/collaboration";
-import type { CreateTripInput, Itinerary, Trip, TripScope, TripsListResponse } from "@/types/trip";
+} from "@/entities/collaboration/model";
+import type { CreateTripInput, Itinerary, Trip, TripScope, TripsListResponse } from "@/entities/trip/model";
 
 type ListTripsParams = {
   limit?: number;

@@ -10,7 +10,7 @@ import {
 import type {
   TripCostAnalytics,
   WorkspaceCostAnalytics
-} from "@/types/cost-analytics";
+} from "@/entities/cost-analytics/model";
 
 export function downloadTripCostAnalyticsPdf(
   analytics: TripCostAnalytics,

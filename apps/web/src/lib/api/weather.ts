@@ -1,5 +1,5 @@
-import { getExternalIntegrationsServiceUrl } from "@/lib/config";
-import type { WeatherForecast } from "@/types/weather";
+import { getExternalIntegrationsServiceUrl } from "@/shared/config";
+import type { WeatherForecast } from "@/entities/weather/model";
 
 type ApiErrorPayload = {
   error?: string;

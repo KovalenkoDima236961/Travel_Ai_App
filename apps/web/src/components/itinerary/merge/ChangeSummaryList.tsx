@@ -1,6 +1,6 @@
 "use client";
 
-import type { ItineraryChange } from "@/lib/itinerary/diff-merge/types";
+import type { ItineraryChange } from "@/entities/itinerary/model/diff-merge/types";
 
 type ChangeSummaryListProps = {
   title: string;

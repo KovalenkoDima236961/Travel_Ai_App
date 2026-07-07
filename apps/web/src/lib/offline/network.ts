@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/shared/api/client";
 
 export function isBrowserOnline() {
   if (typeof navigator === "undefined") {

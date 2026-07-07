@@ -1,5 +1,5 @@
-import { apiFetch } from "@/lib/api/client";
-import type { TripActivityResponse } from "@/types/activity";
+import { apiFetch } from "@/shared/api/client";
+import type { TripActivityResponse } from "@/entities/activity/model";
 
 // React Query keys for the trip activity feed. Activity is a private,
 // authenticated feature and is never fetched from the public share page.

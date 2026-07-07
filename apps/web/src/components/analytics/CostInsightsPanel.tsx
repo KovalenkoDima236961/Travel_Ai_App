@@ -1,7 +1,7 @@
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
 import { cn } from "@/lib/utils";
-import type { CostInsight } from "@/types/cost-analytics";
+import type { CostInsight } from "@/entities/cost-analytics/model";
 
 type CostInsightsPanelProps = {
   insights: CostInsight[];

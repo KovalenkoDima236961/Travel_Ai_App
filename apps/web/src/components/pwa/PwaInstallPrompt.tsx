@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { IosInstallInstructionsDialog } from "@/components/pwa/IosInstallInstructionsDialog";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/shared/ui/button";
 import { usePwaInstall, type PwaInstallState } from "@/hooks/usePwaInstall";
 import { hasPwaEngagement } from "@/lib/pwa/pwa-detection";
 

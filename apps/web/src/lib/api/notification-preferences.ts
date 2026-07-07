@@ -1,9 +1,9 @@
-import { apiFetch } from "@/lib/api/client";
-import { getNotificationApiBaseUrl } from "@/lib/config";
+import { apiFetch } from "@/shared/api/client";
+import { getNotificationApiBaseUrl } from "@/shared/config";
 import type {
   NotificationPreference,
   NotificationPreferencesResponse
-} from "@/types/notification-preferences";
+} from "@/entities/notification-preferences/model";
 
 export const notificationPreferenceKeys = {
   all: ["notification-preferences"] as const

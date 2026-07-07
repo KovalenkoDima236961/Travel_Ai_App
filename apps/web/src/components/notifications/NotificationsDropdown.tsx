@@ -5,7 +5,7 @@ import { useNotificationsList, useMarkAllNotificationsRead, useMarkNotificationR
 import { getNotificationHref } from "@/lib/notifications/notification-navigation";
 import { formatRelativeTime } from "@/lib/notifications/relative-time";
 import { cn } from "@/lib/utils";
-import type { AppNotification } from "@/types/notifications";
+import type { AppNotification } from "@/entities/notification/model";
 
 const DROPDOWN_LIMIT = 10;
 

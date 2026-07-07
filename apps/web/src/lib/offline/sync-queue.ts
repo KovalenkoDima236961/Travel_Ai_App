@@ -1,4 +1,4 @@
-import { isItineraryConflictError } from "@/lib/api/client";
+import { isItineraryConflictError } from "@/shared/api/client";
 import { getTrip, updateTripItinerary } from "@/lib/api/trips";
 import { getOfflineDb } from "@/lib/offline/db";
 import { isOfflineLikeError } from "@/lib/offline/network";

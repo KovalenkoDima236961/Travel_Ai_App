@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { Button, buttonStyles } from "@/components/ui/Button";
+import { Button, buttonStyles } from "@/shared/ui/button";
 import { useServiceWorkerUpdate } from "@/hooks/useServiceWorkerUpdate";
 import {
   OFFLINE_QUEUE_CHANGED_EVENT,

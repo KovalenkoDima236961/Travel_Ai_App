@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import {
   formatAnalyticsDate,
   formatAnalyticsMoney,
   formatPlainMoney
 } from "@/components/analytics/format";
-import type { TripCostSummary } from "@/types/cost-analytics";
+import type { TripCostSummary } from "@/entities/cost-analytics/model";
 
 type WorkspaceTripsCostTableProps = {
   trips: TripCostSummary[];

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ItineraryView } from "@/components/trips/ItineraryView";
-import { Button } from "@/components/ui/Button";
-import { isItineraryConflictError } from "@/lib/api/client";
+import { Button } from "@/shared/ui/button";
+import { isItineraryConflictError } from "@/shared/api/client";
 import {
   getItineraryVersion,
   listItineraryVersions,
@@ -16,8 +16,8 @@ import type {
   ItineraryVersionDetail,
   ItineraryVersionSource,
   ItineraryVersionSummary
-} from "@/types/itinerary-version";
-import type { Trip } from "@/types/trip";
+} from "@/entities/itinerary/model";
+import type { Trip } from "@/entities/trip/model";
 
 type ItineraryVersionHistoryProps = {
   tripId: string;

@@ -16,15 +16,15 @@ import {
   refresh as refreshRequest,
   register as registerRequest,
   type Credentials
-} from "@/lib/api/auth";
+} from "@/shared/api/auth";
 import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
   saveTokens
-} from "@/lib/auth/token-storage";
+} from "@/shared/api/auth";
 import { clearOfflineData } from "@/lib/offline/trip-cache";
-import type { AuthUser, TokenResponse } from "@/types/auth";
+import type { AuthUser, TokenResponse } from "@/shared/api/auth";
 
 type AuthContextValue = {
   user: AuthUser | null;

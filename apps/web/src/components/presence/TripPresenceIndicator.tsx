@@ -1,10 +1,10 @@
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import {
   getPresenceDisplayName,
   getPresenceEditingWarning
-} from "@/lib/presence/presence-ui";
+} from "@/entities/presence/model";
 import { cn } from "@/lib/utils";
-import type { TripPresenceSnapshot } from "@/types/presence";
+import type { TripPresenceSnapshot } from "@/entities/presence/model";
 
 type TripPresenceIndicatorProps = {
   snapshot: TripPresenceSnapshot | null;
@@ -103,4 +103,4 @@ function PresenceBadge({
   );
 }
 
-export { getPresenceDisplayName, getPresenceEditingWarning } from "@/lib/presence/presence-ui";
+export { getPresenceDisplayName, getPresenceEditingWarning } from "@/entities/presence/model";

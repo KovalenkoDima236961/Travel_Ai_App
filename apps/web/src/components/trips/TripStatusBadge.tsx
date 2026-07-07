@@ -1,4 +1,4 @@
-import type { TripStatus } from "@/types/trip";
+import type { TripStatus } from "@/entities/trip/model";
 import { cn } from "@/lib/utils";
 
 type TripStatusBadgeProps = {

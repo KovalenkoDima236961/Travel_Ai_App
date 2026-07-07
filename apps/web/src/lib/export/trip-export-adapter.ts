@@ -1,11 +1,11 @@
-import type { DayDistanceSummary } from "@/lib/itinerary/distance-utils";
-import type { TripAccommodation } from "@/types/accommodation";
-import type { BudgetSummary } from "@/types/budget";
-import type { Place } from "@/types/place";
-import type { PublicTrip } from "@/types/share";
-import type { RouteEstimate } from "@/types/route";
-import type { Itinerary, ItineraryDay, ItineraryItem, Trip } from "@/types/trip";
-import type { WeatherForecast } from "@/types/weather";
+import type { DayDistanceSummary } from "@/entities/itinerary/model/distance-utils";
+import type { TripAccommodation } from "@/entities/accommodation/model";
+import type { BudgetSummary } from "@/entities/budget/model";
+import type { Place } from "@/entities/place/model";
+import type { PublicTrip } from "@/entities/share/model";
+import type { RouteEstimate } from "@/entities/route/model";
+import type { Itinerary, ItineraryDay, ItineraryItem, Trip } from "@/entities/trip/model";
+import type { WeatherForecast } from "@/entities/weather/model";
 
 export type ExportTrip = {
   destination: string;

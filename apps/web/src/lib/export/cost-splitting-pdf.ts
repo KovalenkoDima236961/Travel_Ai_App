@@ -1,8 +1,8 @@
-import { formatApproxMoney } from "@/lib/budget/format";
+import { formatApproxMoney } from "@/entities/budget/model";
 import { downloadPdfLines } from "@/lib/export/pdf";
 import { slugifyForFilename } from "@/lib/export/export-filenames";
 import type { TripPdfLine } from "@/lib/export/trip-pdf-lines";
-import type { CostSplittingSummary } from "@/types/cost-splitting";
+import type { CostSplittingSummary } from "@/entities/cost-splitting/model";
 
 const DISCLAIMER =
   "Estimated planning costs only. This is not a payment request, invoice, accounting record, or settlement calculation.";

@@ -3,7 +3,7 @@ import {
   costAnalyticsKeys,
   getWorkspaceCostAnalytics
 } from "@/lib/api/cost-analytics";
-import type { WorkspaceCostAnalyticsParams } from "@/types/cost-analytics";
+import type { WorkspaceCostAnalyticsParams } from "@/entities/cost-analytics/model";
 
 export function useWorkspaceCostAnalytics({
   workspaceId,

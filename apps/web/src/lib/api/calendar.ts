@@ -1,11 +1,11 @@
-import { apiFetch } from "@/lib/api/client";
-import { getExternalIntegrationsApiBaseUrl } from "@/lib/config";
+import { apiFetch } from "@/shared/api/client";
+import { getExternalIntegrationsApiBaseUrl } from "@/shared/config";
 import type {
   CalendarConnectionStatus,
   TripCalendarDeleteResult,
   TripCalendarSyncResult,
   TripCalendarSyncStatus
-} from "@/types/calendar-sync";
+} from "@/entities/calendar-sync/model";
 
 export const calendarKeys = {
   all: ["calendar-sync"] as const,

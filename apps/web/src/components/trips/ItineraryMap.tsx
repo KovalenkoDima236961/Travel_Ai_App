@@ -2,15 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/shared/ui/card";
 import {
   getAvailableDays,
   getItineraryMapMarkers,
   getMapCenter
-} from "@/lib/itinerary/map-utils";
+} from "@/entities/itinerary/model/map-utils";
 import { cn } from "@/lib/utils";
-import type { TripAccommodation } from "@/types/accommodation";
-import type { Itinerary } from "@/types/trip";
+import type { TripAccommodation } from "@/entities/accommodation/model";
+import type { Itinerary } from "@/entities/trip/model";
 
 const LeafletItineraryMap = dynamic(
   () => import("./ItineraryLeafletMap").then((module) => module.ItineraryLeafletMap),

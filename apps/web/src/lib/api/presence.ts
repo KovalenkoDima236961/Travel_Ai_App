@@ -1,5 +1,5 @@
-import { apiFetch } from "@/lib/api/client";
-import type { PresenceState } from "@/types/presence";
+import { apiFetch } from "@/shared/api/client";
+import type { PresenceState } from "@/entities/presence/model";
 
 export function updateTripPresenceState(tripId: string, state: PresenceState) {
   return apiFetch<{ success: boolean }>(`/trips/${tripId}/presence/state`, {

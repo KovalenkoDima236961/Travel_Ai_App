@@ -4,10 +4,10 @@ import { useEffect, type ReactNode } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import type { UpdateUserProfileRequest, UserProfile } from "@/types/user";
+import { Button } from "@/shared/ui/button";
+import { Card } from "@/shared/ui/card";
+import { Input } from "@/shared/ui/input";
+import type { UpdateUserProfileRequest, UserProfile } from "@/entities/user/model";
 
 const profileFormSchema = z.object({
   displayName: z.string().trim().max(100, "Display name must be 100 characters or fewer"),

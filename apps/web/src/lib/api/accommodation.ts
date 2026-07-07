@@ -1,5 +1,5 @@
-import { apiFetch } from "@/lib/api/client";
-import type { TripAccommodation } from "@/types/accommodation";
+import { apiFetch } from "@/shared/api/client";
+import type { TripAccommodation } from "@/entities/accommodation/model";
 
 export const accommodationKeys = {
   detail: (tripId: string) => ["trips", "detail", tripId, "accommodation"] as const

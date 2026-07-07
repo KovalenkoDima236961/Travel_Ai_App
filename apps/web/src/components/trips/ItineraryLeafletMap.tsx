@@ -4,14 +4,14 @@ import { useEffect } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { formatInterestLabel } from "@/lib/utils";
-import { costBadgeLabel } from "@/lib/budget/format";
-import type { MapItineraryMarker } from "@/lib/itinerary/map-utils";
+import { costBadgeLabel } from "@/entities/budget/model";
+import type { MapItineraryMarker } from "@/entities/itinerary/model/map-utils";
 import {
   formatOpeningHoursForDay,
   getDayOfWeekMondayBased,
   getOpeningStatus,
   getTripItemDate
-} from "@/lib/itinerary/opening-hours-utils";
+} from "@/entities/itinerary/model/opening-hours-utils";
 
 type ItineraryLeafletMapProps = {
   markers: MapItineraryMarker[];

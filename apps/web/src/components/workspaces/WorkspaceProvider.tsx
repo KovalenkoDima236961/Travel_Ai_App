@@ -12,7 +12,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { listWorkspaces, workspaceKeys } from "@/lib/api/workspaces";
-import type { Workspace, WorkspaceRole } from "@/types/workspace";
+import type { Workspace, WorkspaceRole } from "@/entities/workspace/model";
 
 const STORAGE_KEY = "travel_ai_current_workspace_id";
 

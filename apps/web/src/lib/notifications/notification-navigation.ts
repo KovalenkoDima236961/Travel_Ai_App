@@ -1,4 +1,4 @@
-import type { AppNotification } from "@/types/notifications";
+import type { AppNotification } from "@/entities/notification/model";
 
 /**
  * Resolves the in-app destination for a notification. Clicking a notification

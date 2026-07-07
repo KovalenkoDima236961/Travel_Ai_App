@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch } from "@/shared/api/client";
 import type {
   CreateWorkspaceBudgetInput,
   UpdateWorkspaceBudgetInput,
@@ -7,7 +7,7 @@ import type {
   WorkspaceBudgetsEnvelope,
   WorkspaceBudgetStatus,
   WorkspaceBudgetSummary
-} from "@/types/workspace-budget";
+} from "@/entities/workspace-budget/model";
 
 export const workspaceBudgetKeys = {
   all: ["workspace-budgets"] as const,

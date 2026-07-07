@@ -1,6 +1,6 @@
-import { Card } from "@/components/ui/Card";
-import { getOpeningStatus } from "@/lib/itinerary/opening-hours-utils";
-import type { Itinerary } from "@/types/trip";
+import { Card } from "@/shared/ui/card";
+import { getOpeningStatus } from "@/entities/itinerary/model/opening-hours-utils";
+import type { Itinerary } from "@/entities/trip/model";
 
 type OpeningHoursWarningsProps = {
   itinerary: Itinerary;

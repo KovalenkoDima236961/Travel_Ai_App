@@ -1,5 +1,5 @@
-import { apiFetch } from "@/lib/api/client";
-import type { Trip } from "@/types/trip";
+import { apiFetch } from "@/shared/api/client";
+import type { Trip } from "@/entities/trip/model";
 import type {
   CreateTripFromTemplateInput,
   DuplicateTripTemplateInput,
@@ -8,7 +8,7 @@ import type {
   SaveTripAsTemplateInput,
   TripTemplateDetail,
   UpdateTripTemplateInput
-} from "@/types/trip-template";
+} from "@/entities/trip-template/model";
 
 export const tripTemplateKeys = {
   all: ["trip-templates"] as const,

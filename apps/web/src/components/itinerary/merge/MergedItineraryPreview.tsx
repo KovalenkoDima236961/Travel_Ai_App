@@ -1,6 +1,6 @@
 "use client";
 
-import type { Itinerary } from "@/types/trip";
+import type { Itinerary } from "@/entities/trip/model";
 
 type MergedItineraryPreviewProps = {
   itinerary: Itinerary;

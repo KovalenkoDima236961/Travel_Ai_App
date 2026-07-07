@@ -1,4 +1,4 @@
-import { formatApproxMoney, formatMoney } from "@/lib/budget/format";
+import { formatApproxMoney, formatMoney } from "@/entities/budget/model";
 
 export function formatAnalyticsMoney(
   amount: number | null | undefined,

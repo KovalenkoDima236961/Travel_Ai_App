@@ -1,5 +1,5 @@
-import { apiFetch } from "@/lib/api/client";
-import { getUserApiBaseUrl } from "@/lib/config";
+import { apiFetch } from "@/shared/api/client";
+import { getUserApiBaseUrl } from "@/shared/config";
 import type {
   CreateWorkspaceInput,
   InviteWorkspaceMemberInput,
@@ -11,7 +11,7 @@ import type {
   WorkspaceMember,
   WorkspaceMembersResponse,
   WorkspacesResponse
-} from "@/types/workspace";
+} from "@/entities/workspace/model";
 
 export const workspaceKeys = {
   all: ["workspaces"] as const,
