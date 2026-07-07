@@ -2,8 +2,6 @@ package push
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strings"
@@ -15,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
+	pushdelivery "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/push"
 )
 
 const (
@@ -45,17 +44,17 @@ type PreferenceGate interface {
 type Service struct {
 	cfg    Config
 	repo   Repository
-	sender PushSender
+	sender pushdelivery.PushSender
 	log    *zap.Logger
 }
 
 // New constructs the push service.
-func New(cfg Config, repo Repository, sender PushSender, log *zap.Logger) *Service {
+func New(cfg Config, repo Repository, sender pushdelivery.PushSender, log *zap.Logger) *Service {
 	if log == nil {
 		log = zap.NewNop()
 	}
 	if sender == nil {
-		sender = NewMockSender(log)
+		sender = pushdelivery.NewMockSender(log)
 	}
 	cfg.Enabled = cfg.Enabled && strings.TrimSpace(cfg.VAPIDPublicKey) != "" && strings.TrimSpace(cfg.VAPIDPrivateKey) != ""
 	return &Service{cfg: cfg, repo: repo, sender: sender, log: log}
@@ -94,7 +93,7 @@ func (s *Service) Subscribe(ctx context.Context, input SubscribeInput) (bool, er
 	}
 	fields := []zap.Field{
 		zap.String("userId", input.UserID.String()),
-		zap.String("endpointHash", EndpointHash(input.Endpoint)),
+		zap.String("endpointHash", pushdelivery.EndpointHash(input.Endpoint)),
 	}
 	if stored != nil {
 		fields = append(fields, zap.String("subscriptionId", stored.ID.String()))
@@ -118,7 +117,7 @@ func (s *Service) Unsubscribe(ctx context.Context, userID uuid.UUID, endpoint st
 	}
 	s.log.Info("push_unsubscribed",
 		zap.String("userId", userID.String()),
-		zap.String("endpointHash", EndpointHash(endpoint)),
+		zap.String("endpointHash", pushdelivery.EndpointHash(endpoint)),
 	)
 	return nil
 }
@@ -187,7 +186,7 @@ func (s *Service) SendPushForNotifications(ctx context.Context, notifications []
 		for j := range subscriptions {
 			subscription := subscriptions[j]
 			result.Attempted++
-			sendResult, err := s.sender.Send(ctx, PushSubscription{
+			sendResult, err := s.sender.Send(ctx, pushdelivery.PushSubscription{
 				ID:       subscription.ID,
 				UserID:   subscription.UserID,
 				Endpoint: subscription.Endpoint,
@@ -208,7 +207,7 @@ func (s *Service) SendPushForNotifications(ctx context.Context, notifications []
 					zap.String("notificationType", notification.Type),
 					zap.String("category", category),
 					zap.String("subscriptionId", subscription.ID.String()),
-					zap.String("endpointHash", EndpointHash(subscription.Endpoint)),
+					zap.String("endpointHash", pushdelivery.EndpointHash(subscription.Endpoint)),
 					zap.Int("statusCode", statusCode),
 					zap.String("errorCode", "send_failed"),
 					zap.Error(err),
@@ -234,7 +233,7 @@ func (s *Service) SendPushForNotifications(ctx context.Context, notifications []
 					s.log.Warn("push_subscription_disabled_failed",
 						zap.String("userId", notification.UserID.String()),
 						zap.String("subscriptionId", subscription.ID.String()),
-						zap.String("endpointHash", EndpointHash(subscription.Endpoint)),
+						zap.String("endpointHash", pushdelivery.EndpointHash(subscription.Endpoint)),
 						zap.Int("statusCode", sendResult.StatusCode),
 						zap.Error(err),
 					)
@@ -245,7 +244,7 @@ func (s *Service) SendPushForNotifications(ctx context.Context, notifications []
 					zap.String("notificationType", notification.Type),
 					zap.String("category", category),
 					zap.String("subscriptionId", subscription.ID.String()),
-					zap.String("endpointHash", EndpointHash(subscription.Endpoint)),
+					zap.String("endpointHash", pushdelivery.EndpointHash(subscription.Endpoint)),
 					zap.Int("statusCode", sendResult.StatusCode),
 					zap.String("errorCode", reason),
 				)
@@ -255,7 +254,7 @@ func (s *Service) SendPushForNotifications(ctx context.Context, notifications []
 			if err := s.repo.UpdatePushSubscriptionLastUsed(ctx, subscription.ID); err != nil {
 				s.log.Warn("update push subscription last_used_at failed",
 					zap.String("subscriptionId", subscription.ID.String()),
-					zap.String("endpointHash", EndpointHash(subscription.Endpoint)),
+					zap.String("endpointHash", pushdelivery.EndpointHash(subscription.Endpoint)),
 					zap.Error(err),
 				)
 			}
@@ -264,7 +263,7 @@ func (s *Service) SendPushForNotifications(ctx context.Context, notifications []
 				zap.String("notificationType", notification.Type),
 				zap.String("category", category),
 				zap.String("subscriptionId", subscription.ID.String()),
-				zap.String("endpointHash", EndpointHash(subscription.Endpoint)),
+				zap.String("endpointHash", pushdelivery.EndpointHash(subscription.Endpoint)),
 				zap.Int("statusCode", statusCode),
 			)
 		}
@@ -274,12 +273,6 @@ func (s *Service) SendPushForNotifications(ctx context.Context, notifications []
 		return result, fmt.Errorf("send push notifications: %w", firstErr)
 	}
 	return result, nil
-}
-
-// EndpointHash returns a short, stable hash safe for logs/metrics labels.
-func EndpointHash(endpoint string) string {
-	sum := sha256.Sum256([]byte(endpoint))
-	return hex.EncodeToString(sum[:])[:16]
 }
 
 func validateSubscribeInput(input SubscribeInput) error {
@@ -361,9 +354,9 @@ var pushTypeAllowlist = map[string]struct{}{
 	notifications.TypeBudgetOptimizationFailed: {},
 }
 
-func buildPayload(notification entity.Notification, category string) PushPayload {
+func buildPayload(notification entity.Notification, category string) pushdelivery.PushPayload {
 	title, body := safeTitleBody(notification)
-	return PushPayload{
+	return pushdelivery.PushPayload{
 		Title:          title,
 		Body:           body,
 		URL:            safeNotificationURL(notification),

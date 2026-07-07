@@ -8,8 +8,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/email"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/users"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/email"
 )
 
 // UserLookup resolves recipient profiles by id. The concrete users.Client

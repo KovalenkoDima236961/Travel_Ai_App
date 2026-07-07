@@ -34,6 +34,18 @@ sequenceDiagram
 In-app rows are never rolled back because email or push fails. Email and push can
 be fail-open locally so Trip Service actions remain successful.
 
+## Go Package Layout
+
+- `cmd/server` and `cmd/migrate` are thin executable entrypoints.
+- `internal/app` is the composition root and lifecycle owner.
+- `internal/{notifications,preferences,emailnotifications,push,stream,users}` contains feature modules with their ports, services, policies, and adapters.
+- `internal/domain` contains stable notification entities and domain errors.
+- `internal/httpserver` contains HTTP routing, handlers, middleware, and wire DTOs.
+- `internal/repository/postgres` contains notification persistence adapters.
+- `pkg` contains project-agnostic service plumbing such as logging, shutdown
+  coordination, request/HTTP observability, email and push delivery plumbing,
+  and storage bootstrapping. Do not put notification business logic there.
+
 ## Architecture
 
 ```mermaid

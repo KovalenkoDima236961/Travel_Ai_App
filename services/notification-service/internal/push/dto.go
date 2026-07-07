@@ -1,8 +1,6 @@
 package push
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -38,33 +36,6 @@ type StatusResult struct {
 	ActiveSubscriptions int
 }
 
-// PushSubscription is the sender-facing subscription shape.
-type PushSubscription struct {
-	ID       uuid.UUID
-	UserID   uuid.UUID
-	Endpoint string
-	P256DH   string
-	Auth     string
-}
-
-// PushPayload is the small JSON payload delivered to a browser service worker.
-type PushPayload struct {
-	Title          string `json:"title"`
-	Body           string `json:"body"`
-	URL            string `json:"url"`
-	NotificationID string `json:"notificationId,omitempty"`
-	Type           string `json:"type"`
-	Category       string `json:"category"`
-	Icon           string `json:"icon,omitempty"`
-	Badge          string `json:"badge,omitempty"`
-}
-
-// PushSendResult reports one attempted send to one push subscription.
-type PushSendResult struct {
-	StatusCode       int
-	SubscriptionGone bool
-}
-
 // BatchResult summarises push fan-out for an internal notification batch.
 type BatchResult struct {
 	Attempted                      int `json:"attempted"`
@@ -77,14 +48,10 @@ type BatchResult struct {
 	SubscriptionsDisabledAsInvalid int `json:"subscriptionsDisabledAsInvalid,omitempty"`
 }
 
-// Config configures browser push delivery.
+// Config configures the notification-service push orchestration.
 type Config struct {
 	Enabled         bool
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
-	Subject         string
-	Timeout         time.Duration
-	TTLSeconds      int
-	Urgency         string
 	FailOpen        bool
 }

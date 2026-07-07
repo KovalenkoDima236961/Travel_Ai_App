@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/email"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/users"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/email"
 )
 
 // appName is the product name shown in emails.

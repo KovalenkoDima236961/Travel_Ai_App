@@ -11,6 +11,7 @@ import (
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
+	pushdelivery "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/push"
 )
 
 type fakePushRepo struct {
@@ -86,12 +87,12 @@ func (f *fakePushRepo) UpdatePushSubscriptionLastUsed(_ context.Context, id uuid
 }
 
 type fakePushSender struct {
-	result *PushSendResult
+	result *pushdelivery.PushSendResult
 	err    error
-	sent   []PushPayload
+	sent   []pushdelivery.PushPayload
 }
 
-func (f *fakePushSender) Send(_ context.Context, _ PushSubscription, payload PushPayload) (*PushSendResult, error) {
+func (f *fakePushSender) Send(_ context.Context, _ pushdelivery.PushSubscription, payload pushdelivery.PushPayload) (*pushdelivery.PushSendResult, error) {
 	f.sent = append(f.sent, payload)
 	if f.err != nil {
 		return f.result, f.err
@@ -99,7 +100,7 @@ func (f *fakePushSender) Send(_ context.Context, _ PushSubscription, payload Pus
 	if f.result != nil {
 		return f.result, nil
 	}
-	return &PushSendResult{StatusCode: 201}, nil
+	return &pushdelivery.PushSendResult{StatusCode: 201}, nil
 }
 
 type fakePushGate struct {
@@ -115,10 +116,6 @@ func enabledConfig(failOpen bool) Config {
 		Enabled:         true,
 		VAPIDPublicKey:  "public-key",
 		VAPIDPrivateKey: "private-key",
-		Subject:         "mailto:test@example.com",
-		Timeout:         time.Second,
-		TTLSeconds:      30,
-		Urgency:         "normal",
 		FailOpen:        failOpen,
 	}
 }
@@ -238,7 +235,7 @@ func TestSendPushDisablesGoneSubscription(t *testing.T) {
 		Status:   entity.PushSubscriptionStatusActive,
 	}}}
 	svc := New(enabledConfig(true), repo, &fakePushSender{
-		result: &PushSendResult{StatusCode: 410, SubscriptionGone: true},
+		result: &pushdelivery.PushSendResult{StatusCode: 410, SubscriptionGone: true},
 	}, nil)
 
 	result, err := svc.SendPushForNotifications(context.Background(), []entity.Notification{{

@@ -1,12 +1,3 @@
-// Package emailnotifications orchestrates optional email delivery for selected
-// notification types. The internal batch handler hands non-self notification
-// candidates to this package, which decides (policy) which ones warrant an
-// email, resolves recipient emails, builds the message (templates), and sends it
-// (email package).
-//
-// Privacy: templates never include secrets, JWTs, share access tokens, share
-// passwords, full itinerary payloads, or full comment bodies. Recipient emails
-// are masked in logs.
 package emailnotifications
 
 import (

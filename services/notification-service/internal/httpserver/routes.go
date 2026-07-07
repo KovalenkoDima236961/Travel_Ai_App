@@ -11,8 +11,8 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/config"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/handler"
-	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver/handler"
+	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/pkg/observability"
 )
 

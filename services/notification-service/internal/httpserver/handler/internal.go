@@ -10,8 +10,8 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/emailnotifications"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/request"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/http-server/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver/dto/request"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/preferences"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/push"
