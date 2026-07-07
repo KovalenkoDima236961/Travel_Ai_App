@@ -12,15 +12,15 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/calendar"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	tokencrypto "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/crypto"
-	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
-	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/exchangerates"
-	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
-	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
-	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
-	calendarrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/httpserver"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/httpserver/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
+	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/exchangerates"
+	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/places"
+	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/routes"
+	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/weather"
+	calendarrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/storage/postgres"
 )
@@ -33,14 +33,18 @@ type container struct {
 }
 
 // buildContainer constructs and wires dependencies in order:
-// provider -> service -> handler -> router. There is no database in v1.
-func buildContainer(_ context.Context, cfg *config.Config, log *zap.Logger) (*container, error) {
-	ctx := context.Background()
+// storage -> providers -> services -> handlers -> router.
+func buildContainer(
+	ctx context.Context,
+	cfg *config.Config,
+	log *zap.Logger,
+	shutdown *closer.Stack,
+) (*container, error) {
 	db, err := postgres.New(ctx, cfg.Postgres)
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
-	closer.Add("postgres", func(context.Context) error {
+	shutdown.Add("postgres", func(context.Context) error {
 		db.Close()
 		return nil
 	})

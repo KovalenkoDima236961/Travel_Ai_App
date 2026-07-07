@@ -13,12 +13,12 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/availability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
-	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/exchangerates"
-	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/places"
-	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
-	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/weather"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/httpserver/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
+	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/exchangerates"
+	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/places"
+	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/routes"
+	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/weather"
 )
 
 func TestHealthReturnsOK(t *testing.T) {

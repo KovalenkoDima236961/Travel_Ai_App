@@ -8,7 +8,6 @@ import (
 
 	"go.uber.org/zap"
 
-	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
 
@@ -59,8 +58,8 @@ func (s *Service) SearchAvailability(ctx context.Context, input AvailabilitySear
 		if code == "unknown" {
 			code = ErrorProviderUnavailable
 		}
-		extobs.RecordProviderRequest(provider, availabilityOperation, string(ProviderResultProviderError), duration)
-		extobs.RecordProviderFailure(provider, availabilityOperation, code)
+		observability.RecordProviderRequest(provider, availabilityOperation, string(ProviderResultProviderError), duration)
+		observability.RecordProviderFailure(provider, availabilityOperation, code)
 		recordAvailabilityRequest(provider, string(ProviderResultProviderError), duration)
 		recordAvailabilityError(provider, code)
 		failFields := []zap.Field{
@@ -99,10 +98,10 @@ func (s *Service) SearchAvailability(ctx context.Context, input AvailabilitySear
 	resultLabel := string(result.Result)
 	if result.FallbackUsed {
 		resultLabel = string(ProviderResultFallback)
-		extobs.RecordProviderFallback(provider, availabilityOperation, mockProviderName)
+		observability.RecordProviderFallback(provider, availabilityOperation, mockProviderName)
 		recordAvailabilityFallback(provider, "provider_fallback")
 	}
-	extobs.RecordProviderRequest(provider, availabilityOperation, resultLabel, duration)
+	observability.RecordProviderRequest(provider, availabilityOperation, resultLabel, duration)
 	recordAvailabilityRequest(provider, resultLabel, duration)
 	recordAvailabilityOptions(provider, len(result.Options))
 	recordAvailabilityMatchConfidence(result.Provider, availabilityConfidenceBucket(result.Match))

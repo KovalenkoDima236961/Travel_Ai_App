@@ -13,8 +13,8 @@ import (
 
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/http-server/handler"
-	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/routes"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/httpserver/handler"
+	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/routes"
 )
 
 // failingRouteProvider always fails, standing in for a real provider outage when

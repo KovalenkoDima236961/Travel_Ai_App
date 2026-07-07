@@ -6,7 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
-	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/observability"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
 
 type Service struct {

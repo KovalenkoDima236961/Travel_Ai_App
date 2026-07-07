@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
-	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/infrastructure/provider/exchangerates"
+	exchangerateprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/exchangerates"
 )
 
 var currencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)

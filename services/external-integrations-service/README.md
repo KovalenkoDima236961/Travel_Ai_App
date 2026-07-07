@@ -44,6 +44,20 @@ All provider responses are normalized before they leave the service. The Web App
 and Trip Service do not call Foursquare, OpenRouteService, OpenWeatherMap, or
 Google Calendar directly.
 
+## Go Package Layout
+
+- `cmd/server` and `cmd/migrate` are thin executable entrypoints.
+- `internal/app` is the composition root and lifecycle owner.
+- `internal/application` contains provider-agnostic use case orchestration.
+- `internal/domain` contains stable Travel AI integration entities.
+- `internal/httpserver` contains HTTP routing, handlers, middleware, and wire DTOs.
+- `internal/providers` contains third-party provider adapters and provider-specific decorators.
+- `internal/repository/postgres` contains persistence adapters for calendar state and tokens.
+- `internal/{availability,prices,calendar,providerlimits}` contains feature modules with their ports, services, handlers, and provider-specific rules.
+- `pkg` contains project-agnostic service plumbing such as logging, shutdown
+  coordination, request/HTTP observability, TTL caching, and storage
+  bootstrapping. Do not put integration business logic there.
+
 ## Endpoints
 
 | Method | Path | Auth | Purpose |
