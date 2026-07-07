@@ -8,6 +8,20 @@ proposal, version, activity, and notification effects.
 The Web App does not call Worker Service directly. It creates and polls jobs
 through Trip Service.
 
+## Go Package Layout
+
+- `cmd/worker` is a thin executable entrypoint.
+- `internal/app` is the composition root and lifecycle owner.
+- `internal/httpserver` contains health, readiness, metrics, and ops HTTP routes.
+- `internal/rabbitmq` contains worker-specific queue consumption, retry/DLQ
+  behavior, generation-job RabbitMQ ops wrappers, and worker metrics.
+- `internal/config` loads worker runtime and management settings while reusing
+  Trip Service generation config.
+- `pkg` contains worker-local project-agnostic plumbing such as logging,
+  shutdown coordination, HTTP/request observability, and RabbitMQ
+  connection/management API helpers. Do not put job processing or Trip Service
+  business logic there.
+
 ## Processing Flow
 
 ```mermaid
@@ -188,6 +202,7 @@ active jobs, job starts/completions/failures, job duration, and queue delay.
 ```bash
 make fmt
 make vet
+make lint
 make test
 make build
 ```

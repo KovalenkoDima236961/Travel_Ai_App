@@ -13,7 +13,8 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/jobqueue"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/pkg/observability"
+	rabbitmqinfra "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/pkg/rabbitmq"
 )
 
 type Consumer struct {
@@ -69,7 +70,10 @@ func NewConsumer(
 }
 
 func (c *Consumer) Run(ctx context.Context) error {
-	conn, err := dialWithRetry(ctx, c.cfg.URL, 10, 500*time.Millisecond)
+	conn, err := rabbitmqinfra.DialWithRetry(ctx, c.cfg.URL, rabbitmqinfra.DialRetryConfig{
+		Attempts:     10,
+		InitialDelay: 500 * time.Millisecond,
+	})
 	if err != nil {
 		return err
 	}
@@ -390,30 +394,4 @@ func readAttempt(headers amqp.Table) int {
 	default:
 		return 0
 	}
-}
-
-func dialWithRetry(ctx context.Context, url string, attempts int, delay time.Duration) (*amqp.Connection, error) {
-	if attempts < 1 {
-		attempts = 1
-	}
-	var lastErr error
-	for i := 0; i < attempts; i++ {
-		conn, err := amqp.Dial(url)
-		if err == nil {
-			return conn, nil
-		}
-		lastErr = err
-
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, fmt.Errorf("connect rabbitmq: %w", ctx.Err())
-		case <-timer.C:
-		}
-		if delay < 5*time.Second {
-			delay *= 2
-		}
-	}
-	return nil, fmt.Errorf("connect rabbitmq: %w", lastErr)
 }

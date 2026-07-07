@@ -27,6 +27,10 @@ fmt: ## Format the codebase
 vet: ## Run go vet
 	go vet ./...
 
+.PHONY: lint
+lint: ## Run golangci-lint
+	golangci-lint run ./...
+
 .PHONY: test
 test: ## Run tests
 	go test ./... -race -count=1

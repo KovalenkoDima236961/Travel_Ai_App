@@ -1,18 +1,15 @@
 package rabbitmq
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/jobqueue"
+	rabbitmqinfra "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/pkg/rabbitmq"
 )
 
 type ManagementConfig struct {
@@ -24,20 +21,11 @@ type ManagementConfig struct {
 }
 
 type ManagementClient struct {
-	cfg    ManagementConfig
-	base   string
-	vhost  string
-	client *http.Client
+	queue  jobqueue.Config
+	client *rabbitmqinfra.ManagementClient
 }
 
-type QueueStatus struct {
-	Name            string   `json:"name"`
-	MessagesReady   int      `json:"messagesReady"`
-	MessagesUnacked int      `json:"messagesUnacked"`
-	Consumers       int      `json:"consumers"`
-	PublishRate     *float64 `json:"publishRate,omitempty"`
-	DeliverRate     *float64 `json:"deliverRate,omitempty"`
-}
+type QueueStatus = rabbitmqinfra.QueueStatus
 
 type DLQMessage struct {
 	MessageID      string         `json:"messageId"`
@@ -52,60 +40,31 @@ type DLQMessage struct {
 	PayloadPreview map[string]any `json:"payloadPreview,omitempty"`
 }
 
-type rabbitQueueResponse struct {
-	Name            string `json:"name"`
-	MessagesReady   int    `json:"messages_ready"`
-	MessagesUnacked int    `json:"messages_unacknowledged"`
-	Consumers       int    `json:"consumers"`
-	MessageStats    struct {
-		PublishDetails struct {
-			Rate float64 `json:"rate"`
-		} `json:"publish_details"`
-		DeliverGetDetails struct {
-			Rate float64 `json:"rate"`
-		} `json:"deliver_get_details"`
-	} `json:"message_stats"`
-}
-
-type rabbitGetMessage struct {
-	Payload    string         `json:"payload"`
-	Properties map[string]any `json:"properties"`
-}
+type rabbitGetMessage = rabbitmqinfra.Message
 
 func NewManagementClient(cfg ManagementConfig) (*ManagementClient, error) {
-	base := strings.TrimRight(strings.TrimSpace(cfg.URL), "/")
-	if base == "" {
-		return nil, fmt.Errorf("RABBITMQ_MANAGEMENT_URL is required")
-	}
-	vhost := "/"
-	if parsed, err := url.Parse(cfg.AMQPURL); err == nil {
-		if strings.TrimSpace(parsed.Path) != "" && parsed.Path != "/" {
-			vhost = strings.TrimPrefix(parsed.Path, "/")
-		}
+	client, err := rabbitmqinfra.NewManagementClient(rabbitmqinfra.ManagementConfig{
+		URL:      cfg.URL,
+		User:     cfg.User,
+		Password: cfg.Password,
+		AMQPURL:  cfg.AMQPURL,
+	})
+	if err != nil {
+		return nil, err
 	}
 	return &ManagementClient{
-		cfg:    cfg,
-		base:   base,
-		vhost:  vhost,
-		client: &http.Client{Timeout: 5 * time.Second},
+		queue:  cfg.Queue,
+		client: client,
 	}, nil
 }
 
 func (c *ManagementClient) QueueStatuses(ctx context.Context) ([]QueueStatus, error) {
 	names := []string{
-		c.cfg.Queue.QueueName,
-		c.cfg.Queue.RetryQueueName,
-		c.cfg.Queue.DeadLetterQueueName,
+		c.queue.QueueName,
+		c.queue.RetryQueueName,
+		c.queue.DeadLetterQueueName,
 	}
-	out := make([]QueueStatus, 0, len(names))
-	for _, name := range names {
-		status, err := c.queueStatus(ctx, name)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, status)
-	}
-	return out, nil
+	return c.client.QueueStatuses(ctx, names)
 }
 
 func (c *ManagementClient) ListDLQMessages(ctx context.Context, limit int) ([]DLQMessage, error) {
@@ -115,7 +74,7 @@ func (c *ManagementClient) ListDLQMessages(ctx context.Context, limit int) ([]DL
 	if limit > 100 {
 		limit = 100
 	}
-	raw, err := c.getMessages(ctx, c.cfg.Queue.DeadLetterQueueName, limit, "ack_requeue_true")
+	raw, err := c.getMessages(ctx, c.queue.DeadLetterQueueName, limit, "ack_requeue_true")
 	if err != nil {
 		return nil, err
 	}
@@ -134,29 +93,12 @@ func (c *ManagementClient) DiscardDLQMessage(ctx context.Context, messageID stri
 	return c.moveDLQMessage(ctx, messageID, "discard", reason)
 }
 
-func (c *ManagementClient) queueStatus(ctx context.Context, name string) (QueueStatus, error) {
-	var body rabbitQueueResponse
-	if err := c.doJSON(ctx, http.MethodGet, "/api/queues/"+url.PathEscape(c.vhost)+"/"+url.PathEscape(name), nil, &body); err != nil {
-		return QueueStatus{}, err
-	}
-	publishRate := body.MessageStats.PublishDetails.Rate
-	deliverRate := body.MessageStats.DeliverGetDetails.Rate
-	return QueueStatus{
-		Name:            body.Name,
-		MessagesReady:   body.MessagesReady,
-		MessagesUnacked: body.MessagesUnacked,
-		Consumers:       body.Consumers,
-		PublishRate:     &publishRate,
-		DeliverRate:     &deliverRate,
-	}, nil
-}
-
 func (c *ManagementClient) moveDLQMessage(ctx context.Context, messageID, action, reason string) error {
 	messageID = strings.TrimSpace(messageID)
 	if messageID == "" {
 		return fmt.Errorf("messageId is required")
 	}
-	messages, err := c.getMessages(ctx, c.cfg.Queue.DeadLetterQueueName, 100, "ack_requeue_false")
+	messages, err := c.getMessages(ctx, c.queue.DeadLetterQueueName, 100, "ack_requeue_false")
 	if err != nil {
 		return err
 	}
@@ -166,13 +108,13 @@ func (c *ManagementClient) moveDLQMessage(ctx context.Context, messageID, action
 		if sanitized.MessageID == messageID {
 			found = true
 			if action == "requeue" {
-				if err := c.publishRaw(ctx, c.cfg.Queue.Exchange, c.cfg.Queue.RoutingKey, msg, reason); err != nil {
+				if err := c.publishRaw(ctx, c.queue.Exchange, c.queue.RoutingKey, msg, reason); err != nil {
 					return err
 				}
 			}
 			continue
 		}
-		if err := c.publishRaw(ctx, c.cfg.Queue.DLX, c.cfg.Queue.DeadLetterRoutingKey, msg, "preserve_unmatched"); err != nil {
+		if err := c.publishRaw(ctx, c.queue.DLX, c.queue.DeadLetterRoutingKey, msg, "preserve_unmatched"); err != nil {
 			return err
 		}
 	}
@@ -183,17 +125,7 @@ func (c *ManagementClient) moveDLQMessage(ctx context.Context, messageID, action
 }
 
 func (c *ManagementClient) getMessages(ctx context.Context, queue string, count int, ackmode string) ([]rabbitGetMessage, error) {
-	body := map[string]any{
-		"count":    count,
-		"ackmode":  ackmode,
-		"encoding": "auto",
-		"truncate": 5000,
-	}
-	var out []rabbitGetMessage
-	if err := c.doJSON(ctx, http.MethodPost, "/api/queues/"+url.PathEscape(c.vhost)+"/"+url.PathEscape(queue)+"/get", body, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return c.client.GetMessages(ctx, queue, count, ackmode)
 }
 
 func (c *ManagementClient) publishRaw(ctx context.Context, exchange, routingKey string, msg rabbitGetMessage, opsReason string) error {
@@ -204,54 +136,8 @@ func (c *ManagementClient) publishRaw(ctx context.Context, exchange, routingKey 
 		headers["x-ops-reason"] = truncate(opsReason, 200)
 	}
 	props["headers"] = headers
-	body := map[string]any{
-		"properties":       props,
-		"routing_key":      routingKey,
-		"payload":          msg.Payload,
-		"payload_encoding": "string",
-	}
-	var out struct {
-		Routed bool `json:"routed"`
-	}
-	if err := c.doJSON(ctx, http.MethodPost, "/api/exchanges/"+url.PathEscape(c.vhost)+"/"+url.PathEscape(exchange)+"/publish", body, &out); err != nil {
-		return err
-	}
-	if !out.Routed {
-		return fmt.Errorf("rabbitmq publish was not routed")
-	}
-	return nil
-}
-
-func (c *ManagementClient) doJSON(ctx context.Context, method, path string, body any, out any) error {
-	var reader io.Reader
-	if body != nil {
-		raw, err := json.Marshal(body)
-		if err != nil {
-			return err
-		}
-		reader = bytes.NewReader(raw)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, c.base+path, reader)
-	if err != nil {
-		return err
-	}
-	req.SetBasicAuth(c.cfg.User, c.cfg.Password)
-	req.Header.Set("Accept", "application/json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("rabbitmq management API returned HTTP %d", resp.StatusCode)
-	}
-	if out == nil {
-		return nil
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	msg.Properties = props
+	return c.client.PublishRaw(ctx, exchange, routingKey, msg)
 }
 
 func sanitizeDLQMessage(msg rabbitGetMessage) DLQMessage {

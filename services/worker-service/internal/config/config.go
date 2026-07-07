@@ -62,14 +62,6 @@ func Load(tripConfigPath string) (*Config, error) {
 	}, nil
 }
 
-func MustLoad(tripConfigPath string) *Config {
-	cfg, err := Load(tripConfigPath)
-	if err != nil {
-		panic(fmt.Errorf("config: %w", err))
-	}
-	return cfg
-}
-
 func (c *Config) ShutdownTimeout() time.Duration {
 	return time.Duration(c.Runtime.ShutdownTimeoutSeconds) * time.Second
 }
