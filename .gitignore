@@ -8,3 +8,5 @@ graphify-out/
 .claude
 .codex
 .vscode
+
+.DS_Store
