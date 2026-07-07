@@ -10,8 +10,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/config"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/handler"
-	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/handler"
+	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/pkg/observability"
 )
 

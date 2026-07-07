@@ -11,14 +11,16 @@ import (
 
 type ctxKey struct{}
 
-var once = &sync.Once{}
+var (
+	once sync.Once
+	root *zap.Logger
+)
 
 func InitLogger() *zap.Logger {
-	var logger *zap.Logger
 	once.Do(func() {
-		logger = buildLogger()
+		root = buildLogger()
 	})
-	return logger
+	return root
 }
 
 func FromCtx(ctx context.Context) (*zap.Logger, bool) {

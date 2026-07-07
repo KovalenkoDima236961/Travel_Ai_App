@@ -16,8 +16,8 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/dto/response"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/middleware"
 )
 
 type stubAuthService struct {

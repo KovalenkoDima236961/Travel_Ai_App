@@ -26,6 +26,18 @@ Auth Service signs access tokens. Other private services validate those tokens
 locally with the same `JWT_ACCESS_SECRET`; they do not call Auth Service on
 every request.
 
+## Go Package Layout
+
+- `cmd/server` and `cmd/migrate` are thin executable entrypoints.
+- `internal/app` is the composition root and lifecycle owner.
+- `internal/application` contains auth use cases, DTOs, and application errors.
+- `internal/domain` contains auth entities and domain errors.
+- `internal/httpserver` contains HTTP routing, handlers, middleware, and wire DTOs.
+- `internal/repository/postgres` contains the auth persistence adapter.
+- `pkg` contains project-agnostic service plumbing such as logging, shutdown
+  coordination, observability, and storage bootstrapping. Do not put auth
+  business logic there.
+
 ## Endpoints
 
 | Method | Path | Auth | Purpose |

@@ -11,7 +11,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/domain/errs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/infrastructure/repository/postgres/dto"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/repository/postgres/dto"
 	storage "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/pkg/storage/postgres"
 )
 

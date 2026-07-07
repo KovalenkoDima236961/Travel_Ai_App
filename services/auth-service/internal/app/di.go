@@ -9,9 +9,9 @@ import (
 
 	auth "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/config"
-	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/http-server/handler"
-	authrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/infrastructure/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/handler"
+	authrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/pkg/storage/postgres"
 )
@@ -25,13 +25,18 @@ type container struct {
 
 // buildContainer constructs and wires dependencies in order:
 // postgres (with auto-migrations) -> repository -> password/tokens -> service
-// -> handler -> router. Long-lived resources register themselves with closer.
-func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*container, error) {
+// -> handler -> router. Long-lived resources register themselves with shutdown.
+func buildContainer(
+	ctx context.Context,
+	cfg *config.Config,
+	log *zap.Logger,
+	shutdown *closer.Stack,
+) (*container, error) {
 	db, err := postgres.New(ctx, cfg.Postgres)
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
-	closer.Add("postgres", func(context.Context) error {
+	shutdown.Add("postgres", func(context.Context) error {
 		db.Close()
 		return nil
 	})

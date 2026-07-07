@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"strconv"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/golang-migrate/migrate/v4"
@@ -35,10 +38,10 @@ type DB struct {
 }
 
 func New(ctx context.Context, cfg Config) (*DB, error) {
-	connString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
+	migrationURL := postgresURL(cfg, false)
+	poolURL := postgresURL(cfg, true)
 
-	postgresCfg, err := pgxpool.ParseConfig(fmt.Sprintf("%s&pool_max_conns=%d&pool_min_conns=%d", connString, cfg.MaxConns, cfg.MinConns))
+	postgresCfg, err := pgxpool.ParseConfig(poolURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse database connection config: %w", err)
 	}
@@ -54,12 +57,31 @@ func New(ctx context.Context, cfg Config) (*DB, error) {
 		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
 	}
 
-	if err = doMigrate(connString, cfg.MigPath); err != nil {
+	if err = doMigrate(migrationURL, cfg.MigPath); err != nil {
 		pool.Close()
 		return nil, err
 	}
 
 	return db, nil
+}
+
+func postgresURL(cfg Config, includePoolParams bool) string {
+	u := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(cfg.Username, cfg.Password),
+		Host:   net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
+		Path:   cfg.Database,
+	}
+
+	q := u.Query()
+	q.Set("sslmode", "disable")
+	if includePoolParams {
+		q.Set("pool_max_conns", strconv.Itoa(cfg.MaxConns))
+		q.Set("pool_min_conns", strconv.Itoa(cfg.MinConns))
+	}
+	u.RawQuery = q.Encode()
+
+	return u.String()
 }
 
 func doMigrate(connStr, migPath string) error {
