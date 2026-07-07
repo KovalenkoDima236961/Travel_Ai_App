@@ -8,8 +8,8 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 )
 
 const (

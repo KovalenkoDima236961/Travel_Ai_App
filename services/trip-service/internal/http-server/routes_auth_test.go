@@ -29,8 +29,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
 const (

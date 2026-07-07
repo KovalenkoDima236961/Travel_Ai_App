@@ -9,8 +9,8 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/logger"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/closer"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/logger"
 )
 
 // App is the composition root and lifecycle owner for the trip service.

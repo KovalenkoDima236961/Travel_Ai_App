@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
 )
 
 const maxPlaceContextErrorBodyBytes = 2 * 1024

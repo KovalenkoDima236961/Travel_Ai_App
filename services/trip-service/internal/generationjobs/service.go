@@ -18,7 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 )
 
 type Repository interface {

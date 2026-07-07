@@ -25,6 +25,9 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/closer"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
@@ -32,9 +35,6 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/closer"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
 // container holds the wired dependencies. It is a small, explicit composition

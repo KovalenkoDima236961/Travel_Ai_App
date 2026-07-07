@@ -11,10 +11,12 @@ import (
 
 type ctxKey struct{}
 
-var once = &sync.Once{}
+var (
+	once   sync.Once
+	logger *zap.Logger
+)
 
 func InitLogger() *zap.Logger {
-	var logger *zap.Logger
 	once.Do(func() {
 		logger = buildLogger()
 	})

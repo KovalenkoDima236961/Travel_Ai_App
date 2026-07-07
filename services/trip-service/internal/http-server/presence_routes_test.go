@@ -19,8 +19,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
 func TestPresenceStreamRequiresJWT(t *testing.T) {

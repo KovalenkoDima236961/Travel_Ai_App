@@ -25,8 +25,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/validation"
 )
 
 // Handler wires the trip use case to HTTP.

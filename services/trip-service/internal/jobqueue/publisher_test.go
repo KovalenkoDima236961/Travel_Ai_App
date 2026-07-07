@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 )
 
 func TestEnsureMessageRequestIDsUsesContext(t *testing.T) {

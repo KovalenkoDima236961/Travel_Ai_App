@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 )
 
 const internalServiceTokenHeader = "X-Internal-Service-Token"

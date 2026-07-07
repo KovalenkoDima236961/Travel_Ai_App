@@ -9,7 +9,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 )
 
 const TripTravelerColumns = "id, trip_id, name, email, linked_user_id, role, status, created_by_user_id, created_at, updated_at, removed_at"

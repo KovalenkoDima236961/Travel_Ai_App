@@ -17,7 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 )
 
 // Columns is the canonical column order used by all SELECT/RETURNING statements

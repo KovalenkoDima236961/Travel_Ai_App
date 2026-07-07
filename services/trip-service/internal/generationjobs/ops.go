@@ -12,7 +12,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 )
 
 const (

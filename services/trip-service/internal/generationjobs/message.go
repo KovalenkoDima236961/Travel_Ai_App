@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 )
 
 const BudgetOptimizationProposalColumns = "id, trip_id, job_id, created_by_user_id, " +

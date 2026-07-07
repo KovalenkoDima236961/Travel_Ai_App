@@ -20,7 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres/dto"
-	storage "github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
+	storage "github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 )
 
 // Repository persists trips using squirrel query building over the shared

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 )
 
 var configPath = flag.String("config", "", "Use to specify path to config file")
