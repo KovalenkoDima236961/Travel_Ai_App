@@ -4,3 +4,6 @@ infra/.env
 graphify-out/
 
 .cache/
+
+.claude
+.codex
