@@ -48,6 +48,17 @@ class APIModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class WorkspacePolicyConstraints(APIModel):
+    """Trusted workspace planning guidance supplied by Trip Service.
+
+    The AI uses this context as guidance; Trip Service evaluates the persisted
+    itinerary authoritatively after generation.
+    """
+
+    summary: str = Field(max_length=5000)
+    rules: dict[str, object] = Field(default_factory=dict)
+
+
 def _normalize_string_list(value: object) -> object:
     if value is None:
         return []
@@ -248,6 +259,9 @@ class GenerateItineraryRequest(APIModel):
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
     accommodation: AccommodationContext | None = None
+    workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
+        default=None, alias="workspacePolicyConstraints"
+    )
 
     @field_validator("budget_currency", mode="before")
     @classmethod
@@ -508,6 +522,9 @@ class RegenerateDayRequest(APIModel):
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
     accommodation: AccommodationContext | None = None
+    workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
+        default=None, alias="workspacePolicyConstraints"
+    )
 
     @field_validator("instruction", mode="before")
     @classmethod
@@ -646,6 +663,9 @@ class OptimizeBudgetDayRequest(APIModel):
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
     accommodation: AccommodationContext | None = None
+    workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
+        default=None, alias="workspacePolicyConstraints"
+    )
 
     @field_validator("instruction", mode="before")
     @classmethod

@@ -1,5 +1,7 @@
 package approvals
 
+import "fmt"
+
 // ItemStatus is the per-check outcome shown in the checklist UI.
 type ItemStatus string
 
@@ -43,6 +45,7 @@ const (
 	KeyAvailabilityPriceChanged  = "availability_price_changed"
 	KeyAvailabilityFallback      = "availability_fallback"
 	KeyMissingCostEstimates      = "missing_cost_estimates"
+	KeyWorkspacePolicy           = "workspace_policy"
 )
 
 // ChecklistItem is one evaluated check.
@@ -92,6 +95,12 @@ type ChecklistInput struct {
 	MissingEstimateCount int
 	DefaultSplitCount    int
 
+	// Workspace planning policy.
+	PolicyStatus        string
+	PolicyWarningCount  int
+	PolicyBlockingCount int
+	PolicyInfoCount     int
+
 	// Availability / bookable items.
 	BookableItemCount          int
 	AvailabilityUncheckedCount int
@@ -116,6 +125,7 @@ func Calculate(in ChecklistInput) Checklist {
 		costSplittingItem(in),
 		availabilityItem(in),
 		missingEstimatesItem(in),
+		workspacePolicyItem(in),
 	}
 	// Richer availability signals are appended only when present so the checklist
 	// stays clean for trips without applied provider results.
@@ -143,6 +153,40 @@ func Calculate(in ChecklistInput) Checklist {
 		checklist.Status = ChecklistStatusOK
 	}
 	return checklist
+}
+
+func workspacePolicyItem(in ChecklistInput) ChecklistItem {
+	item := ChecklistItem{
+		Key:      KeyWorkspacePolicy,
+		Severity: SeverityInfo,
+		Title:    "Workspace policy",
+	}
+	message := "No active workspace policy applies."
+	if in.PolicyWarningCount > 0 || in.PolicyBlockingCount > 0 || in.PolicyInfoCount > 0 {
+		message = fmt.Sprintf(
+			"Workspace policy: %d warning(s), %d blocking violation(s), %d info result(s).",
+			in.PolicyWarningCount,
+			in.PolicyBlockingCount,
+			in.PolicyInfoCount,
+		)
+	}
+	switch in.PolicyStatus {
+	case "blocking":
+		item.Status = ItemStatusBlocked
+		item.Severity = SeverityBlocker
+	case "warning":
+		item.Status = ItemStatusWarning
+		item.Severity = SeverityWarning
+	case "info", "not_applicable":
+		item.Status = ItemStatusInfo
+	default:
+		item.Status = ItemStatusOK
+		if in.PolicyStatus == "ok" {
+			message = "The trip passes all enabled workspace policy rules."
+		}
+	}
+	item.Message = message
+	return item
 }
 
 func itineraryItem(in ChecklistInput) ChecklistItem {

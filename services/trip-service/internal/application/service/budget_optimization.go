@@ -130,6 +130,7 @@ func (s *Service) OptimizeBudgetDayForActor(
 	if err != nil {
 		return nil, err
 	}
+	input.WorkspacePolicyConstraints = s.workspacePolicyAIConstraints(ctx, current)
 
 	content, err := s.generator.OptimizeBudgetDay(ctx, input)
 	if err != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
 )
 
@@ -192,6 +193,10 @@ type workspaceProvider interface {
 	ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]workspaces.WorkspaceMember, error)
 }
 
+type workspacePolicyProvider interface {
+	GetActive(ctx context.Context, workspaceID uuid.UUID) (*workspacepolicies.Policy, error)
+}
+
 // Option customizes Service dependencies that are not required for the core
 // trip CRUD flow.
 type Option func(*Service)
@@ -266,6 +271,12 @@ func WithWorkspaces(provider workspaceProvider, enabled bool) Option {
 	}
 }
 
+func WithWorkspacePolicies(provider workspacePolicyProvider) Option {
+	return func(s *Service) {
+		s.workspacePolicyProvider = provider
+	}
+}
+
 // WithPublicSharing configures owner-managed public read-only trip links.
 func WithPublicSharing(
 	enabled bool,
@@ -313,6 +324,7 @@ type Service struct {
 	budgetConversionEnabled      bool
 	budgetConversionFailOpen     bool
 	workspaceProvider            workspaceProvider
+	workspacePolicyProvider      workspacePolicyProvider
 	workspacesEnabled            bool
 	activity                     activityService
 	notifier                     notifier
@@ -521,10 +533,11 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 	)
 
 	itinerary, err := s.generator.Generate(ctx, application.GenerateItineraryInput{
-		Trip:            *current,
-		UserProfile:     userContext.Profile,
-		UserPreferences: userContext.Preferences,
-		WeatherForecast: weatherForecast,
+		Trip:                       *current,
+		UserProfile:                userContext.Profile,
+		UserPreferences:            userContext.Preferences,
+		WeatherForecast:            weatherForecast,
+		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
 	})
 	if err != nil {
 		s.markFailed(ctx, id, ownerID)
@@ -742,13 +755,14 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	}
 
 	replacement, err := s.generator.RegenerateDay(ctx, application.RegenerateDayInput{
-		Trip:             *current,
-		CurrentItinerary: currentItinerary,
-		DayNumber:        dayNumber,
-		Instruction:      instruction,
-		UserProfile:      userContext.Profile,
-		UserPreferences:  userContext.Preferences,
-		WeatherForecast:  weatherForecast,
+		Trip:                       *current,
+		CurrentItinerary:           currentItinerary,
+		DayNumber:                  dayNumber,
+		Instruction:                instruction,
+		UserProfile:                userContext.Profile,
+		UserPreferences:            userContext.Preferences,
+		WeatherForecast:            weatherForecast,
+		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
 	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
@@ -881,14 +895,15 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 	}
 
 	replacement, err := s.generator.RegenerateItem(ctx, application.RegenerateItemInput{
-		Trip:             *current,
-		CurrentItinerary: currentItinerary,
-		DayNumber:        dayNumber,
-		ItemIndex:        itemIndex,
-		Instruction:      instruction,
-		UserProfile:      userContext.Profile,
-		UserPreferences:  userContext.Preferences,
-		WeatherForecast:  weatherForecast,
+		Trip:                       *current,
+		CurrentItinerary:           currentItinerary,
+		DayNumber:                  dayNumber,
+		ItemIndex:                  itemIndex,
+		Instruction:                instruction,
+		UserProfile:                userContext.Profile,
+		UserPreferences:            userContext.Preferences,
+		WeatherForecast:            weatherForecast,
+		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
 	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)

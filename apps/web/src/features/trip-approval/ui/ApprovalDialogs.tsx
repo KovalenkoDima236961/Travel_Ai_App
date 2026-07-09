@@ -88,7 +88,11 @@ export function SubmitForApprovalDialog({
         {checklist ? <ApprovalChecklist checklist={checklist} /> : null}
         {hasBlocker ? (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            This trip cannot be submitted yet. Resolve the blocker above first.
+            {checklist?.items.some(
+              (item) => item.key === "workspace_policy" && item.status === "blocked"
+            )
+              ? "This trip has blocking workspace policy violations."
+              : "This trip cannot be submitted yet. Resolve the blocker above first."}
           </p>
         ) : null}
         {warnings.length > 0 ? (

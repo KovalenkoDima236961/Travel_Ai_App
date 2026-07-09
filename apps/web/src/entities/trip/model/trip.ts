@@ -51,7 +51,12 @@ export type AvailabilityCheckMeta = {
 
 export type ItineraryItem = {
   time: string;
+  endTime?: string | null;
   type: "place" | "food" | "activity" | "transport" | "rest" | string;
+  category?: string | null;
+  transportMode?: string | null;
+  durationMinutes?: number | null;
+  walkingDistanceKm?: number | null;
   name: string;
   note?: string | null;
   estimatedCost?: EstimatedCost | null;

@@ -173,9 +173,14 @@ export function WorkspaceSettingsPageContent() {
             </p>
           ) : null}
         </div>
-        <Link className={buttonStyles({ variant: "secondary" })} href={`/workspaces/${workspaceId}`}>
-          Back to workspace
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link className={buttonStyles({ variant: "secondary" })} href={`/workspaces/${workspaceId}/settings/policy`}>
+            Planning policy
+          </Link>
+          <Link className={buttonStyles({ variant: "secondary" })} href={`/workspaces/${workspaceId}`}>
+            Back to workspace
+          </Link>
+        </div>
       </div>
 
       {workspaceQuery.isError ? (

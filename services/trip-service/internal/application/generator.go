@@ -11,40 +11,44 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
 // GenerateItineraryInput is the internal generator request. Trip Service owns
 // loading trusted user context; frontend callers cannot submit these fields.
 type GenerateItineraryInput struct {
-	Trip            entity.Trip
-	UserProfile     *usercontext.UserProfile
-	UserPreferences *usercontext.UserPreferences
-	WeatherForecast *weathercontext.WeatherForecast
+	Trip                       entity.Trip
+	UserProfile                *usercontext.UserProfile
+	UserPreferences            *usercontext.UserPreferences
+	WeatherForecast            *weathercontext.WeatherForecast
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
 }
 
 // RegenerateDayInput is the internal generator request for replacing one day
 // in an existing itinerary.
 type RegenerateDayInput struct {
-	Trip             entity.Trip
-	CurrentItinerary aggregate.Itinerary
-	DayNumber        int
-	Instruction      string
-	UserProfile      *usercontext.UserProfile
-	UserPreferences  *usercontext.UserPreferences
-	WeatherForecast  *weathercontext.WeatherForecast
+	Trip                       entity.Trip
+	CurrentItinerary           aggregate.Itinerary
+	DayNumber                  int
+	Instruction                string
+	UserProfile                *usercontext.UserProfile
+	UserPreferences            *usercontext.UserPreferences
+	WeatherForecast            *weathercontext.WeatherForecast
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
 }
 
 // RegenerateItemInput is the internal generator request for replacing one item
 // in an existing itinerary day. ItemIndex is zero-based.
 type RegenerateItemInput struct {
-	Trip             entity.Trip
-	CurrentItinerary aggregate.Itinerary
-	DayNumber        int
-	ItemIndex        int
-	Instruction      string
-	UserProfile      *usercontext.UserProfile
-	UserPreferences  *usercontext.UserPreferences
-	WeatherForecast  *weathercontext.WeatherForecast
+	Trip                       entity.Trip
+	CurrentItinerary           aggregate.Itinerary
+	DayNumber                  int
+	ItemIndex                  int
+	Instruction                string
+	UserProfile                *usercontext.UserProfile
+	UserPreferences            *usercontext.UserPreferences
+	WeatherForecast            *weathercontext.WeatherForecast
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
 }
 
 // ItineraryGenerator is the port for turning a trip into a concrete itinerary.

@@ -19,6 +19,7 @@ from app.schemas.itinerary import (
     EstimatedCost,
     NonEmptyString,
     Pace,
+    WorkspacePolicyConstraints,
     _normalize_string_list,
 )
 
@@ -199,6 +200,9 @@ class TemplateAdaptationRequest(APIModel):
         default_factory=TemplateAdaptationConstraints
     )
     context: AdaptationContext | None = None
+    workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
+        default=None, alias="workspacePolicyConstraints"
+    )
 
 
 class AdaptedPlace(APIModel):

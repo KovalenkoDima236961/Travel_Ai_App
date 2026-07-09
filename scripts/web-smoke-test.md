@@ -1115,6 +1115,22 @@ Use two browsers: workspace owner A and member B (from the Workspaces flow).
 12. While offline (DevTools → Network → Offline), confirm approval actions are
     disabled with an "Approval actions require internet" note.
 
+## Workspace Policy Rules v1
+
+1. Create a workspace trip with an itinerary containing estimated costs.
+2. Open **Workspace settings → Planning policy** as an owner/admin.
+3. Enable **Maximum trip budget**, set a limit below the trip estimate, choose
+   **Blocking**, and save.
+4. Open the trip and confirm the Workspace policy panel shows the violation.
+5. Try **Submit for approval** and confirm the policy blocker disables/rejects
+   submission.
+6. Change the rule severity to **Warning**, save, and re-check the trip.
+7. Confirm submission is now allowed with a visible warning.
+8. Sign in as a member/viewer and confirm the policy is read-only.
+9. Generate, regenerate, or adapt a workspace trip and confirm the UI explains
+   that policy is AI guidance and the backend check remains authoritative.
+10. Open a personal trip and confirm no workspace policy applies.
+
 ## Troubleshooting
 
 ### Optional Ops Dashboard Check

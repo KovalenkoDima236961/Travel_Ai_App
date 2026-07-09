@@ -265,3 +265,12 @@ npm run build
 - AI generation and RAG: [services/ai-planning-service/README.md](services/ai-planning-service/README.md)
 
 The generated codebase graph starts at [graphify-out/wiki/index.md](graphify-out/wiki/index.md).
+
+## Workspace Policy Rules v1
+
+Workspaces can define one active planning policy with versioned budget,
+availability, route, schedule, rest, transport, and activity-type rules. Trip
+Service evaluates workspace trips deterministically, adds the result to
+approval readiness, and blocks submission only for violated rules configured
+as `blocking`. AI generation/adaptation receives active rules as best-effort
+guidance; backend evaluation remains authoritative.

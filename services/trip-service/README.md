@@ -550,3 +550,31 @@ make build
 - Do not log access tokens, internal service tokens, share passwords, public
   share access tokens, full prompts, full preference payloads, full private
   itinerary JSON, OAuth tokens, or provider API keys.
+
+## Workspace Policy Rules v1
+
+Trip Service owns one optional active policy per workspace in
+`workspace_policies`. The versioned `rules_json` document supports
+trip/daily/item/accommodation limits, cost splitting, ticketed-item
+availability, walking, late activities, rest time, preferred transport, and
+disallowed activity types. Severities are `info`, `warning`, or `blocking`.
+
+Endpoints:
+
+- `GET|PUT /workspaces/{workspaceId}/policy`
+- `POST /workspaces/{workspaceId}/policy/archive`
+- `GET /trips/{tripId}/policy/evaluation`
+- `POST /trips/{tripId}/policy/evaluate`
+
+Members can view policies and evaluate accessible trips; only owners/admins can
+write or archive a policy. Evaluations are live, deterministic, explainable,
+and are not persisted. The approval checklist includes the policy result.
+Only a violated `blocking` rule prevents approval submission, returning
+`workspace_policy_blocking_violation` with the evaluation payload. Editing and
+generation remain allowed.
+
+Active rules are converted to `workspacePolicyConstraints` for generation,
+partial regeneration, budget optimization, and template adaptation. This is
+guidance only: Trip Service evaluation remains authoritative. Policies are
+planning guidance, not legal/compliance or expense enforcement; v1 has no
+custom rule DSL.

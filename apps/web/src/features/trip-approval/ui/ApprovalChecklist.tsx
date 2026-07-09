@@ -36,6 +36,11 @@ export function ApprovalChecklist({
               <span className="flex-1 text-slate-700">
                 <span className="font-medium text-slate-900">{item.title}</span>
                 {item.message ? <span className="text-slate-500"> — {item.message}</span> : null}
+                {item.key === "workspace_policy" ? (
+                  <a className="ml-1 text-primary-700 hover:underline" href="#workspace-policy">
+                    View policy details
+                  </a>
+                ) : null}
                 {isAcknowledged ? (
                   <span className="ml-1 text-xs text-slate-400">(acknowledged)</span>
                 ) : null}

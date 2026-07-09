@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
 func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
@@ -75,6 +76,10 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 			Accommodation:  testAccommodation(),
 		},
 		WeatherForecast: validWeatherForecast(),
+		WorkspacePolicyConstraints: &workspacepolicies.AIConstraints{
+			Summary: "Avoid activities after 22:00.",
+			Rules:   json.RawMessage(`{"schemaVersion":1,"rules":{}}`),
+		},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -97,6 +102,10 @@ func TestAIPlanningHTTPGeneratorGenerate_Success(t *testing.T) {
 	}
 	if captured.Accommodation == nil || captured.Accommodation.Name != "Hotel Roma" {
 		t.Fatalf("expected accommodation to be serialized, got %+v", captured.Accommodation)
+	}
+	if captured.WorkspacePolicyConstraints == nil ||
+		captured.WorkspacePolicyConstraints.Summary != "Avoid activities after 22:00." {
+		t.Fatalf("expected workspace policy constraints, got %+v", captured.WorkspacePolicyConstraints)
 	}
 }
 

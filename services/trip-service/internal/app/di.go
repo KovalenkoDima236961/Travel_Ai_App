@@ -34,6 +34,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
 )
 
@@ -166,6 +167,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	})
 	activityStreamManager := activitystream.NewManager(activityStreamCfg, log)
 	activitySvc := activity.New(repo, log, activity.WithPublisher(activityStreamManager))
+	policyRepo := workspacepolicies.NewRepository(db)
+	policySvc := workspacepolicies.New(policyRepo, workspaceClient)
 
 	var notificationClient *notifications.Client
 	if cfg.Notifications.Enabled {
@@ -210,6 +213,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		service.WithUserLookup(userLookupClient),
 		service.WithActivity(activitySvc),
 		service.WithWorkspaces(workspaceClient, cfg.Workspaces.Enabled),
+		service.WithWorkspacePolicies(policySvc),
 	}
 	if notificationClient != nil {
 		opts = append(opts, service.WithNotifications(
@@ -313,7 +317,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		EnablePresence(presenceManager, presenceCfg).
 		EnableActivityStream(activityStreamManager, activityStreamCfg).
 		EnableEditLocks(editLockManager, editLocksCfg).
-		EnableGenerationJobs(generationJobSvc)
+		EnableGenerationJobs(generationJobSvc).
+		EnableWorkspacePolicies(policySvc)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,
 		cfg.ItineraryGenerator.Mode,

@@ -295,6 +295,18 @@ poetry run make check
   raw model output, tokens, or API keys by default.
 - `LOG_LLM_PAYLOADS=true` only logs payloads in development.
 
+## Workspace Policy Constraints
+
+Generation, day/item regeneration, budget optimization, and template
+adaptation requests may include `workspacePolicyConstraints` with a concise
+summary and the versioned rule document. Prompt builders include this trusted
+Trip Service context in a labeled workspace-policy section. Personal-trip
+requests omit it.
+
+These constraints are best-effort planning guidance. The model must not claim
+compliance, policies do not block generation, and Trip Service performs the
+authoritative deterministic evaluation after output is persisted.
+
 ## Troubleshooting
 
 | Symptom | Check |

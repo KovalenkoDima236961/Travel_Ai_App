@@ -11,6 +11,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
 // Job error codes surfaced to the review UI. They are stable strings shared by
@@ -145,12 +146,13 @@ type Constraints struct {
 // AdaptInput is the internal generator request. Trip Service owns loading
 // trusted user context; frontend callers cannot submit these fields.
 type AdaptInput struct {
-	TripID          uuid.UUID
-	Template        Template
-	Target          Target
-	Constraints     Constraints
-	UserProfile     *usercontext.UserProfile
-	UserPreferences *usercontext.UserPreferences
+	TripID                     uuid.UUID
+	Template                   Template
+	Target                     Target
+	Constraints                Constraints
+	UserProfile                *usercontext.UserProfile
+	UserPreferences            *usercontext.UserPreferences
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
 }
 
 // AdaptResult is the adapted itinerary plus a reviewable summary.

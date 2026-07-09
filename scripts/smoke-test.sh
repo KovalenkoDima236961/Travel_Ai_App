@@ -1046,6 +1046,61 @@ request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/itinerar
 assert_2xx "Workspace member itinerary edit"
 WORKSPACE_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
 
+echo "Checking workspace planning policy workflow..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/policy" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Workspace member can view empty policy"
+if ! jq -e '.policy == null and .defaults.schemaVersion == 1' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Empty workspace policy response did not include v1 defaults." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+WORKSPACE_POLICY_RULES="$(jq -nc '{
+  schemaVersion:1,
+  rules:{
+    requireTripBudget:{enabled:false,severity:"warning"},
+    maxTripBudget:{enabled:true,severity:"blocking",amount:50,currency:"EUR"},
+    maxDailyBudget:{enabled:false,severity:"warning",amount:250,currency:"EUR"},
+    maxItemCost:{enabled:false,severity:"warning",amount:100,currency:"EUR",categories:[]},
+    maxAccommodationTotal:{enabled:false,severity:"warning",amount:800,currency:"EUR"},
+    maxAccommodationPerNight:{enabled:false,severity:"warning",amount:120,currency:"EUR"},
+    requireCostSplitting:{enabled:false,severity:"warning"},
+    requireAvailabilityForTicketedItems:{enabled:false,severity:"warning"},
+    maxWalkingKmPerDay:{enabled:false,severity:"warning",km:12},
+    noLateActivitiesAfter:{enabled:false,severity:"warning",time:"22:00"},
+    requiredRestTimePerDay:{enabled:false,severity:"info",minutes:60},
+    preferredTransportModes:{enabled:false,severity:"info",modes:[]},
+    disallowedActivityTypes:{enabled:false,severity:"warning",types:[]}
+  }
+}')"
+WORKSPACE_POLICY_PAYLOAD="$(jq -nc --argjson rules "${WORKSPACE_POLICY_RULES}" \
+  '{name:"Smoke planning policy",description:"Smoke policy",rules:$rules}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/policy" "${COLLAB_ACCESS_TOKEN}" "${WORKSPACE_POLICY_PAYLOAD}"
+assert_status "Workspace member cannot update policy" "403"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/policy" "${ACCESS_TOKEN}" "${WORKSPACE_POLICY_PAYLOAD}"
+assert_2xx "Workspace owner creates policy"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/policy/evaluate" "${COLLAB_ACCESS_TOKEN}" '{}'
+assert_2xx "Workspace member evaluates policy"
+if ! jq -e '.status == "blocking" and .summary.blockingCount == 1' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Expected blocking workspace policy evaluation." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval/submit" "${COLLAB_ACCESS_TOKEN}" '{"note":"Blocked smoke submission."}'
+assert_status "Blocking workspace policy stops approval submission" "400"
+if ! jq -e '.error == "workspace_policy_blocking_violation" and .evaluation.status == "blocking"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Blocking policy error did not include the evaluation payload." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+WORKSPACE_WARNING_POLICY_RULES="$(jq '.rules.maxTripBudget.severity = "warning"' <<<"${WORKSPACE_POLICY_RULES}")"
+WORKSPACE_WARNING_POLICY_PAYLOAD="$(jq -nc --argjson rules "${WORKSPACE_WARNING_POLICY_RULES}" \
+  '{name:"Smoke planning policy",description:"Smoke policy",rules:$rules}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/policy" "${ACCESS_TOKEN}" "${WORKSPACE_WARNING_POLICY_PAYLOAD}"
+assert_2xx "Workspace owner changes policy violation to warning"
+
 echo "Checking workspace trip approval workflow..."
 # Member sees the workspace trip as an approval draft and can submit it.
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval" "${COLLAB_ACCESS_TOKEN}"
@@ -1146,6 +1201,13 @@ if ! jq -e '.status == "not_required" and .canSubmit == false' <<<"${LAST_BODY}"
 fi
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${APPROVAL_PERSONAL_TRIP_ID}/approval/submit" "${ACCESS_TOKEN}" '{}'
 assert_status "Personal trip cannot be submitted for approval" "400"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${APPROVAL_PERSONAL_TRIP_ID}/policy/evaluate" "${ACCESS_TOKEN}" '{}'
+assert_2xx "Personal trip policy evaluation"
+if ! jq -e '.status == "not_applicable" and .notApplicableReason == "personal_trip"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Personal trip policy evaluation was not marked not_applicable." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 echo "Checking workspace trip template flow..."
 WORKSPACE_TEMPLATE_PAYLOAD="$(jq -nc --arg workspaceId "${WORKSPACE_ID}" '{

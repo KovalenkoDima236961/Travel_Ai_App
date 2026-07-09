@@ -37,6 +37,7 @@ def build_itinerary_prompt(
     user_context_section = _user_context_section(request)
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
+    workspace_policy_section = _workspace_policy_section(request)
 
     return f"""
 You are generating an itinerary for a web-based travel planning application.
@@ -78,6 +79,7 @@ Trip request:
 {user_context_section}
 {weather_context_section}
 {accommodation_context_section}
+{workspace_policy_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -137,6 +139,7 @@ def build_repair_prompt(
     user_context_section = _user_context_section(request)
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
+    workspace_policy_section = _workspace_policy_section(request)
 
     return f"""
 You previously generated an itinerary JSON response, but it was invalid.
@@ -155,6 +158,7 @@ Original trip request:
 {user_context_section}
 {weather_context_section}
 {accommodation_context_section}
+{workspace_policy_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -259,6 +263,7 @@ Trip request:
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
+{_workspace_policy_section(request)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 {opening_hours_section}
@@ -337,6 +342,7 @@ Trip request:
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
+{_workspace_policy_section(request)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 {opening_hours_section}
@@ -439,6 +445,7 @@ Trip request:
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
+{_workspace_policy_section(request)}
 
 Budget context:
 {request.budget_context.model_dump_json(by_alias=True, exclude_none=True)}
@@ -583,6 +590,7 @@ SAFETY AND PRODUCT CONSTRAINTS:
 - Avoid unsafe or illegal activities and respect the avoid list.
 - Prices are estimates that the user must verify; availability must be checked.
 
+{_workspace_policy_section(request)}
 {_special_instructions_section(constraints)}
 Return ONLY the JSON described above. Do not include any text outside the JSON.
 """.strip()
@@ -608,6 +616,7 @@ SOURCE TEMPLATE SUMMARY:
 TARGET TRIP REQUIREMENTS:
 {_target_requirements_section(request)}
 
+{_workspace_policy_section(request)}
 Invalid previous response:
 {invalid_response_text}
 
@@ -757,6 +766,7 @@ Trip request:
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
+{_workspace_policy_section(request)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -803,6 +813,7 @@ Trip request:
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
+{_workspace_policy_section(request)}
 {_partial_destination_context_section(destination_context)}
 {_rag_context_section(rag_chunks)}
 
@@ -860,6 +871,21 @@ def _accommodation_context_section(accommodation: object | None) -> str:
         ]
     )
     return "\n" + "\n".join(lines)
+
+
+def _workspace_policy_section(request: object) -> str:
+    constraints = getattr(request, "workspace_policy_constraints", None)
+    if constraints is None:
+        return ""
+    summary = getattr(constraints, "summary", "").strip()
+    if not summary:
+        return ""
+    return (
+        "\nWORKSPACE PLANNING POLICY (guidance; backend evaluation is authoritative):\n"
+        f"{summary}\n"
+        "- Do not claim policy compliance in the output.\n"
+        "- Do not omit required JSON fields to satisfy a policy.\n"
+    )
 
 
 def _items_per_day_for_pace(pace: str) -> int:

@@ -27,6 +27,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
 // Handler wires the trip use case to HTTP.
@@ -41,6 +42,7 @@ type Handler struct {
 	editLocks         editlocks.Manager
 	editLockCfg       editlocks.Config
 	generationJobs    *generationjobs.Service
+	workspacePolicies *workspacepolicies.Service
 }
 
 // New constructs the trip HTTP handler.
@@ -71,6 +73,11 @@ func (h *Handler) EnableEditLocks(manager editlocks.Manager, cfg editlocks.Confi
 
 func (h *Handler) EnableGenerationJobs(svc *generationjobs.Service) *Handler {
 	h.generationJobs = svc
+	return h
+}
+
+func (h *Handler) EnableWorkspacePolicies(svc *workspacepolicies.Service) *Handler {
+	h.workspacePolicies = svc
 	return h
 }
 
@@ -144,6 +151,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/approval/request-changes", h.RequestTripChanges)
 		r.Post("/{id}/approval/cancel", h.CancelApproval)
 		r.Get("/{id}/approval/events", h.ListApprovalEvents)
+		r.Get("/{id}/policy/evaluation", h.GetTripPolicyEvaluation)
+		r.Post("/{id}/policy/evaluate", h.EvaluateTripPolicy)
 	})
 	r.Route("/trip-templates", func(r chi.Router) {
 		r.Get("/", h.ListTripTemplates)
@@ -157,6 +166,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/workspaces/{workspaceId}/analytics/costs", h.GetWorkspaceCostAnalytics)
 	r.Get("/workspaces/{workspaceId}/templates", h.ListWorkspaceTripTemplates)
 	r.Get("/workspaces/{workspaceId}/approvals", h.ListWorkspaceApprovals)
+	r.Get("/workspaces/{workspaceId}/policy", h.GetWorkspacePolicy)
+	r.Put("/workspaces/{workspaceId}/policy", h.UpsertWorkspacePolicy)
+	r.Post("/workspaces/{workspaceId}/policy/archive", h.ArchiveWorkspacePolicy)
 	r.Route("/workspaces/{workspaceId}/budgets", func(r chi.Router) {
 		r.Get("/", h.ListWorkspaceBudgets)
 		r.Post("/", h.CreateWorkspaceBudget)
@@ -1345,10 +1357,17 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var invalid *apperrs.InvalidInputError
 	var dependency *apperrs.DependencyError
 	var budgetConversion *apperrs.BudgetConversionError
+	var policyBlocking *workspacepolicies.BlockingViolationError
 	var revisionRequired *apperrs.ExpectedItineraryRevisionRequiredError
 	var conflict *apperrs.ItineraryConflictError
 	var stateConflict *apperrs.ConflictError
 	switch {
+	case errors.As(err, &policyBlocking):
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error":      "workspace_policy_blocking_violation",
+			"message":    policyBlocking.Error(),
+			"evaluation": policyBlocking.Evaluation,
+		})
 	case errors.As(err, &stateConflict):
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error":   "conflict",

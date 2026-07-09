@@ -22,6 +22,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
 const maxAIPlanningErrorBodyBytes = 4 * 1024
@@ -34,19 +35,20 @@ type AIPlanningHTTPGenerator struct {
 }
 
 type aiPlanningGenerateRequest struct {
-	TripID          string                          `json:"tripId"`
-	Destination     string                          `json:"destination"`
-	StartDate       *string                         `json:"startDate,omitempty"`
-	Days            int32                           `json:"days"`
-	BudgetAmount    *float64                        `json:"budgetAmount,omitempty"`
-	BudgetCurrency  string                          `json:"budgetCurrency"`
-	Travelers       int32                           `json:"travelers"`
-	Interests       []string                        `json:"interests"`
-	Pace            string                          `json:"pace"`
-	UserProfile     *usercontext.UserProfile        `json:"userProfile,omitempty"`
-	UserPreferences *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
-	WeatherForecast *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
-	Accommodation   *aggregate.Accommodation        `json:"accommodation,omitempty"`
+	TripID                     string                           `json:"tripId"`
+	Destination                string                           `json:"destination"`
+	StartDate                  *string                          `json:"startDate,omitempty"`
+	Days                       int32                            `json:"days"`
+	BudgetAmount               *float64                         `json:"budgetAmount,omitempty"`
+	BudgetCurrency             string                           `json:"budgetCurrency"`
+	Travelers                  int32                            `json:"travelers"`
+	Interests                  []string                         `json:"interests"`
+	Pace                       string                           `json:"pace"`
+	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
 }
 
 type aiPlanningTripRequest struct {
@@ -62,26 +64,28 @@ type aiPlanningTripRequest struct {
 }
 
 type aiPlanningRegenerateDayRequest struct {
-	Trip             aiPlanningTripRequest           `json:"trip"`
-	CurrentItinerary aggregate.Itinerary             `json:"currentItinerary"`
-	DayNumber        int                             `json:"dayNumber"`
-	Instruction      string                          `json:"instruction,omitempty"`
-	UserProfile      *usercontext.UserProfile        `json:"userProfile,omitempty"`
-	UserPreferences  *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
-	WeatherForecast  *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
-	Accommodation    *aggregate.Accommodation        `json:"accommodation,omitempty"`
+	Trip                       aiPlanningTripRequest            `json:"trip"`
+	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
+	DayNumber                  int                              `json:"dayNumber"`
+	Instruction                string                           `json:"instruction,omitempty"`
+	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
 }
 
 type aiPlanningRegenerateItemRequest struct {
-	Trip             aiPlanningTripRequest           `json:"trip"`
-	CurrentItinerary aggregate.Itinerary             `json:"currentItinerary"`
-	DayNumber        int                             `json:"dayNumber"`
-	ItemIndex        int                             `json:"itemIndex"`
-	Instruction      string                          `json:"instruction,omitempty"`
-	UserProfile      *usercontext.UserProfile        `json:"userProfile,omitempty"`
-	UserPreferences  *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
-	WeatherForecast  *weathercontext.WeatherForecast `json:"weatherForecast,omitempty"`
-	Accommodation    *aggregate.Accommodation        `json:"accommodation,omitempty"`
+	Trip                       aiPlanningTripRequest            `json:"trip"`
+	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
+	DayNumber                  int                              `json:"dayNumber"`
+	ItemIndex                  int                              `json:"itemIndex"`
+	Instruction                string                           `json:"instruction,omitempty"`
+	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
 }
 
 type aiPlanningRegenerateDayResponse struct {
@@ -93,24 +97,26 @@ type aiPlanningRegenerateItemResponse struct {
 }
 
 type aiPlanningOptimizeBudgetDayRequest struct {
-	Trip             aiPlanningTripRequest            `json:"trip"`
-	CurrentItinerary aggregate.Itinerary              `json:"currentItinerary"`
-	DayNumber        int                              `json:"dayNumber"`
-	CurrentDay       aggregate.ItineraryDay           `json:"currentDay"`
-	BudgetContext    budgetoptimization.BudgetContext `json:"budgetContext"`
-	Constraints      budgetoptimization.Constraints   `json:"constraints"`
-	Instruction      string                           `json:"instruction,omitempty"`
-	UserProfile      *usercontext.UserProfile         `json:"userProfile,omitempty"`
-	UserPreferences  *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
-	WeatherForecast  *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
-	Accommodation    *aggregate.Accommodation         `json:"accommodation,omitempty"`
+	Trip                       aiPlanningTripRequest            `json:"trip"`
+	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
+	DayNumber                  int                              `json:"dayNumber"`
+	CurrentDay                 aggregate.ItineraryDay           `json:"currentDay"`
+	BudgetContext              budgetoptimization.BudgetContext `json:"budgetContext"`
+	Constraints                budgetoptimization.Constraints   `json:"constraints"`
+	Instruction                string                           `json:"instruction,omitempty"`
+	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
 }
 
 type aiPlanningAdaptTemplateRequest struct {
-	Template    templateadaptation.Template    `json:"template"`
-	Target      aiPlanningAdaptTarget          `json:"target"`
-	Constraints templateadaptation.Constraints `json:"constraints"`
-	Context     *aiPlanningAdaptContext        `json:"context,omitempty"`
+	Template                   templateadaptation.Template      `json:"template"`
+	Target                     aiPlanningAdaptTarget            `json:"target"`
+	Constraints                templateadaptation.Constraints   `json:"constraints"`
+	Context                    *aiPlanningAdaptContext          `json:"context,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
 }
 
 type aiPlanningAdaptTarget struct {
@@ -185,7 +191,8 @@ func (g *AIPlanningHTTPGenerator) AdaptTemplate(ctx context.Context, input templ
 			Interests:    nonNilStrings(input.Target.Interests),
 			Avoid:        nonNilStrings(input.Target.Avoid),
 		},
-		Constraints: input.Constraints,
+		Constraints:                input.Constraints,
+		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 	}
 	if input.UserProfile != nil || input.UserPreferences != nil {
 		payload.Context = &aiPlanningAdaptContext{
@@ -252,9 +259,6 @@ func mapAdaptedItem(item aiPlanningAdaptedItem) aggregate.ItineraryItem {
 	timeValue := strings.TrimSpace(item.Time)
 	if timeValue == "" {
 		timeValue = strings.TrimSpace(item.StartTime)
-		if end := strings.TrimSpace(item.EndTime); end != "" {
-			timeValue = strings.TrimSpace(timeValue + " - " + end)
-		}
 	}
 	note := strings.TrimSpace(item.Notes)
 	if note == "" {
@@ -269,6 +273,7 @@ func mapAdaptedItem(item aiPlanningAdaptedItem) aggregate.ItineraryItem {
 	}
 	return aggregate.ItineraryItem{
 		Time:          timeValue,
+		EndTime:       strings.TrimSpace(item.EndTime),
 		Type:          strings.TrimSpace(item.Type),
 		Name:          strings.TrimSpace(item.Name),
 		Note:          note,
@@ -389,14 +394,15 @@ func (g *AIPlanningHTTPGenerator) Generate(ctx context.Context, input applicatio
 func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input application.RegenerateDayInput) (*aggregate.ItineraryDay, error) {
 	trip := input.Trip
 	payload := aiPlanningRegenerateDayRequest{
-		Trip:             newAIPlanningTripRequest(trip, input.UserProfile),
-		CurrentItinerary: input.CurrentItinerary,
-		DayNumber:        input.DayNumber,
-		Instruction:      input.Instruction,
-		UserProfile:      input.UserProfile,
-		UserPreferences:  input.UserPreferences,
-		WeatherForecast:  input.WeatherForecast,
-		Accommodation:    trip.Accommodation,
+		Trip:                       newAIPlanningTripRequest(trip, input.UserProfile),
+		CurrentItinerary:           input.CurrentItinerary,
+		DayNumber:                  input.DayNumber,
+		Instruction:                input.Instruction,
+		UserProfile:                input.UserProfile,
+		UserPreferences:            input.UserPreferences,
+		WeatherForecast:            input.WeatherForecast,
+		Accommodation:              trip.Accommodation,
+		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 	}
 
 	var result aiPlanningRegenerateDayResponse
@@ -410,15 +416,16 @@ func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input appli
 func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input application.RegenerateItemInput) (*aggregate.ItineraryItem, error) {
 	trip := input.Trip
 	payload := aiPlanningRegenerateItemRequest{
-		Trip:             newAIPlanningTripRequest(trip, input.UserProfile),
-		CurrentItinerary: input.CurrentItinerary,
-		DayNumber:        input.DayNumber,
-		ItemIndex:        input.ItemIndex,
-		Instruction:      input.Instruction,
-		UserProfile:      input.UserProfile,
-		UserPreferences:  input.UserPreferences,
-		WeatherForecast:  input.WeatherForecast,
-		Accommodation:    trip.Accommodation,
+		Trip:                       newAIPlanningTripRequest(trip, input.UserProfile),
+		CurrentItinerary:           input.CurrentItinerary,
+		DayNumber:                  input.DayNumber,
+		ItemIndex:                  input.ItemIndex,
+		Instruction:                input.Instruction,
+		UserProfile:                input.UserProfile,
+		UserPreferences:            input.UserPreferences,
+		WeatherForecast:            input.WeatherForecast,
+		Accommodation:              trip.Accommodation,
+		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 	}
 
 	var result aiPlanningRegenerateItemResponse
@@ -432,17 +439,18 @@ func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input appl
 func (g *AIPlanningHTTPGenerator) OptimizeBudgetDay(ctx context.Context, input budgetoptimization.OptimizeDayInput) (*budgetoptimization.ProposalContent, error) {
 	trip := input.Trip
 	payload := aiPlanningOptimizeBudgetDayRequest{
-		Trip:             newAIPlanningTripRequest(trip, input.UserProfile),
-		CurrentItinerary: input.CurrentItinerary,
-		DayNumber:        input.DayNumber,
-		CurrentDay:       input.CurrentDay,
-		BudgetContext:    input.BudgetContext,
-		Constraints:      input.Constraints,
-		Instruction:      input.Instruction,
-		UserProfile:      input.UserProfile,
-		UserPreferences:  input.UserPreferences,
-		WeatherForecast:  input.WeatherForecast,
-		Accommodation:    trip.Accommodation,
+		Trip:                       newAIPlanningTripRequest(trip, input.UserProfile),
+		CurrentItinerary:           input.CurrentItinerary,
+		DayNumber:                  input.DayNumber,
+		CurrentDay:                 input.CurrentDay,
+		BudgetContext:              input.BudgetContext,
+		Constraints:                input.Constraints,
+		Instruction:                input.Instruction,
+		UserProfile:                input.UserProfile,
+		UserPreferences:            input.UserPreferences,
+		WeatherForecast:            input.WeatherForecast,
+		Accommodation:              trip.Accommodation,
+		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 	}
 
 	var result budgetoptimization.ProposalContent
@@ -471,19 +479,20 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 	}
 
 	return aiPlanningGenerateRequest{
-		TripID:          trip.ID.String(),
-		Destination:     trip.Destination,
-		StartDate:       startDate,
-		Days:            trip.Days,
-		BudgetAmount:    trip.BudgetAmount,
-		BudgetCurrency:  currency,
-		Travelers:       trip.Travelers,
-		Interests:       interests,
-		Pace:            pace,
-		UserProfile:     input.UserProfile,
-		UserPreferences: input.UserPreferences,
-		WeatherForecast: input.WeatherForecast,
-		Accommodation:   trip.Accommodation,
+		TripID:                     trip.ID.String(),
+		Destination:                trip.Destination,
+		StartDate:                  startDate,
+		Days:                       trip.Days,
+		BudgetAmount:               trip.BudgetAmount,
+		BudgetCurrency:             currency,
+		Travelers:                  trip.Travelers,
+		Interests:                  interests,
+		Pace:                       pace,
+		UserProfile:                input.UserProfile,
+		UserPreferences:            input.UserPreferences,
+		WeatherForecast:            input.WeatherForecast,
+		Accommodation:              trip.Accommodation,
+		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 	}
 }
 

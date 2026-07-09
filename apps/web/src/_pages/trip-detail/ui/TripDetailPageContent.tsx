@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { AccommodationPanel } from "@/features/trip-accommodation";
 import { CalendarSyncPanel } from "@/features/calendar-sync";
 import { TripApprovalPanel } from "@/features/trip-approval";
+import { TripPolicyPanel } from "@/components/workspace-policy/TripPolicyPanel";
 import { BudgetPanel } from "@/features/trip-budget";
 import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
@@ -64,6 +65,7 @@ import {
 } from "@/lib/api/generation-jobs";
 import { buildCommentCountMap } from "@/entities/comment/model";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
+import { workspacePolicyKeys } from "@/lib/api/workspace-policies";
 import {
   toExportDistanceSummary,
   toExportTripFromPrivateTrip,
@@ -326,6 +328,13 @@ export function TripDetailPageContent() {
     networkStatus.online && !isUsingCachedTrip && !hasPendingOfflineChanges;
   const cachedBudgetSummary = cachedTripRecord?.budgetSummary ?? null;
   const currentItinerary = displayedTrip?.itinerary ?? null;
+  useEffect(() => {
+    if (displayedTrip?.workspaceId) {
+      void queryClient.invalidateQueries({
+        queryKey: workspacePolicyKeys.evaluation(tripId)
+      });
+    }
+  }, [displayedTrip?.itineraryRevision, displayedTrip?.workspaceId, queryClient, tripId]);
   const routeEstimateStates = useRouteEstimates(
     currentItinerary,
     onlineActionsEnabled && displayedTrip?.status === "COMPLETED" && Boolean(currentItinerary),
@@ -2066,7 +2075,16 @@ export function TripDetailPageContent() {
                   snapshot={presenceStream.snapshot}
                 />
               ) : null}
-              {trip.workspaceId ? <TripApprovalPanel tripId={trip.id} /> : null}
+              {trip.workspaceId ? (
+                <>
+                  <p className="rounded-[14px] border border-sand-300 bg-sand-50 p-4 text-[13.5px] text-cocoa-500">
+                    Workspace policy is used as AI guidance for generation, regeneration, and
+                    adaptation. Review the authoritative policy check below.
+                  </p>
+                  <TripPolicyPanel tripId={trip.id} />
+                  <TripApprovalPanel tripId={trip.id} />
+                </>
+              ) : null}
               {onlineActionsEnabled && trip.status === "COMPLETED" && trip.itinerary ? (
                 <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />
               ) : null}

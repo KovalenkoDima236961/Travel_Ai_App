@@ -207,8 +207,9 @@ func (s *Service) AdaptTemplateForActor(
 			PreserveActivityDensity: true,
 			SpecialInstructions:     payload.SpecialInstructions,
 		},
-		UserProfile:     userContext.Profile,
-		UserPreferences: userContext.Preferences,
+		UserProfile:                userContext.Profile,
+		UserPreferences:            userContext.Preferences,
+		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
 	}
 
 	var itinerary *aggregate.Itinerary

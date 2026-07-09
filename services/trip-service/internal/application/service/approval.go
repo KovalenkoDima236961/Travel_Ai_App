@@ -19,6 +19,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
 )
 
@@ -95,6 +96,15 @@ func (s *Service) SubmitTripApproval(ctx context.Context, tripID uuid.UUID, inpu
 	if err != nil {
 		return appdto.TripApprovalState{}, err
 	}
+	policyEvaluation, err := s.evaluateTripPolicyForTrip(ctx, trip)
+	if err != nil {
+		return appdto.TripApprovalState{}, err
+	}
+	if policyEvaluation.Status == workspacepolicies.EvaluationBlocking {
+		return appdto.TripApprovalState{}, &workspacepolicies.BlockingViolationError{
+			Evaluation: policyEvaluation,
+		}
+	}
 	if !checklist.CanSubmit() {
 		return appdto.TripApprovalState{}, apperrs.NewInvalidInput("this trip has unmet requirements and cannot be submitted for approval")
 	}
@@ -116,7 +126,7 @@ func (s *Service) SubmitTripApproval(ctx context.Context, tripID uuid.UUID, inpu
 		return appdto.TripApprovalState{}, err
 	}
 
-	snapshot := approvalChecklistSnapshot(checklist, input.AcknowledgedWarnings)
+	snapshot := approvalChecklistSnapshot(checklist, input.AcknowledgedWarnings, &policyEvaluation)
 	s.recordApprovalEvent(ctx, updated, user.ID, approvals.EventSubmitted, string(current), note, snapshot)
 	s.recordApprovalActivity(ctx, tripID, user.ID, activity.EventTripSubmittedForApproval, string(current), fields.Status, input.Note)
 	s.notifyApproval(
@@ -405,6 +415,14 @@ func (s *Service) computeChecklistWithInput(ctx context.Context, trip *entity.Tr
 		AvailabilityPriceChangedCount:  counts.priceChanged,
 		AvailabilityFallbackCount:      counts.fallback,
 	}
+	policyEvaluation, err := s.evaluateTripPolicyForTrip(ctx, trip)
+	if err != nil {
+		return approvals.Checklist{}, approvals.ChecklistInput{}, err
+	}
+	in.PolicyStatus = string(policyEvaluation.Status)
+	in.PolicyWarningCount = policyEvaluation.Summary.WarningCount
+	in.PolicyBlockingCount = policyEvaluation.Summary.BlockingCount
+	in.PolicyInfoCount = policyEvaluation.Summary.InfoCount
 	return approvals.Calculate(in), in, nil
 }
 
@@ -715,14 +733,36 @@ func snippet(s string, max int) string {
 // submitter acknowledged into the JSONB stored on the submit event. It never
 // stores private notes or itinerary content. A marshal failure degrades to a nil
 // snapshot rather than failing the submit.
-func approvalChecklistSnapshot(checklist approvals.Checklist, acknowledgedWarnings []string) []byte {
+func approvalChecklistSnapshot(
+	checklist approvals.Checklist,
+	acknowledgedWarnings []string,
+	policyEvaluation *workspacepolicies.Evaluation,
+) []byte {
 	if acknowledgedWarnings == nil {
 		acknowledgedWarnings = []string{}
 	}
 	payload := struct {
 		Checklist            approvals.Checklist `json:"checklist"`
 		AcknowledgedWarnings []string            `json:"acknowledgedWarnings"`
+		PolicyEvaluation     any                 `json:"policyEvaluation,omitempty"`
 	}{Checklist: checklist, AcknowledgedWarnings: acknowledgedWarnings}
+	if policyEvaluation != nil {
+		results := policyEvaluation.Results
+		if len(results) > 10 {
+			results = results[:10]
+		}
+		payload.PolicyEvaluation = struct {
+			PolicyID *uuid.UUID                           `json:"policyId"`
+			Status   workspacepolicies.EvaluationStatus   `json:"status"`
+			Summary  workspacepolicies.EvaluationSummary  `json:"summary"`
+			Results  []workspacepolicies.EvaluationResult `json:"results"`
+		}{
+			PolicyID: policyEvaluation.PolicyID,
+			Status:   policyEvaluation.Status,
+			Summary:  policyEvaluation.Summary,
+			Results:  results,
+		}
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return nil

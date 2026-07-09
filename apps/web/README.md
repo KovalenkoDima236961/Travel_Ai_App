@@ -499,6 +499,20 @@ npm run test
 npm run build
 ```
 
+## Workspace Policy Rules v1
+
+Workspace policy settings live at
+`/workspaces/[workspaceId]/settings/policy`. Owners/admins can configure or
+archive the active policy; members/viewers see the form read-only. The trip
+detail page includes a policy badge/panel with counts, affected days/items,
+suggested actions, and a live re-check action.
+
+The approval checklist links to the full policy panel. Blocking violations
+disable approval submission; warnings remain acknowledgeable. Workspace AI
+actions explain that constraints are guidance and still require review.
+Personal trips have no workspace policy. Policies are not legal/compliance or
+expense enforcement.
+
 The repository-level smoke test exercises the web-facing service contracts:
 
 ```bash
