@@ -1,17 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ExportTripMenu } from "@/features/trip-export";
-import { PublicShareUnlockForm } from "@/features/trip-sharing";
-import { DistanceSummary } from "@/features/route-estimation";
-import { ItineraryMap } from "@/components/trips/ItineraryMap";
-import { ItineraryView } from "@/components/trips/ItineraryView";
-import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
-import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
-import { buttonStyles } from "@/shared/ui/button";
 import { ApiError } from "@/shared/api/client";
 import {
   getPublicShareStatus,
@@ -23,16 +15,23 @@ import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import {
   toExportDistanceSummary,
   toExportTripFromPublicTrip,
-  toExportWeatherSummary
+  toExportWeatherSummary,
+  type ExportTrip
 } from "@/lib/export/trip-export-adapter";
 import { getDayDistanceSummaries } from "@/entities/itinerary/model/distance-utils";
-import { getErrorMessage } from "@/lib/utils";
+import { cn, getErrorMessage } from "@/lib/utils";
 import {
   clearStoredPublicShareToken,
   publicShareTokenExpiryKey,
   publicShareTokenKey
 } from "../model/publicSharePageModel";
 import { PublicTripSummaryCard } from "./PublicTripSummaryCard";
+import { PublicShareHeader } from "./PublicShareHeader";
+import { PublicShareHero } from "./PublicShareHero";
+import { PublicShareItinerary } from "./PublicShareItinerary";
+import { PublicShareMap } from "./PublicShareMap";
+import { PublicShareUnlock } from "./PublicShareUnlock";
+import { instrumentSans, newsreader } from "./fonts";
 
 export function PublicSharePageContent() {
   const params = useParams<{ shareToken: string }>();
@@ -115,6 +114,9 @@ export function PublicSharePageContent() {
     () => (publicItinerary ? getDayDistanceSummaries(publicItinerary) : []),
     [publicItinerary]
   );
+  // Weather + distance cards are intentionally absent from the shared mock, but
+  // their data is still summarized here so the header Export (PDF/ICS) carries
+  // weather and per-day distances just like the private trip export does.
   const exportTrip = useMemo(
     () =>
       sharedTrip
@@ -149,37 +151,25 @@ export function PublicSharePageContent() {
     (shouldFetchTrip && publicTripQuery.isPending)
   ) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          Loading shared itinerary...
+      <PublicShareShell>
+        <div className="mx-auto max-w-[1080px] px-6 py-10 sm:px-10">
+          <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
+            Loading shared itinerary…
+          </div>
         </div>
-      </div>
+      </PublicShareShell>
     );
   }
 
   if (publicShareStatusQuery.isError) {
-    return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
-          <h1 className="text-xl font-semibold text-amber-950">Shared trip unavailable</h1>
-          <p className="mt-2 text-sm leading-6 text-amber-900">
-            This shared trip is unavailable, expired, or disabled.
-          </p>
-          <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/">
-            Go to home
-          </Link>
-        </div>
-      </div>
-    );
+    return <PublicShareShell>{renderUnavailable()}</PublicShareShell>;
   }
 
   if (status?.passwordRequired && !publicShareAccessToken) {
     return (
-      <PublicShareUnlockForm
-        error={unlockError}
-        loading={unlockLoading}
-        onUnlock={handleUnlock}
-      />
+      <PublicShareShell>
+        <PublicShareUnlock error={unlockError} loading={unlockLoading} onUnlock={handleUnlock} />
+      </PublicShareShell>
     );
   }
 
@@ -190,78 +180,88 @@ export function PublicSharePageContent() {
       publicTripQuery.error.status === 401
     ) {
       return (
-        <PublicShareUnlockForm
-          error={unlockError}
-          loading={unlockLoading}
-          onUnlock={handleUnlock}
-        />
+        <PublicShareShell>
+          <PublicShareUnlock error={unlockError} loading={unlockLoading} onUnlock={handleUnlock} />
+        </PublicShareShell>
       );
     }
-    return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
-          <h1 className="text-xl font-semibold text-amber-950">Shared trip unavailable</h1>
-          <p className="mt-2 text-sm leading-6 text-amber-900">
-            This shared trip is unavailable, expired, or disabled.
-          </p>
-          <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/">
-            Go to home
-          </Link>
-        </div>
-      </div>
-    );
+    return <PublicShareShell>{renderUnavailable()}</PublicShareShell>;
   }
 
   const trip = publicTripQuery.data;
   const itinerary = trip.itinerary ?? null;
-  const currency = itinerary?.currency ?? "EUR";
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-primary-700">Shared itinerary</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold text-slate-950">{trip.destination}</h1>
-            <TripStatusBadge status={trip.status} />
-          </div>
-        </div>
-        <div className="flex flex-col items-start gap-3 sm:items-end">
-          <Link className={buttonStyles({ variant: "secondary", size: "sm" })} href="/">
-            Travel AI Planner
-          </Link>
-          {exportTrip && itinerary ? <ExportTripMenu exportTrip={exportTrip} /> : null}
+    // Match the original gate (exportTrip && itinerary): a shared DRAFT/PROCESSING
+    // trip without an itinerary shows no Export control rather than a pill that
+    // opens to two disabled items.
+    <PublicShareShell exportTrip={itinerary ? exportTrip : null}>
+      <div className="mx-auto max-w-[1080px] px-6 pb-[72px] pt-8 sm:px-10">
+        <PublicShareHero trip={trip} />
+
+        <div className="mt-7 grid grid-cols-1 items-start gap-7 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <aside className="flex flex-col gap-[18px]">
+            <PublicTripSummaryCard trip={trip} />
+            {itinerary ? (
+              <PublicShareMap itinerary={itinerary} startDate={trip.startDate} />
+            ) : null}
+          </aside>
+
+          <section className="flex min-w-0 flex-col gap-5">
+            {itinerary ? (
+              <PublicShareItinerary itinerary={itinerary} />
+            ) : (
+              <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
+                This shared trip does not have an itinerary yet.
+              </div>
+            )}
+            <p className="text-[12.5px] text-[#A08D78]">
+              This is a read-only shared view. Estimates are approximate — verify prices, hours, and
+              availability before booking.
+            </p>
+          </section>
         </div>
       </div>
+    </PublicShareShell>
+  );
+}
 
-      <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
-        <PublicTripSummaryCard trip={trip} />
+function PublicShareShell({
+  exportTrip,
+  children
+}: {
+  exportTrip?: ExportTrip | null;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        newsreader.variable,
+        instrumentSans.variable,
+        "min-h-screen bg-sand-50 font-instrument text-cocoa-700 selection:bg-[#F0D9CC]"
+      )}
+    >
+      <PublicShareHeader exportTrip={exportTrip} />
+      {children}
+    </div>
+  );
+}
 
-        <section className="min-w-0">
-          <WeatherForecastCard
-            className="mb-4"
-            days={trip.days}
-            destination={trip.destination}
-            startDate={trip.startDate}
-          />
-
-          {itinerary ? (
-            <div className="space-y-4">
-              <ItineraryView
-                currency={currency}
-                itinerary={itinerary}
-                startDate={trip.startDate}
-              />
-              <ItineraryMap itinerary={itinerary} startDate={trip.startDate} />
-              <DistanceSummary itinerary={itinerary} />
-            </div>
-          ) : (
-            <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-              This shared trip does not have an itinerary yet.
-            </div>
-          )}
-        </section>
-      </div>
+function renderUnavailable() {
+  return (
+    <div className="mx-auto max-w-[560px] px-6 py-16 text-center sm:py-24">
+      <h1 className="font-newsreader text-[30px] font-medium tracking-[-0.01em] text-cocoa-900">
+        Shared trip unavailable
+      </h1>
+      <p className="mx-auto mt-3 max-w-[420px] text-[15px] leading-[1.65] text-cocoa-500">
+        This shared trip is unavailable, expired, or disabled.
+      </p>
+      <Link
+        href="/"
+        className="mt-7 inline-flex h-11 items-center rounded-full bg-clay px-6 text-[14.5px] font-semibold text-sand-100 transition hover:bg-clay-dark"
+      >
+        Go to home
+      </Link>
     </div>
   );
 }

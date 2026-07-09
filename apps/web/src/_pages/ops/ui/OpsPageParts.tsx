@@ -1,9 +1,16 @@
-import { Button } from "@/shared/ui/button";
-import { Card } from "@/shared/ui/card";
-import { Input } from "@/shared/ui/input";
-import { Select } from "@/shared/ui/select";
 import type { OpsJob, ProviderQuotaStatus, ProviderQuotaSummary } from "@/entities/ops/model";
-import { formatOpsDate, shortId, undefinedValue } from "../model/opsPageModel";
+import { cn } from "@/shared/lib/cn";
+import { formatOpsDate, undefinedValue } from "../model/opsPageModel";
+import {
+  MICRO_LABEL,
+  MONO,
+  OPS_INPUT,
+  OPS_SELECT,
+  SMALL_DANGER_BUTTON,
+  SMALL_OUTLINE_BUTTON,
+  quotaPillClass,
+  statusPillClass
+} from "./opsStyles";
 
 export function ProviderQuotaCard({
   provider,
@@ -21,15 +28,15 @@ export function ProviderQuotaCard({
   onReset: () => void;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 p-3 text-sm">
+    <div className="rounded-xl border border-sand-200 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-medium text-slate-950">{provider.provider}</div>
-          <div className="text-slate-600">{provider.category}</div>
+          <div className="text-[13.5px] font-semibold text-cocoa-900">{provider.provider}</div>
+          <div className="mt-0.5 text-[12.5px] text-cocoa-400">{provider.category}</div>
         </div>
         <QuotaStatusPill status={provider.status} />
       </div>
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600">
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
         <QuotaMetric label="Requests today" value={String(provider.usedToday)} />
         <QuotaMetric
           label="Daily quota"
@@ -47,18 +54,23 @@ export function ProviderQuotaCard({
         <QuotaMetric label="Fallback today" value={String(provider.fallbackToday)} />
       </dl>
       {provider.lastBlockedAt ? (
-        <div className="mt-2 text-xs text-amber-700">
+        <div className="mt-2 text-[12px] text-[#96682A]">
           Last blocked {formatOpsDate(provider.lastBlockedAt)}
         </div>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="secondary" onClick={onToggle}>
+        <button type="button" className={SMALL_OUTLINE_BUTTON} onClick={onToggle}>
           {expanded ? "Hide details" : "View details"}
-        </Button>
+        </button>
         {resetAllowed ? (
-          <Button size="sm" variant="danger" disabled={resetPending} onClick={onReset}>
+          <button
+            type="button"
+            className={SMALL_DANGER_BUTTON}
+            disabled={resetPending}
+            onClick={onReset}
+          >
             Reset (dev)
-          </Button>
+          </button>
         ) : null}
       </div>
     </div>
@@ -74,30 +86,30 @@ export function ProviderQuotaDetailView({
   };
 }) {
   return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+    <div className="mt-4 grid gap-5 lg:grid-cols-2">
       <div>
-        <div className="text-xs font-semibold uppercase text-slate-500">Operations</div>
-        <table className="mt-2 min-w-full text-left text-xs">
-          <thead className="border-b border-slate-200 text-slate-500">
+        <div className={MICRO_LABEL}>Operations</div>
+        <table className="mt-2 min-w-full text-left text-[12px]">
+          <thead className="border-b border-sand-200 text-cocoa-400">
             <tr>
-              <th className="py-1 pr-3">Operation</th>
-              <th className="py-1 pr-3">Used</th>
-              <th className="py-1 pr-3">Blocked</th>
-              <th className="py-1 pr-3">Fallback</th>
+              <th className="py-1.5 pr-3 font-medium">Operation</th>
+              <th className="py-1.5 pr-3 font-medium">Used</th>
+              <th className="py-1.5 pr-3 font-medium">Blocked</th>
+              <th className="py-1.5 pr-3 font-medium">Fallback</th>
             </tr>
           </thead>
           <tbody>
             {detail.provider.operations.map((op) => (
-              <tr key={op.operation} className="border-b border-slate-100">
-                <td className="py-1 pr-3 font-mono">{op.operation}</td>
-                <td className="py-1 pr-3">{op.usedToday}</td>
-                <td className="py-1 pr-3">{op.blockedToday}</td>
-                <td className="py-1 pr-3">{op.fallbackToday}</td>
+              <tr key={op.operation} className="border-b border-sand-200">
+                <td className={cn("py-1.5 pr-3", MONO, "text-cocoa-700")}>{op.operation}</td>
+                <td className="py-1.5 pr-3 text-cocoa-700">{op.usedToday}</td>
+                <td className="py-1.5 pr-3 text-cocoa-700">{op.blockedToday}</td>
+                <td className="py-1.5 pr-3 text-cocoa-700">{op.fallbackToday}</td>
               </tr>
             ))}
             {detail.provider.operations.length === 0 ? (
               <tr>
-                <td className="py-2 text-slate-500" colSpan={4}>
+                <td className="py-2 text-cocoa-400" colSpan={4}>
                   No usage recorded today.
                 </td>
               </tr>
@@ -106,14 +118,14 @@ export function ProviderQuotaDetailView({
         </table>
       </div>
       <div>
-        <div className="text-xs font-semibold uppercase text-slate-500">Last 7 days</div>
-        <div className="mt-2 space-y-1 text-xs text-slate-600">
+        <div className={MICRO_LABEL}>Last 7 days</div>
+        <div className="mt-2 space-y-1.5 text-[12px] text-cocoa-500">
           {detail.history.length === 0 ? (
-            <div className="text-slate-500">No usage in the last 7 days.</div>
+            <div className="text-cocoa-400">No usage in the last 7 days.</div>
           ) : (
             detail.history.map((day) => (
               <div key={day.date} className="flex justify-between gap-3">
-                <span className="font-mono">{day.date}</span>
+                <span className={cn(MONO, "text-cocoa-700")}>{day.date}</span>
                 <span>
                   used {day.usedCount} · blocked {day.blockedCount} · fallback {day.fallbackCount}
                 </span>
@@ -129,34 +141,37 @@ export function ProviderQuotaDetailView({
 function QuotaMetric({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="text-right font-medium text-slate-800">{value}</dd>
+      <dt className="text-cocoa-400">{label}</dt>
+      <dd className="text-right font-semibold text-cocoa-700">{value}</dd>
     </>
   );
 }
 
 function QuotaStatusPill({ status }: { status: ProviderQuotaStatus }) {
-  const color =
-    status === "quota_exceeded"
-      ? "bg-red-50 text-red-700"
-      : status === "rate_limited_recently" || status === "nearing_quota"
-        ? "bg-amber-50 text-amber-700"
-        : status === "healthy"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-700";
-  return (
-    <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${color}`}>
-      {status.replace(/_/g, " ")}
-    </span>
-  );
+  return <span className={quotaPillClass(status)}>{status.replace(/_/g, " ")}</span>;
 }
 
-export function SummaryCard({ label, value }: { label: string; value: number }) {
+export function SummaryCard({
+  label,
+  value,
+  valueClassName
+}: {
+  label: string;
+  value: number;
+  valueClassName?: string;
+}) {
   return (
-    <Card className="p-4">
-      <div className="text-sm text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-slate-950">{value}</div>
-    </Card>
+    <div className="rounded-2xl border border-sand-300 bg-white px-5 py-[18px]">
+      <p className={MICRO_LABEL}>{label}</p>
+      <p
+        className={cn(
+          "mt-2.5 font-newsreader text-[30px] font-semibold text-cocoa-900",
+          valueClassName
+        )}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -172,15 +187,19 @@ export function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="w-44 text-sm">
-      <span className="mb-1 block text-slate-600">{label}</span>
-      <Select value={value} onChange={(event) => onChange(event.target.value || undefinedValue())}>
+    <label className="w-40 text-[13px]">
+      <span className="mb-1.5 block font-medium text-cocoa-500">{label}</span>
+      <select
+        className={OPS_SELECT}
+        value={value}
+        onChange={(event) => onChange(event.target.value || undefinedValue())}
+      >
         {options.map((option) => (
           <option key={option} value={option}>
             {option || "Any"}
           </option>
         ))}
-      </Select>
+      </select>
     </label>
   );
 }
@@ -195,9 +214,9 @@ export function FilterInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="w-48 text-sm">
-      <span className="mb-1 block text-slate-600">{label}</span>
-      <Input value={value} onChange={(event) => onChange(event.target.value)} />
+    <label className="w-44 text-[13px]">
+      <span className="mb-1.5 block font-medium text-cocoa-500">{label}</span>
+      <input className={OPS_INPUT} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
@@ -216,24 +235,24 @@ export function JobActions({
   onMarkFailed: () => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button size="sm" variant="secondary" onClick={onView}>
+    <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" className={SMALL_OUTLINE_BUTTON} onClick={onView}>
         View
-      </Button>
+      </button>
       {job.canRetry ? (
-        <Button size="sm" variant="secondary" onClick={onRetry}>
+        <button type="button" className={SMALL_OUTLINE_BUTTON} onClick={onRetry}>
           Retry
-        </Button>
+        </button>
       ) : null}
       {job.canCancel ? (
-        <Button size="sm" variant="secondary" onClick={onCancel}>
+        <button type="button" className={SMALL_OUTLINE_BUTTON} onClick={onCancel}>
           Cancel
-        </Button>
+        </button>
       ) : null}
       {job.canMarkFailed ? (
-        <Button size="sm" variant="danger" onClick={onMarkFailed}>
+        <button type="button" className={SMALL_DANGER_BUTTON} onClick={onMarkFailed}>
           Mark failed
-        </Button>
+        </button>
       ) : null}
     </div>
   );
@@ -257,18 +276,18 @@ export function JobDetails({ job }: { job: OpsJob }) {
     ["Updated", formatOpsDate(job.updatedAt)]
   ];
   return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-2">
-      <dl className="space-y-2 text-sm">
+    <div className="mt-4 grid gap-5 lg:grid-cols-2">
+      <dl className="space-y-2 text-[13px]">
         {rows.map(([label, value]) => (
           <div key={label} className="grid grid-cols-[9rem_minmax(0,1fr)] gap-3">
-            <dt className="text-slate-500">{label}</dt>
-            <dd className="break-words font-mono text-xs text-slate-800">{value}</dd>
+            <dt className="text-cocoa-400">{label}</dt>
+            <dd className={cn("break-words text-[12px] text-cocoa-700", MONO)}>{value}</dd>
           </div>
         ))}
       </dl>
-      <div className="rounded-md border border-slate-200 p-3 text-sm">
-        <div className="font-medium text-slate-950">Payload Summary</div>
-        <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-700">
+      <div className="rounded-xl border border-sand-200 bg-sand-50 p-4">
+        <div className="text-[13.5px] font-semibold text-cocoa-900">Payload summary</div>
+        <pre className={cn("mt-2 whitespace-pre-wrap break-words text-[12px] text-cocoa-500", MONO)}>
           {JSON.stringify(job.payloadSummary ?? {}, null, 2)}
         </pre>
       </div>
@@ -276,27 +295,25 @@ export function JobDetails({ job }: { job: OpsJob }) {
   );
 }
 
-export function Metric({ label, value }: { label: string; value: string }) {
+export function StatusTile({
+  label,
+  value,
+  tone = "neutral"
+}: {
+  label: string;
+  value: string;
+  tone?: "ok" | "bad" | "neutral";
+}) {
+  const color =
+    tone === "ok" ? "text-[#2F7A57]" : tone === "bad" ? "text-[#B3402E]" : "text-cocoa-900";
   return (
-    <div>
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="mt-1 font-medium text-slate-950">{value}</dd>
+    <div className="rounded-xl bg-sand-50 px-4 py-3.5">
+      <p className="text-[12px] text-[#A08D78]">{label}</p>
+      <p className={cn("mt-1.5 text-[14px] font-semibold", color)}>{value}</p>
     </div>
   );
 }
 
 export function StatusPill({ status }: { status?: string }) {
-  const color =
-    status === "failed" || status === "down"
-      ? "bg-red-50 text-red-700"
-      : status === "running" || status === "degraded"
-        ? "bg-amber-50 text-amber-700"
-        : status === "completed" || status === "healthy"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-700";
-  return (
-    <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${color}`}>
-      {status ?? "unknown"}
-    </span>
-  );
+  return <span className={statusPillClass(status)}>{status ?? "unknown"}</span>;
 }

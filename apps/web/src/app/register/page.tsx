@@ -1,5 +1,10 @@
-import { RegisterPageContent } from "@/_pages/auth-register/ui/RegisterPageContent";
+import { Suspense } from "react";
+import { AuthScreen } from "@/_pages/auth/ui/AuthScreen";
 
 export default function RegisterPage() {
-  return <RegisterPageContent />;
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-sand-50" />}>
+      <AuthScreen />
+    </Suspense>
+  );
 }

@@ -1,21 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AiAdaptedTripBanner } from "@/components/trips/AiAdaptedTripBanner";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { AccommodationPanel } from "@/features/trip-accommodation";
+import { CalendarSyncPanel } from "@/features/calendar-sync";
+import { TripApprovalPanel } from "@/features/trip-approval";
+import { BudgetPanel } from "@/features/trip-budget";
+import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
+import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
 import { BudgetOptimizationRequestDialog } from "@/features/budget-optimization";
 import { EditLockStatus } from "@/features/trip-edit-lock";
 import { SoftEditLockWarningDialog } from "@/features/trip-edit-lock";
 import { ExportTripMenu } from "@/features/trip-export";
-import { GenerationJobStatusCard } from "@/features/trip-generation";
+import { GenerateItineraryButton, GenerationJobStatusCard } from "@/features/trip-generation";
 import { MergeConflictDialog } from "@/components/itinerary/merge/MergeConflictDialog";
 import { ItemCommentsPanel } from "@/features/trip-comments";
 import { TripCommentsSummary } from "@/features/trip-comments";
-import { PageContainer } from "@/components/layout/PageContainer";
 import { OfflineBanner } from "@/components/offline/OfflineBanner";
 import { PendingOfflineChangesPanel } from "@/components/offline/PendingOfflineChangesPanel";
 import { PresenceEditingWarning } from "@/components/presence/TripPresenceIndicator";
@@ -28,16 +32,13 @@ import {
 import { CostSplitRuleEditor } from "@/features/cost-splitting";
 import { CostSplittingPanel } from "@/features/cost-splitting";
 import { DistanceSummary } from "@/features/route-estimation";
-import { ItineraryMap } from "@/components/trips/ItineraryMap";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/features/itinerary-optimization";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
-import { ItineraryView } from "@/components/trips/ItineraryView";
-import { WeatherForecastCard } from "@/components/trips/WeatherForecastCard";
-import { Button, buttonStyles } from "@/shared/ui/button";
+import { Button } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { activityKeys } from "@/lib/api/activity";
 import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
@@ -99,9 +100,7 @@ import {
 } from "@/lib/offline/sync-queue";
 import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
 import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
-import {
-  getErrorMessage,
-} from "@/lib/utils";
+import { cn, getErrorMessage } from "@/lib/utils";
 import type {
   BudgetOptimizationJobRequest,
   BudgetOptimizationProposal
@@ -132,6 +131,13 @@ import type { Itinerary, Trip } from "@/entities/trip/model";
 import { BudgetOptimizationProposalsPanel } from "./BudgetOptimizationProposalsPanel";
 import { TripDetailHeader } from "./TripDetailHeader";
 import { TripDetailSidebar } from "./TripDetailSidebar";
+import { TripDetailChromeHeader } from "./TripDetailChromeHeader";
+import { ItineraryTimeline } from "./ItineraryTimeline";
+import { RightRailMap } from "./RightRailMap";
+import { RightRailWeather } from "./RightRailWeather";
+import { RightRailActivity } from "./RightRailActivity";
+import { PencilSquareIcon, ShareNodesIcon } from "./icons";
+import { instrumentSans, newsreader } from "./fonts";
 import {
   availabilityCostCategory,
   availabilityResultKey,
@@ -658,47 +664,43 @@ export function TripDetailPageContent() {
 
   if (!displayedTrip && (tripQuery.isPending || offlineCacheLoading)) {
     return (
-      <PageContainer>
-        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          {offlineCacheLoading ? "Loading saved trip..." : "Loading trip..."}
+      <DetailShell>
+        <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
+          {offlineCacheLoading ? "Loading saved trip…" : "Loading trip…"}
         </div>
-      </PageContainer>
+      </DetailShell>
     );
   }
 
   if (!displayedTrip && offlineUnavailable) {
     return (
-      <PageContainer>
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+      <DetailShell>
+        <div className="rounded-[18px] border border-[#EAD9B8] bg-[#FDF0E3] p-6 text-[14px] text-[#96682A]">
           This trip is not available offline yet. Open it once while online.
         </div>
-        <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/trips">
-          Back to trips
-        </Link>
-      </PageContainer>
+        <BackToTripsLink />
+      </DetailShell>
     );
   }
 
   if (!displayedTrip && tripQuery.isError) {
     return (
-      <PageContainer>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+      <DetailShell>
+        <div className="rounded-[18px] border border-[#E5C3B6] bg-[#FBF0EB] p-6 text-[14px] text-[#B3402E]">
           {tripQuery.error instanceof Error ? tripQuery.error.message : "Could not load trip."}
         </div>
-        <Link className={buttonStyles({ variant: "secondary", className: "mt-5" })} href="/trips">
-          Back to trips
-        </Link>
-      </PageContainer>
+        <BackToTripsLink />
+      </DetailShell>
     );
   }
 
   if (!displayedTrip) {
     return (
-      <PageContainer>
-        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <DetailShell>
+        <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
           Could not load trip.
         </div>
-      </PageContainer>
+      </DetailShell>
     );
   }
 
@@ -1644,114 +1646,137 @@ export function TripDetailPageContent() {
     enterEditMode();
   }
 
+  const heroActions = (
+    <>
+      {canManageShare ? (
+        <a
+          href="#sharing"
+          className="inline-flex h-[42px] items-center gap-2 rounded-full border border-sand-400 bg-white px-[18px] text-[14px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900"
+        >
+          <ShareNodesIcon className="h-4 w-4" />
+          Share
+        </a>
+      ) : null}
+      {exportTrip ? <ExportTripMenu exportTrip={exportTrip} /> : null}
+      {canGenerate ? (
+        <GenerateItineraryButton
+          disabled={hasActiveGenerationJob}
+          itineraryRevision={trip.itineraryRevision}
+          onJobCreated={handleGenerationJobCreated}
+          tripId={trip.id}
+        />
+      ) : canEditItinerary && !isEditing ? (
+        <button
+          type="button"
+          disabled={editLock.loading}
+          onClick={startEditing}
+          className="inline-flex h-[42px] items-center gap-2 rounded-full bg-clay px-5 text-[14px] font-semibold text-sand-100 shadow-[0_8px_20px_rgba(192,91,59,0.22)] transition hover:bg-clay-dark disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <PencilSquareIcon className="h-4 w-4" />
+          {editLock.loading ? "Checking…" : "Edit itinerary"}
+        </button>
+      ) : null}
+    </>
+  );
+
   return (
-    <PageContainer>
-      <OfflineBanner
-        cachedAt={cachedTripRecord?.cachedAt}
-        className="mb-6"
-        conflictCount={offlineSync.conflicts.length}
-        failedCount={offlineSync.failed.length}
-        offlineCopy={isUsingCachedTrip}
-        online={networkStatus.online}
-        pendingCount={offlineSync.pendingCount}
-        syncing={offlineSync.syncing}
-      />
-
-      <AiAdaptedTripBanner className="mb-6" />
-
-      <TripDetailHeader
-        accessSource={access?.source}
-        canGenerate={canGenerate}
-        hasActiveGenerationJob={hasActiveGenerationJob}
-        onGenerationJobCreated={handleGenerationJobCreated}
-        trip={trip}
-        workspaceName={workspaceName}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
-        <TripDetailSidebar
-          budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
-          canManageCollaborators={canManageCollaborators}
-          canManageShare={canManageShare}
-          canMutateTrip={canMutateTrip}
-          canSyncCalendar={canSyncCalendar}
-          currentUserId={currentUserId}
-          offlineDataMode={offlineDataMode}
-          onOpenAccommodationCostSplit={() => setCostSplitTarget({ type: "accommodation" })}
-          onOpenBudgetOptimization={openBudgetOptimization}
-          onlineActionsEnabled={onlineActionsEnabled}
-          optimizationDisabled={
-            isEditing || createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
-          }
-          perPersonAverage={perPersonAverage}
-          presenceConnected={presenceStream.isConnected}
-          presenceEnabled={presenceEnabled}
-          presenceSnapshot={presenceStream.snapshot}
-          trip={trip}
+    <div
+      className={cn(
+        newsreader.variable,
+        instrumentSans.variable,
+        "min-h-screen bg-sand-50 font-instrument text-cocoa-700 selection:bg-[#F0D9CC]"
+      )}
+    >
+      <TripDetailChromeHeader />
+      <div className="mx-auto max-w-[1360px] px-6 pb-20 pt-9 sm:px-10">
+        <OfflineBanner
+          cachedAt={cachedTripRecord?.cachedAt}
+          className="mb-6"
+          conflictCount={offlineSync.conflicts.length}
+          failedCount={offlineSync.failed.length}
+          offlineCopy={isUsingCachedTrip}
+          online={networkStatus.online}
+          pendingCount={offlineSync.pendingCount}
+          syncing={offlineSync.syncing}
         />
 
-        <section className="min-w-0">
-          {pendingOfflineMutation ? (
-            <div className="mb-4">
-            <PendingOfflineChangesPanel
-              mutation={pendingOfflineMutation}
-              online={networkStatus.online}
-              onDiscard={discardPendingOfflineChanges}
-              onReview={reviewPendingOfflineChanges}
-              onSyncNow={offlineSync.syncNow}
-              syncing={offlineSync.syncing}
-            />
-            </div>
-          ) : null}
+        <AiAdaptedTripBanner className="mb-6" />
 
-          <WeatherForecastCard
-            className="mb-4"
-            days={trip.days}
-            destination={trip.destination}
-            offline={!networkStatus.online || isUsingCachedTrip}
-            startDate={trip.startDate}
+        <TripDetailHeader
+          accessSource={access?.source}
+          actions={heroActions}
+          trip={trip}
+          workspaceName={workspaceName}
+        />
+
+        <div className="mt-8 grid grid-cols-1 gap-8 xl:grid-cols-[224px_minmax(0,1fr)_372px]">
+          <TripDetailSidebar
+            budgetCurrency={trip.budgetCurrency}
+            budgetLoading={onlineActionsEnabled && budgetSummaryQuery.isLoading}
+            budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
+            canMutateTrip={canMutateTrip}
+            onOpenBudgetOptimization={openBudgetOptimization}
+            optimizationDisabled={
+              isEditing || createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
+            }
+            perPersonAverage={perPersonAverage}
+            travelers={activeTripTravelers}
+            trip={trip}
+            tripId={trip.id}
           />
 
-          {successMessage ? (
-            <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-              {successMessage}
-            </div>
-          ) : null}
+          <div className="flex min-w-0 flex-col gap-4">
+            {pendingOfflineMutation ? (
+              <PendingOfflineChangesPanel
+                mutation={pendingOfflineMutation}
+                online={networkStatus.online}
+                onDiscard={discardPendingOfflineChanges}
+                onReview={reviewPendingOfflineChanges}
+                onSyncNow={offlineSync.syncNow}
+                syncing={offlineSync.syncing}
+              />
+            ) : null}
 
-          {activeGenerationJob ? (
-            <GenerationJobStatusCard
-              canCancel={
-                activeGenerationJob.status === "queued" &&
-                (activeGenerationJob.requestedByUserId === currentUserId ||
-                  access?.role === "owner")
-              }
-              isCancelling={cancelGenerationJobMutation.isPending}
-              job={activeGenerationJob}
-              onCancel={cancelActiveGenerationJob}
-            />
-          ) : null}
+            {successMessage ? (
+              <div className="rounded-[14px] border border-[#DCE8DD] bg-[#F2F7F1] p-4 text-[14px] text-[#38543F]">
+                {successMessage}
+              </div>
+            ) : null}
 
-          {regenerationError ? (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-              {regenerationError}
-            </div>
-          ) : null}
+            {activeGenerationJob ? (
+              <GenerationJobStatusCard
+                canCancel={
+                  activeGenerationJob.status === "queued" &&
+                  (activeGenerationJob.requestedByUserId === currentUserId ||
+                    access?.role === "owner")
+                }
+                isCancelling={cancelGenerationJobMutation.isPending}
+                job={activeGenerationJob}
+                onCancel={cancelActiveGenerationJob}
+              />
+            ) : null}
 
-          {availabilityApplyError ? (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-              {availabilityApplyError}
-            </div>
-          ) : null}
+            {regenerationError ? (
+              <div className="rounded-[14px] border border-[#E5C3B6] bg-[#FBF0EB] p-4 text-[14px] text-[#B3402E]">
+                {regenerationError}
+              </div>
+            ) : null}
 
-          {trip.status === "PROCESSING" ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-              The itinerary is being generated. This page will refresh while processing.
-            </div>
-          ) : null}
+            {availabilityApplyError ? (
+              <div className="rounded-[14px] border border-[#E5C3B6] bg-[#FBF0EB] p-4 text-[14px] text-[#B3402E]">
+                {availabilityApplyError}
+              </div>
+            ) : null}
 
-          {trip.status === "COMPLETED" && trip.itinerary ? (
-            <div className="space-y-4">
-              <TripQualityChecks
+            {trip.status === "PROCESSING" ? (
+              <div className="rounded-[14px] border border-[#EAD9B8] bg-[#FDF0E3] p-6 text-[14px] text-[#96682A]">
+                The itinerary is being generated. This page will refresh while processing.
+              </div>
+            ) : null}
+
+            {trip.status === "COMPLETED" && trip.itinerary ? (
+              <div className="flex flex-col gap-4">
+                <TripQualityChecks
                 availabilityResultsByItem={availabilityResultsByItem}
                 budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
                 fallbackDistanceSummaries={fallbackDistanceSummaries}
@@ -1781,23 +1806,25 @@ export function TripDetailPageContent() {
                 proposals={budgetOptimizationProposalsQuery.data ?? []}
               />
 
-              <CostSplittingPanel
-                canEdit={canMutateTrip}
-                offline={offlineDataMode}
-                onEditAccommodationSplit={
-                  trip.accommodation?.estimatedCost?.amount != null
-                    ? () => setCostSplitTarget({ type: "accommodation" })
-                    : undefined
-                }
-                onEditItemSplit={(dayNumber, itemIndex) =>
-                  setCostSplitTarget({ type: "item", dayNumber, itemIndex })
-                }
-                summary={costSplittingSummary}
-                summaryLoading={costSplittingSummaryQuery.isLoading}
-                travelers={tripTravelersQuery.data?.travelers ?? []}
-                travelersLoading={tripTravelersQuery.isLoading}
-                trip={trip}
-              />
+              <div id="cost-split" className="scroll-mt-24">
+                <CostSplittingPanel
+                  canEdit={canMutateTrip}
+                  offline={offlineDataMode}
+                  onEditAccommodationSplit={
+                    trip.accommodation?.estimatedCost?.amount != null
+                      ? () => setCostSplitTarget({ type: "accommodation" })
+                      : undefined
+                  }
+                  onEditItemSplit={(dayNumber, itemIndex) =>
+                    setCostSplitTarget({ type: "item", dayNumber, itemIndex })
+                  }
+                  summary={costSplittingSummary}
+                  summaryLoading={costSplittingSummaryQuery.isLoading}
+                  travelers={tripTravelersQuery.data?.travelers ?? []}
+                  travelersLoading={tripTravelersQuery.isLoading}
+                  trip={trip}
+                />
+              </div>
 
               <PresenceEditingWarning
                 currentUserId={currentUserId}
@@ -1805,7 +1832,7 @@ export function TripDetailPageContent() {
               />
               <EditLockStatus lock={editLock.lock} />
               {editLock.error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <div className="rounded-[14px] border border-[#E5C3B6] bg-[#FBF0EB] p-4 text-[14px] text-[#B3402E]">
                   {editLock.error}
                 </div>
               ) : null}
@@ -1882,30 +1909,6 @@ export function TripDetailPageContent() {
                 </>
               ) : (
                 <>
-                  {canEditItinerary ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
-                      {exportTrip ? <ExportTripMenu exportTrip={exportTrip} /> : <span />}
-                      <div className="flex flex-wrap gap-2">
-                        {canSaveTemplate ? (
-                          <Button
-                            onClick={() => setSaveTemplateOpen(true)}
-                            type="button"
-                            variant="secondary"
-                          >
-                            Save as template
-                          </Button>
-                        ) : null}
-                        <Button
-                          disabled={editLock.loading}
-                          onClick={startEditing}
-                          type="button"
-                          variant="secondary"
-                        >
-                          {editLock.loading ? "Checking..." : "Edit itinerary"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
                   <PlaceEnrichmentReviewPanel
                     readOnly={!canMutateTrip || offlineDataMode}
                     onTripUpdated={handlePlaceReviewUpdated}
@@ -1913,7 +1916,7 @@ export function TripDetailPageContent() {
                   />
                   <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
                   {canComment ? <TripCommentsSummary counts={commentCounts} /> : null}
-                  <ItineraryView
+                  <ItineraryTimeline
                     comments={
                       canComment
                         ? {
@@ -1941,11 +1944,6 @@ export function TripDetailPageContent() {
                     regeneratingTarget={activeRegeneratingTarget}
                     startDate={trip.startDate}
                     trip={trip}
-                  />
-                  <ItineraryMap
-                    accommodation={trip.accommodation ?? null}
-                    itinerary={trip.itinerary}
-                    startDate={trip.startDate}
                   />
                   <DistanceSummary
                     accommodation={trip.accommodation ?? null}
@@ -1996,37 +1994,123 @@ export function TripDetailPageContent() {
             </div>
           ) : null}
 
-          {trip.status === "COMPLETED" && !trip.itinerary ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-              This trip is completed, but no itinerary was returned.
-            </div>
-          ) : null}
+            {trip.status === "COMPLETED" && !trip.itinerary ? (
+              <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
+                This trip is completed, but no itinerary was returned.
+              </div>
+            ) : null}
 
-          {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-semibold text-slate-950">No itinerary yet</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Generate an itinerary when the Trip Service and AI Planning Service are
-                running.
-              </p>
-            </div>
-          ) : null}
+            {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
+              <div className="rounded-[18px] border border-sand-300 bg-white p-6">
+                <h2 className="font-newsreader text-[20px] font-semibold text-cocoa-900">
+                  No itinerary yet
+                </h2>
+                <p className="mt-2 text-[14px] leading-[1.6] text-cocoa-500">
+                  Generate an itinerary when the Trip Service and AI Planning Service are running.
+                </p>
+              </div>
+            ) : null}
 
-          {(trip.status === "DRAFT" || trip.status === "FAILED") && trip.itinerary ? (
-            <ItineraryView
-              currency={trip.budgetCurrency}
-              itinerary={trip.itinerary}
+            {(trip.status === "DRAFT" || trip.status === "FAILED") && trip.itinerary ? (
+              <ItineraryTimeline
+                currency={trip.budgetCurrency}
+                itinerary={trip.itinerary}
+                startDate={trip.startDate}
+              />
+            ) : null}
+
+            {/* Trip tools: interactive panels relocated from the old sidebar. They
+                retain their existing styling and full logic; the warm summary cards
+                in the left rail and hero deep-link here. */}
+            <section className="mt-2 flex flex-col gap-4 border-t border-sand-300 pt-6">
+              <h2 className="font-newsreader text-[22px] font-semibold tracking-[-0.01em] text-cocoa-900">
+                Trip tools
+              </h2>
+              <div id="budget" className="scroll-mt-24">
+                <BudgetPanel
+                  canEdit={canMutateTrip}
+                  offline={offlineDataMode}
+                  offlineSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
+                  onOpenBudgetOptimization={openBudgetOptimization}
+                  optimizationDisabled={
+                    isEditing || createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
+                  }
+                  perPersonAverage={perPersonAverage}
+                  trip={trip}
+                />
+              </div>
+              <AccommodationPanel
+                canEdit={canMutateTrip}
+                onOpenCostSplit={
+                  canMutateTrip && trip.accommodation?.estimatedCost?.amount != null
+                    ? () => setCostSplitTarget({ type: "accommodation" })
+                    : undefined
+                }
+                trip={trip}
+              />
+              {canSaveTemplate ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setSaveTemplateOpen(true)}
+                    className="inline-flex h-[42px] items-center gap-2 rounded-full border border-sand-400 bg-white px-[18px] text-[14px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900"
+                  >
+                    Save as template
+                  </button>
+                </div>
+              ) : null}
+              {presenceEnabled ? (
+                <TripPresenceIndicator
+                  currentUserId={currentUserId}
+                  isConnected={presenceStream.isConnected}
+                  snapshot={presenceStream.snapshot}
+                />
+              ) : null}
+              {trip.workspaceId ? <TripApprovalPanel tripId={trip.id} /> : null}
+              {onlineActionsEnabled && trip.status === "COMPLETED" && trip.itinerary ? (
+                <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />
+              ) : null}
+              <div id="sharing" className="flex scroll-mt-24 flex-col gap-4">
+                {canManageShare ? <ShareTripPanel tripId={trip.id} /> : null}
+                {onlineActionsEnabled ? (
+                  <>
+                    {trip.workspaceId ? (
+                      <div className="rounded-[14px] border border-sand-300 bg-sand-50 p-4 text-[13.5px] leading-[1.6] text-cocoa-500">
+                        Workspace members may already have access. Trip-specific collaborators can
+                        still be invited for exceptions.
+                      </div>
+                    ) : null}
+                    <CollaboratorsPanel
+                      canManageCollaborators={canManageCollaborators}
+                      tripId={trip.id}
+                    />
+                  </>
+                ) : null}
+              </div>
+            </section>
+          </div>
+
+          <div className="flex flex-col gap-5 xl:sticky xl:top-[84px] xl:self-start">
+            {trip.status === "COMPLETED" && trip.itinerary && !isEditing ? (
+              <RightRailMap
+                accommodation={trip.accommodation ?? null}
+                itinerary={trip.itinerary}
+                startDate={trip.startDate}
+              />
+            ) : null}
+            <RightRailWeather
+              days={trip.days}
+              destination={trip.destination}
+              offline={!networkStatus.online || isUsingCachedTrip}
               startDate={trip.startDate}
             />
-          ) : null}
-
-          <ActivityFeed
-            canViewActivity={canComment}
-            currentUserId={currentUserId}
-            tripId={trip.id}
-          />
-        </section>
-      </div>
+            <RightRailActivity
+              canViewActivity={canComment}
+              currentUserId={currentUserId}
+              tripId={trip.id}
+            />
+          </div>
+        </div>
       {lockWarning ? (
         <SoftEditLockWarningDialog
           lock={lockWarning}
@@ -2099,6 +2183,38 @@ export function TripDetailPageContent() {
           travelers={activeTripTravelers}
         />
       ) : null}
-    </PageContainer>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Warm chrome shell for the Trip Detail loading/error states so they keep the
+ * redesigned header (AppHeader is suppressed for this route) instead of rendering
+ * bare content.
+ */
+function DetailShell({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        newsreader.variable,
+        instrumentSans.variable,
+        "min-h-screen bg-sand-50 font-instrument text-cocoa-700 selection:bg-[#F0D9CC]"
+      )}
+    >
+      <TripDetailChromeHeader />
+      <div className="mx-auto max-w-[1360px] px-6 pb-20 pt-9 sm:px-10">{children}</div>
+    </div>
+  );
+}
+
+function BackToTripsLink() {
+  return (
+    <Link
+      href="/trips"
+      className="mt-5 inline-flex h-[42px] items-center rounded-full border border-sand-400 bg-white px-5 text-[14px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900"
+    >
+      Back to trips
+    </Link>
   );
 }

@@ -13,8 +13,13 @@ import type {
   NotificationChannel,
   NotificationPreference
 } from "@/entities/notification-preferences/model";
-import { Button } from "@/shared/ui/button";
-import { Card } from "@/shared/ui/card";
+import {
+  PrimaryButton,
+  SaveNotice,
+  SectionHeading,
+  SettingsCard,
+  Switch
+} from "@/components/settings/controls";
 
 const channels: Array<{ value: NotificationChannel; title: string }> = [
   { value: "in_app", title: "In-app notifications" },
@@ -118,16 +123,14 @@ export function NotificationPreferencesSection() {
     : null;
 
   return (
-    <Card>
-      <div>
-        <h2 className="text-lg font-semibold text-slate-950">Notification preferences</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Choose how you want to be notified about trip activity.
-        </p>
-      </div>
+    <SettingsCard>
+      <SectionHeading
+        title="Notification preferences"
+        subtitle="Choose how you want to be notified about trip activity."
+      />
 
       {preferencesQuery.isPending ? (
-        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <PreferenceSkeleton />
           <PreferenceSkeleton />
           <PreferenceSkeleton />
@@ -135,92 +138,87 @@ export function NotificationPreferencesSection() {
       ) : null}
 
       {loadError ? (
-        <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-          {loadError}
+        <div className="mt-6">
+          <SaveNotice errorMessage={loadError} />
         </div>
       ) : null}
 
       {!preferencesQuery.isPending && !loadError ? (
         <form
-          className="mt-6 space-y-6"
+          className="mt-6 flex flex-col gap-5"
           onSubmit={(event) => {
             event.preventDefault();
             preferencesMutation.mutate(orderedPreferences(draft));
           }}
         >
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-3">
             {channels.map((channel) => (
               <fieldset
                 key={channel.value}
-                className="rounded-md border border-slate-200 p-4"
+                className="rounded-2xl border border-sand-300 bg-sand-50/60 p-4"
                 disabled={preferencesMutation.isPending}
               >
-                <legend className="px-1 text-sm font-semibold text-slate-900">
+                <legend className="px-1 text-[13.5px] font-semibold text-cocoa-900">
                   {channel.title}
                 </legend>
-                <div className="mt-3 space-y-3">
-                  {categories.map((category) => (
-                    <label
+                <div className="mt-2 flex flex-col">
+                  {categories.map((category, index) => (
+                    <div
                       key={category.value}
-                      className="flex gap-3 rounded-md border border-slate-100 bg-slate-50 p-3"
+                      className={`flex items-start justify-between gap-3 py-3 ${
+                        index > 0 ? "border-t border-sand-200" : ""
+                      }`}
                     >
-                      <input
-                        checked={checked(channel.value, category.value)}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
-                        type="checkbox"
-                        onChange={(event) =>
-                          toggle(channel.value, category.value, event.target.checked)
-                        }
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-slate-900">
+                      <div className="min-w-0">
+                        <p className="text-[13.5px] font-semibold text-cocoa-900">
                           {category.label}
-                        </span>
-                        <span className="mt-1 block text-sm leading-5 text-slate-600">
+                        </p>
+                        <p className="mt-0.5 text-[12.5px] leading-[1.5] text-cocoa-400">
                           {category.description}
-                        </span>
-                      </span>
-                    </label>
+                        </p>
+                      </div>
+                      <Switch
+                        label={`${channel.title}: ${category.label}`}
+                        checked={checked(channel.value, category.value)}
+                        disabled={preferencesMutation.isPending}
+                        onChange={(next) => toggle(channel.value, category.value, next)}
+                      />
+                    </div>
                   ))}
                 </div>
               </fieldset>
             ))}
           </div>
 
-          <p className="text-sm leading-6 text-slate-600">
-            Disabling in-app collaboration notifications does not remove collaboration invitations from your Trips page.
+          <p className="text-[13.5px] leading-relaxed text-cocoa-500">
+            Disabling in-app collaboration notifications does not remove collaboration invitations
+            from your Trips page.
           </p>
 
-          {saveError ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-              {saveError}
-            </div>
-          ) : null}
+          {saveError ? <SaveNotice errorMessage={saveError} /> : null}
 
           {preferencesMutation.isSuccess ? (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">
-              Notification preferences saved.
-            </div>
+            <SaveNotice successMessage="Notification preferences saved." />
           ) : null}
 
           <div className="flex justify-end">
-            <Button disabled={preferencesMutation.isPending} type="submit">
-              {preferencesMutation.isPending ? "Saving..." : "Save preferences"}
-            </Button>
+            <PrimaryButton disabled={preferencesMutation.isPending} type="submit">
+              {preferencesMutation.isPending ? "Saving…" : "Save preferences"}
+            </PrimaryButton>
           </div>
         </form>
       ) : null}
-    </Card>
+    </SettingsCard>
   );
 }
 
 function PreferenceSkeleton() {
   return (
-    <div className="rounded-md border border-slate-200 p-4">
-      <div className="h-4 w-36 rounded bg-slate-200" />
+    <div className="rounded-2xl border border-sand-300 p-4">
+      <div className="h-4 w-36 rounded bg-sand-300" />
       <div className="mt-4 space-y-3">
         {[0, 1, 2, 3].map((item) => (
-          <div key={item} className="h-16 rounded-md bg-slate-100" />
+          <div key={item} className="h-14 rounded-xl bg-sand-200" />
         ))}
       </div>
     </div>

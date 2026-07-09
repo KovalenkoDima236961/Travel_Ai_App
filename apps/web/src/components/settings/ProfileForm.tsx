@@ -4,10 +4,19 @@ import { useEffect, type ReactNode } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button } from "@/shared/ui/button";
-import { Card } from "@/shared/ui/card";
-import { Input } from "@/shared/ui/input";
+import {
+  FIELD_LABEL_CLASS,
+  GhostButton,
+  INPUT_CLASS,
+  PrimaryButton,
+  SaveNotice,
+  SectionHeading,
+  SELECT_CLASS,
+  SettingsCard
+} from "@/components/settings/controls";
 import type { UpdateUserProfileRequest, UserProfile } from "@/entities/user/model";
+
+const CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "CZK"];
 
 const profileFormSchema = z.object({
   displayName: z.string().trim().max(100, "Display name must be 100 characters or fewer"),
@@ -28,6 +37,7 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 type ProfileFormProps = {
   profile: UserProfile;
+  email?: string | null;
   isSaving?: boolean;
   successMessage?: string | null;
   errorMessage?: string | null;
@@ -36,6 +46,7 @@ type ProfileFormProps = {
 
 export function ProfileForm({
   profile,
+  email,
   isSaving = false,
   successMessage,
   errorMessage,
@@ -53,8 +64,15 @@ export function ProfileForm({
   const {
     formState: { errors },
     handleSubmit,
-    register
+    register,
+    watch
   } = form;
+
+  const initials = initialsFrom(watch("displayName"), email);
+  const currentCurrency = watch("preferredCurrency");
+  const currencyOptions = CURRENCY_OPTIONS.includes(currentCurrency)
+    ? CURRENCY_OPTIONS
+    : [currentCurrency, ...CURRENCY_OPTIONS].filter(Boolean);
 
   function handleValidSubmit(values: ProfileFormValues) {
     onSubmit({
@@ -67,69 +85,93 @@ export function ProfileForm({
   }
 
   return (
-    <Card>
-      <div>
-        <h2 className="text-lg font-semibold text-slate-950">Profile</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Save basic details the planner can use when shaping future trips.
-        </p>
+    <SettingsCard>
+      <SectionHeading title="Profile" />
+
+      <div className="mt-6 flex items-center gap-[18px]">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#3E6B5A] font-newsreader text-2xl font-semibold text-[#EFF5F1]">
+          {initials}
+        </span>
+        <GhostButton type="button" disabled title="Photo uploads are coming soon">
+          Change photo
+        </GhostButton>
       </div>
 
-      <form className="mt-6 space-y-6" onSubmit={handleSubmit(handleValidSubmit)}>
-        <div className="grid gap-5 md:grid-cols-2">
+      <form className="mt-6" onSubmit={handleSubmit(handleValidSubmit)}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Display name" error={errors.displayName?.message}>
-            <Input
+            <input
               id="displayName"
               maxLength={100}
               placeholder="Test Traveler"
               aria-invalid={Boolean(errors.displayName)}
               disabled={isSaving}
+              className={INPUT_CLASS}
               {...register("displayName")}
             />
           </Field>
 
+          <Field label="Email">
+            <input
+              id="email"
+              type="email"
+              value={email ?? ""}
+              readOnly
+              disabled
+              className={INPUT_CLASS}
+            />
+          </Field>
+
           <Field label="Home city" error={errors.homeCity?.message}>
-            <Input
+            <input
               id="homeCity"
               maxLength={100}
               placeholder="Bratislava"
               aria-invalid={Boolean(errors.homeCity)}
               disabled={isSaving}
+              className={INPUT_CLASS}
               {...register("homeCity")}
             />
           </Field>
 
           <Field label="Home country" error={errors.homeCountry?.message}>
-            <Input
+            <input
               id="homeCountry"
               maxLength={100}
               placeholder="Slovakia"
               aria-invalid={Boolean(errors.homeCountry)}
               disabled={isSaving}
+              className={INPUT_CLASS}
               {...register("homeCountry")}
             />
           </Field>
 
-          <Field label="Preferred currency" error={errors.preferredCurrency?.message}>
-            <Input
+          <Field label="Home currency" error={errors.preferredCurrency?.message}>
+            <select
               id="preferredCurrency"
-              maxLength={3}
-              placeholder="EUR"
               aria-invalid={Boolean(errors.preferredCurrency)}
               disabled={isSaving}
+              className={SELECT_CLASS}
               {...register("preferredCurrency", {
                 setValueAs: (value) => String(value).trim().toUpperCase()
               })}
-            />
+            >
+              {currencyOptions.map((currency) => (
+                <option key={currency} value={currency}>
+                  {currency}
+                </option>
+              ))}
+            </select>
           </Field>
 
           <Field label="Preferred language" error={errors.preferredLanguage?.message}>
-            <Input
+            <input
               id="preferredLanguage"
               maxLength={10}
               placeholder="en"
               aria-invalid={Boolean(errors.preferredLanguage)}
               disabled={isSaving}
+              className={INPUT_CLASS}
               {...register("preferredLanguage", {
                 setValueAs: (value) => String(value).trim()
               })}
@@ -137,15 +179,17 @@ export function ProfileForm({
           </Field>
         </div>
 
-        <SaveState successMessage={successMessage} errorMessage={errorMessage} />
+        <div className="mt-5">
+          <SaveNotice successMessage={successMessage} errorMessage={errorMessage} />
+        </div>
 
-        <div className="flex justify-end">
-          <Button disabled={isSaving} type="submit">
-            {isSaving ? "Saving..." : "Save profile"}
-          </Button>
+        <div className="mt-5 flex justify-end">
+          <PrimaryButton disabled={isSaving} type="submit">
+            {isSaving ? "Saving…" : "Save profile"}
+          </PrimaryButton>
         </div>
       </form>
-    </Card>
+    </SettingsCard>
   );
 }
 
@@ -158,37 +202,11 @@ type FieldProps = {
 function Field({ label, error, children }: FieldProps) {
   return (
     <label className="block">
-      <span className="text-sm font-medium text-slate-800">{label}</span>
+      <span className={FIELD_LABEL_CLASS}>{label}</span>
       <span className="mt-2 block">{children}</span>
-      {error ? <span className="mt-2 block text-sm text-red-700">{error}</span> : null}
+      {error ? <span className="mt-2 block text-[13px] text-clay-deep">{error}</span> : null}
     </label>
   );
-}
-
-function SaveState({
-  successMessage,
-  errorMessage
-}: {
-  successMessage?: string | null;
-  errorMessage?: string | null;
-}) {
-  if (errorMessage) {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-        {errorMessage}
-      </div>
-    );
-  }
-
-  if (successMessage) {
-    return (
-      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">
-        {successMessage}
-      </div>
-    );
-  }
-
-  return null;
 }
 
 function toFormValues(profile: UserProfile): ProfileFormValues {
@@ -204,4 +222,21 @@ function toFormValues(profile: UserProfile): ProfileFormValues {
 function cleanOptionalText(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function initialsFrom(displayName: string | undefined, email: string | null | undefined) {
+  const source = (displayName ?? "").trim();
+  if (source) {
+    const parts = source.split(/\s+/).filter(Boolean);
+    const letters = parts
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("");
+    if (letters) {
+      return letters.toUpperCase();
+    }
+  }
+  const local = (email ?? "").split("@")[0] ?? "";
+  const fallback = local.replace(/[^a-zA-Z]/g, "").slice(0, 2);
+  return (fallback || "?").toUpperCase();
 }

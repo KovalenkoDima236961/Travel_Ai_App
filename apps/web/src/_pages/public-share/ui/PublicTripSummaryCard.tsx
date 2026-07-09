@@ -1,6 +1,7 @@
-import { Card } from "@/shared/ui/card";
-import { formatDate, formatInterestLabel, formatPaceLabel } from "@/lib/utils";
+import { formatMoney } from "@/entities/budget/model";
+import { formatInterestLabel } from "@/lib/utils";
 import type { PublicTrip } from "@/entities/share/model";
+import { estimateItineraryTotal } from "./publicShareFormat";
 
 type PublicTripSummaryCardProps = {
   trip: PublicTrip;
@@ -9,56 +10,48 @@ type PublicTripSummaryCardProps = {
 export function PublicTripSummaryCard({ trip }: PublicTripSummaryCardProps) {
   const interests = trip.interests ?? [];
   const travelers = trip.travelers ?? 0;
+  const currency = trip.itinerary?.currency ?? "EUR";
+  const estimatedTotal = estimateItineraryTotal(trip.itinerary);
 
   return (
-    <Card>
-      <h2 className="text-lg font-semibold text-slate-950">Trip summary</h2>
-      <dl className="mt-5 space-y-4 text-sm">
-        <DetailRow label="Start date" value={trip.startDate ? formatDate(trip.startDate) : "Not set"} />
-        <DetailRow label="Duration" value={`${trip.days} ${trip.days === 1 ? "day" : "days"}`} />
-        <DetailRow label="Travelers" value={travelers > 0 ? String(travelers) : "Not set"} />
-        <DetailRow label="Pace" value={trip.pace ? formatPaceLabel(trip.pace) : "Not set"} />
-        {trip.sharedAt ? (
-          <DetailRow
-            label="Shared"
-            value={formatDate(trip.sharedAt, {
-              dateStyle: "medium",
-              timeStyle: "short"
-            })}
-          />
+    <div className="rounded-[18px] border border-sand-300 bg-white px-6 py-[22px]">
+      <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#A08D78]">
+        Trip summary
+      </h2>
+      <dl className="mt-4 flex flex-col gap-3 text-[14px]">
+        <SummaryRow label="Destination" value={trip.destination} />
+        <SummaryRow label="Duration" value={`${trip.days} ${trip.days === 1 ? "day" : "days"}`} />
+        <SummaryRow label="Travelers" value={travelers > 0 ? String(travelers) : "Not set"} />
+        {estimatedTotal != null ? (
+          <SummaryRow label="Estimated" value={formatMoney(estimatedTotal, currency)} />
         ) : null}
       </dl>
-      <div className="mt-6">
-        <p className="text-sm font-medium text-slate-700">Interests</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {interests.length > 0 ? (
-            interests.map((interest) => (
-              <span
-                key={interest}
-                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
-              >
-                {formatInterestLabel(interest)}
-              </span>
-            ))
-          ) : (
-            <span className="text-sm text-slate-500">No interests listed</span>
-          )}
+      {interests.length > 0 ? (
+        <div className="mt-[18px] flex flex-wrap gap-[7px] border-t border-[#F1E8DC] pt-4">
+          {interests.map((interest) => (
+            <span
+              key={interest}
+              className="rounded-full bg-[#F4EDE4] px-3 py-[5px] text-[12px] font-medium text-cocoa-500"
+            >
+              {formatInterestLabel(interest)}
+            </span>
+          ))}
         </div>
-      </div>
-    </Card>
+      ) : null}
+    </div>
   );
 }
 
-type DetailRowProps = {
+type SummaryRowProps = {
   label: string;
   value: string;
 };
 
-function DetailRow({ label, value }: DetailRowProps) {
+function SummaryRow({ label, value }: SummaryRowProps) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="text-right font-medium text-slate-800">{value}</dd>
+    <div className="flex justify-between gap-3">
+      <dt className="text-cocoa-400">{label}</dt>
+      <dd className="m-0 text-right font-semibold text-cocoa-900">{value}</dd>
     </div>
   );
 }

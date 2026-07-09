@@ -1,17 +1,10 @@
 import { Suspense } from "react";
-import { PageContainer } from "@/components/layout/PageContainer";
-import { LoginPageContent } from "@/_pages/auth-login/ui/LoginPageContent";
+import { AuthScreen } from "@/_pages/auth/ui/AuthScreen";
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <PageContainer className="max-w-lg">
-          <div className="text-sm text-slate-600">Loading login...</div>
-        </PageContainer>
-      }
-    >
-      <LoginPageContent />
+    <Suspense fallback={<div className="min-h-screen bg-sand-50" />}>
+      <AuthScreen />
     </Suspense>
   );
 }

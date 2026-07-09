@@ -1,7 +1,8 @@
 "use client";
 
 import { useId } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/cn";
+import { FIELD_LABEL_CLASS } from "@/components/settings/controls";
 
 type CheckboxOption = {
   label: string;
@@ -18,6 +19,11 @@ type CheckboxGroupProps = {
   disabled?: boolean;
 };
 
+/**
+ * Multi-select rendered as toggleable pills, matching the "Default interests"
+ * control in the Settings design. Kept as a fieldset of pressable buttons so it
+ * stays keyboard-accessible while dropping the boxy checkbox look.
+ */
 export function CheckboxGroup({
   label,
   description,
@@ -30,50 +36,45 @@ export function CheckboxGroup({
   const groupId = useId();
   const selected = new Set(value);
 
-  function toggle(optionValue: string, checked: boolean) {
-    if (checked) {
-      onChange([...value, optionValue]);
+  function toggle(optionValue: string) {
+    if (selected.has(optionValue)) {
+      onChange(value.filter((item) => item !== optionValue));
       return;
     }
-
-    onChange(value.filter((item) => item !== optionValue));
+    onChange([...value, optionValue]);
   }
 
   return (
     <fieldset aria-describedby={description ? `${groupId}-description` : undefined}>
-      <legend className="text-sm font-medium text-slate-800">{label}</legend>
+      <legend className={FIELD_LABEL_CLASS}>{label}</legend>
       {description ? (
-        <p id={`${groupId}-description`} className="mt-1 text-sm leading-6 text-slate-600">
+        <p id={`${groupId}-description`} className="mt-1 text-[13px] text-cocoa-400">
           {description}
         </p>
       ) : null}
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-2.5 flex flex-wrap gap-2">
         {options.map((option) => {
-          const inputId = `${groupId}-${option.value}`;
+          const isSelected = selected.has(option.value);
           return (
-            <label
+            <button
               key={option.value}
+              type="button"
+              aria-pressed={isSelected}
+              disabled={disabled}
+              onClick={() => toggle(option.value)}
               className={cn(
-                "flex min-h-11 items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700",
-                disabled && "cursor-not-allowed opacity-70"
+                "rounded-full border px-3.5 py-1.5 text-[13px] transition disabled:cursor-not-allowed disabled:opacity-60",
+                isSelected
+                  ? "border-clay bg-clay-tint font-semibold text-clay-deep"
+                  : "border-sand-400 bg-white font-medium text-cocoa-500 hover:border-sand-600 hover:text-cocoa-700"
               )}
-              htmlFor={inputId}
             >
-              <input
-                checked={selected.has(option.value)}
-                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600 disabled:cursor-not-allowed"
-                disabled={disabled}
-                id={inputId}
-                type="checkbox"
-                value={option.value}
-                onChange={(event) => toggle(option.value, event.target.checked)}
-              />
-              <span>{option.label}</span>
-            </label>
+              {option.label}
+            </button>
           );
         })}
       </div>
-      {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="mt-2 text-[13px] text-clay-deep">{error}</p> : null}
     </fieldset>
   );
 }

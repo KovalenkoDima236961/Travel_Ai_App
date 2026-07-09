@@ -1,22 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PageContainer } from "@/components/layout/PageContainer";
-import { AdaptTemplateWithAiDialog } from "@/features/trip-template";
-import { CreateTripFromTemplateDialog } from "@/features/trip-template";
-import { TripTemplateCard } from "@/features/trip-template";
-import { Button } from "@/shared/ui/button";
-import { Input } from "@/shared/ui/input";
-import { useTripTemplateMutations, useTripTemplates } from "@/features/trip-template";
+import { cn } from "@/shared/lib/cn";
+import { useTripTemplates } from "@/features/trip-template";
 import { getErrorMessage } from "@/lib/utils";
-import type { TripTemplate, TripTemplateVisibility } from "@/entities/trip-template/model";
+import type { TripTemplateVisibility } from "@/entities/trip-template/model";
+import { instrumentSans, newsreader } from "./fonts";
+import { SearchIcon, TagIcon } from "./icons";
+import { TemplateCard } from "./TemplateCard";
+import { TemplatesHeader } from "./TemplatesHeader";
+
+const FILTERS: { value: TripTemplateVisibility | "all"; label: string }[] = [
+  { value: "all", label: "All accessible" },
+  { value: "private", label: "Private" },
+  { value: "workspace", label: "Workspace" }
+];
 
 export function TemplatesPageContent() {
   const [visibility, setVisibility] = useState<TripTemplateVisibility | "all">("all");
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<TripTemplate | null>(null);
-  const [adaptTemplate, setAdaptTemplate] = useState<TripTemplate | null>(null);
   const params = useMemo(
     () => ({
       visibility,
@@ -29,126 +32,107 @@ export function TemplatesPageContent() {
     [search, tag, visibility]
   );
   const templatesQuery = useTripTemplates(params);
-  const mutations = useTripTemplateMutations();
   const templates = templatesQuery.data?.templates ?? [];
-  const mutationError = getErrorMessage(
-    mutations.archiveTemplate.error ?? mutations.duplicateTemplate.error,
-    ""
-  );
-
-  function archiveTemplate(template: TripTemplate) {
-    if (!window.confirm("Archive this template? It will disappear from active lists.")) {
-      return;
-    }
-    mutations.archiveTemplate.mutate({ templateId: template.id });
-  }
-
-  function duplicateTemplate(template: TripTemplate) {
-    mutations.duplicateTemplate.mutate({
-      templateId: template.id,
-      input: {
-        title: `Copy of ${template.title}`,
-        visibility: "private"
-      }
-    });
-  }
 
   return (
-    <PageContainer>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase text-primary-700">Templates</p>
-          <h1 className="mt-2 text-3xl font-semibold text-slate-950">Template library</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Reuse private and workspace itinerary structures without copying live availability or share data.
+    <div
+      className={cn(
+        newsreader.variable,
+        instrumentSans.variable,
+        "min-h-screen bg-sand-50 font-instrument text-cocoa-700 selection:bg-[#F0D9CC]"
+      )}
+    >
+      <TemplatesHeader />
+
+      {/* Content region is a div, not <main> — the root layout already provides
+          the <main> landmark, and nesting a second one is invalid. */}
+      <div className="mx-auto max-w-[1280px] px-6 pb-[72px] pt-12 sm:px-10">
+        <div className="max-w-[640px]">
+          <h1 className="font-newsreader text-[38px] font-medium leading-[1.05] tracking-[-0.02em] text-cocoa-900 sm:text-[44px]">
+            Template library
+          </h1>
+          <p className="mt-3.5 text-[16px] leading-[1.6] text-cocoa-500">
+            Reuse private and workspace itinerary structures — adapt any of them to a new city with AI.
           </p>
         </div>
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 rounded-full border border-sand-300 bg-white p-1">
+            {FILTERS.map((filter) => {
+              const active = visibility === filter.value;
+              return (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setVisibility(filter.value)}
+                  className={cn(
+                    "h-[34px] rounded-full px-4 text-[13.5px] transition",
+                    active
+                      ? "bg-cocoa-900 font-semibold text-sand-150"
+                      : "font-medium text-cocoa-500 hover:bg-sand-200"
+                  )}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-11 items-center gap-2.5 rounded-full border border-sand-400 bg-white px-4">
+              <TagIcon className="h-4 w-4 text-[#A08D78]" />
+              <input
+                aria-label="Filter by tag"
+                placeholder="Filter by tag"
+                value={tag}
+                onChange={(event) => setTag(event.target.value)}
+                className="w-[130px] border-none bg-transparent text-[14.5px] text-cocoa-900 outline-none placeholder:text-cocoa-400"
+              />
+            </div>
+            <div className="flex h-11 min-w-[300px] items-center gap-2.5 rounded-full border border-sand-400 bg-white px-4">
+              <SearchIcon className="h-[17px] w-[17px] text-[#A08D78]" />
+              <input
+                aria-label="Search templates"
+                placeholder="Search title or destination"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="flex-1 border-none bg-transparent text-[14.5px] text-cocoa-900 outline-none placeholder:text-cocoa-400"
+              />
+            </div>
+          </div>
+        </div>
+
+        {templatesQuery.isPending ? (
+          <div className="mt-8 rounded-[20px] border border-sand-300 bg-white/60 p-7 text-[14.5px] text-cocoa-500">
+            Loading templates…
+          </div>
+        ) : null}
+
+        {templatesQuery.isError ? (
+          <div className="mt-8 rounded-[20px] border border-clay/30 bg-clay-tint/50 p-7 text-[14.5px] text-clay-deep">
+            {getErrorMessage(templatesQuery.error, "Could not load templates.")}
+          </div>
+        ) : null}
+
+        {templatesQuery.isSuccess && templates.length === 0 ? (
+          <div className="mt-8 rounded-[20px] border border-dashed border-sand-400 bg-white/60 px-8 py-14 text-center">
+            <h2 className="font-newsreader text-[24px] font-semibold text-cocoa-900">
+              No templates yet
+            </h2>
+            <p className="mx-auto mt-2 max-w-md text-[14.5px] text-cocoa-400">
+              Save a trip as a template to reuse its structure later, or adjust your filters above.
+            </p>
+          </div>
+        ) : null}
+
+        {templates.length > 0 ? (
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {templates.map((template) => (
+              <TemplateCard key={template.id} template={template} />
+            ))}
+          </div>
+        ) : null}
       </div>
-
-      <div className="mt-6 grid gap-4 rounded-lg border border-slate-200 bg-white p-4 lg:grid-cols-[auto_minmax(0,1fr)_14rem]">
-        <div className="flex flex-wrap gap-2">
-          {(["all", "private", "workspace"] as const).map((value) => (
-            <Button
-              key={value}
-              onClick={() => setVisibility(value)}
-              size="sm"
-              type="button"
-              variant={visibility === value ? "primary" : "secondary"}
-            >
-              {value === "all" ? "All accessible" : value === "private" ? "Private" : "Workspace"}
-            </Button>
-          ))}
-        </div>
-        <Input
-          aria-label="Search templates"
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search title or destination"
-          value={search}
-        />
-        <Input
-          aria-label="Tag filter"
-          onChange={(event) => setTag(event.target.value)}
-          placeholder="Tag"
-          value={tag}
-        />
-      </div>
-
-      {templatesQuery.isLoading ? (
-        <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          Loading templates...
-        </div>
-      ) : null}
-
-      {templatesQuery.isError ? (
-        <div className="mt-8 rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          {getErrorMessage(templatesQuery.error, "Could not load templates.")}
-        </div>
-      ) : null}
-
-      {mutationError ? (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          {mutationError}
-        </div>
-      ) : null}
-
-      {templatesQuery.isSuccess && templates.length === 0 ? (
-        <div className="mt-8 rounded-lg border border-slate-200 bg-white p-8 text-center">
-          <h2 className="text-lg font-semibold text-slate-950">No templates yet</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Save a trip as a template to reuse it later.
-          </p>
-        </div>
-      ) : null}
-
-      {templates.length > 0 ? (
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {templates.map((template) => (
-            <TripTemplateCard
-              key={template.id}
-              onAdapt={setAdaptTemplate}
-              onArchive={archiveTemplate}
-              onDuplicate={duplicateTemplate}
-              onUse={setSelectedTemplate}
-              template={template}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      <CreateTripFromTemplateDialog
-        onClose={() => setSelectedTemplate(null)}
-        open={Boolean(selectedTemplate)}
-        template={selectedTemplate}
-      />
-      <AdaptTemplateWithAiDialog
-        onClose={() => setAdaptTemplate(null)}
-        onUseDirectly={(template) => {
-          setAdaptTemplate(null);
-          setSelectedTemplate(template);
-        }}
-        open={Boolean(adaptTemplate)}
-        template={adaptTemplate}
-      />
-    </PageContainer>
+    </div>
   );
 }

@@ -1,7 +1,12 @@
 "use client";
 
-import { Button } from "@/shared/ui/button";
-import { Card } from "@/shared/ui/card";
+import {
+  GhostButton,
+  PrimaryButton,
+  SaveNotice,
+  SectionHeading,
+  SettingsCard
+} from "@/components/settings/controls";
 import { useWebPushNotifications } from "@/hooks/useWebPushNotifications";
 
 export function PushNotificationSettings() {
@@ -19,38 +24,36 @@ export function PushNotificationSettings() {
   const blocked = permission === "denied";
 
   return (
-    <Card>
+    <SettingsCard>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Push notifications</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{statusText()}</p>
+          <SectionHeading title="Push notifications" />
+          <p className="mt-2 text-[14px] leading-relaxed text-cocoa-500">{statusText()}</p>
           {typeof activeSubscriptions === "number" && activeSubscriptions > 0 ? (
-            <p className="mt-1 text-sm text-slate-500">
-              Active devices: {activeSubscriptions}
-            </p>
+            <p className="mt-1 text-[13px] text-cocoa-400">Active devices: {activeSubscriptions}</p>
           ) : null}
         </div>
 
         <div className="flex shrink-0 gap-2">
           {supported && !blocked && !enabled ? (
-            <Button disabled={loading} onClick={() => void enablePush()}>
-              {loading ? "Enabling..." : "Enable push notifications"}
-            </Button>
+            <PrimaryButton disabled={loading} onClick={() => void enablePush()}>
+              {loading ? "Enabling…" : "Enable push notifications"}
+            </PrimaryButton>
           ) : null}
           {supported && enabled ? (
-            <Button disabled={loading} variant="secondary" onClick={() => void disablePush()}>
-              {loading ? "Disabling..." : "Disable on this device"}
-            </Button>
+            <GhostButton disabled={loading} onClick={() => void disablePush()}>
+              {loading ? "Disabling…" : "Disable on this device"}
+            </GhostButton>
           ) : null}
         </div>
       </div>
 
       {error ? (
-        <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-          {error}
+        <div className="mt-4">
+          <SaveNotice errorMessage={error} />
         </div>
       ) : null}
-    </Card>
+    </SettingsCard>
   );
 
   function statusText() {

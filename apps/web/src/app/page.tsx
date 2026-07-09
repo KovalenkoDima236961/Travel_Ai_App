@@ -1,5 +1,10 @@
-import { HomePageContent } from "@/_pages/home/ui/HomePageContent";
+import { LandingGate } from "@/_pages/landing/ui/LandingGate";
+import { LandingPage } from "@/_pages/landing/ui/LandingPage";
 
 export default function HomePage() {
-  return <HomePageContent />;
+  return (
+    <LandingGate>
+      <LandingPage />
+    </LandingGate>
+  );
 }

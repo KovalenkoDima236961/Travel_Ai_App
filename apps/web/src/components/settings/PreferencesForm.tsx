@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { cn } from "@/shared/lib/cn";
 import { CheckboxGroup } from "@/components/settings/CheckboxGroup";
-import { Button } from "@/shared/ui/button";
-import { Card } from "@/shared/ui/card";
-import { Input } from "@/shared/ui/input";
-import { Select } from "@/shared/ui/select";
+import {
+  FIELD_LABEL_CLASS,
+  INPUT_CLASS,
+  PrimaryButton,
+  SaveNotice,
+  SectionHeading,
+  SettingsCard
+} from "@/components/settings/controls";
 import type {
   PatchUserPreferencesRequest,
   TravelPace,
@@ -76,6 +81,10 @@ const paceOptions: Array<{ value: TravelPace; label: string }> = [
   { value: "intensive", label: "Intensive" }
 ];
 
+const SEG_BASE = "h-9 rounded-full px-[18px] text-[13.5px] transition disabled:cursor-not-allowed disabled:opacity-60";
+const SEG_ACTIVE = "bg-cocoa-900 font-semibold text-sand-150";
+const SEG_IDLE = "font-medium text-cocoa-500 hover:bg-sand-200";
+
 const stringArraySchema = z.array(z.string());
 
 const preferencesFormSchema = z.object({
@@ -122,8 +131,7 @@ export function PreferencesForm({
   const {
     control,
     formState: { errors },
-    handleSubmit,
-    register
+    handleSubmit
   } = form;
 
   function handleValidSubmit(values: PreferencesFormValues) {
@@ -140,16 +148,88 @@ export function PreferencesForm({
   }
 
   return (
-    <Card>
-      <div>
-        <h2 className="text-lg font-semibold text-slate-950">Travel preferences</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Saved preferences affect future itinerary generation. Trip Service loads them from
-          User Service when you generate a plan.
-        </p>
-      </div>
+    <SettingsCard>
+      <SectionHeading
+        title="Travel preferences"
+        subtitle="Applied as defaults when the AI drafts a new itinerary."
+      />
 
-      <form className="mt-6 space-y-7" onSubmit={handleSubmit(handleValidSubmit)}>
+      <form className="mt-6 flex flex-col gap-[22px]" onSubmit={handleSubmit(handleValidSubmit)}>
+        <Controller
+          control={control}
+          name="pace"
+          render={({ field }) => (
+            <div>
+              <p className={FIELD_LABEL_CLASS}>Default pace</p>
+              <div
+                role="radiogroup"
+                aria-label="Default pace"
+                className="mt-2 inline-flex gap-1 rounded-full border border-sand-300 bg-sand-50 p-1"
+              >
+                {paceOptions.map((option) => {
+                  const active = field.value === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      disabled={isSaving}
+                      onClick={() => field.onChange(option.value)}
+                      className={cn(SEG_BASE, active ? SEG_ACTIVE : SEG_IDLE)}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {errors.pace ? (
+                <p className="mt-2 text-[13px] text-clay-deep">{errors.pace.message}</p>
+              ) : null}
+            </div>
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="maxWalkingKmPerDay"
+          render={({ field }) => (
+            <div>
+              <label htmlFor="maxWalkingKmPerDay" className={FIELD_LABEL_CLASS}>
+                Max walking per day
+              </label>
+              <p className="mt-2 text-[14px] text-cocoa-500">
+                Used to flag long routes when the AI plans your days.
+              </p>
+              <div className="mt-2.5 flex items-center gap-2.5">
+                <input
+                  id="maxWalkingKmPerDay"
+                  max={50}
+                  min={0}
+                  placeholder="8"
+                  step="0.5"
+                  type="number"
+                  aria-invalid={Boolean(errors.maxWalkingKmPerDay)}
+                  disabled={isSaving}
+                  className={cn(INPUT_CLASS, "w-28")}
+                  value={field.value ?? ""}
+                  onBlur={field.onBlur}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    field.onChange(value === "" ? null : Number(value));
+                  }}
+                />
+                <span className="text-[14px] text-cocoa-500">km/day</span>
+              </div>
+              {errors.maxWalkingKmPerDay ? (
+                <p className="mt-2 text-[13px] text-clay-deep">
+                  {errors.maxWalkingKmPerDay.message}
+                </p>
+              ) : null}
+            </div>
+          )}
+        />
+
         <Controller
           control={control}
           name="travelStyles"
@@ -164,43 +244,6 @@ export function PreferencesForm({
             />
           )}
         />
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Pace" error={errors.pace?.message}>
-            <Select id="pace" aria-invalid={Boolean(errors.pace)} disabled={isSaving} {...register("pace")}>
-              {paceOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Controller
-            control={control}
-            name="maxWalkingKmPerDay"
-            render={({ field }) => (
-              <Field label="Max walking per day" error={errors.maxWalkingKmPerDay?.message}>
-                <Input
-                  id="maxWalkingKmPerDay"
-                  max={50}
-                  min={0}
-                  placeholder="8"
-                  step="0.5"
-                  type="number"
-                  aria-invalid={Boolean(errors.maxWalkingKmPerDay)}
-                  disabled={isSaving}
-                  value={field.value ?? ""}
-                  onBlur={field.onBlur}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    field.onChange(value === "" ? null : Number(value));
-                  }}
-                />
-              </Field>
-            )}
-          />
-        </div>
 
         <Controller
           control={control}
@@ -277,58 +320,16 @@ export function PreferencesForm({
           )}
         />
 
-        <SaveState successMessage={successMessage} errorMessage={errorMessage} />
+        <SaveNotice successMessage={successMessage} errorMessage={errorMessage} />
 
         <div className="flex justify-end">
-          <Button disabled={isSaving} type="submit">
-            {isSaving ? "Saving..." : "Save preferences"}
-          </Button>
+          <PrimaryButton disabled={isSaving} type="submit">
+            {isSaving ? "Saving…" : "Save preferences"}
+          </PrimaryButton>
         </div>
       </form>
-    </Card>
+    </SettingsCard>
   );
-}
-
-type FieldProps = {
-  label: string;
-  error?: string;
-  children: ReactNode;
-};
-
-function Field({ label, error, children }: FieldProps) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-800">{label}</span>
-      <span className="mt-2 block">{children}</span>
-      {error ? <span className="mt-2 block text-sm text-red-700">{error}</span> : null}
-    </label>
-  );
-}
-
-function SaveState({
-  successMessage,
-  errorMessage
-}: {
-  successMessage?: string | null;
-  errorMessage?: string | null;
-}) {
-  if (errorMessage) {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-        {errorMessage}
-      </div>
-    );
-  }
-
-  if (successMessage) {
-    return (
-      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">
-        {successMessage}
-      </div>
-    );
-  }
-
-  return null;
 }
 
 function toFormValues(preferences: UserPreferences): PreferencesFormValues {

@@ -1,65 +1,79 @@
 import Link from "next/link";
-import { GenerateItineraryButton } from "@/features/trip-generation";
+import type { ReactNode } from "react";
 import { TripApprovalBadge } from "@/features/trip-approval";
-import { TripStatusBadge } from "@/components/trips/TripStatusBadge";
+import { formatPaceLabel } from "@/lib/utils";
 import { formatAccessSource } from "../model/tripDetailPageModel";
-import type { GenerationJob } from "@/entities/generation-job/model";
+import { formatTripDateRange } from "./tripDetailFormat";
+import { StatusPill } from "./StatusPill";
+import { ArrowLeftIcon, BoltIcon, CalendarIcon, UsersIcon } from "./icons";
 import type { Trip, TripAccess } from "@/entities/trip/model";
 
 type TripDetailHeaderProps = {
   trip: Trip;
   workspaceName?: string | null;
   accessSource?: TripAccess["source"] | null;
-  canGenerate: boolean;
-  hasActiveGenerationJob: boolean;
-  onGenerationJobCreated: (job: GenerationJob) => void;
+  /** Action cluster (Share / Export / Edit or Generate) composed by the page. */
+  actions?: ReactNode;
 };
 
 export function TripDetailHeader({
   trip,
   workspaceName,
   accessSource,
-  canGenerate,
-  hasActiveGenerationJob,
-  onGenerationJobCreated
+  actions
 }: TripDetailHeaderProps) {
+  const dateRange = formatTripDateRange(trip.startDate, trip.days);
+
   return (
-    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <Link className="text-sm font-medium text-primary-700 hover:text-primary-600" href="/trips">
-          Back to trips
+    <div className="flex flex-wrap items-end justify-between gap-6">
+      <div className="min-w-0">
+        <Link
+          href="/trips"
+          className="inline-flex items-center gap-2 text-[14px] font-medium text-clay-deep transition hover:text-clay"
+        >
+          <ArrowLeftIcon className="h-[15px] w-[15px]" />
+          Trips
         </Link>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold text-slate-950">{trip.destination}</h1>
-          <TripStatusBadge status={trip.status} />
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          <h1 className="font-newsreader text-[38px] font-medium leading-[1] tracking-[-0.02em] text-cocoa-900 sm:text-[46px]">
+            {trip.destination}
+          </h1>
+          <StatusPill status={trip.status} />
           {trip.workspaceId ? (
             <Link
-              className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-100"
               href={`/workspaces/${trip.workspaceId}`}
+              className="inline-flex items-center rounded-full border border-sand-300 bg-white px-3.5 py-1.5 text-[13px] font-medium text-cocoa-500 transition hover:border-sand-400 hover:text-cocoa-900"
             >
               {workspaceName ? `Workspace: ${workspaceName}` : "Workspace trip"}
             </Link>
           ) : (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+            <span className="inline-flex items-center rounded-full border border-sand-300 bg-white px-3.5 py-1.5 text-[13px] font-medium text-cocoa-500">
               Personal trip
             </span>
           )}
           {accessSource ? (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+            <span className="inline-flex items-center rounded-full border border-sand-300 bg-white px-3.5 py-1.5 text-[13px] font-medium text-cocoa-500">
               Access: {formatAccessSource(accessSource)}
             </span>
           ) : null}
           {trip.workspaceId ? <TripApprovalBadge tripId={trip.id} /> : null}
         </div>
+        <p className="mt-3.5 flex flex-wrap items-center gap-x-[18px] gap-y-2 text-[14.5px] text-cocoa-500">
+          <span className="inline-flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4 text-[#B09E8A]" />
+            {dateRange}
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <UsersIcon className="h-4 w-4 text-[#B09E8A]" />
+            {trip.travelers} {trip.travelers === 1 ? "traveler" : "travelers"}
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <BoltIcon className="h-4 w-4 text-[#B09E8A]" />
+            {formatPaceLabel(trip.pace)} pace
+          </span>
+        </p>
       </div>
-      {canGenerate ? (
-        <GenerateItineraryButton
-          disabled={hasActiveGenerationJob}
-          itineraryRevision={trip.itineraryRevision}
-          onJobCreated={onGenerationJobCreated}
-          tripId={trip.id}
-        />
-      ) : null}
+      {actions ? <div className="flex flex-wrap items-center gap-2.5">{actions}</div> : null}
     </div>
   );
 }

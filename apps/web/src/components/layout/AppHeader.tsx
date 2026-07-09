@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Button, buttonStyles } from "@/shared/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -9,11 +9,57 @@ import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 
 export function AppHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, isLoading, logout, user } = useAuth();
 
   async function handleLogout() {
     await logout();
     router.push("/login");
+  }
+
+  // The landing, auth, and redesigned trips/create-trip/templates/notifications/
+  // settings/offline/ops/workspaces screens are full-bleed with their own
+  // branding/chrome, so suppress the shared app header on those routes. Most paths are matched
+  // exactly; the redesigned Trip Detail screen lives at the dynamic `/trips/[id]`
+  // route, so it is matched by a single-segment pattern that intentionally
+  // excludes `/trips/new` (its own chrome). The redesigned Trip Cost Analytics
+  // screen lives at `/trips/[id]/analytics` and ships its own chrome, matched by
+  // its own pattern. `/templates` is matched exactly for the list screen; the
+  // redesigned Template Detail screen lives at the dynamic `/templates/[id]`
+  // route, matched by its own single-segment pattern. `/workspaces` is
+  // matched exactly for the list screen; the redesigned Workspace Detail screen
+  // lives at the dynamic `/workspaces/[id]` route, matched by the same
+  // single-segment pattern that excludes `/workspaces/new` (still the old chrome)
+  // and the nested `/workspaces/[id]/settings|analytics|budgets|...` routes.
+  const isRedesignedTripDetail =
+    /^\/trips\/[^/]+$/.test(pathname) && pathname !== "/trips/new";
+  const isRedesignedTripAnalytics = /^\/trips\/[^/]+\/analytics$/.test(pathname);
+  const isRedesignedTemplateDetail = /^\/templates\/[^/]+$/.test(pathname);
+  const isRedesignedWorkspaceDetail =
+    /^\/workspaces\/[^/]+$/.test(pathname) && pathname !== "/workspaces/new";
+  // The redesigned Public Share screen lives at `/share/[shareToken]` and ships
+  // its own full-bleed chrome (brand + Export + "Plan your own"), so suppress the
+  // shared app header there for both anonymous and signed-in viewers.
+  const isRedesignedPublicShare = /^\/share\/[^/]+$/.test(pathname);
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/trips" ||
+    pathname === "/trips/new" ||
+    isRedesignedTripDetail ||
+    isRedesignedTripAnalytics ||
+    pathname === "/templates" ||
+    isRedesignedTemplateDetail ||
+    pathname === "/notifications" ||
+    pathname === "/settings" ||
+    pathname === "/offline" ||
+    pathname === "/ops" ||
+    pathname === "/workspaces" ||
+    isRedesignedWorkspaceDetail ||
+    isRedesignedPublicShare
+  ) {
+    return null;
   }
 
   return (

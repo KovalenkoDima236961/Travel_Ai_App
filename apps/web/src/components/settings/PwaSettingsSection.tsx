@@ -4,8 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { IosInstallInstructionsDialog } from "@/components/pwa/IosInstallInstructionsDialog";
-import { Button, buttonStyles } from "@/shared/ui/button";
-import { Card } from "@/shared/ui/card";
+import {
+  PrimaryButton,
+  SaveNotice,
+  SectionHeading,
+  SettingsCard
+} from "@/components/settings/controls";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { useWebPushNotifications } from "@/hooks/useWebPushNotifications";
 import {
@@ -17,6 +21,9 @@ import {
   OFFLINE_QUEUE_CHANGED_EVENT,
   getPendingMutations
 } from "@/lib/offline/sync-queue";
+
+const LINK_BUTTON_CLASS =
+  "inline-flex h-11 items-center justify-center rounded-full border border-sand-400 bg-white px-[22px] text-[14.5px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900";
 
 type OfflineSummary = {
   cachedTripsCount: number;
@@ -117,13 +124,11 @@ export function PwaSettingsSection() {
 
   return (
     <>
-      <Card>
-        <div>
-          <h2 className="text-lg font-semibold text-slate-950">App and offline access</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Manage install status, offline trip storage, and device capabilities.
-          </p>
-        </div>
+      <SettingsCard>
+        <SectionHeading
+          title="App and offline access"
+          subtitle="Manage install status, offline trip storage, and device capabilities."
+        />
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <StatusPanel
@@ -171,49 +176,50 @@ export function PwaSettingsSection() {
           />
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap gap-2.5">
           {!install.isInstalled && install.platform !== "unsupported" ? (
-            <Button
+            <PrimaryButton
               disabled={install.platform === "chromium" && !install.installPromptAvailable}
               onClick={() => void handleInstall()}
             >
               {install.platform === "ios_safari" ? "Show install instructions" : "Install app"}
-            </Button>
+            </PrimaryButton>
           ) : null}
           {install.platform === "unsupported" ? (
-            <span className="inline-flex h-11 items-center rounded-md border border-slate-200 px-4 text-sm text-slate-600">
+            <span className="inline-flex h-11 items-center rounded-full border border-sand-400 px-4 text-[13.5px] text-cocoa-500">
               App install is not supported in this browser.
             </span>
           ) : null}
-          <Link className={buttonStyles({ variant: "secondary" })} href="/offline-trips">
+          <Link href="/offline-trips" className={LINK_BUTTON_CLASS}>
             Manage offline trips
           </Link>
-          <Link className={buttonStyles({ variant: "ghost" })} href="#push-notifications">
+          <Link href="#push-notifications" className={LINK_BUTTON_CLASS}>
             Push settings
           </Link>
-          <Button
+          <button
+            type="button"
             disabled={
               offlineSummary.cachedTripsCount === 0 && offlineSummary.pendingChangesCount === 0
             }
             onClick={() => void handleClearOfflineData()}
-            variant="danger"
+            className="inline-flex h-11 items-center justify-center rounded-full border border-clay/40 bg-white px-[22px] text-[14.5px] font-semibold text-clay-deep transition hover:bg-clay-tint/50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Clear offline data
-          </Button>
+          </button>
         </div>
 
         {message ? (
-          <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" role="status">
-            {message}
+          <div className="mt-4">
+            <SaveNotice successMessage={message} />
           </div>
         ) : null}
 
         {error ? (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-            {error}
+          <div className="mt-4">
+            <SaveNotice errorMessage={error} />
           </div>
         ) : null}
-      </Card>
+      </SettingsCard>
 
       <IosInstallInstructionsDialog
         open={iosInstructionsOpen}
@@ -233,10 +239,10 @@ function StatusPanel({
   secondary: string;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-base font-semibold text-slate-950">{primary}</p>
-      <p className="mt-1 text-sm leading-5 text-slate-600">{secondary}</p>
+    <div className="rounded-2xl border border-sand-300 bg-sand-50/60 p-4">
+      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-cocoa-400">{label}</p>
+      <p className="mt-2 text-[15px] font-semibold text-cocoa-900">{primary}</p>
+      <p className="mt-1 text-[13px] leading-[1.5] text-cocoa-500">{secondary}</p>
     </div>
   );
 }
