@@ -84,6 +84,7 @@ class MockTemplateAdapter:
             changed_destination=True,
             major_changes=major_changes,
         )
+        _localize_mock_adaptation(itinerary, summary, request.output_language)
         return TemplateAdaptationResponse(itinerary=itinerary, adaptation_summary=summary)
 
     def _adapt_day(
@@ -160,6 +161,48 @@ class MockTemplateAdapter:
                 "with flexible exploration days."
             )
         return changes
+
+
+_ADAPTATION_TEXT = {
+    "es": {
+        "title": "Viaje a {destination}",
+        "day": "Día {day} en {destination}",
+        "item": "Experiencia local en {destination}",
+        "note": "Adaptado al destino; verifica los detalles y la disponibilidad.",
+        "change": "La estructura de la plantilla se adaptó a {destination}.",
+    },
+    "uk": {
+        "title": "Подорож до {destination}",
+        "day": "День {day} у {destination}",
+        "item": "Місцевий досвід у {destination}",
+        "note": "Адаптовано до напрямку; перевірте деталі та доступність.",
+        "change": "Структуру шаблону адаптовано до {destination}.",
+    },
+    "fr": {
+        "title": "Voyage à {destination}",
+        "day": "Jour {day} à {destination}",
+        "item": "Expérience locale à {destination}",
+        "note": "Adapté à la destination ; vérifiez les détails et la disponibilité.",
+        "change": "La structure du modèle a été adaptée à {destination}.",
+    },
+}
+
+
+def _localize_mock_adaptation(
+    itinerary: AdaptedItinerary, summary: AdaptationSummary, language: str
+) -> None:
+    text = _ADAPTATION_TEXT.get(language)
+    if text is None:
+        return
+    destination = itinerary.destination
+    itinerary.title = text["title"].format(destination=destination)
+    for index, day in enumerate(itinerary.days, start=1):
+        day.title = text["day"].format(day=index, destination=destination)
+        for item in day.items:
+            item.name = text["item"].format(destination=destination)
+            item.description = text["note"]
+            item.notes = text["note"]
+    summary.major_changes = [text["change"].format(destination=destination)]
 
 
 class OllamaTemplateAdapter:

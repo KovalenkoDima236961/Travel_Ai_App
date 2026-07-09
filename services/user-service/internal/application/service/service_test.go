@@ -288,6 +288,38 @@ func TestPatchPreferencesUsesAuthenticatedUserIDWhenCreatingMissingPreferences(t
 	}
 }
 
+func TestUpdateProfileAcceptsSupportedLanguagesAndNormalizesCase(t *testing.T) {
+	for _, language := range []string{"en", "es", "uk", "fr", " FR "} {
+		t.Run(language, func(t *testing.T) {
+			repo := &mockRepo{}
+			svc := New(repo, zap.NewNop())
+			input := validProfileInput()
+			input.PreferredLanguage = language
+
+			if _, err := svc.UpdateProfile(authContext(testUserID()), input); err != nil {
+				t.Fatalf("unexpected update error: %v", err)
+			}
+			expected := strings.ToLower(strings.TrimSpace(language))
+			if repo.upsertProfileInput.PreferredLanguage != expected {
+				t.Fatalf("expected %q, got %q", expected, repo.upsertProfileInput.PreferredLanguage)
+			}
+		})
+	}
+}
+
+func TestUpdateProfileRejectsUnsupportedLanguage(t *testing.T) {
+	repo := &mockRepo{}
+	svc := New(repo, zap.NewNop())
+	input := validProfileInput()
+	input.PreferredLanguage = "de"
+
+	_, err := svc.UpdateProfile(authContext(testUserID()), input)
+	assertInvalidInput(t, err)
+	if repo.upsertProfileInput != nil {
+		t.Fatal("repository must not be called for an unsupported language")
+	}
+}
+
 func validProfileInput() appdto.UpdateProfileInput {
 	return appdto.UpdateProfileInput{
 		DisplayName:       "Test Traveler",

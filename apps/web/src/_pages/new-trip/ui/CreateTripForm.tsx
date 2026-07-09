@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useTranslations } from "next-intl";
 import { createTrip, tripKeys } from "@/lib/api/trips";
 import { getErrorMessage } from "@/lib/utils";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
@@ -49,6 +50,8 @@ const FIELD_INPUT =
 const FIELD_ERROR = "mt-1.5 block text-[13px] text-clay-deep";
 
 export function CreateTripForm() {
+  const translate = useTranslations("trips");
+  const translateCommon = useTranslations("common");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { currentScope, currentWorkspace, editableWorkspaces } = useWorkspaces();
@@ -129,10 +132,12 @@ export function CreateTripForm() {
       className="flex flex-col gap-9 rounded-[22px] border border-sand-300 bg-white px-6 py-9 shadow-[0_1px_2px_rgba(34,26,20,0.04),0_14px_36px_rgba(34,26,20,0.06)] sm:px-10"
     >
       <section>
-        <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">The basics</h2>
+        <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
+          {translate("basics")}
+        </h2>
         <div className="mt-5 flex flex-col gap-[18px]">
           <label className="block">
-            <span className={FIELD_LABEL}>Destination</span>
+            <span className={FIELD_LABEL}>{translate("destination")}</span>
             <span className="mt-2 flex h-[52px] items-center gap-2.5 rounded-[14px] border border-sand-400 bg-[#FFFDFA] px-4 transition focus-within:border-clay focus-within:ring-[3px] focus-within:ring-clay-tint">
               <MapPinIcon className="h-[19px] w-[19px] shrink-0 text-clay" />
               <input
@@ -150,7 +155,7 @@ export function CreateTripForm() {
 
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
             <label className="block">
-              <span className={FIELD_LABEL}>Start date</span>
+              <span className={FIELD_LABEL}>{translate("startDate")}</span>
               <input id="startDate" type="date" className={FIELD_INPUT} {...register("startDate")} />
               {errors.startDate?.message ? (
                 <span className={FIELD_ERROR}>{errors.startDate.message}</span>
@@ -158,7 +163,7 @@ export function CreateTripForm() {
             </label>
 
             <label className="block">
-              <span className={FIELD_LABEL}>Days</span>
+              <span className={FIELD_LABEL}>{translate("days")}</span>
               <input
                 id="days"
                 type="number"
@@ -172,14 +177,14 @@ export function CreateTripForm() {
             </label>
 
             <label className="block">
-              <span className={FIELD_LABEL}>Trip scope</span>
+              <span className={FIELD_LABEL}>{translate("tripScope")}</span>
               <select
                 id="workspaceId"
                 aria-invalid={Boolean(errors.workspaceId)}
                 className={FIELD_INPUT}
                 {...register("workspaceId")}
               >
-                <option value="">Personal trip</option>
+                <option value="">{translate("personalTrip")}</option>
                 {editableWorkspaces.map((workspace) => (
                   <option key={workspace.id} value={workspace.id}>
                     {workspace.name}
@@ -196,11 +201,11 @@ export function CreateTripForm() {
 
       <section className="border-t border-sand-200 pt-8">
         <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
-          Travelers &amp; budget
+          {translate("travelersBudget")}
         </h2>
         <div className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           <label className="block">
-            <span className={FIELD_LABEL}>Travelers</span>
+            <span className={FIELD_LABEL}>{translate("travelers")}</span>
             <input
               id="travelers"
               type="number"
@@ -216,7 +221,10 @@ export function CreateTripForm() {
 
           <label className="block">
             <span className={FIELD_LABEL}>
-              Budget <span className="font-normal text-[#A08D78]">(optional)</span>
+              {translate("budget")}{" "}
+              <span className="font-normal text-[#A08D78]">
+                ({translateCommon("optional")})
+              </span>
             </span>
             <input
               id="budgetAmount"
@@ -236,7 +244,7 @@ export function CreateTripForm() {
           </label>
 
           <label className="block">
-            <span className={FIELD_LABEL}>Currency</span>
+            <span className={FIELD_LABEL}>{translate("currency")}</span>
             <select
               id="budgetCurrency"
               aria-invalid={Boolean(errors.budgetCurrency)}
@@ -256,9 +264,13 @@ export function CreateTripForm() {
       </section>
 
       <section className="border-t border-sand-200 pt-8">
-        <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">Your style</h2>
+        <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
+          {translate("style")}
+        </h2>
 
-        <p className="mt-5 text-[13.5px] font-semibold text-cocoa-700">Pace</p>
+        <p className="mt-5 text-[13.5px] font-semibold text-cocoa-700">
+          {translate("pace")}
+        </p>
         <div className="mt-2 inline-flex gap-1 rounded-full border border-sand-300 bg-sand-50 p-1">
           {paceOptions.map((option) => (
             <label key={option.value} className="cursor-pointer">
@@ -270,7 +282,9 @@ export function CreateTripForm() {
           ))}
         </div>
 
-        <p className="mt-6 text-[13.5px] font-semibold text-cocoa-700">Interests</p>
+        <p className="mt-6 text-[13.5px] font-semibold text-cocoa-700">
+          {translate("interests")}
+        </p>
         <div className="mt-2.5 flex flex-wrap gap-2">
           {interestOptions.map((option) => {
             const selected = selectedInterests.includes(option.value);
@@ -311,7 +325,7 @@ export function CreateTripForm() {
           onClick={() => router.push("/trips")}
           className="inline-flex h-12 items-center rounded-full px-[22px] text-[15px] font-medium text-cocoa-500 transition hover:bg-sand-200 hover:text-cocoa-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Cancel
+          {translateCommon("cancel")}
         </button>
         <button
           type="submit"
@@ -319,7 +333,7 @@ export function CreateTripForm() {
           className="inline-flex h-12 items-center gap-2.5 rounded-full bg-clay px-[26px] text-[15px] font-semibold text-sand-100 shadow-[0_8px_20px_rgba(192,91,59,0.25)] transition hover:bg-clay-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           <SparklesIcon className="h-[17px] w-[17px]" />
-          {createMutation.isPending ? "Creating…" : "Create trip"}
+          {createMutation.isPending ? translate("creating") : translate("create")}
         </button>
       </div>
     </form>

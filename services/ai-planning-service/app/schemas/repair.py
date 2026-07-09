@@ -3,7 +3,14 @@ from typing import Any, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from app.schemas.itinerary import APIModel, CurrencyCode, Pace, UserPreferences, UserProfile
+from app.schemas.itinerary import (
+    APIModel,
+    CurrencyCode,
+    OutputLanguage,
+    Pace,
+    UserPreferences,
+    UserProfile,
+)
 
 RepairMode = Literal[
     "policy_compliance",
@@ -157,6 +164,7 @@ class RepairItineraryRequest(APIModel):
     issues: list[RepairIssue] = Field(default_factory=list, max_length=50)
     constraints: RepairConstraints = Field(default_factory=RepairConstraints)
     context: RepairContext | dict[str, Any] | None = None
+    output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
 
     @model_validator(mode="after")
     def itinerary_must_have_days(self) -> "RepairItineraryRequest":

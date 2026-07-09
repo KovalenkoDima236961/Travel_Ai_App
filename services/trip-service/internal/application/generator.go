@@ -19,6 +19,7 @@ import (
 // loading trusted user context; frontend callers cannot submit these fields.
 type GenerateItineraryInput struct {
 	Trip                       entity.Trip
+	OutputLanguage             string
 	UserProfile                *usercontext.UserProfile
 	UserPreferences            *usercontext.UserPreferences
 	WeatherForecast            *weathercontext.WeatherForecast
@@ -29,6 +30,7 @@ type GenerateItineraryInput struct {
 // in an existing itinerary.
 type RegenerateDayInput struct {
 	Trip                       entity.Trip
+	OutputLanguage             string
 	CurrentItinerary           aggregate.Itinerary
 	DayNumber                  int
 	Instruction                string
@@ -42,6 +44,7 @@ type RegenerateDayInput struct {
 // in an existing itinerary day. ItemIndex is zero-based.
 type RegenerateItemInput struct {
 	Trip                       entity.Trip
+	OutputLanguage             string
 	CurrentItinerary           aggregate.Itinerary
 	DayNumber                  int
 	ItemIndex                  int

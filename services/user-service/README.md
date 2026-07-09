@@ -9,6 +9,13 @@ generation so AI Planning Service can receive trusted personalization context.
 The service also owns Multi-Tenant / Team Workspace v1 membership data so Trip
 Service can enforce workspace trip access through internal role checks.
 
+## Preferred language
+
+Profiles expose `preferredLanguage`. Allowed values are `en`, `es`, `uk`, and
+`fr`; existing and newly created profiles default to `en`. Unsupported values
+are rejected as validation errors. Migration `000003` normalizes legacy values
+and adds the database check constraint.
+
 ## Data Flow
 
 ```mermaid

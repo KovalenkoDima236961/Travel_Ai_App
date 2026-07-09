@@ -19,6 +19,7 @@ import type {
   TripCostAnalytics,
   WorkspaceCostAnalytics
 } from "@/entities/cost-analytics/model";
+import { useAppLanguage } from "@/components/i18n/I18nProvider";
 
 type CostReportExportMenuProps =
   | {
@@ -33,6 +34,7 @@ type CostReportExportMenuProps =
     };
 
 export function CostReportExportMenu(props: CostReportExportMenuProps) {
+  const { language } = useAppLanguage();
   const [message, setMessage] = useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
 
@@ -40,14 +42,14 @@ export function CostReportExportMenu(props: CostReportExportMenuProps) {
     setMessage(null);
     if (props.scope === "trip") {
       downloadTextFile(
-        generateTripCostAnalyticsCsv(props.analytics),
+        generateTripCostAnalyticsCsv(props.analytics, language),
         buildTripCostReportFilename(props.title, "csv"),
         "text/csv;charset=utf-8"
       );
       return;
     }
     downloadTextFile(
-      generateWorkspaceCostAnalyticsCsv(props.analytics),
+      generateWorkspaceCostAnalyticsCsv(props.analytics, language),
       buildWorkspaceCostReportFilename(props.title, "csv"),
       "text/csv;charset=utf-8"
     );

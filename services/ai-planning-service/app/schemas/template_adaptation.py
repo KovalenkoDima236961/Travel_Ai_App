@@ -18,6 +18,7 @@ from app.schemas.itinerary import (
     CurrencyCode,
     EstimatedCost,
     NonEmptyString,
+    OutputLanguage,
     Pace,
     WorkspacePolicyConstraints,
     _normalize_string_list,
@@ -200,6 +201,7 @@ class TemplateAdaptationRequest(APIModel):
         default_factory=TemplateAdaptationConstraints
     )
     context: AdaptationContext | None = None
+    output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
     workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
         default=None, alias="workspacePolicyConstraints"
     )

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { GlobeIcon } from "./icons";
@@ -14,6 +17,7 @@ const NAV_IDLE = "font-medium text-cocoa-500 hover:bg-sand-200 hover:text-cocoa-
  * live `NotificationBell` and `AccountMenu` chrome widgets are reused as-is.
  */
 export function SettingsHeader() {
+  const translate = useTranslations("navigation");
   return (
     <header className="sticky top-0 z-40 border-b border-sand-300 bg-sand-50/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-6 px-6 py-3 sm:px-10">
@@ -28,13 +32,13 @@ export function SettingsHeader() {
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             <Link href="/trips" className={`${NAV_BASE} ${NAV_IDLE}`}>
-              Trips
+              {translate("trips")}
             </Link>
             <Link href="/templates" className={`${NAV_BASE} ${NAV_IDLE}`}>
-              Templates
+              {translate("templates")}
             </Link>
             <Link href="/workspaces" className={`${NAV_BASE} ${NAV_IDLE}`}>
-              Workspaces
+              {translate("workspaces")}
             </Link>
           </nav>
         </div>

@@ -3,12 +3,17 @@ import type {
   TripCostAnalytics,
   WorkspaceCostAnalytics
 } from "@/entities/cost-analytics/model";
+import type { SupportedLanguage } from "@/lib/i18n/languages";
+import { localizeCsvText } from "./csv-localization";
 
 const DISCLAIMER =
   "Costs are estimates for planning purposes only. Provider prices, availability, exchange rates, and booking costs may change.";
 
-export function generateTripCostAnalyticsCsv(analytics: TripCostAnalytics): string {
-  return joinSections([
+export function generateTripCostAnalyticsCsv(
+  analytics: TripCostAnalytics,
+  language: SupportedLanguage = "en"
+): string {
+  return localizeCsvText(joinSections([
     section("Summary", [
       ["Metric", "Value", "Currency"],
       ["Estimated total", analytics.summary.estimatedTotal, analytics.currency],
@@ -53,11 +58,14 @@ export function generateTripCostAnalyticsCsv(analytics: TripCostAnalytics): stri
       ])
     ]),
     section("Warnings", [["Warning"], ...[...analytics.warnings, DISCLAIMER].map((warning) => [warning])])
-  ]);
+  ]), language);
 }
 
-export function generateWorkspaceCostAnalyticsCsv(analytics: WorkspaceCostAnalytics): string {
-  return joinSections([
+export function generateWorkspaceCostAnalyticsCsv(
+  analytics: WorkspaceCostAnalytics,
+  language: SupportedLanguage = "en"
+): string {
+  return localizeCsvText(joinSections([
     section("Summary", [
       ["Metric", "Value", "Currency"],
       ["Trips included", analytics.summary.tripCount, ""],
@@ -108,7 +116,7 @@ export function generateWorkspaceCostAnalyticsCsv(analytics: WorkspaceCostAnalyt
       ])
     ]),
     section("Warnings", [["Warning"], ...[...analytics.warnings, DISCLAIMER].map((warning) => [warning])])
-  ]);
+  ]), language);
 }
 
 function breakdownSection(

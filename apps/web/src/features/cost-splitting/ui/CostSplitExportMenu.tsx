@@ -7,6 +7,7 @@ import { downloadCostSplittingPdf } from "@/lib/export/cost-splitting-pdf";
 import { downloadTextFile } from "@/lib/export/download";
 import { slugifyForFilename } from "@/lib/export/export-filenames";
 import type { CostSplittingSummary } from "@/entities/cost-splitting/model";
+import { useAppLanguage } from "@/components/i18n/I18nProvider";
 
 type CostSplitExportMenuProps = {
   summary: CostSplittingSummary;
@@ -14,13 +15,14 @@ type CostSplitExportMenuProps = {
 };
 
 export function CostSplitExportMenu({ summary, title }: CostSplitExportMenuProps) {
+  const { language } = useAppLanguage();
   const [message, setMessage] = useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
 
   function downloadCsv() {
     setMessage(null);
     downloadTextFile(
-      generateCostSplittingCsv(summary),
+      generateCostSplittingCsv(summary, language),
       `${slugifyForFilename(title || "trip")}-cost-split-report.csv`,
       "text/csv;charset=utf-8"
     );

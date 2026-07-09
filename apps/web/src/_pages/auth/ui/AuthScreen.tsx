@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/lib/cn";
 import { instrumentSans, newsreader } from "./fonts";
 import { GlobeIcon } from "./icons";
@@ -19,6 +20,7 @@ const TAB_IDLE = "font-medium text-cocoa-500 hover:text-cocoa-900";
  * redirect all land on the correct panel without any local mode state to drift.
  */
 export function AuthScreen() {
+  const translate = useTranslations("auth");
   const pathname = usePathname();
   const isRegister = pathname === "/register";
 
@@ -50,10 +52,10 @@ export function AuthScreen() {
           </div>
           <div>
             <p className="max-w-[420px] font-newsreader text-[34px] font-medium leading-[1.2] tracking-[-0.015em] text-sand-150">
-              Every great trip starts with a <em className="text-clay-glow">single idea.</em>
+              {translate("tagline")}
             </p>
             <p className="mt-4 max-w-[380px] text-[15px] text-sand-150/70">
-              Plan smarter with AI-drafted itineraries you can shape into your own.
+              {translate("taglineDescription")}
             </p>
           </div>
         </div>
@@ -68,35 +70,35 @@ export function AuthScreen() {
               aria-current={!isRegister ? "page" : undefined}
               className={cn(TAB_BASE, isRegister ? TAB_IDLE : TAB_ACTIVE)}
             >
-              Log in
+              {translate("login")}
             </Link>
             <Link
               href="/register"
               aria-current={isRegister ? "page" : undefined}
               className={cn(TAB_BASE, isRegister ? TAB_ACTIVE : TAB_IDLE)}
             >
-              Register
+              {translate("register")}
             </Link>
           </div>
 
           <h1 className="mt-7 font-newsreader text-[34px] font-medium tracking-[-0.02em] text-cocoa-900">
-            {isRegister ? "Create your account" : "Welcome back"}
+            {isRegister ? translate("createAccount") : translate("welcomeBack")}
           </h1>
           <p className="mt-2.5 text-[14.5px] text-cocoa-400">
             {isRegister
-              ? "Start planning your next trip in minutes."
-              : "Log in to pick up where you left off."}
+              ? translate("registerDescription")
+              : translate("loginDescription")}
           </p>
 
           {isRegister ? <RegisterForm /> : <LoginForm />}
 
           <p className="mt-6 text-[14px] text-cocoa-400">
-            {isRegister ? "Already registered?" : "No account yet?"}{" "}
+            {isRegister ? translate("alreadyRegistered") : translate("noAccount")}{" "}
             <Link
               href={isRegister ? "/login" : "/register"}
               className="font-semibold text-clay-deep transition hover:text-clay"
             >
-              {isRegister ? "Log in" : "Register"}
+              {isRegister ? translate("login") : translate("register")}
             </Link>
           </p>
         </div>

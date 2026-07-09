@@ -17,6 +17,7 @@ from pydantic import (
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 CurrencyCode = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=3)]
 Pace = Literal["relaxed", "balanced", "intensive"]
+OutputLanguage = Literal["en", "es", "uk", "fr"]
 
 # Item-level cost-estimate vocabularies, kept in sync with Trip Service and the
 # web client.
@@ -255,6 +256,7 @@ class GenerateItineraryRequest(APIModel):
     travelers: int = Field(ge=1)
     interests: list[str] = Field(default_factory=list)
     pace: Pace = "balanced"
+    output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
@@ -518,6 +520,7 @@ class RegenerateDayRequest(APIModel):
     current_itinerary: CurrentItinerary = Field(alias="currentItinerary")
     day_number: int = Field(ge=1, alias="dayNumber")
     instruction: str | None = Field(default=None, max_length=500)
+    output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
@@ -659,6 +662,7 @@ class OptimizeBudgetDayRequest(APIModel):
         default_factory=BudgetOptimizationConstraints
     )
     instruction: str | None = Field(default=None, max_length=2000)
+    output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")

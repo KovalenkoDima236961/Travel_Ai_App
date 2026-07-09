@@ -4,12 +4,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getErrorMessage } from "@/lib/utils";
 import { loginSchema, safeNextPath, type LoginValues } from "../model/authModel";
 import { AuthErrorBanner, AuthField, AuthSubmitButton } from "./formControls";
 
 export function LoginForm() {
+  const translate = useTranslations("auth");
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
@@ -37,7 +39,7 @@ export function LoginForm() {
   return (
     <form className="mt-7 flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
       <AuthField
-        label="Email"
+        label={translate("email")}
         id="email"
         type="email"
         placeholder="you@example.com"
@@ -46,7 +48,7 @@ export function LoginForm() {
         {...register("email")}
       />
       <AuthField
-        label="Password"
+        label={translate("password")}
         id="password"
         type="password"
         placeholder="••••••••"
@@ -56,7 +58,7 @@ export function LoginForm() {
       />
       {apiError ? <AuthErrorBanner message={apiError} /> : null}
       <AuthSubmitButton pending={isSubmitting}>
-        {isSubmitting ? "Logging in…" : "Log in"}
+        {isSubmitting ? translate("loggingIn") : translate("login")}
       </AuthSubmitButton>
     </form>
   );

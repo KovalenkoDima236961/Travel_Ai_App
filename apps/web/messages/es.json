@@ -1,0 +1,90 @@
+{
+  "common": {
+    "save": "Guardar", "cancel": "Cancelar", "close": "Cerrar", "delete": "Eliminar",
+    "edit": "Editar", "create": "Crear", "update": "Actualizar", "apply": "Aplicar",
+    "discard": "Descartar", "retry": "Reintentar", "loading": "Cargando…", "error": "Error",
+    "success": "Éxito", "warning": "Aviso", "confirm": "Confirmar", "back": "Atrás",
+    "next": "Siguiente", "previous": "Anterior", "search": "Buscar", "filter": "Filtrar",
+    "clear": "Limpiar", "yes": "Sí", "no": "No", "enabled": "Activado",
+    "disabled": "Desactivado", "optional": "Opcional", "required": "Obligatorio"
+  },
+  "navigation": {
+    "trips": "Viajes", "templates": "Plantillas", "workspaces": "Espacios de trabajo",
+    "settings": "Ajustes", "notifications": "Notificaciones", "offlineTrips": "Viajes sin conexión",
+    "approvals": "Aprobaciones", "budgets": "Presupuestos", "analytics": "Análisis",
+    "createTrip": "Crear viaje", "login": "Iniciar sesión", "register": "Registrarse",
+    "logout": "Cerrar sesión", "account": "Cuenta", "signedInAs": "Sesión iniciada como",
+    "yourAccount": "Tu cuenta"
+  },
+  "auth": {
+    "email": "Correo electrónico", "password": "Contraseña", "login": "Iniciar sesión",
+    "register": "Crear cuenta", "tagline": "Todo gran viaje empieza con una sola idea.",
+    "taglineDescription": "Planifica mejor con itinerarios creados por IA que puedes adaptar.",
+    "createAccount": "Crea tu cuenta", "welcomeBack": "Te damos la bienvenida",
+    "registerDescription": "Empieza a planificar tu próximo viaje en minutos.",
+    "loginDescription": "Inicia sesión para continuar donde lo dejaste.",
+    "alreadyRegistered": "¿Ya tienes cuenta?", "noAccount": "¿Aún no tienes cuenta?",
+    "confirmPassword": "Confirmar contraseña", "loggingIn": "Iniciando sesión…",
+    "creatingAccount": "Creando cuenta…"
+  },
+  "settings": {
+    "title": "Perfil y preferencias",
+    "description": "Los datos utilizados para personalizar tus itinerarios generados por IA.",
+    "language": "Idioma",
+    "languageDescription": "Elige el idioma de la aplicación y de los nuevos planes generados por IA.",
+    "languageUpdated": "Idioma actualizado",
+    "languageUpdateFailed": "El idioma cambió en este dispositivo, pero no se pudo actualizar el perfil.",
+    "profile": "Perfil", "displayName": "Nombre visible", "email": "Correo electrónico",
+    "homeCity": "Ciudad de residencia", "homeCountry": "País de residencia",
+    "homeCurrency": "Moneda habitual", "changePhoto": "Cambiar foto",
+    "photoComingSoon": "La subida de fotos estará disponible próximamente",
+    "saveProfile": "Guardar perfil", "saving": "Guardando…", "profileSaved": "Perfil guardado.",
+    "loadFailed": "No se pudieron cargar los ajustes.", "saveFailed": "No se pudo guardar el perfil."
+  },
+  "profile": {},
+  "trips": {
+    "title": "Tus viajes", "create": "Crear viaje", "destination": "Destino",
+    "startDate": "Fecha de inicio", "days": "Días", "travelers": "Viajeros",
+    "budget": "Presupuesto", "interests": "Intereses", "pace": "Ritmo",
+    "generate": "Generar itinerario", "backToTrips": "Volver a viajes",
+    "whereNext": "¿Cuál será el próximo destino?",
+    "createDescription": "Indica lo esencial y la IA preparará un itinerario diario que podrás ajustar.",
+    "basics": "Datos básicos", "tripScope": "Ámbito del viaje", "personalTrip": "Viaje personal",
+    "travelersBudget": "Viajeros y presupuesto", "currency": "Moneda", "style": "Tu estilo",
+    "creating": "Creando…"
+  },
+  "itinerary": { "day": "Día", "time": "Hora", "item": "Elemento", "cost": "Coste" },
+  "templates": {}, "workspaces": {}, "budgets": {}, "analytics": {}, "costSplitting": {},
+  "approval": {}, "policy": {}, "risk": {}, "repair": {}, "availability": {},
+  "notifications": {
+    "workspaceInvited": "Te han invitado a un espacio de trabajo", "commentCreated": "Se añadió un comentario",
+    "tripSubmittedForApproval": "Se envió un viaje para aprobación", "tripApproved": "Viaje aprobado",
+    "tripChangesRequested": "Se solicitaron cambios", "tripApprovalResetToDraft": "El viaje volvió a borrador",
+    "repairProposalReady": "Propuesta de reparación lista", "budgetExceeded": "Presupuesto superado",
+    "roleChanged": "Tu rol ha cambiado", "collaboratorInvited": "Se invitó a un colaborador"
+  },
+  "exports": {
+    "day": "Día", "time": "Hora", "item": "Elemento", "cost": "Coste",
+    "generatedAt": "Generado el", "total": "Total",
+    "costEstimateDisclaimer": "Los costes son estimaciones y pueden cambiar.",
+    "availabilityDisclaimer": "La disponibilidad puede cambiar.",
+    "accountingDisclaimer": "Esto no es un registro contable ni de pago.",
+    "aiDisclaimer": "Los borradores generados por IA deben revisarse."
+  },
+  "offline": {}, "pwa": {},
+  "errors": {
+    "generic": "Algo ha salido mal. Inténtalo de nuevo.", "unauthorized": "Inicia sesión para continuar.",
+    "forbidden": "No tienes permiso para hacer eso.", "notFound": "No se encontró el elemento solicitado.",
+    "validationError": "Revisa los campos marcados.", "itineraryConflict": "El itinerario cambió. Actualiza e inténtalo de nuevo.",
+    "editLockConflict": "Otra persona está editando este viaje.", "workspacePolicyBlockingViolation": "La política del espacio bloquea este cambio.",
+    "providerRateLimited": "El proveedor está ocupado.", "providerQuotaExceeded": "Se alcanzó la cuota del proveedor.",
+    "aiGenerationFailed": "No se pudo generar el itinerario.", "repairProposalConflict": "La propuesta se basa en un itinerario anterior."
+  },
+  "validation": {
+    "required": "Este campo es obligatorio.", "invalidEmail": "Introduce un correo válido.",
+    "invalidDate": "Introduce una fecha válida.", "invalidCurrency": "Introduce un código de moneda válido.",
+    "positiveAmount": "El importe debe ser positivo.", "tooShort": "El valor es demasiado corto.",
+    "tooLong": "El valor es demasiado largo.", "unsupportedLanguage": "Elige un idioma compatible.",
+    "invalidTime": "Introduce una hora válida.", "invalidPercentage": "Introduce un porcentaje válido."
+  }
+}

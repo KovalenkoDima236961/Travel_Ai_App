@@ -1,11 +1,16 @@
 import type { WorkspaceBudgetSummary } from "@/entities/workspace-budget/model";
+import type { SupportedLanguage } from "@/lib/i18n/languages";
+import { localizeCsvText } from "./csv-localization";
 
 const DISCLAIMER =
   "Costs are estimates for planning purposes only. Provider prices, availability, exchange rates, and booking costs may change.";
 
-export function generateWorkspaceBudgetCsv(summary: WorkspaceBudgetSummary): string {
+export function generateWorkspaceBudgetCsv(
+  summary: WorkspaceBudgetSummary,
+  language: SupportedLanguage = "en"
+): string {
   const currency = summary.budget.currency;
-  return joinSections([
+  return localizeCsvText(joinSections([
     section("Budget summary", [
       ["Metric", "Value", "Currency"],
       ["Budget name", summary.budget.name, ""],
@@ -80,7 +85,7 @@ export function generateWorkspaceBudgetCsv(summary: WorkspaceBudgetSummary): str
       ])
     ]),
     section("Warnings", [["Warning"], ...[...summary.warnings, DISCLAIMER].map((warning) => [warning])])
-  ]);
+  ]), language);
 }
 
 function section(title: string, rows: Array<Array<string | number>>): string {

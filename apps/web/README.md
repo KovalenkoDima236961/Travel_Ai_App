@@ -5,6 +5,24 @@ experience for authentication, workspace planning, trip planning, itinerary
 editing, collaboration, notifications, exports, calendar sync controls, maps,
 weather, budgets, and ticket/activity availability checks.
 
+## Internationalization
+
+The app supports `en`, `es`, `uk`, and `fr` without locale-prefixed routes.
+Message catalogs live in `messages/*.json`; English is merged underneath the
+selected catalog so missing keys do not crash the UI. Language resolution is:
+authenticated profile, then `app_language` in local storage, then the browser
+language, then English. Use `useTranslations(namespace)` for UI copy,
+`useAppLanguage()` when a request or export needs the language code, and the
+helpers in `src/lib/i18n/format.ts` for dates, numbers, percentages, and money.
+
+Add a key to `messages/en.json` first, then translate it in the other catalogs.
+The settings selector applies changes immediately and persists them to the
+profile when signed in.
+
+Existing trip text, comments, notes, template names, and other user content are
+never translated automatically. Some legacy screens and email/backend fallback
+messages can still be English in v1.
+
 ## Frontend Boundary
 
 ```mermaid

@@ -45,6 +45,7 @@ type aiPlanningGenerateRequest struct {
 	Travelers                  int32                            `json:"travelers"`
 	Interests                  []string                         `json:"interests"`
 	Pace                       string                           `json:"pace"`
+	OutputLanguage             string                           `json:"outputLanguage"`
 	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
 	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
 	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
@@ -69,6 +70,7 @@ type aiPlanningRegenerateDayRequest struct {
 	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
 	DayNumber                  int                              `json:"dayNumber"`
 	Instruction                string                           `json:"instruction,omitempty"`
+	OutputLanguage             string                           `json:"outputLanguage"`
 	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
 	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
 	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
@@ -82,6 +84,7 @@ type aiPlanningRegenerateItemRequest struct {
 	DayNumber                  int                              `json:"dayNumber"`
 	ItemIndex                  int                              `json:"itemIndex"`
 	Instruction                string                           `json:"instruction,omitempty"`
+	OutputLanguage             string                           `json:"outputLanguage"`
 	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
 	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
 	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
@@ -105,6 +108,7 @@ type aiPlanningOptimizeBudgetDayRequest struct {
 	BudgetContext              budgetoptimization.BudgetContext `json:"budgetContext"`
 	Constraints                budgetoptimization.Constraints   `json:"constraints"`
 	Instruction                string                           `json:"instruction,omitempty"`
+	OutputLanguage             string                           `json:"outputLanguage"`
 	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
 	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
 	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
@@ -118,6 +122,7 @@ type aiPlanningAdaptTemplateRequest struct {
 	Constraints                templateadaptation.Constraints   `json:"constraints"`
 	Context                    *aiPlanningAdaptContext          `json:"context,omitempty"`
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
+	OutputLanguage             string                           `json:"outputLanguage"`
 }
 
 type aiPlanningAdaptTarget struct {
@@ -185,6 +190,7 @@ type aiPlanningRepairRequest struct {
 	Issues           []triprepair.Issue           `json:"issues"`
 	Constraints      aiPlanningRepairConstraints  `json:"constraints"`
 	Context          aiPlanningRepairContext      `json:"context"`
+	OutputLanguage   string                       `json:"outputLanguage"`
 }
 
 type aiPlanningRepairConstraints struct {
@@ -223,6 +229,7 @@ func (g *AIPlanningHTTPGenerator) AdaptTemplate(ctx context.Context, input templ
 		},
 		Constraints:                input.Constraints,
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
+		OutputLanguage:             languageFromProfile(input.UserProfile),
 	}
 	if input.UserProfile != nil || input.UserPreferences != nil {
 		payload.Context = &aiPlanningAdaptContext{
@@ -428,6 +435,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input appli
 		CurrentItinerary:           input.CurrentItinerary,
 		DayNumber:                  input.DayNumber,
 		Instruction:                input.Instruction,
+		OutputLanguage:             normalizeOutputLanguage(input.OutputLanguage),
 		UserProfile:                input.UserProfile,
 		UserPreferences:            input.UserPreferences,
 		WeatherForecast:            input.WeatherForecast,
@@ -451,6 +459,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input appl
 		DayNumber:                  input.DayNumber,
 		ItemIndex:                  input.ItemIndex,
 		Instruction:                input.Instruction,
+		OutputLanguage:             normalizeOutputLanguage(input.OutputLanguage),
 		UserProfile:                input.UserProfile,
 		UserPreferences:            input.UserPreferences,
 		WeatherForecast:            input.WeatherForecast,
@@ -476,6 +485,7 @@ func (g *AIPlanningHTTPGenerator) OptimizeBudgetDay(ctx context.Context, input b
 		BudgetContext:              input.BudgetContext,
 		Constraints:                input.Constraints,
 		Instruction:                input.Instruction,
+		OutputLanguage:             languageFromProfile(input.UserProfile),
 		UserProfile:                input.UserProfile,
 		UserPreferences:            input.UserPreferences,
 		WeatherForecast:            input.WeatherForecast,
@@ -499,6 +509,7 @@ func (g *AIPlanningHTTPGenerator) RepairItinerary(ctx context.Context, input tri
 		PolicyEvaluation: input.PolicyEvaluation,
 		ApprovalRisk:     input.ApprovalRisk,
 		Issues:           input.Issues,
+		OutputLanguage:   languageFromProfile(input.UserProfile),
 		Constraints: aiPlanningRepairConstraints{
 			RepairMode:               input.Constraints.RepairMode,
 			SelectedIssueTypes:       input.Constraints.SelectedIssueTypes,
@@ -552,6 +563,7 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		Travelers:                  trip.Travelers,
 		Interests:                  interests,
 		Pace:                       pace,
+		OutputLanguage:             normalizeOutputLanguage(input.OutputLanguage),
 		UserProfile:                input.UserProfile,
 		UserPreferences:            input.UserPreferences,
 		WeatherForecast:            input.WeatherForecast,
@@ -572,6 +584,22 @@ func resolveRequestCurrency(budgetCurrency string, profile *usercontext.UserProf
 		}
 	}
 	return defaultCurrency
+}
+
+func languageFromProfile(profile *usercontext.UserProfile) string {
+	if profile == nil {
+		return "en"
+	}
+	return normalizeOutputLanguage(profile.PreferredLanguage)
+}
+
+func normalizeOutputLanguage(language string) string {
+	switch normalized := strings.ToLower(strings.TrimSpace(language)); normalized {
+	case "en", "es", "uk", "fr":
+		return normalized
+	default:
+		return "en"
+	}
 }
 
 func newAIPlanningTripRequest(trip entity.Trip, profile *usercontext.UserProfile) aiPlanningTripRequest {

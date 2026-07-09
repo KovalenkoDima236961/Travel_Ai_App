@@ -1,0 +1,90 @@
+{
+  "common": {
+    "save": "Enregistrer", "cancel": "Annuler", "close": "Fermer", "delete": "Supprimer",
+    "edit": "Modifier", "create": "Créer", "update": "Mettre à jour", "apply": "Appliquer",
+    "discard": "Ignorer", "retry": "Réessayer", "loading": "Chargement…", "error": "Erreur",
+    "success": "Réussi", "warning": "Avertissement", "confirm": "Confirmer", "back": "Retour",
+    "next": "Suivant", "previous": "Précédent", "search": "Rechercher", "filter": "Filtrer",
+    "clear": "Effacer", "yes": "Oui", "no": "Non", "enabled": "Activé",
+    "disabled": "Désactivé", "optional": "Facultatif", "required": "Obligatoire"
+  },
+  "navigation": {
+    "trips": "Voyages", "templates": "Modèles", "workspaces": "Espaces de travail",
+    "settings": "Paramètres", "notifications": "Notifications", "offlineTrips": "Voyages hors ligne",
+    "approvals": "Approbations", "budgets": "Budgets", "analytics": "Analyses",
+    "createTrip": "Créer un voyage", "login": "Se connecter", "register": "S’inscrire",
+    "logout": "Se déconnecter", "account": "Compte", "signedInAs": "Connecté en tant que",
+    "yourAccount": "Votre compte"
+  },
+  "auth": {
+    "email": "E-mail", "password": "Mot de passe", "login": "Se connecter",
+    "register": "Créer un compte", "tagline": "Chaque grand voyage commence par une seule idée.",
+    "taglineDescription": "Planifiez mieux avec des itinéraires créés par l’IA et personnalisables.",
+    "createAccount": "Créez votre compte", "welcomeBack": "Bon retour",
+    "registerDescription": "Commencez à planifier votre prochain voyage en quelques minutes.",
+    "loginDescription": "Connectez-vous pour reprendre où vous en étiez.",
+    "alreadyRegistered": "Déjà inscrit ?", "noAccount": "Pas encore de compte ?",
+    "confirmPassword": "Confirmer le mot de passe", "loggingIn": "Connexion…",
+    "creatingAccount": "Création du compte…"
+  },
+  "settings": {
+    "title": "Profil et préférences",
+    "description": "Les informations utilisées pour personnaliser vos itinéraires générés par l’IA.",
+    "language": "Langue",
+    "languageDescription": "Choisissez la langue de l’application et des nouveaux voyages générés par l’IA.",
+    "languageUpdated": "Langue mise à jour",
+    "languageUpdateFailed": "La langue a changé sur cet appareil, mais le profil n’a pas pu être mis à jour.",
+    "profile": "Profil", "displayName": "Nom affiché", "email": "E-mail",
+    "homeCity": "Ville de résidence", "homeCountry": "Pays de résidence",
+    "homeCurrency": "Devise habituelle", "changePhoto": "Changer la photo",
+    "photoComingSoon": "L’ajout de photos sera bientôt disponible",
+    "saveProfile": "Enregistrer le profil", "saving": "Enregistrement…", "profileSaved": "Profil enregistré.",
+    "loadFailed": "Impossible de charger les paramètres.", "saveFailed": "Impossible d’enregistrer le profil."
+  },
+  "profile": {},
+  "trips": {
+    "title": "Vos voyages", "create": "Créer un voyage", "destination": "Destination",
+    "startDate": "Date de début", "days": "Jours", "travelers": "Voyageurs",
+    "budget": "Budget", "interests": "Centres d’intérêt", "pace": "Rythme",
+    "generate": "Générer l’itinéraire", "backToTrips": "Retour aux voyages",
+    "whereNext": "Quelle sera la prochaine destination ?",
+    "createDescription": "Indiquez l’essentiel et l’IA préparera un itinéraire détaillé à personnaliser.",
+    "basics": "L’essentiel", "tripScope": "Type de voyage", "personalTrip": "Voyage personnel",
+    "travelersBudget": "Voyageurs et budget", "currency": "Devise", "style": "Votre style",
+    "creating": "Création…"
+  },
+  "itinerary": { "day": "Jour", "time": "Heure", "item": "Élément", "cost": "Coût" },
+  "templates": {}, "workspaces": {}, "budgets": {}, "analytics": {}, "costSplitting": {},
+  "approval": {}, "policy": {}, "risk": {}, "repair": {}, "availability": {},
+  "notifications": {
+    "workspaceInvited": "Vous avez été invité à un espace de travail", "commentCreated": "Un commentaire a été ajouté",
+    "tripSubmittedForApproval": "Un voyage a été soumis pour approbation", "tripApproved": "Voyage approuvé",
+    "tripChangesRequested": "Des modifications ont été demandées", "tripApprovalResetToDraft": "Voyage remis en brouillon",
+    "repairProposalReady": "Proposition de correction prête", "budgetExceeded": "Budget dépassé",
+    "roleChanged": "Votre rôle a changé", "collaboratorInvited": "Un collaborateur a été invité"
+  },
+  "exports": {
+    "day": "Jour", "time": "Heure", "item": "Élément", "cost": "Coût",
+    "generatedAt": "Généré le", "total": "Total",
+    "costEstimateDisclaimer": "Les coûts sont estimatifs et peuvent changer.",
+    "availabilityDisclaimer": "La disponibilité peut changer.",
+    "accountingDisclaimer": "Ceci n’est pas un document comptable ou de paiement.",
+    "aiDisclaimer": "Les brouillons générés par l’IA doivent être vérifiés."
+  },
+  "offline": {}, "pwa": {},
+  "errors": {
+    "generic": "Une erreur est survenue. Réessayez.", "unauthorized": "Connectez-vous pour continuer.",
+    "forbidden": "Vous n’avez pas l’autorisation.", "notFound": "L’élément demandé est introuvable.",
+    "validationError": "Vérifiez les champs indiqués.", "itineraryConflict": "L’itinéraire a changé. Actualisez la page.",
+    "editLockConflict": "Une autre personne modifie ce voyage.", "workspacePolicyBlockingViolation": "La politique de l’espace bloque cette modification.",
+    "providerRateLimited": "Le fournisseur est occupé.", "providerQuotaExceeded": "Le quota du fournisseur est atteint.",
+    "aiGenerationFailed": "Impossible de générer l’itinéraire.", "repairProposalConflict": "Cette proposition repose sur une ancienne version."
+  },
+  "validation": {
+    "required": "Ce champ est obligatoire.", "invalidEmail": "Saisissez une adresse e-mail valide.",
+    "invalidDate": "Saisissez une date valide.", "invalidCurrency": "Saisissez un code devise à trois lettres.",
+    "positiveAmount": "Le montant doit être positif.", "tooShort": "Cette valeur est trop courte.",
+    "tooLong": "Cette valeur est trop longue.", "unsupportedLanguage": "Choisissez une langue prise en charge.",
+    "invalidTime": "Saisissez une heure valide.", "invalidPercentage": "Saisissez un pourcentage valide."
+  }
+}

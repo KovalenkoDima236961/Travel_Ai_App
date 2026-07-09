@@ -7,6 +7,11 @@ Prometheus/Grafana observability stack.
 
 The default development stack runs at `http://localhost:3000`.
 
+Internationalization v1 supports English (`en`), Spanish (`es`), Ukrainian
+(`uk`), and French (`fr`). The web UI uses English as its catalog fallback,
+User Service persists the preference, and Trip Service forwards the requested
+output language to AI Planning Service.
+
 ## System Map
 
 ```mermaid

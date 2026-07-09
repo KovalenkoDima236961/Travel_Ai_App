@@ -26,7 +26,10 @@ const (
 	maxArrayItems   = 30
 )
 
-var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
+var (
+	currencyPattern    = regexp.MustCompile(`^[A-Z]{3}$`)
+	supportedLanguages = map[string]struct{}{"en": {}, "es": {}, "uk": {}, "fr": {}}
+)
 
 // repository is the persistence port the use case depends on.
 type repository interface {
@@ -154,9 +157,9 @@ func buildProfile(userID uuid.UUID, in appdto.UpdateProfileInput) (*entity.Profi
 		return nil, apperrs.NewInvalidInput("preferredCurrency must be 3 uppercase letters")
 	}
 
-	language := strings.TrimSpace(in.PreferredLanguage)
-	if utf8.RuneCountInString(language) < 2 || utf8.RuneCountInString(language) > 10 {
-		return nil, apperrs.NewInvalidInput("preferredLanguage must be between 2 and 10 characters")
+	language := strings.ToLower(strings.TrimSpace(in.PreferredLanguage))
+	if _, supported := supportedLanguages[language]; !supported {
+		return nil, apperrs.NewInvalidInput("preferredLanguage must be one of: en es uk fr")
 	}
 
 	return &entity.Profile{

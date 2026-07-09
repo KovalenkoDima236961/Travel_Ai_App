@@ -6,6 +6,7 @@ import type {
   UserPreferences,
   UserProfile
 } from "@/entities/user/model";
+import { normalizeLanguage } from "@/lib/i18n/languages";
 
 export const userKeys = {
   all: ["user"] as const,
@@ -48,7 +49,7 @@ function cleanProfilePayload(data: UpdateUserProfileRequest): UpdateUserProfileR
     homeCity: cleanOptionalText(data.homeCity),
     homeCountry: cleanOptionalText(data.homeCountry),
     preferredCurrency: data.preferredCurrency.trim().toUpperCase(),
-    preferredLanguage: data.preferredLanguage.trim()
+    preferredLanguage: normalizeLanguage(data.preferredLanguage)
   };
 }
 

@@ -9,6 +9,14 @@ preferences.
 The v1 design is synchronous HTTP and intentionally replaceable by a future
 event bus or worker.
 
+## Localization
+
+Notification rows continue to store their original title and message. In v1,
+the web client renders localized titles for known typed notifications and
+falls back to the stored title/message for unknown or legacy types. Email
+templates remain English; this avoids changing the delivery architecture until
+recipient language is available as trusted notification context.
+
 ## Delivery Flow
 
 ```mermaid

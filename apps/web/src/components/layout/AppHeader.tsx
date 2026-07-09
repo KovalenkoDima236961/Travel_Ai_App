@@ -6,8 +6,10 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Button, buttonStyles } from "@/shared/ui/button";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
+import { useTranslations } from "next-intl";
 
 export function AppHeader() {
+  const translate = useTranslations("navigation");
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading, logout, user } = useAuth();
@@ -72,37 +74,37 @@ export function AppHeader() {
           {!isLoading && isAuthenticated ? (
             <>
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/trips">
-                Trips
+                {translate("trips")}
               </Link>
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/templates">
-                Templates
+                {translate("templates")}
               </Link>
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/offline-trips">
-                Offline Trips
+                {translate("offlineTrips")}
               </Link>
               <WorkspaceSwitcher />
               <Link className={buttonStyles({ size: "sm" })} href="/trips/new">
-                Create Trip
+                {translate("createTrip")}
               </Link>
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/settings">
-                Settings
+                {translate("settings")}
               </Link>
               <NotificationBell />
               <span className="hidden max-w-40 truncate text-sm text-slate-600 lg:inline">
                 {user?.email}
               </span>
               <Button size="sm" variant="secondary" onClick={handleLogout}>
-                Logout
+                {translate("logout")}
               </Button>
             </>
           ) : null}
           {!isLoading && !isAuthenticated ? (
             <>
               <Link className={buttonStyles({ variant: "ghost", size: "sm" })} href="/login">
-                Login
+                {translate("login")}
               </Link>
               <Link className={buttonStyles({ size: "sm" })} href="/register">
-                Register
+                {translate("register")}
               </Link>
             </>
           ) : null}

@@ -6,6 +6,8 @@ import { getNotificationHref } from "@/lib/notifications/notification-navigation
 import { formatRelativeTime } from "@/lib/notifications/relative-time";
 import { cn } from "@/lib/utils";
 import type { AppNotification } from "@/entities/notification/model";
+import { useTranslations } from "next-intl";
+import { localizedNotificationTitle } from "@/lib/i18n/notifications";
 
 const DROPDOWN_LIMIT = 10;
 
@@ -15,6 +17,7 @@ type NotificationsDropdownProps = {
 };
 
 export function NotificationsDropdown({ open, onClose }: NotificationsDropdownProps) {
+  const translateNotification = useTranslations("notifications");
   const router = useRouter();
   const list = useNotificationsList({ limit: DROPDOWN_LIMIT }, open);
   const markRead = useMarkNotificationRead();
@@ -77,7 +80,9 @@ export function NotificationsDropdown({ open, onClose }: NotificationsDropdownPr
                         aria-label="Unread"
                       />
                     ) : null}
-                    <span className="text-sm font-medium text-slate-900">{notification.title}</span>
+                    <span className="text-sm font-medium text-slate-900">
+                      {localizedNotificationTitle(notification, translateNotification)}
+                    </span>
                   </span>
                   <span className="text-sm text-slate-600">{notification.message}</span>
                   <span className="text-xs text-slate-400">

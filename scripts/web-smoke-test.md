@@ -58,8 +58,13 @@ Use local Grafana credentials `admin` / `admin`.
    - avoid: `nightclubs`
    - preferredTransport: `walking`, `public_transport`
 6. Save profile and preferences.
-7. Open the create trip page.
-8. Create a trip with:
+7. In the language selector, choose Ukrainian and confirm the settings and
+   navigation labels update immediately.
+8. Refresh the page and confirm Ukrainian remains selected.
+9. Switch to French and confirm the UI changes without changing the URL.
+10. Switch back to English before continuing with the baseline flow.
+11. Open the create trip page.
+12. Create a trip with:
    - destination: `Rome`
    - startDate: `2026-08-10`
    - days: `2`

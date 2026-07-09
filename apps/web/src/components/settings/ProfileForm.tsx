@@ -4,6 +4,8 @@ import { useEffect, type ReactNode } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useTranslations } from "next-intl";
+import { useAppLanguage } from "@/components/i18n/I18nProvider";
 import {
   FIELD_LABEL_CLASS,
   GhostButton,
@@ -52,6 +54,8 @@ export function ProfileForm({
   errorMessage,
   onSubmit
 }: ProfileFormProps) {
+  const translate = useTranslations("settings");
+  const { language } = useAppLanguage();
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: toFormValues(profile)
@@ -80,26 +84,26 @@ export function ProfileForm({
       homeCity: cleanOptionalText(values.homeCity),
       homeCountry: cleanOptionalText(values.homeCountry),
       preferredCurrency: values.preferredCurrency.trim().toUpperCase(),
-      preferredLanguage: values.preferredLanguage.trim()
+      preferredLanguage: language
     });
   }
 
   return (
     <SettingsCard>
-      <SectionHeading title="Profile" />
+      <SectionHeading title={translate("profile")} />
 
       <div className="mt-6 flex items-center gap-[18px]">
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#3E6B5A] font-newsreader text-2xl font-semibold text-[#EFF5F1]">
           {initials}
         </span>
-        <GhostButton type="button" disabled title="Photo uploads are coming soon">
-          Change photo
+        <GhostButton type="button" disabled title={translate("photoComingSoon")}>
+          {translate("changePhoto")}
         </GhostButton>
       </div>
 
       <form className="mt-6" onSubmit={handleSubmit(handleValidSubmit)}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Display name" error={errors.displayName?.message}>
+          <Field label={translate("displayName")} error={errors.displayName?.message}>
             <input
               id="displayName"
               maxLength={100}
@@ -111,7 +115,7 @@ export function ProfileForm({
             />
           </Field>
 
-          <Field label="Email">
+          <Field label={translate("email")}>
             <input
               id="email"
               type="email"
@@ -122,7 +126,7 @@ export function ProfileForm({
             />
           </Field>
 
-          <Field label="Home city" error={errors.homeCity?.message}>
+          <Field label={translate("homeCity")} error={errors.homeCity?.message}>
             <input
               id="homeCity"
               maxLength={100}
@@ -134,7 +138,7 @@ export function ProfileForm({
             />
           </Field>
 
-          <Field label="Home country" error={errors.homeCountry?.message}>
+          <Field label={translate("homeCountry")} error={errors.homeCountry?.message}>
             <input
               id="homeCountry"
               maxLength={100}
@@ -146,7 +150,7 @@ export function ProfileForm({
             />
           </Field>
 
-          <Field label="Home currency" error={errors.preferredCurrency?.message}>
+          <Field label={translate("homeCurrency")} error={errors.preferredCurrency?.message}>
             <select
               id="preferredCurrency"
               aria-invalid={Boolean(errors.preferredCurrency)}
@@ -164,19 +168,6 @@ export function ProfileForm({
             </select>
           </Field>
 
-          <Field label="Preferred language" error={errors.preferredLanguage?.message}>
-            <input
-              id="preferredLanguage"
-              maxLength={10}
-              placeholder="en"
-              aria-invalid={Boolean(errors.preferredLanguage)}
-              disabled={isSaving}
-              className={INPUT_CLASS}
-              {...register("preferredLanguage", {
-                setValueAs: (value) => String(value).trim()
-              })}
-            />
-          </Field>
         </div>
 
         <div className="mt-5">
@@ -185,7 +176,7 @@ export function ProfileForm({
 
         <div className="mt-5 flex justify-end">
           <PrimaryButton disabled={isSaving} type="submit">
-            {isSaving ? "Saving…" : "Save profile"}
+            {isSaving ? translate("saving") : translate("saveProfile")}
           </PrimaryButton>
         </div>
       </form>

@@ -500,6 +500,9 @@ func (s *Service) ListWithFilters(ctx context.Context, in appdto.ListTripsInput)
 // (or FAILED on error). The itinerary itself is produced by the injected
 // ItineraryGenerator port.
 func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.GenerateItineraryInput) (*entity.Trip, error) {
+	if err := validateOutputLanguage(in.OutputLanguage); err != nil {
+		return nil, err
+	}
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -541,6 +544,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 
 	itinerary, err := s.generator.Generate(ctx, application.GenerateItineraryInput{
 		Trip:                       *current,
+		OutputLanguage:             resolveOutputLanguage(in.OutputLanguage, userContext.Profile),
 		UserProfile:                userContext.Profile,
 		UserPreferences:            userContext.Preferences,
 		WeatherForecast:            weatherForecast,
@@ -710,6 +714,9 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 // RegenerateDay replaces only one existing itinerary day with an AI-generated
 // replacement. DayNumber is one-based and matched against itinerary.days[].day.
 func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int, in appdto.RegenerateItineraryPartInput) (*entity.Trip, error) {
+	if err := validateOutputLanguage(in.OutputLanguage); err != nil {
+		return nil, err
+	}
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -763,6 +770,7 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 
 	replacement, err := s.generator.RegenerateDay(ctx, application.RegenerateDayInput{
 		Trip:                       *current,
+		OutputLanguage:             resolveOutputLanguage(in.OutputLanguage, userContext.Profile),
 		CurrentItinerary:           currentItinerary,
 		DayNumber:                  dayNumber,
 		Instruction:                instruction,
@@ -845,6 +853,9 @@ func (s *Service) RegenerateDayForActor(
 // RegenerateItem replaces only one item in one itinerary day. DayNumber is
 // one-based; ItemIndex is zero-based to match the items array index.
 func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, itemIndex int, in appdto.RegenerateItineraryPartInput) (*entity.Trip, error) {
+	if err := validateOutputLanguage(in.OutputLanguage); err != nil {
+		return nil, err
+	}
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -903,6 +914,7 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 
 	replacement, err := s.generator.RegenerateItem(ctx, application.RegenerateItemInput{
 		Trip:                       *current,
+		OutputLanguage:             resolveOutputLanguage(in.OutputLanguage, userContext.Profile),
 		CurrentItinerary:           currentItinerary,
 		DayNumber:                  dayNumber,
 		ItemIndex:                  itemIndex,
@@ -1952,5 +1964,36 @@ func (s *Service) markFailed(ctx context.Context, id, userID uuid.UUID) {
 			zap.String("user_id", userID.String()),
 			zap.Error(err),
 		)
+	}
+}
+
+func resolveOutputLanguage(explicit string, profile *usercontext.UserProfile) string {
+	for _, candidate := range []string{explicit, preferredLanguage(profile), "en"} {
+		normalized := strings.ToLower(strings.TrimSpace(candidate))
+		switch normalized {
+		case "en", "es", "uk", "fr":
+			return normalized
+		}
+	}
+	return "en"
+}
+
+func preferredLanguage(profile *usercontext.UserProfile) string {
+	if profile == nil {
+		return ""
+	}
+	return profile.PreferredLanguage
+}
+
+func validateOutputLanguage(language string) error {
+	normalized := strings.ToLower(strings.TrimSpace(language))
+	if normalized == "" {
+		return nil
+	}
+	switch normalized {
+	case "en", "es", "uk", "fr":
+		return nil
+	default:
+		return apperrs.NewInvalidInput("outputLanguage must be one of: en es uk fr")
 	}
 }

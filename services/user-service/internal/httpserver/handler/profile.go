@@ -122,6 +122,7 @@ func (h *Handler) writeValidationError(w http.ResponseWriter, err error) {
 	if errors.As(err, &ve) {
 		writeJSON(w, http.StatusBadRequest, errorBody{
 			Error:  "validation failed",
+			Code:   "validation_error",
 			Fields: ve.Fields(),
 		})
 		return
@@ -146,6 +147,7 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 // validation failures.
 type errorBody struct {
 	Error  string            `json:"error"`
+	Code   string            `json:"code,omitempty"`
 	Fields map[string]string `json:"fields,omitempty"`
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/lib/cn";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PushNotificationSettings } from "@/components/notifications/PushNotificationSettings";
@@ -9,6 +10,7 @@ import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { PwaSettingsSection } from "@/components/settings/PwaSettingsSection";
 import { SettingsSkeleton } from "@/components/settings/SettingsSkeleton";
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 import {
   getMyPreferences,
   getMyProfile,
@@ -21,6 +23,7 @@ import { instrumentSans, newsreader } from "./fonts";
 import { SettingsHeader } from "./SettingsHeader";
 
 export function SettingsPageContent() {
+  const translate = useTranslations("settings");
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -68,10 +71,10 @@ export function SettingsPageContent() {
       <div className="mx-auto max-w-[960px] px-6 pb-[72px] pt-12 sm:px-10">
         <div className="max-w-[640px]">
           <h1 className="font-newsreader text-[44px] font-medium leading-[1.05] tracking-[-0.02em] text-cocoa-900">
-            Profile &amp; preferences
+            {translate("title")}
           </h1>
           <p className="mt-3.5 text-[16px] leading-relaxed text-cocoa-500">
-            The details used to personalize your AI-generated itineraries.
+            {translate("description")}
           </p>
         </div>
 
@@ -84,23 +87,33 @@ export function SettingsPageContent() {
           >
             {getErrorMessage(
               loadError,
-              "Could not load settings. Confirm User Service is running."
+              translate("loadFailed")
             )}
           </div>
         ) : null}
 
         {profileQuery.data && preferencesQuery.data ? (
           <div className="mt-9 flex flex-col gap-5">
+            <section className="rounded-[20px] border border-sand-300 bg-white p-7">
+              <h2 className="font-newsreader text-2xl font-medium text-cocoa-900">
+                {translate("language")}
+              </h2>
+              <p className="mb-5 mt-2 text-sm leading-relaxed text-cocoa-500">
+                {translate("languageDescription")}
+              </p>
+              <LanguageSelector />
+            </section>
+
             <ProfileForm
               email={user?.email ?? null}
               errorMessage={
                 profileMutation.isError
-                  ? getErrorMessage(profileMutation.error, "Could not save profile.")
+                  ? getErrorMessage(profileMutation.error, translate("saveFailed"))
                   : null
               }
               isSaving={profileMutation.isPending}
               profile={profileQuery.data}
-              successMessage={profileMutation.isSuccess ? "Profile saved." : null}
+              successMessage={profileMutation.isSuccess ? translate("profileSaved") : null}
               onSubmit={(values) => profileMutation.mutate(values)}
             />
 

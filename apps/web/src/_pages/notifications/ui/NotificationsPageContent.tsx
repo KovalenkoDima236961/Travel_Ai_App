@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/lib/cn";
 import {
   listNotifications,
@@ -17,11 +18,13 @@ import { PAGE_LIMIT } from "../model/notificationsPageModel";
 import { instrumentSans, newsreader } from "./fonts";
 import { notificationVisual } from "./notification-visuals";
 import { NotificationsHeader } from "./NotificationsHeader";
+import { localizedNotificationTitle } from "@/lib/i18n/notifications";
 
 const OUTLINE_PILL =
   "inline-flex h-[38px] items-center rounded-full border border-sand-400 bg-white px-4 text-[13.5px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-sand-400 disabled:hover:text-cocoa-700";
 
 export function NotificationsPageContent() {
+  const translateNotification = useTranslations("notifications");
   const router = useRouter();
   const queryClient = useQueryClient();
   const [items, setItems] = useState<AppNotification[]>([]);
@@ -176,7 +179,7 @@ export function NotificationsPageContent() {
                             />
                           ) : null}
                           <span className="text-[14.5px] font-semibold text-cocoa-900">
-                            {notification.title}
+                            {localizedNotificationTitle(notification, translateNotification)}
                           </span>
                         </span>
                         <span className="mt-[3px] block text-[13.5px] leading-[1.5] text-cocoa-500">

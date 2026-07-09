@@ -19,6 +19,28 @@ _ITEMS_PER_DAY_BY_PACE = {
     "intensive": 5,
 }
 
+_LANGUAGE_NAMES = {
+    "en": "English",
+    "es": "Spanish",
+    "uk": "Ukrainian",
+    "fr": "French",
+}
+
+
+def _output_language_section(request: object) -> str:
+    code = getattr(request, "output_language", "en")
+    language_name = _LANGUAGE_NAMES.get(code, "English")
+    return f"""
+OUTPUT LANGUAGE:
+- Write every user-facing text value in {language_name}.
+- This includes titles, names, descriptions, notes, summaries, warnings, reasons,
+  recommendations, and tradeoffs.
+- Keep all JSON keys and enum values in English.
+- Keep currency codes unchanged.
+- Keep proper nouns and place names in their common or local form when appropriate.
+- Do not mix languages unless a proper noun is naturally written in another language.
+""".strip()
+
 
 def build_itinerary_prompt(
     request: GenerateItineraryRequest,
@@ -77,6 +99,7 @@ Trip request:
 - Travelers: {request.travelers}
 - Interests: {interests}
 - Pace: {request.pace}
+{_output_language_section(request)}
 {user_context_section}
 {weather_context_section}
 {accommodation_context_section}
@@ -110,7 +133,6 @@ Rules:
 - Keep walking-heavy days reasonable when maxWalkingKmPerDay is set.
 - Prefer food recommendations matching foodPreferences and dietaryRestrictions.
 - Use preferredCurrency for estimated costs when profile currency is available.
-- Keep the response in English for now, but consider preferredLanguage as context.
 - Prefer indoor activities during rainy days, avoid long outdoor walks during high heat,
   and schedule parks/viewpoints/walking-heavy activities on better weather days.
 - Add indoor backup suggestions when rain chance is high.
@@ -156,6 +178,7 @@ Original trip request:
 - Travelers: {request.travelers}
 - Interests: {interests}
 - Pace: {request.pace}
+{_output_language_section(request)}
 {user_context_section}
 {weather_context_section}
 {accommodation_context_section}
@@ -234,6 +257,8 @@ def build_regenerate_day_prompt(
 
     return f"""
 You are regenerating exactly one itinerary day for a web-based travel planning application.
+
+{_output_language_section(request)}
 
 Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
 The JSON must exactly match this schema and must not include any other fields:
@@ -320,6 +345,8 @@ def build_regenerate_item_prompt(
     return f"""
 You are regenerating exactly one itinerary item for a web-based travel planning application.
 
+{_output_language_section(request)}
+
 Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
 The JSON must exactly match this schema and must not include any other fields:
 {{
@@ -388,6 +415,8 @@ def build_optimize_budget_day_prompt(request: OptimizeBudgetDayRequest) -> str:
 
     return f"""
 You are creating a reviewable budget optimization proposal for one itinerary day.
+
+{_output_language_section(request)}
 
 Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
 The JSON must exactly match this schema and must not include any other fields:
@@ -511,6 +540,8 @@ def build_repair_itinerary_prompt(request: RepairItineraryRequest) -> str:
     return f"""
 You are an itinerary repair engine for a web-based travel planning application.
 
+{_output_language_section(request)}
+
 Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
 The JSON must exactly match this schema and must not include any top-level fields other
 than repairedItinerary, repairSummary, and changes:
@@ -616,7 +647,8 @@ Rules:
 - Preserve useful item metadata if the item is essentially the same.
 - Keep costs as estimates and use source "ai" for AI-estimated costs.
 - Do not claim booking, payment, legal compliance, or availability.
-- Include warnings for uncertain costs, required availability recheck, partial repairs, or major changes.
+- Include warnings for uncertain costs, required availability recheck, partial repairs,
+  or major changes.
 - Use realistic HH:MM 24-hour times for itinerary item time/endTime fields.
 - Return JSON only.
 """.strip()
@@ -673,6 +705,8 @@ You are a travel itinerary adaptation engine for a web-based travel planning
 application. You take an existing reusable trip template and adapt it to a new
 destination and constraints while preserving the template's planning structure
 and rhythm.
+
+{_output_language_section(request)}
 
 Return ONLY valid JSON. Do not include markdown, explanations, comments, or code
 fences. The JSON must exactly match this schema and must not include any other
@@ -741,6 +775,8 @@ def build_template_adaptation_repair_prompt(
 ) -> str:
     return f"""
 You previously generated a template adaptation JSON response, but it was invalid.
+
+{_output_language_section(request)}
 
 Validation error:
 {validation_error}
@@ -873,6 +909,8 @@ def build_regenerate_day_repair_prompt(
     return f"""
 You previously generated a replacement itinerary day JSON response, but it was invalid.
 
+{_output_language_section(request)}
+
 Validation error:
 {validation_error}
 
@@ -925,6 +963,8 @@ def build_regenerate_item_repair_prompt(
 ) -> str:
     return f"""
 You previously generated a replacement itinerary item JSON response, but it was invalid.
+
+{_output_language_section(request)}
 
 Validation error:
 {validation_error}

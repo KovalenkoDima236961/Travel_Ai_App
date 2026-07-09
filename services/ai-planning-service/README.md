@@ -8,6 +8,15 @@ Trip Service is the normal caller. The AI service does not own trips, users,
 jobs, notifications, or budgets in storage; it receives context, returns a
 validated JSON proposal/itinerary, and leaves persistence to Trip Service.
 
+## Output language
+
+Generation, day/item regeneration, budget optimization, template adaptation,
+and itinerary repair accept `outputLanguage` (`en`, `es`, `uk`, or `fr`) with
+an English default. Prompts require user-facing string values in that language
+while JSON keys, enum values, and currency codes remain stable and English.
+Mock generation returns deterministic localized text for language propagation
+tests. Unsupported codes fail Pydantic validation.
+
 ## Project Structure
 
 - `app/main.py` is the ASGI entry point and only creates the FastAPI app.

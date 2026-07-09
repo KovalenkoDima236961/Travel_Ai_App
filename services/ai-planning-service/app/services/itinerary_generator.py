@@ -46,6 +46,7 @@ class MockItineraryGenerator:
         days: list[ItineraryDay] = []
         for day_number in range(1, request.days + 1):
             items = self._items_for_day(request, day_number)
+            _localize_mock_items(items, request.output_language, request.destination)
             _finalize_item_costs(items, currency)
             days.append(
                 ItineraryDay(
@@ -103,6 +104,7 @@ class MockItineraryGenerator:
                 estimated_cost=Decimal("6"),
             ),
         ]
+        _localize_mock_items(items, request.output_language, destination)
         _finalize_item_costs(items, request.trip.budget_currency)
         return RegenerateDayResponse(
             day=ItineraryDay(
@@ -136,6 +138,7 @@ class MockItineraryGenerator:
             note=note,
             estimated_cost=Decimal("9") if cheap else Decimal("15"),
         )
+        _localize_mock_items([item], request.output_language, request.trip.destination)
         _finalize_item_costs([item], request.trip.budget_currency)
         return RegenerateItemResponse(item=item)
 
@@ -389,6 +392,12 @@ class MockItineraryGenerator:
         else:
             theme = f"{request.pace} city highlights"
 
+        if request.output_language == "es":
+            return f"Día {day_number}: paseo matutino por {destination}"
+        if request.output_language == "uk":
+            return f"День {day_number}: ранкова прогулянка містом {destination}"
+        if request.output_language == "fr":
+            return f"Jour {day_number} : promenade matinale à {destination}"
         return f"Day {day_number}: {destination} {theme}"
 
     def _items_for_day(
@@ -605,6 +614,50 @@ class MockItineraryGenerator:
         return interests
 
 
+_MOCK_LOCALIZED_TEXT = {
+    "es": {
+        "names": [
+            "Paseo matutino por la ciudad",
+            "Almuerzo en un restaurante local",
+            "Visita cultural por la tarde",
+            "Cena recomendada",
+            "Pausa tranquila",
+        ],
+        "note": "Sugerencia local determinista para este itinerario de prueba.",
+    },
+    "uk": {
+        "names": [
+            "Ранкова прогулянка містом",
+            "Обід у місцевому закладі",
+            "Культурна програма по обіді",
+            "Рекомендована вечеря",
+            "Спокійна перерва",
+        ],
+        "note": "Детермінована місцева рекомендація для цього тестового маршруту.",
+    },
+    "fr": {
+        "names": [
+            "Promenade matinale en ville",
+            "Déjeuner dans une adresse locale",
+            "Visite culturelle l’après-midi",
+            "Dîner recommandé",
+            "Pause tranquille",
+        ],
+        "note": "Suggestion locale déterministe pour cet itinéraire de test.",
+    },
+}
+
+
+def _localize_mock_items(items: list[ItineraryItem], language: str, destination: str) -> None:
+    localized = _MOCK_LOCALIZED_TEXT.get(language)
+    if localized is None:
+        return
+    names = localized["names"]
+    for index, item in enumerate(items):
+        item.name = f"{names[index % len(names)]} — {destination}"
+        item.note = localized["note"]
+
+
 _TYPE_TO_COST_CATEGORY = {
     "food": "food",
     "transport": "transport",
@@ -733,11 +786,7 @@ def _repair_total_cost(itinerary: dict, currency: str) -> Decimal:
 
 def _repair_item_amount(item: dict) -> Decimal | None:
     cost = item.get("estimatedCost")
-    raw: object
-    if isinstance(cost, dict):
-        raw = cost.get("amount")
-    else:
-        raw = cost
+    raw: object = cost.get("amount") if isinstance(cost, dict) else cost
     if raw is None or raw == "":
         return None
     try:
@@ -857,7 +906,6 @@ def _add_repair_warning_note(itinerary: dict, note: str) -> None:
         for item in _day_items(day)[:1]:
             item["note"] = _append_note(item.get("note"), note)
             return
-    return days[index]
 
 
 def _apply_weather(

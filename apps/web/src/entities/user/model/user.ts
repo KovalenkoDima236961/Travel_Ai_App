@@ -1,10 +1,12 @@
+import type { SupportedLanguage } from "@/lib/i18n/languages";
+
 export type UserProfile = {
   userId: string;
   displayName: string | null;
   homeCity: string | null;
   homeCountry: string | null;
   preferredCurrency: string;
-  preferredLanguage: string;
+  preferredLanguage: SupportedLanguage;
   createdAt: string;
   updatedAt: string;
 };
@@ -14,7 +16,7 @@ export type UpdateUserProfileRequest = {
   homeCity?: string | null;
   homeCountry?: string | null;
   preferredCurrency: string;
-  preferredLanguage: string;
+  preferredLanguage: SupportedLanguage;
 };
 
 export type TravelPace = "relaxed" | "balanced" | "intensive";

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
+import { I18nProvider } from "@/components/i18n/I18nProvider";
 import { AppUpdateBanner } from "@/components/pwa/AppUpdateBanner";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { WorkspaceProvider } from "@/components/workspaces/WorkspaceProvider";
@@ -37,12 +38,14 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <WorkspaceProvider>
-          <OfflineSyncController />
-          <AppUpdateBanner />
-          <PwaInstallPrompt />
-          {children}
-        </WorkspaceProvider>
+        <I18nProvider>
+          <WorkspaceProvider>
+            <OfflineSyncController />
+            <AppUpdateBanner />
+            <PwaInstallPrompt />
+            {children}
+          </WorkspaceProvider>
+        </I18nProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -4,12 +4,14 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getErrorMessage } from "@/lib/utils";
 import { registerSchema, type RegisterValues } from "../model/authModel";
 import { AuthErrorBanner, AuthField, AuthSubmitButton } from "./formControls";
 
 export function RegisterForm() {
+  const translate = useTranslations("auth");
   const router = useRouter();
   const { register: registerAccount } = useAuth();
   const [apiError, setApiError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function RegisterForm() {
   return (
     <form className="mt-7 flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
       <AuthField
-        label="Email"
+        label={translate("email")}
         id="email"
         type="email"
         placeholder="you@example.com"
@@ -45,7 +47,7 @@ export function RegisterForm() {
         {...register("email")}
       />
       <AuthField
-        label="Password"
+        label={translate("password")}
         id="password"
         type="password"
         placeholder="••••••••"
@@ -54,7 +56,7 @@ export function RegisterForm() {
         {...register("password")}
       />
       <AuthField
-        label="Confirm password"
+        label={translate("confirmPassword")}
         id="confirmPassword"
         type="password"
         placeholder="••••••••"
@@ -64,7 +66,7 @@ export function RegisterForm() {
       />
       {apiError ? <AuthErrorBanner message={apiError} /> : null}
       <AuthSubmitButton pending={isSubmitting}>
-        {isSubmitting ? "Creating account…" : "Create account"}
+        {isSubmitting ? translate("creatingAccount") : translate("register")}
       </AuthSubmitButton>
     </form>
   );

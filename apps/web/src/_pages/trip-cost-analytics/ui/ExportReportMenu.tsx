@@ -7,6 +7,7 @@ import { downloadTextFile } from "@/lib/export/download";
 import { buildTripCostReportFilename } from "@/lib/export/export-filenames";
 import type { TripCostAnalytics } from "@/entities/cost-analytics/model";
 import { ExportIcon } from "./icons";
+import { useAppLanguage } from "@/components/i18n/I18nProvider";
 
 type ExportReportMenuProps = {
   analytics: TripCostAnalytics;
@@ -22,13 +23,14 @@ const PILL =
  * PDF-failure notice, styled as the mock's warm outline pills.
  */
 export function ExportReportMenu({ analytics, title }: ExportReportMenuProps) {
+  const { language } = useAppLanguage();
   const [message, setMessage] = useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
 
   function downloadCsv() {
     setMessage(null);
     downloadTextFile(
-      generateTripCostAnalyticsCsv(analytics),
+      generateTripCostAnalyticsCsv(analytics, language),
       buildTripCostReportFilename(title, "csv"),
       "text/csv;charset=utf-8"
     );

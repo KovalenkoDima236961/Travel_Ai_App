@@ -8,6 +8,18 @@ calendar sync mappings, accommodation data, and enrichment metadata.
 Trip Service is the orchestration point between user-facing APIs, AI generation,
 external provider data, notifications, and background workers.
 
+## AI output language
+
+Direct generate/regenerate requests may provide `outputLanguage` with one of
+`en`, `es`, `uk`, or `fr`. Trip Service otherwise uses the trusted User Service
+profile language and finally English. The selected language is forwarded for
+full generation, day/item regeneration, budget optimization, template
+adaptation, and repair. Stored itinerary text is never translated in place.
+
+Trip language is not stored as separate trip metadata in this v1 slice, so
+background regeneration follows the current profile preference unless an
+explicit language is supplied.
+
 ## Architecture
 
 ```mermaid

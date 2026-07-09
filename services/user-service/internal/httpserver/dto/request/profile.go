@@ -15,7 +15,7 @@ type UpdateProfile struct {
 	HomeCity          string `json:"homeCity" validate:"omitempty,max=100"`
 	HomeCountry       string `json:"homeCountry" validate:"omitempty,max=100"`
 	PreferredCurrency string `json:"preferredCurrency" validate:"required,len=3,uppercase"`
-	PreferredLanguage string `json:"preferredLanguage" validate:"required,min=2,max=10"`
+	PreferredLanguage string `json:"preferredLanguage" validate:"required,oneof=en es uk fr"`
 }
 
 // ToInput maps the transport request to the application-level input.

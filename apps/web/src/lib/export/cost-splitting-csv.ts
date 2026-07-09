@@ -1,10 +1,15 @@
 import type { CostSplittingSummary } from "@/entities/cost-splitting/model";
+import type { SupportedLanguage } from "@/lib/i18n/languages";
+import { localizeCsvText } from "./csv-localization";
 
 const DISCLAIMER =
   "Estimated planning costs only. This is not a payment request, invoice, accounting record, or settlement calculation.";
 
-export function generateCostSplittingCsv(summary: CostSplittingSummary): string {
-  return joinSections([
+export function generateCostSplittingCsv(
+  summary: CostSplittingSummary,
+  language: SupportedLanguage = "en"
+): string {
+  return localizeCsvText(joinSections([
     section("Summary", [
       ["Metric", "Value", "Currency"],
       ["Estimated total", summary.summary.estimatedTotal, summary.currency],
@@ -69,7 +74,7 @@ export function generateCostSplittingCsv(summary: CostSplittingSummary): string 
       ])
     ]),
     section("Warnings", [["Warning"], ...[...summary.warnings, DISCLAIMER].map((warning) => [warning])])
-  ]);
+  ]), language);
 }
 
 function section(title: string, rows: Array<Array<string | number>>): string {

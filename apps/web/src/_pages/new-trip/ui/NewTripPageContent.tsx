@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/lib/cn";
 import { CreateTripForm } from "./CreateTripForm";
 import { CreateTripHeader } from "./CreateTripHeader";
@@ -21,6 +24,7 @@ const STEPS = [
 ];
 
 export function NewTripPageContent() {
+  const translate = useTranslations("trips");
   return (
     <div
       className={cn(
@@ -39,14 +43,14 @@ export function NewTripPageContent() {
           className="inline-flex items-center gap-2 text-[14px] font-medium text-clay-deep transition hover:text-clay"
         >
           <ArrowLeftIcon className="h-[15px] w-[15px]" />
-          Back to trips
+          {translate("backToTrips")}
         </Link>
 
         <h1 className="mt-[18px] font-newsreader text-[38px] font-medium leading-[1.05] tracking-[-0.02em] text-cocoa-900 sm:text-[44px]">
-          Where to next?
+          {translate("whereNext")}
         </h1>
         <p className="mt-3.5 max-w-[560px] text-[16px] leading-[1.6] text-cocoa-500">
-          Set the essentials — the AI drafts a full day-by-day itinerary you can refine.
+          {translate("createDescription")}
         </p>
 
         <div className="mt-10 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">

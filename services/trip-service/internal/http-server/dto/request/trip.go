@@ -163,12 +163,14 @@ func (r UpdateTripBudget) ToInput() (appdto.UpdateTripBudgetInput, error) {
 
 // GenerateTripItinerary is the JSON body accepted by POST /trips/{id}/generate.
 type GenerateTripItinerary struct {
-	ExpectedItineraryRevision *int `json:"expectedItineraryRevision"`
+	ExpectedItineraryRevision *int   `json:"expectedItineraryRevision"`
+	OutputLanguage            string `json:"outputLanguage" validate:"omitempty,oneof=en es uk fr"`
 }
 
 func (r GenerateTripItinerary) ToInput() appdto.GenerateItineraryInput {
 	return appdto.GenerateItineraryInput{
 		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+		OutputLanguage:            r.OutputLanguage,
 	}
 }
 
@@ -177,6 +179,7 @@ func (r GenerateTripItinerary) ToInput() appdto.GenerateItineraryInput {
 type RegenerateItineraryPart struct {
 	Instruction               string `json:"instruction"`
 	ExpectedItineraryRevision *int   `json:"expectedItineraryRevision"`
+	OutputLanguage            string `json:"outputLanguage" validate:"omitempty,oneof=en es uk fr"`
 }
 
 // ToInput maps the transport request to the application-level input.
@@ -184,6 +187,7 @@ func (r RegenerateItineraryPart) ToInput() appdto.RegenerateItineraryPartInput {
 	return appdto.RegenerateItineraryPartInput{
 		Instruction:               r.Instruction,
 		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+		OutputLanguage:            r.OutputLanguage,
 	}
 }
 

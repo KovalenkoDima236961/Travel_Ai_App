@@ -896,6 +896,29 @@ if [[ "${UPDATED_DISPLAY_NAME}" != "Test Traveler" || "${UPDATED_HOME_CITY}" != 
   exit 1
 fi
 
+echo "Checking supported and unsupported profile languages..."
+UPDATE_UK_PROFILE_PAYLOAD='{
+  "displayName": "Test Traveler",
+  "homeCity": "Bratislava",
+  "homeCountry": "Slovakia",
+  "preferredCurrency": "EUR",
+  "preferredLanguage": "uk"
+}'
+request_with_bearer PUT "${USER_SERVICE_URL}/users/me/profile" "${ACCESS_TOKEN}" "${UPDATE_UK_PROFILE_PAYLOAD}"
+assert_2xx "Update preferred language to Ukrainian"
+if [[ "$(jq -r '.preferredLanguage // empty' <<<"${LAST_BODY}")" != "uk" ]]; then
+  echo "Profile did not persist Ukrainian preferredLanguage." >&2
+  exit 1
+fi
+
+INVALID_LANGUAGE_PAYLOAD="$(jq '.preferredLanguage = "de"' <<<"${UPDATE_UK_PROFILE_PAYLOAD}")"
+request_with_bearer PUT "${USER_SERVICE_URL}/users/me/profile" "${ACCESS_TOKEN}" "${INVALID_LANGUAGE_PAYLOAD}"
+assert_status "Reject unsupported preferred language" "400"
+
+# Restore English so the remaining legacy smoke assertions remain deterministic.
+request_with_bearer PUT "${USER_SERVICE_URL}/users/me/profile" "${ACCESS_TOKEN}" "${UPDATE_PROFILE_PAYLOAD}"
+assert_2xx "Restore English preferred language"
+
 echo "Checking default user preferences..."
 request_with_bearer GET "${USER_SERVICE_URL}/users/me/preferences" "${ACCESS_TOKEN}"
 assert_2xx "Get default preferences"

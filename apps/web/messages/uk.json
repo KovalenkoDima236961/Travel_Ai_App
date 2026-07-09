@@ -1,0 +1,90 @@
+{
+  "common": {
+    "save": "Зберегти", "cancel": "Скасувати", "close": "Закрити", "delete": "Видалити",
+    "edit": "Редагувати", "create": "Створити", "update": "Оновити", "apply": "Застосувати",
+    "discard": "Відхилити", "retry": "Повторити", "loading": "Завантаження…", "error": "Помилка",
+    "success": "Успішно", "warning": "Попередження", "confirm": "Підтвердити", "back": "Назад",
+    "next": "Далі", "previous": "Назад", "search": "Пошук", "filter": "Фільтр",
+    "clear": "Очистити", "yes": "Так", "no": "Ні", "enabled": "Увімкнено",
+    "disabled": "Вимкнено", "optional": "Необов’язково", "required": "Обов’язково"
+  },
+  "navigation": {
+    "trips": "Подорожі", "templates": "Шаблони", "workspaces": "Робочі простори",
+    "settings": "Налаштування", "notifications": "Сповіщення", "offlineTrips": "Офлайн-подорожі",
+    "approvals": "Погодження", "budgets": "Бюджети", "analytics": "Аналітика",
+    "createTrip": "Створити подорож", "login": "Увійти", "register": "Зареєструватися",
+    "logout": "Вийти", "account": "Обліковий запис", "signedInAs": "Ви увійшли як",
+    "yourAccount": "Ваш обліковий запис"
+  },
+  "auth": {
+    "email": "Електронна пошта", "password": "Пароль", "login": "Увійти",
+    "register": "Створити обліковий запис", "tagline": "Кожна чудова подорож починається з однієї ідеї.",
+    "taglineDescription": "Плануйте розумніше з маршрутами від ШІ, які можна налаштувати.",
+    "createAccount": "Створіть обліковий запис", "welcomeBack": "З поверненням",
+    "registerDescription": "Почніть планувати наступну подорож за кілька хвилин.",
+    "loginDescription": "Увійдіть, щоб продовжити планування.",
+    "alreadyRegistered": "Вже зареєстровані?", "noAccount": "Ще немає облікового запису?",
+    "confirmPassword": "Підтвердіть пароль", "loggingIn": "Вхід…",
+    "creatingAccount": "Створення облікового запису…"
+  },
+  "settings": {
+    "title": "Профіль і вподобання",
+    "description": "Дані, які використовуються для персоналізації маршрутів, створених ШІ.",
+    "language": "Мова",
+    "languageDescription": "Оберіть мову застосунку та нових планів, створених ШІ.",
+    "languageUpdated": "Мову оновлено",
+    "languageUpdateFailed": "Мову на цьому пристрої змінено, але профіль не вдалося оновити.",
+    "profile": "Профіль", "displayName": "Ім’я", "email": "Електронна пошта",
+    "homeCity": "Місто проживання", "homeCountry": "Країна проживання",
+    "homeCurrency": "Основна валюта", "changePhoto": "Змінити фото",
+    "photoComingSoon": "Завантаження фото буде доступне згодом",
+    "saveProfile": "Зберегти профіль", "saving": "Збереження…", "profileSaved": "Профіль збережено.",
+    "loadFailed": "Не вдалося завантажити налаштування.", "saveFailed": "Не вдалося зберегти профіль."
+  },
+  "profile": {},
+  "trips": {
+    "title": "Ваші подорожі", "create": "Створити подорож", "destination": "Напрямок",
+    "startDate": "Дата початку", "days": "Дні", "travelers": "Мандрівники",
+    "budget": "Бюджет", "interests": "Інтереси", "pace": "Темп",
+    "generate": "Створити маршрут", "backToTrips": "Назад до подорожей",
+    "whereNext": "Куди далі?",
+    "createDescription": "Вкажіть основне — ШІ створить детальний маршрут, який можна редагувати.",
+    "basics": "Основне", "tripScope": "Тип подорожі", "personalTrip": "Особиста подорож",
+    "travelersBudget": "Мандрівники й бюджет", "currency": "Валюта", "style": "Ваш стиль",
+    "creating": "Створення…"
+  },
+  "itinerary": { "day": "День", "time": "Час", "item": "Елемент", "cost": "Вартість" },
+  "templates": {}, "workspaces": {}, "budgets": {}, "analytics": {}, "costSplitting": {},
+  "approval": {}, "policy": {}, "risk": {}, "repair": {}, "availability": {},
+  "notifications": {
+    "workspaceInvited": "Вас запросили до робочого простору", "commentCreated": "Додано новий коментар",
+    "tripSubmittedForApproval": "Подорож надіслано на погодження", "tripApproved": "Подорож погоджено",
+    "tripChangesRequested": "Запитано зміни", "tripApprovalResetToDraft": "Подорож повернено до чернетки",
+    "repairProposalReady": "Пропозиція виправлення готова", "budgetExceeded": "Бюджет перевищено",
+    "roleChanged": "Вашу роль змінено", "collaboratorInvited": "Запрошено учасника"
+  },
+  "exports": {
+    "day": "День", "time": "Час", "item": "Елемент", "cost": "Вартість",
+    "generatedAt": "Створено", "total": "Разом",
+    "costEstimateDisclaimer": "Витрати орієнтовні та можуть змінитися.",
+    "availabilityDisclaimer": "Доступність може змінитися.",
+    "accountingDisclaimer": "Це не бухгалтерський або платіжний документ.",
+    "aiDisclaimer": "Чернетки, створені ШІ, потрібно перевіряти."
+  },
+  "offline": {}, "pwa": {},
+  "errors": {
+    "generic": "Сталася помилка. Спробуйте ще раз.", "unauthorized": "Увійдіть, щоб продовжити.",
+    "forbidden": "У вас немає дозволу на цю дію.", "notFound": "Запитаний елемент не знайдено.",
+    "validationError": "Перевірте виділені поля.", "itineraryConflict": "Маршрут було змінено. Оновіть сторінку.",
+    "editLockConflict": "Цю подорож зараз редагує інший користувач.", "workspacePolicyBlockingViolation": "Політика робочого простору блокує цю зміну.",
+    "providerRateLimited": "Сервіс перевантажений.", "providerQuotaExceeded": "Квоту сервісу вичерпано.",
+    "aiGenerationFailed": "Не вдалося створити маршрут.", "repairProposalConflict": "Пропозиція стосується попередньої версії маршруту."
+  },
+  "validation": {
+    "required": "Це поле обов’язкове.", "invalidEmail": "Введіть коректну електронну адресу.",
+    "invalidDate": "Введіть коректну дату.", "invalidCurrency": "Введіть трилітерний код валюти.",
+    "positiveAmount": "Сума має бути додатною.", "tooShort": "Значення надто коротке.",
+    "tooLong": "Значення надто довге.", "unsupportedLanguage": "Оберіть підтримувану мову.",
+    "invalidTime": "Введіть коректний час.", "invalidPercentage": "Введіть коректний відсоток."
+  }
+}

@@ -66,6 +66,7 @@ type UpdateTripAccommodationInput struct {
 // generation.
 type GenerateItineraryInput struct {
 	ExpectedItineraryRevision *int
+	OutputLanguage            string
 }
 
 // RegenerateItineraryPartInput is the application-level payload for partial AI
@@ -73,6 +74,7 @@ type GenerateItineraryInput struct {
 type RegenerateItineraryPartInput struct {
 	Instruction               string
 	ExpectedItineraryRevision *int
+	OutputLanguage            string
 }
 
 // RestoreItineraryVersionInput is the application-level payload for restoring a

@@ -7,6 +7,7 @@ import { buildWorkspaceBudgetReportFilename } from "@/lib/export/export-filename
 import { generateWorkspaceBudgetCsv } from "@/lib/export/workspace-budget-csv";
 import { downloadWorkspaceBudgetPdf } from "@/lib/export/workspace-budget-pdf";
 import type { WorkspaceBudgetSummary } from "@/entities/workspace-budget/model";
+import { useAppLanguage } from "@/components/i18n/I18nProvider";
 
 type WorkspaceBudgetExportMenuProps = {
   summary: WorkspaceBudgetSummary;
@@ -14,13 +15,14 @@ type WorkspaceBudgetExportMenuProps = {
 };
 
 export function WorkspaceBudgetExportMenu({ summary, title }: WorkspaceBudgetExportMenuProps) {
+  const { language } = useAppLanguage();
   const [message, setMessage] = useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
 
   function downloadCsv() {
     setMessage(null);
     downloadTextFile(
-      generateWorkspaceBudgetCsv(summary),
+      generateWorkspaceBudgetCsv(summary, language),
       buildWorkspaceBudgetReportFilename(title, "csv"),
       "text/csv;charset=utf-8"
     );
