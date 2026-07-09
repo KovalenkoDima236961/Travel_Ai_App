@@ -53,6 +53,7 @@ flowchart TD
 | `POST` | `/regenerate-day` | Replace one itinerary day. |
 | `POST` | `/regenerate-item` | Replace one itinerary item. |
 | `POST` | `/optimize-budget/day` | Return a reviewable cheaper-day proposal. |
+| `POST` | `/repair-itinerary` | Return a reviewable policy/risk repair proposal with repaired itinerary, summary, and changes. |
 | `POST` | `/adapt-template` | Adapt a reusable template to a new destination/duration/budget. |
 | `GET` | `/destination-context` | List curated destination context. |
 | `GET` | `/destination-context/{destination}` | Read one destination context. |
@@ -157,6 +158,43 @@ availability that must be checked, and limited destination context.
 estimates, availability and opening hours must be verified, substitutions may be
 imperfect, and the model never claims confirmed bookings or guaranteed
 availability.
+
+## Policy-Aware Trip Repair
+
+`POST /repair-itinerary` accepts the current itinerary, trip context, workspace
+policy and policy evaluation, approval risk factors, selected repair issues,
+constraints, and optional profile/preferences/weather context. It returns:
+
+- `repairedItinerary`: a full itinerary JSON object following the existing
+  itinerary schema.
+- `repairSummary`: repair mode, changed/added/removed/moved counts, estimated
+  cost before/after, major changes, addressed/remaining issues, and warnings.
+- `changes`: structured item/day changes with before/after snippets and
+  reasons.
+
+Repair modes are `policy_compliance`, `reduce_budget_risk`,
+`fix_schedule_risk`, `reduce_walking`, `add_rest_time`,
+`replace_disallowed_items`, and `selected_issues`.
+
+In `mock` mode the repair is deterministic: budget mode reduces high-cost
+items, schedule mode moves late items earlier, rest mode adds rest blocks,
+walking mode keeps structure stable with review notes when route data is
+insufficient, and disallowed-item mode replaces affected items. No external
+calls are made.
+
+In `ollama` mode the prompt is strict JSON-only and instructs the model to
+address selected issues first, minimize changes, preserve confirmed/user-edited
+items, keep dates/duration/destination stable unless allowed, avoid
+comments/collaborators/shares/calendar/approval metadata, keep costs as
+estimates, and never claim booking or availability. The response parser
+requires `repairedItinerary`, `repairSummary`, and `changes`, then validates day
+count/day numbers when dates are locked and reuses itinerary schema validation
+before Trip Service stores or applies anything.
+
+Limitations: repair output is a proposal only. It does not book anything, apply
+provider prices, approve a trip, guarantee policy compliance, or modify
+non-itinerary trip data. Availability and prices should be checked again after
+repair.
 
 ## Local Development
 

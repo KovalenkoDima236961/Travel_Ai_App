@@ -17,6 +17,7 @@ const (
 	GenerationJobTypeQualityImprovementItem GenerationJobType = "quality_improvement_item"
 	GenerationJobTypeBudgetOptimizationDay  GenerationJobType = "budget_optimization_day"
 	GenerationJobTypeTemplateAdaptation     GenerationJobType = "template_adaptation"
+	GenerationJobTypePolicyRepair           GenerationJobType = "policy_repair"
 )
 
 type GenerationJobStatus string

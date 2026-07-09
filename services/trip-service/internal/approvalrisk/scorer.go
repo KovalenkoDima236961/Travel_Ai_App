@@ -186,6 +186,7 @@ func policyFactors(in Input) []Factor {
 			Affected: affected("policy", count, affectedBySeverity[workspacepolicies.SeverityBlocking]),
 			SuggestedActions: append(
 				actionsBySeverity[workspacepolicies.SeverityBlocking],
+				action("repair_with_ai", "Repair with AI", ActionPriorityHigh),
 				action("fix_policy_violation", "Fix policy violation", ActionPriorityHigh),
 				action("open_approval_checklist", "Open approval checklist", ActionPriorityHigh),
 			),
@@ -202,6 +203,7 @@ func policyFactors(in Input) []Factor {
 			Affected: affected("policy", count, affectedBySeverity[workspacepolicies.SeverityWarning]),
 			SuggestedActions: append(
 				actionsBySeverity[workspacepolicies.SeverityWarning],
+				action("repair_with_ai", "Repair with AI", ActionPriorityMedium),
 				action("fix_policy_violation", "Review policy warning", ActionPriorityMedium),
 			),
 		})
@@ -231,26 +233,32 @@ func policySummaryFactors(in Input) []Factor {
 			severity = FactorSeverityCritical
 		}
 		out = append(out, Factor{
-			Type:             "workspace_policy_blocking",
-			Severity:         severity,
-			Points:           minInt(count*35, 50),
-			Title:            "Blocking workspace policy violations",
-			Message:          fmt.Sprintf("%d blocking workspace policy violation(s) need review.", count),
-			Source:           SourceWorkspacePolicy,
-			Affected:         affected("policy", count, nil),
-			SuggestedActions: []SuggestedAction{action("fix_policy_violation", "Fix policy violation", ActionPriorityHigh)},
+			Type:     "workspace_policy_blocking",
+			Severity: severity,
+			Points:   minInt(count*35, 50),
+			Title:    "Blocking workspace policy violations",
+			Message:  fmt.Sprintf("%d blocking workspace policy violation(s) need review.", count),
+			Source:   SourceWorkspacePolicy,
+			Affected: affected("policy", count, nil),
+			SuggestedActions: []SuggestedAction{
+				action("repair_with_ai", "Repair with AI", ActionPriorityHigh),
+				action("fix_policy_violation", "Fix policy violation", ActionPriorityHigh),
+			},
 		})
 	}
 	if count := checks.PolicyWarningCount; count > 0 {
 		out = append(out, Factor{
-			Type:             "workspace_policy_warning",
-			Severity:         severityFromPoints(count * 10),
-			Points:           minInt(count*10, 30),
-			Title:            "Workspace policy warnings",
-			Message:          fmt.Sprintf("%d workspace policy warning(s) should be reviewed.", count),
-			Source:           SourceWorkspacePolicy,
-			Affected:         affected("policy", count, nil),
-			SuggestedActions: []SuggestedAction{action("fix_policy_violation", "Review policy warning", ActionPriorityMedium)},
+			Type:     "workspace_policy_warning",
+			Severity: severityFromPoints(count * 10),
+			Points:   minInt(count*10, 30),
+			Title:    "Workspace policy warnings",
+			Message:  fmt.Sprintf("%d workspace policy warning(s) should be reviewed.", count),
+			Source:   SourceWorkspacePolicy,
+			Affected: affected("policy", count, nil),
+			SuggestedActions: []SuggestedAction{
+				action("repair_with_ai", "Repair with AI", ActionPriorityMedium),
+				action("fix_policy_violation", "Review policy warning", ActionPriorityMedium),
+			},
 		})
 	}
 	if count := checks.PolicyInfoCount; count > 0 {
@@ -298,6 +306,7 @@ func budgetFactors(in Input) []Factor {
 			Source:   SourceTripBudget,
 			Affected: affected("budget", 1, nil),
 			SuggestedActions: []SuggestedAction{
+				action("repair_with_ai", "Repair with AI", ActionPriorityHigh),
 				action("open_budget_optimization", "Optimize budget", ActionPriorityHigh),
 				action("open_trip_analytics", "Open trip analytics", ActionPriorityMedium),
 			},
@@ -324,6 +333,7 @@ func budgetFactors(in Input) []Factor {
 				Source:   SourceWorkspaceBudget,
 				Affected: affected("budget", 1, nil),
 				SuggestedActions: []SuggestedAction{
+					action("repair_with_ai", "Repair with AI", ActionPriorityHigh),
 					action("open_workspace_budget", "Open workspace budget", ActionPriorityHigh),
 					action("open_budget_optimization", "Optimize budget", ActionPriorityHigh),
 				},
@@ -585,6 +595,7 @@ func scheduleFactors(in Input) []Factor {
 			Source:   SourceWalkingDistance,
 			Affected: affected("route", len(walkingAffected), walkingAffected),
 			SuggestedActions: []SuggestedAction{
+				action("repair_with_ai", "Repair with AI", ActionPriorityMedium),
 				action("optimize_route", "Optimize route", ActionPriorityMedium),
 				action("regenerate_day", "Regenerate day", ActionPriorityMedium),
 			},
@@ -616,14 +627,17 @@ func scheduleFactors(in Input) []Factor {
 	}
 	if denseWithoutRest > 0 {
 		out = append(out, Factor{
-			Type:             "dense_days_without_rest",
-			Severity:         FactorSeverityMedium,
-			Points:           6,
-			Title:            "Dense days without rest blocks",
-			Message:          fmt.Sprintf("%d dense day(s) do not include a rest block.", denseWithoutRest),
-			Source:           SourceSchedule,
-			Affected:         affected("schedule", denseWithoutRest, nil),
-			SuggestedActions: []SuggestedAction{action("regenerate_day", "Regenerate day", ActionPriorityMedium)},
+			Type:     "dense_days_without_rest",
+			Severity: FactorSeverityMedium,
+			Points:   6,
+			Title:    "Dense days without rest blocks",
+			Message:  fmt.Sprintf("%d dense day(s) do not include a rest block.", denseWithoutRest),
+			Source:   SourceSchedule,
+			Affected: affected("schedule", denseWithoutRest, nil),
+			SuggestedActions: []SuggestedAction{
+				action("repair_with_ai", "Repair with AI", ActionPriorityMedium),
+				action("regenerate_day", "Regenerate day", ActionPriorityMedium),
+			},
 		})
 	}
 	return out
@@ -830,7 +844,7 @@ func normalizePolicyAction(actionType string) string {
 		"open_cost_splitting", "check_availability", "open_item",
 		"open_accommodation", "fix_policy_violation", "regenerate_day",
 		"optimize_route", "add_missing_costs", "review_ai_adaptation",
-		"open_approval_checklist":
+		"open_approval_checklist", "repair_with_ai":
 		return actionType
 	case "optimize_day_budget":
 		return "open_budget_optimization"
@@ -858,6 +872,8 @@ func policyActionLabel(actionType string, fallback string) string {
 		return "Regenerate day"
 	case "optimize_route":
 		return "Optimize route"
+	case "repair_with_ai":
+		return "Repair with AI"
 	default:
 		return "Fix policy violation"
 	}

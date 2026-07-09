@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 )
 
 type Worker struct {
@@ -353,6 +354,15 @@ func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entit
 			job.ExpectedItineraryRevision,
 			job.Payload,
 		)
+	case entity.GenerationJobTypePolicyRepair:
+		return w.trips.RepairItineraryForActor(
+			ctx,
+			job.TripID,
+			job.RequestedByUserID,
+			&job.ID,
+			job.ExpectedItineraryRevision,
+			triprepair.DecodeJobPayload(job.Payload),
+		)
 	default:
 		return nil, nil, apperrs.NewInvalidInput("jobType is invalid")
 	}
@@ -431,10 +441,19 @@ func ClassifyJobError(err error) (string, string) {
 	case errors.As(err, &conflict):
 		return ErrorItineraryConflict, "The itinerary changed while this job was running."
 	case errors.As(err, &invalid), errors.Is(err, apperrs.ErrExpectedItineraryRevisionRequired):
+		if strings.Contains(err.Error(), ErrorNoRepairableIssues) {
+			return ErrorNoRepairableIssues, "No repairable policy or risk issues were found."
+		}
 		return ErrorValidationFailed, err.Error()
 	case errors.As(err, &dependency):
 		if strings.Contains(dependency.Error(), ErrorNoOptimizationFound) {
 			return ErrorNoOptimizationFound, "No useful lower-cost proposal was found."
+		}
+		if strings.Contains(dependency.Error(), "validation_failed") {
+			return ErrorValidationFailed, "AI repair returned an invalid itinerary."
+		}
+		if strings.Contains(dependency.Error(), "repair proposal") {
+			return ErrorProposalBuildFailed, "AI repair proposal could not be built."
 		}
 		return ErrorAIGeneration, dependency.Error()
 	case errors.Is(err, apperrs.ErrForbidden):

@@ -15,6 +15,7 @@ import { BudgetPanel } from "@/features/trip-budget";
 import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
 import { BudgetOptimizationRequestDialog } from "@/features/budget-optimization";
+import { CreateRepairJobDialog, RepairProposalsPanel } from "@/features/trip-repair";
 import { EditLockStatus } from "@/features/trip-edit-lock";
 import { SoftEditLockWarningDialog } from "@/features/trip-edit-lock";
 import { ExportTripMenu } from "@/features/trip-export";
@@ -57,6 +58,12 @@ import {
   createBudgetOptimizationJob,
   discardBudgetOptimizationProposal
 } from "@/lib/api/budget-optimization";
+import {
+  applyTripRepairProposal,
+  createTripRepairJob,
+  discardTripRepairProposal,
+  tripRepairKeys
+} from "@/lib/api/trip-repair";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
 import { isItineraryConflictError } from "@/shared/api/client";
 import {
@@ -81,6 +88,7 @@ import {
 import { getMyPreferences, userKeys } from "@/lib/api/user";
 import { useRouteEstimates } from "@/features/route-estimation";
 import { useBudgetOptimizationProposals } from "@/features/budget-optimization";
+import { useTripRepairProposals } from "@/features/trip-repair";
 import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useCostSplittingSummary } from "@/features/cost-splitting";
@@ -109,6 +117,11 @@ import type {
   BudgetOptimizationJobRequest,
   BudgetOptimizationProposal
 } from "@/entities/budget-optimization/model";
+import type {
+  CreateRepairJobInput,
+  RepairMode,
+  RepairProposal
+} from "@/entities/trip-repair/model";
 import type { EstimatedCost } from "@/entities/budget/model";
 import type { CostSplitRule } from "@/entities/cost-splitting/model";
 import type {
@@ -193,6 +206,9 @@ export function TripDetailPageContent() {
   const [handledBudgetOptimizationDeepLink, setHandledBudgetOptimizationDeepLink] = useState<
     string | null
   >(null);
+  const [tripRepairDialogOpen, setTripRepairDialogOpen] = useState(false);
+  const [tripRepairDefaultMode, setTripRepairDefaultMode] = useState<RepairMode | null>(null);
+  const [tripRepairError, setTripRepairError] = useState<string | null>(null);
   const [availabilityResultsByItem, setAvailabilityResultsByItem] =
     useState<AvailabilityResultByItem>({});
   const [availabilityApplyError, setAvailabilityApplyError] = useState<string | null>(null);
@@ -256,6 +272,19 @@ export function TripDetailPageContent() {
   const discardBudgetOptimizationMutation = useMutation({
     mutationFn: (proposal: BudgetOptimizationProposal) =>
       discardBudgetOptimizationProposal(tripId, proposal.id)
+  });
+
+  const createTripRepairMutation = useMutation({
+    mutationFn: (input: CreateRepairJobInput) => createTripRepairJob(tripId, input)
+  });
+
+  const applyTripRepairMutation = useMutation({
+    mutationFn: (proposal: RepairProposal) =>
+      applyTripRepairProposal(tripId, proposal.id, tripQuery.data?.itineraryRevision ?? 0)
+  });
+
+  const discardTripRepairMutation = useMutation({
+    mutationFn: (proposal: RepairProposal) => discardTripRepairProposal(tripId, proposal.id)
   });
 
   const updateItemCostSplitMutation = useMutation({
@@ -409,6 +438,15 @@ export function TripDetailPageContent() {
     status: "pending",
     enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess)
   });
+  const tripRepairProposalsQuery = useTripRepairProposals({
+    tripId,
+    status: "pending",
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      Boolean(tripAccess) &&
+      Boolean(displayedTrip?.workspaceId)
+  });
   const generationJobsQuery = useQuery({
     queryKey: generationJobKeys.list(tripId),
     queryFn: () => listGenerationJobs(tripId),
@@ -437,6 +475,14 @@ export function TripDetailPageContent() {
   const hasActiveGenerationJob = Boolean(
     activeGenerationJob && isActiveGenerationJob(activeGenerationJob)
   );
+  const activeTripRepairJob =
+    (generationJobsQuery.data ?? []).find(
+      (job) => job.jobType === "policy_repair" && isActiveGenerationJob(job)
+    ) ??
+    (activeGenerationJob?.jobType === "policy_repair" &&
+    isActiveGenerationJob(activeGenerationJob)
+      ? activeGenerationJob
+      : null);
   const activeRegeneratingTarget =
     activeGenerationJob && isActiveGenerationJob(activeGenerationJob)
       ? targetFromGenerationJob(activeGenerationJob)
@@ -1345,6 +1391,15 @@ export function TripDetailPageContent() {
     setBudgetOptimizationDialogOpen(true);
   }
 
+  function openTripRepair(repairMode: RepairMode = "policy_compliance") {
+    if (!canMutateTrip || !trip.itinerary || !trip.workspaceId) {
+      return;
+    }
+    setTripRepairDefaultMode(repairMode);
+    setTripRepairError(null);
+    setTripRepairDialogOpen(true);
+  }
+
   function saveCostSplit(split: CostSplitRule) {
     if (!costSplitTarget) {
       return;
@@ -1436,6 +1491,85 @@ export function TripDetailPageContent() {
       setSuccessMessage("Budget optimization proposal discarded.");
     } catch (error) {
       setBudgetOptimizationError(getErrorMessage(error, "Could not discard proposal."));
+    }
+  }
+
+  async function createTripRepair(input: CreateRepairJobInput) {
+    if (hasActiveGenerationJob) {
+      setTripRepairError("Wait for the current generation job to finish.");
+      return;
+    }
+
+    try {
+      setTripRepairError(null);
+      setRegenerationError(null);
+      setSuccessMessage(null);
+      const job = await createTripRepairMutation.mutateAsync(input);
+      handleGenerationJobCreated(job);
+      setTripRepairDialogOpen(false);
+      setSuccessMessage("AI repair queued.");
+      await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
+    } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setTripRepairError(
+          "This itinerary changed. Reload latest version before repairing the trip."
+        );
+        await tripQuery.refetch();
+        return;
+      }
+      setTripRepairError(getErrorMessage(error, "Could not start AI repair."));
+    }
+  }
+
+  async function applyTripRepair(proposal: RepairProposal) {
+    try {
+      setTripRepairError(null);
+      setRegenerationError(null);
+      setSuccessMessage(null);
+      const result = await applyTripRepairMutation.mutateAsync(proposal);
+      queryClient.setQueryData(tripKeys.detail(tripId), result.trip);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
+        queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+        queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
+        queryClient.invalidateQueries({ queryKey: workspacePolicyKeys.evaluation(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
+      ]);
+      await tripQuery.refetch();
+      setSuccessMessage("AI repair applied.");
+    } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setTripRepairError(
+          "This repair proposal is outdated because the itinerary changed. Generate a new repair."
+        );
+        await queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) });
+        await tripQuery.refetch();
+        return;
+      }
+      setTripRepairError(getErrorMessage(error, "Could not apply repair proposal."));
+    }
+  }
+
+  async function discardTripRepair(proposal: RepairProposal) {
+    if (!window.confirm("Discard this repair proposal?")) {
+      return;
+    }
+
+    try {
+      setTripRepairError(null);
+      await discardTripRepairMutation.mutateAsync(proposal);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
+      ]);
+      setSuccessMessage("AI repair proposal discarded.");
+    } catch (error) {
+      setTripRepairError(getErrorMessage(error, "Could not discard repair proposal."));
     }
   }
 
@@ -1555,6 +1689,12 @@ export function TripDetailPageContent() {
       setSuccessMessage("Budget optimization proposal ready.");
       return;
     }
+    if (job.jobType === "policy_repair") {
+      await refreshAfterTripRepairJob();
+      setRegenerationError(null);
+      setSuccessMessage("AI repair proposal ready.");
+      return;
+    }
     await refreshTripAfterGenerationJob();
     setRegenerationError(null);
     setSuccessMessage(successMessageForGenerationJob(job));
@@ -1564,6 +1704,9 @@ export function TripDetailPageContent() {
     await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
     if (job.jobType === "budget_optimization_day") {
       await queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) });
+    }
+    if (job.jobType === "policy_repair") {
+      await queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) });
     }
     if (job.errorCode === "itinerary_conflict") {
       await tripQuery.refetch();
@@ -1587,6 +1730,7 @@ export function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
@@ -1602,6 +1746,16 @@ export function TripDetailPageContent() {
     ]);
   }
 
+  async function refreshAfterTripRepairJob() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
+      queryClient.invalidateQueries({ queryKey: workspacePolicyKeys.evaluation(tripId) }),
+      queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) })
+    ]);
+  }
+
   async function cancelActiveGenerationJob() {
     if (!activeGenerationJob || activeGenerationJob.status !== "queued") {
       return;
@@ -1612,6 +1766,17 @@ export function TripDetailPageContent() {
       setRegenerationError(
         error instanceof Error ? error.message : "Could not cancel generation job."
       );
+    }
+  }
+
+  async function cancelGenerationJobById(job: GenerationJob) {
+    if (job.status !== "queued") {
+      return;
+    }
+    try {
+      await cancelGenerationJobMutation.mutateAsync(job.id);
+    } catch (error) {
+      setRegenerationError(getErrorMessage(error, "Could not cancel generation job."));
     }
   }
 
@@ -1837,6 +2002,25 @@ export function TripDetailPageContent() {
                 onDiscard={discardBudgetOptimization}
                 proposals={budgetOptimizationProposalsQuery.data ?? []}
               />
+
+              {trip.workspaceId ? (
+                <RepairProposalsPanel
+                  activeJob={activeTripRepairJob}
+                  canMutate={canMutateTrip}
+                  currentItinerary={trip.itinerary}
+                  error={tripRepairError}
+                  isApplying={applyTripRepairMutation.isPending}
+                  isCancellingJob={cancelGenerationJobMutation.isPending}
+                  isDiscarding={discardTripRepairMutation.isPending}
+                  isLoading={tripRepairProposalsQuery.isLoading}
+                  onApply={applyTripRepair}
+                  onCancelJob={cancelGenerationJobById}
+                  onCreateRepair={canMutateTrip ? () => openTripRepair() : undefined}
+                  onDiscard={discardTripRepair}
+                  proposals={tripRepairProposalsQuery.data ?? []}
+                  tripId={trip.id}
+                />
+              ) : null}
 
               <div id="cost-split" className="scroll-mt-24">
                 <CostSplittingPanel
@@ -2105,7 +2289,10 @@ export function TripDetailPageContent() {
                     adaptation. Review the authoritative policy check below.
                   </p>
                   <TripPolicyPanel tripId={trip.id} />
-                  <TripApprovalPanel tripId={trip.id} />
+                  <TripApprovalPanel
+                    onOpenTripRepair={canMutateTrip ? openTripRepair : undefined}
+                    tripId={trip.id}
+                  />
                 </>
               ) : null}
               {onlineActionsEnabled && trip.status === "COMPLETED" && trip.itinerary ? (
@@ -2194,6 +2381,16 @@ export function TripDetailPageContent() {
         onClose={() => setBudgetOptimizationDialogOpen(false)}
         onSubmit={createBudgetOptimization}
         open={budgetOptimizationDialogOpen}
+        trip={trip}
+      />
+      <CreateRepairJobDialog
+        approvalRisk={approvalRiskQuery.data ?? null}
+        defaultRepairMode={tripRepairDefaultMode}
+        disabled={createTripRepairMutation.isPending}
+        error={tripRepairError}
+        onClose={() => setTripRepairDialogOpen(false)}
+        onSubmit={createTripRepair}
+        open={tripRepairDialogOpen}
         trip={trip}
       />
       <SaveTripAsTemplateDialog

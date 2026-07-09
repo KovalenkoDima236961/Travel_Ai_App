@@ -207,6 +207,38 @@ Use local Grafana credentials `admin` / `admin`.
 17. Confirm the viewer can open the budget list and detail page.
 18. Confirm create, edit, make-primary, and archive controls are not visible.
 
+## AI Policy-Aware Trip Repair Flow
+
+1. Log in as a workspace owner/admin/member with trip edit access.
+2. Create or open a workspace trip with a completed itinerary.
+3. Add or enable a workspace policy that produces a warning or blocking result,
+   such as a low max trip budget, daily budget, max item cost, late-activity
+   rule, walking limit, or required rest rule.
+4. Open the trip detail page and confirm the header/approval area shows approval
+   risk reasons.
+5. Click `Repair with AI` from the AI Repair Proposals panel or a
+   `repair_with_ai` risk suggested action.
+6. Select a repair mode, confirm high-severity issues are selected when using
+   `Selected issues`, set max changed items, and submit.
+7. Confirm an AI repair job status card appears and eventually completes.
+8. Confirm a pending repair proposal appears with repair mode, status, changed
+   item counts, risk before/after if available, cost before/after if available,
+   addressed issues, and warnings.
+9. Click `Preview repair` and confirm grouped added/removed/modified/moved
+   changes plus side-by-side current and repaired itinerary days render.
+10. Click `Apply repair`, confirm the itinerary changes, and verify the trip is
+   refetched with a higher `itineraryRevision`.
+11. Open version history and confirm a new AI policy repair version exists.
+12. Check activity and confirm a repair-applied event exists without full
+   itinerary JSON.
+13. If the trip was approved or pending approval, confirm approval returned to
+   draft and needs review again.
+14. Generate another repair proposal, manually edit and save the itinerary, then
+   try applying the old proposal. Confirm the UI shows a stale/conflict message
+   and asks for a new repair proposal.
+15. Generate a new repair proposal and click `Discard`; confirm the proposal is
+   removed from the pending list and the itinerary does not change.
+
 ## Trip Template Flow
 
 1. Create or open a completed trip with itinerary items and costs.

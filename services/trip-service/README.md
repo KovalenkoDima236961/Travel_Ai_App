@@ -106,6 +106,7 @@ Generation job types:
 - `quality_improvement_day`
 - `quality_improvement_item`
 - `budget_optimization_day`
+- `policy_repair`
 - `template_adaptation`
 
 Dispatch modes:
@@ -129,6 +130,7 @@ or itinerary JSON.
 | Sync generation compatibility | `POST /trips/{id}/generate`, day regeneration, item regeneration |
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |
 | Budget | `GET /trips/{id}/budget-summary`, `PUT /trips/{id}/budget`, budget optimization job/proposal routes |
+| Policy-aware repair | `POST /trips/{id}/repair-jobs`, `GET /trips/{id}/repair-jobs/{jobId}`, `GET /trips/{id}/repair-proposals`, `GET /trips/{id}/repair-proposals/{proposalId}`, apply/discard routes |
 | Workspace budgets | `GET/POST /workspaces/{workspaceId}/budgets`, `GET/PATCH /workspaces/{workspaceId}/budgets/{budgetId}`, `POST /archive`, `POST /make-primary`, summary routes |
 | Cost splitting | `/trips/{id}/travelers`, `GET /trips/{id}/cost-splitting/summary`, item/accommodation cost-split update routes |
 | Cost analytics | `GET /trips/{id}/analytics/costs`, `GET /workspaces/{workspaceId}/analytics/costs` |
@@ -474,6 +476,53 @@ to `tripId`, `workspaceId`, and `approvalStatus`.
 Limitations: approval is lightweight planning approval, not a legal/compliance
 workflow. It does not lock a trip from edits (editing an approved trip resets it
 to draft), has no multi-step chains, delegation, due dates, or SLA escalation.
+
+## AI Policy-Aware Trip Repair
+
+Policy-aware repair is a proposal workflow for workspace trips. Editors and
+owners can create a `policy_repair` generation job with
+`expectedItineraryRevision`, a repair mode, optional selected policy/risk issue
+types, preservation constraints, and special instructions. Viewers, public
+share users, and personal trips are rejected in v1.
+
+The worker/service path loads the current itinerary, evaluates workspace
+policy, calculates approval risk, builds repairable issues, calls AI Planning
+Service `/repair-itinerary`, validates the repaired itinerary, builds a bounded
+diff, recalculates proposed policy/risk best-effort in memory, and stores a
+pending row in `trip_repair_proposals`. The job completes with `proposalId` in
+its result payload. It never writes the trip itinerary directly.
+
+Storage added by migration `000023`:
+
+- `trip_repair_proposals` with `status=pending|applied|discarded|expired|failed`
+  and repair modes matching the AI service.
+- `issues_json` stores the selected repairable issues.
+- `proposal_json` stores `repairedItinerary`, `repairSummary`, `changes`,
+  backend `diff`, and validation warnings.
+
+Routes:
+
+- `POST /trips/{id}/repair-jobs`
+- `GET /trips/{id}/repair-jobs/{jobId}`
+- `GET /trips/{id}/repair-proposals?status=pending`
+- `GET /trips/{id}/repair-proposals/{proposalId}`
+- `POST /trips/{id}/repair-proposals/{proposalId}/apply`
+- `POST /trips/{id}/repair-proposals/{proposalId}/discard`
+
+Applying a proposal requires edit permission and matching
+`expectedItineraryRevision`. The proposal base revision and current trip
+revision must still match; otherwise Trip Service returns
+`409 itinerary_conflict` and pending stale proposals are expired. A successful
+apply saves the full repaired itinerary through the same versioned itinerary
+save path with source `AI_POLICY_REPAIR`, marks the proposal applied, expires
+other pending repair proposals for older revisions, records activity, and uses
+the existing approval reset helper so approved or pending workspace trips return
+to draft.
+
+Limitations: repair does not auto-apply, auto-approve, book, pay, modify
+comments/collaborators/shares/calendar sync, or guarantee policy compliance.
+Costs remain estimates and availability/prices must be checked again after
+repair.
 
 ## Important Configuration
 

@@ -35,6 +35,11 @@ const (
 	EventBudgetOptimizationApplied   = "budget_optimization_applied"
 	EventBudgetOptimizationDiscarded = "budget_optimization_discarded"
 	EventBudgetOptimizationFailed    = "budget_optimization_failed"
+	EventTripRepairJobCreated        = "trip_repair_job_created"
+	EventTripRepairProposalCreated   = "trip_repair_proposal_created"
+	EventTripRepairProposalApplied   = "trip_repair_proposal_applied"
+	EventTripRepairProposalDiscarded = "trip_repair_proposal_discarded"
+	EventTripRepairProposalExpired   = "trip_repair_proposal_expired"
 
 	// Comments.
 	EventCommentCreated = "comment_created"
@@ -112,6 +117,11 @@ var knownEventTypes = map[string]struct{}{
 	EventBudgetOptimizationApplied:           {},
 	EventBudgetOptimizationDiscarded:         {},
 	EventBudgetOptimizationFailed:            {},
+	EventTripRepairJobCreated:                {},
+	EventTripRepairProposalCreated:           {},
+	EventTripRepairProposalApplied:           {},
+	EventTripRepairProposalDiscarded:         {},
+	EventTripRepairProposalExpired:           {},
 	EventCommentCreated:                      {},
 	EventCommentUpdated:                      {},
 	EventCommentDeleted:                      {},

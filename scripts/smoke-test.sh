@@ -1101,6 +1101,114 @@ WORKSPACE_WARNING_POLICY_PAYLOAD="$(jq -nc --argjson rules "${WORKSPACE_WARNING_
 request_with_bearer PUT "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/policy" "${ACCESS_TOKEN}" "${WORKSPACE_WARNING_POLICY_PAYLOAD}"
 assert_2xx "Workspace owner changes policy violation to warning"
 
+echo "Checking AI policy-aware trip repair workflow..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval-risk" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Workspace member reads approval risk before repair"
+if ! jq -e '.status != "not_applicable" and (.factors | length >= 1)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Expected approval risk factors before repair." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+REPAIR_JOB_PAYLOAD="$(jq -nc --argjson revision "${WORKSPACE_TRIP_REVISION}" '{
+  expectedItineraryRevision:$revision,
+  repairMode:"reduce_budget_risk",
+  selectedIssueTypes:["maxTripBudget"],
+  selectedRiskFactorTypes:["workspace_policy_warning","trip_budget_exceeded"],
+  constraints:{
+    preserveConfirmedItems:true,
+    minimizeChanges:true,
+    preserveUserEditedItems:true,
+    doNotChangeAccommodation:false,
+    doNotChangeDates:true,
+    maxChangedItems:10
+  },
+  specialInstructions:"Prefer lower-cost public options for the smoke test."
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-jobs" "${COLLAB_ACCESS_TOKEN}" "${REPAIR_JOB_PAYLOAD}"
+assert_status "Create policy repair job" "202"
+REPAIR_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${REPAIR_JOB_ID}" || "$(jq -r '.job.jobType // empty' <<<"${LAST_BODY}")" != "policy_repair" ]]; then
+  echo "Policy repair job response did not include expected job metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+poll_generation_job "Policy repair" "${WORKSPACE_TRIP_ID}" "${REPAIR_JOB_ID}" "${COLLAB_ACCESS_TOKEN}"
+if [[ "$(jq -r '.job.status // empty' <<<"${LAST_BODY}")" != "completed" ]]; then
+  echo "Policy repair job did not complete successfully." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+REPAIR_PROPOSAL_ID="$(jq -r '.job.resultPayload.proposalId // empty' <<<"${LAST_BODY}")"
+if [[ -z "${REPAIR_PROPOSAL_ID}" ]]; then
+  echo "Policy repair job did not return a proposalId." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals?status=pending&limit=20" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "List pending policy repair proposals"
+if ! jq -e --arg id "${REPAIR_PROPOSAL_ID}" '.proposals | any(.id == $id and .status == "pending")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Pending repair proposal was not listed." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals/${REPAIR_PROPOSAL_ID}" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Get policy repair proposal detail"
+if ! jq -e '.proposal.status == "pending" and (.proposal.proposal.repairedItinerary.days | length >= 1) and (.proposal.proposal.diff.itemsModified != null)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Repair proposal detail did not include repaired itinerary and diff." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+REPAIR_APPLY_PAYLOAD="$(jq -nc --argjson revision "${WORKSPACE_TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals/${REPAIR_PROPOSAL_ID}/apply" "${COLLAB_ACCESS_TOKEN}" "${REPAIR_APPLY_PAYLOAD}"
+assert_2xx "Apply policy repair proposal"
+REPAIR_APPLIED_REVISION="$(jq -r '.trip.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${REPAIR_APPLIED_REVISION}" -ne $((WORKSPACE_TRIP_REVISION + 1)) ]]; then
+  echo "Expected repair apply to increment itineraryRevision to $((WORKSPACE_TRIP_REVISION + 1)), got ${REPAIR_APPLIED_REVISION}." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.proposal.status == "applied"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Repair apply did not return an applied proposal." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+WORKSPACE_TRIP_REVISION="${REPAIR_APPLIED_REVISION}"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals/${REPAIR_PROPOSAL_ID}/apply" "${COLLAB_ACCESS_TOKEN}" "${REPAIR_APPLY_PAYLOAD}"
+assert_status "Reapply policy repair proposal" "400"
+
+WORKSPACE_STRICT_POLICY_RULES="$(jq '.rules.maxTripBudget.amount = 10' <<<"${WORKSPACE_WARNING_POLICY_RULES}")"
+WORKSPACE_STRICT_POLICY_PAYLOAD="$(jq -nc --argjson rules "${WORKSPACE_STRICT_POLICY_RULES}" \
+  '{name:"Smoke planning policy",description:"Smoke strict policy",rules:$rules}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/policy" "${ACCESS_TOKEN}" "${WORKSPACE_STRICT_POLICY_PAYLOAD}"
+assert_2xx "Workspace owner tightens policy for stale repair check"
+
+SECOND_REPAIR_PAYLOAD="$(jq -nc --argjson revision "${WORKSPACE_TRIP_REVISION}" '{
+  expectedItineraryRevision:$revision,
+  repairMode:"policy_compliance",
+  selectedIssueTypes:["maxTripBudget"],
+  constraints:{doNotChangeDates:true,maxChangedItems:10}
+}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-jobs" "${COLLAB_ACCESS_TOKEN}" "${SECOND_REPAIR_PAYLOAD}"
+assert_status "Create second policy repair job" "202"
+SECOND_REPAIR_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+poll_generation_job "Second policy repair" "${WORKSPACE_TRIP_ID}" "${SECOND_REPAIR_JOB_ID}" "${COLLAB_ACCESS_TOKEN}"
+SECOND_REPAIR_PROPOSAL_ID="$(jq -r '.job.resultPayload.proposalId // empty' <<<"${LAST_BODY}")"
+if [[ -z "${SECOND_REPAIR_PROPOSAL_ID}" ]]; then
+  echo "Second policy repair job did not return a proposalId." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals/${SECOND_REPAIR_PROPOSAL_ID}/apply" "${COLLAB_ACCESS_TOKEN}" "${REPAIR_APPLY_PAYLOAD}"
+assert_status "Stale policy repair apply" "409"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals/${SECOND_REPAIR_PROPOSAL_ID}/discard" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Discard second policy repair proposal"
+
 echo "Checking workspace trip approval workflow..."
 # Member sees the workspace trip as an approval draft and can submit it.
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval" "${COLLAB_ACCESS_TOKEN}"

@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
 
@@ -347,6 +348,78 @@ func (g *MockItineraryGenerator) AdaptTemplate(_ context.Context, input template
 	}, nil
 }
 
+func (g *MockItineraryGenerator) RepairItinerary(_ context.Context, input triprepair.Input) (*triprepair.ProposalContent, error) {
+	trip := input.Trip
+	g.logger.Info("repairing mock itinerary",
+		zap.String("trip_id", trip.ID.String()),
+		zap.String("repair_mode", string(input.Constraints.RepairMode)),
+	)
+
+	repaired := input.CurrentItinerary
+	currency := mockTripCurrency(trip)
+	beforeTotal := itineraryTotal(repaired, currency)
+	changes := make([]triprepair.Change, 0)
+	maxChanges := 10
+	if input.Constraints.Constraints.MaxChangedItems != nil {
+		maxChanges = *input.Constraints.Constraints.MaxChangedItems
+	}
+
+	changed := false
+	if input.Constraints.RepairMode == triprepair.RepairModeAddRestTime {
+		changed = addMockRestBlocks(&repaired, currency, &changes, maxChanges)
+	} else {
+		changed = reduceMostExpensiveMockItem(&repaired, trip.Destination, currency, &changes)
+	}
+	if !changed {
+		addMockRestBlocks(&repaired, currency, &changes, maxChanges)
+	}
+	afterTotal := itineraryTotal(repaired, currency)
+
+	changedCount := 0
+	addedCount := 0
+	movedCount := 0
+	for _, change := range changes {
+		switch change.Type {
+		case "item_added":
+			addedCount++
+		case "item_moved":
+			movedCount++
+		default:
+			changedCount++
+		}
+	}
+
+	issues := make([]string, 0, len(input.Issues))
+	for _, issue := range input.Issues {
+		issues = append(issues, issue.Type)
+	}
+	content := &triprepair.ProposalContent{
+		RepairedItinerary: repaired,
+		RepairSummary: triprepair.Summary{
+			RepairMode:          input.Constraints.RepairMode,
+			ChangedItemCount:    changedCount,
+			AddedItemCount:      addedCount,
+			MovedItemCount:      movedCount,
+			EstimatedCostBefore: &triprepair.Money{Amount: beforeTotal, Currency: currency},
+			EstimatedCostAfter:  &triprepair.Money{Amount: afterTotal, Currency: currency},
+			MajorChanges:        majorChangeReasons(changes),
+			IssuesAddressed:     issues,
+			IssuesRemaining:     []string{"availability_unchecked"},
+			Warnings: []string{
+				"Availability must be checked again after repair.",
+				"Cost estimates are approximate.",
+			},
+		},
+		Changes: changes,
+		Validation: triprepair.Validation{
+			Valid:    true,
+			Warnings: []string{"Review the repaired itinerary before applying."},
+		},
+	}
+	content.Diff = triprepair.BuildDiff(input.CurrentItinerary, repaired)
+	return content, nil
+}
+
 func mockAdaptDay(source templateadaptation.TemplateDay, index int, destination, currency string) aggregate.ItineraryDay {
 	items := make([]aggregate.ItineraryItem, 0, len(source.Items))
 	for _, item := range source.Items {
@@ -473,6 +546,122 @@ func mockDayTotal(day aggregate.ItineraryDay, currency string) float64 {
 		}
 	}
 	return total
+}
+
+func itineraryTotal(itinerary aggregate.Itinerary, currency string) float64 {
+	total := 0.0
+	for _, day := range itinerary.Days {
+		total += mockDayTotal(day, currency)
+	}
+	return total
+}
+
+func reduceMostExpensiveMockItem(
+	itinerary *aggregate.Itinerary,
+	destination string,
+	currency string,
+	changes *[]triprepair.Change,
+) bool {
+	bestDay := -1
+	bestItem := -1
+	bestAmount := -1.0
+	for dayIndex := range itinerary.Days {
+		for itemIndex := range itinerary.Days[dayIndex].Items {
+			cost := itinerary.Days[dayIndex].Items[itemIndex].EstimatedCost
+			if cost == nil || cost.Amount == nil || *cost.Amount <= bestAmount {
+				continue
+			}
+			bestDay = dayIndex
+			bestItem = itemIndex
+			bestAmount = *cost.Amount
+		}
+	}
+	if bestDay < 0 || bestItem < 0 {
+		return false
+	}
+	item := &itinerary.Days[bestDay].Items[bestItem]
+	before := compactMockRepairItem(*item)
+	newAmount := maxFloat(0, bestAmount-35)
+	item.Type = "activity"
+	item.Name = fmt.Sprintf("Budget-friendly %s alternative", destination)
+	item.Note = "Mock AI repair lowers estimated cost while keeping the itinerary reviewable."
+	item.EstimatedCost = mockCost(newAmount, "activity", currency, "medium", "Approximate repaired estimate")
+	dayNumber := itinerary.Days[bestDay].Day
+	itemIndex := bestItem
+	*changes = append(*changes, triprepair.Change{
+		Type:      "item_replaced",
+		DayNumber: &dayNumber,
+		ItemIndex: &itemIndex,
+		Before:    before,
+		After:     compactMockRepairItem(*item),
+		Reason:    "Reduce budget and policy risk with a lower-cost alternative.",
+	})
+	return true
+}
+
+func addMockRestBlocks(
+	itinerary *aggregate.Itinerary,
+	currency string,
+	changes *[]triprepair.Change,
+	maxChanges int,
+) bool {
+	added := false
+	for dayIndex := range itinerary.Days {
+		if len(*changes) >= maxChanges {
+			return added
+		}
+		if dayHasRest(itinerary.Days[dayIndex]) {
+			continue
+		}
+		rest := aggregate.ItineraryItem{
+			Time:          "15:00",
+			Type:          "rest",
+			Name:          "AI repair rest break",
+			Note:          "Adds downtime for review before approval.",
+			EstimatedCost: mockCost(0, "other", currency, "high", "Free rest block"),
+		}
+		itinerary.Days[dayIndex].Items = append(itinerary.Days[dayIndex].Items, rest)
+		dayNumber := itinerary.Days[dayIndex].Day
+		itemIndex := len(itinerary.Days[dayIndex].Items) - 1
+		*changes = append(*changes, triprepair.Change{
+			Type:      "item_added",
+			DayNumber: &dayNumber,
+			ItemIndex: &itemIndex,
+			After:     compactMockRepairItem(rest),
+			Reason:    "Add rest time.",
+		})
+		added = true
+	}
+	return added
+}
+
+func dayHasRest(day aggregate.ItineraryDay) bool {
+	for _, item := range day.Items {
+		normalized := strings.ToLower(strings.TrimSpace(item.Type))
+		if normalized == "rest" || normalized == "break" || normalized == "free_time" {
+			return true
+		}
+	}
+	return false
+}
+
+func compactMockRepairItem(item aggregate.ItineraryItem) map[string]any {
+	return map[string]any{
+		"time":          item.Time,
+		"type":          item.Type,
+		"name":          item.Name,
+		"estimatedCost": item.EstimatedCost,
+	}
+}
+
+func majorChangeReasons(changes []triprepair.Change) []string {
+	out := make([]string, 0, len(changes))
+	for _, change := range changes {
+		if strings.TrimSpace(change.Reason) != "" {
+			out = append(out, change.Reason)
+		}
+	}
+	return out
 }
 
 func maxFloat(a, b float64) float64 {

@@ -19,6 +19,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 )
 
 type Repository interface {
@@ -53,6 +54,7 @@ type TripService interface {
 	OptimizeBudgetDayForActor(ctx context.Context, tripID, actorUserID uuid.UUID, jobID *uuid.UUID, dayNumber int, instruction string, expectedRevision int, payload budgetoptimization.JobPayload) (*entity.Trip, error)
 	PrepareTemplateAdaptation(ctx context.Context, templateID uuid.UUID, in appdto.CreateTemplateAdaptationInput) (*entity.Trip, json.RawMessage, error)
 	AdaptTemplateForActor(ctx context.Context, tripID, actorUserID uuid.UUID, expectedRevision int, requestPayload json.RawMessage) (*entity.Trip, json.RawMessage, error)
+	RepairItineraryForActor(ctx context.Context, tripID, actorUserID uuid.UUID, jobID *uuid.UUID, expectedRevision int, payload triprepair.JobPayload) (*entity.Trip, json.RawMessage, error)
 	RecordGenerationJobFailed(ctx context.Context, tripID, requesterID, jobID uuid.UUID, jobType entity.GenerationJobType, errorCode, errorMessage string)
 }
 
@@ -347,7 +349,8 @@ func validateJobTarget(
 	itemIndex *int,
 ) error {
 	switch jobType {
-	case entity.GenerationJobTypeFullGeneration:
+	case entity.GenerationJobTypeFullGeneration,
+		entity.GenerationJobTypePolicyRepair:
 		return nil
 	case entity.GenerationJobTypeDayRegeneration,
 		entity.GenerationJobTypeQualityImprovementDay,

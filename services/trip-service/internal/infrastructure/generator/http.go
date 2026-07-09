@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -173,6 +174,35 @@ type aiPlanningAdaptationSummary struct {
 	FallbackUsed       bool     `json:"fallbackUsed"`
 	MajorChanges       []string `json:"majorChanges"`
 	Warnings           []string `json:"warnings"`
+}
+
+type aiPlanningRepairRequest struct {
+	Itinerary        aggregate.Itinerary          `json:"itinerary"`
+	TripContext      triprepair.TripContext       `json:"tripContext"`
+	Policy           any                          `json:"policy,omitempty"`
+	PolicyEvaluation workspacepolicies.Evaluation `json:"policyEvaluation"`
+	ApprovalRisk     any                          `json:"approvalRisk"`
+	Issues           []triprepair.Issue           `json:"issues"`
+	Constraints      aiPlanningRepairConstraints  `json:"constraints"`
+	Context          aiPlanningRepairContext      `json:"context"`
+}
+
+type aiPlanningRepairConstraints struct {
+	RepairMode               triprepair.RepairMode `json:"repairMode"`
+	SelectedIssueTypes       []string              `json:"selectedIssueTypes,omitempty"`
+	PreserveConfirmedItems   bool                  `json:"preserveConfirmedItems"`
+	MinimizeChanges          bool                  `json:"minimizeChanges"`
+	PreserveUserEditedItems  bool                  `json:"preserveUserEditedItems"`
+	DoNotChangeAccommodation bool                  `json:"doNotChangeAccommodation"`
+	DoNotChangeDates         bool                  `json:"doNotChangeDates"`
+	MaxChangedItems          *int                  `json:"maxChangedItems,omitempty"`
+	SpecialInstructions      string                `json:"specialInstructions,omitempty"`
+}
+
+type aiPlanningRepairContext struct {
+	UserProfile     *usercontext.UserProfile        `json:"userProfile,omitempty"`
+	UserPreferences *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
+	WeatherContext  *weathercontext.WeatherForecast `json:"weatherContext,omitempty"`
 }
 
 // AdaptTemplate calls AI Planning Service /adapt-template and maps the adapted
@@ -455,6 +485,40 @@ func (g *AIPlanningHTTPGenerator) OptimizeBudgetDay(ctx context.Context, input b
 
 	var result budgetoptimization.ProposalContent
 	if err := g.postJSON(ctx, trip.ID, "optimize-budget/day", payload, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (g *AIPlanningHTTPGenerator) RepairItinerary(ctx context.Context, input triprepair.Input) (*triprepair.ProposalContent, error) {
+	trip := input.Trip
+	payload := aiPlanningRepairRequest{
+		Itinerary:        input.CurrentItinerary,
+		TripContext:      input.TripContext,
+		Policy:           input.Policy,
+		PolicyEvaluation: input.PolicyEvaluation,
+		ApprovalRisk:     input.ApprovalRisk,
+		Issues:           input.Issues,
+		Constraints: aiPlanningRepairConstraints{
+			RepairMode:               input.Constraints.RepairMode,
+			SelectedIssueTypes:       input.Constraints.SelectedIssueTypes,
+			PreserveConfirmedItems:   input.Constraints.Constraints.PreserveConfirmedItems,
+			MinimizeChanges:          input.Constraints.Constraints.MinimizeChanges,
+			PreserveUserEditedItems:  input.Constraints.Constraints.PreserveUserEditedItems,
+			DoNotChangeAccommodation: input.Constraints.Constraints.DoNotChangeAccommodation,
+			DoNotChangeDates:         input.Constraints.Constraints.DoNotChangeDates,
+			MaxChangedItems:          input.Constraints.Constraints.MaxChangedItems,
+			SpecialInstructions:      input.Constraints.SpecialInstructions,
+		},
+		Context: aiPlanningRepairContext{
+			UserProfile:     input.UserProfile,
+			UserPreferences: input.UserPreferences,
+			WeatherContext:  input.WeatherForecast,
+		},
+	}
+
+	var result triprepair.ProposalContent
+	if err := g.postJSON(ctx, trip.ID, "repair-itinerary", payload, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

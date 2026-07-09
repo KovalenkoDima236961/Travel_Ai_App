@@ -1,4 +1,5 @@
 import type { ApprovalRiskSuggestedAction } from "@/entities/approval-risk/model";
+import type { RepairMode } from "@/entities/trip-repair/model";
 
 type RouterLike = {
   push: (href: string) => void;
@@ -9,6 +10,7 @@ export type ApprovalRiskActionContext = {
   workspaceId?: string | null;
   router?: RouterLike;
   openBudgetOptimization?: (dayNumber?: number | null) => void;
+  openTripRepair?: (repairMode?: RepairMode) => void;
   openRegenerateDay?: (dayNumber?: number | null) => void;
   setActiveTab?: (tab: string) => void;
 };
@@ -28,6 +30,12 @@ export function handleRiskAction(
         return true;
       }
       return push(context.router, `/trips/${tripId}?budgetOptimizeDay=${target.dayNumber ?? ""}`);
+    case "repair_with_ai":
+      if (context.openTripRepair) {
+        context.openTripRepair("selected_issues");
+        return true;
+      }
+      return push(context.router, `/trips/${tripId}#repair`);
     case "open_trip_analytics":
       return push(context.router, `/trips/${tripId}#budget`);
     case "open_workspace_budget":
@@ -80,4 +88,3 @@ function push(router: RouterLike | undefined, href: string) {
   }
   return false;
 }
-

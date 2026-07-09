@@ -149,6 +149,15 @@ Key product capabilities:
   structure signals. The Web App shows risk badges in trip headers and approval
   queues, adds factor breakdowns to the approval panel, and requires explicit
   acknowledgement for critical-risk submissions.
+- AI Policy-Aware Trip Repair v1: workspace trip editors can start a
+  `policy_repair` job from approval risk or the trip tools panel. Trip Service
+  sends the current itinerary, policy evaluation, approval risk, selected
+  repair mode, and constraints to AI Planning Service `/repair-itinerary`, then
+  stores a pending repair proposal with before/after risk/policy summaries and a
+  bounded itinerary diff. Repairs are never auto-applied or auto-approved;
+  applying a proposal checks `itineraryRevision`, replaces the itinerary through
+  the normal versioned save path, records activity, and resets approval to
+  draft when required.
 - Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
   email, and browser push integrations behind mock-first provider boundaries.
 - Provider Quota & Rate-Limit Management v1: External Integrations Service

@@ -10,6 +10,7 @@ from app.schemas.itinerary import (
     RegenerateDayResponse,
     RegenerateItemResponse,
 )
+from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.schemas.template_adaptation import TemplateAdaptationResponse
 
 _TOP_LEVEL_KEYS = {"days"}
@@ -30,6 +31,7 @@ _BUDGET_OPTIMIZATION_KEYS = {
     "warnings",
     "proposedDay",
 }
+_REPAIR_KEYS = {"repairedItinerary", "repairSummary", "changes"}
 _DAY_KEYS = {"day", "title", "items"}
 _ITEM_KEYS = {"time", "type", "name", "note", "estimatedCost"}
 _ITEM_TYPES = {"place", "food", "activity", "transport", "rest"}
@@ -125,6 +127,34 @@ def parse_budget_optimization_response(
         raise LLMResponseParseError("Budget optimization proposal must include changes")
     for index, item in enumerate(response.proposed_day.items, start=1):
         _ensure_item_values_valid(item, f"Proposed day item {index}")
+    return response
+
+
+def parse_repair_itinerary_response(
+    response_text: str,
+    request: RepairItineraryRequest,
+) -> RepairItineraryResponse:
+    parsed = _parse_json(response_text)
+    _ensure_repair_response_shape(parsed)
+
+    try:
+        response = RepairItineraryResponse.model_validate(parsed)
+    except ValidationError as exc:
+        raise LLMResponseParseError("LLM response did not match repair proposal schema") from exc
+
+    original_days = request.itinerary.get("days")
+    repaired_days = response.repaired_itinerary.get("days")
+    if request.constraints.do_not_change_dates and isinstance(original_days, list):
+        if not isinstance(repaired_days, list) or len(repaired_days) != len(original_days):
+            raise LLMResponseParseError("Repair changed itinerary day count")
+        original_numbers = [_day_number(day) for day in original_days]
+        repaired_numbers = [_day_number(day) for day in repaired_days]
+        if original_numbers != repaired_numbers:
+            raise LLMResponseParseError("Repair changed itinerary day numbers")
+    if not response.repair_summary.warnings:
+        response.repair_summary.warnings.append(
+            "Availability and prices should be checked again after repair."
+        )
     return response
 
 
@@ -297,6 +327,48 @@ def _ensure_exact_budget_optimization_shape(parsed: Any) -> None:
         raise LLMResponseParseError("proposedDay.items must be a list")
     for item_index, item in enumerate(proposed_day["items"], start=1):
         _ensure_exact_item_shape(item, f"Proposed day item {item_index}")
+
+
+def _ensure_repair_response_shape(parsed: Any) -> None:
+    if not isinstance(parsed, dict):
+        raise LLMResponseParseError("LLM response must be a JSON object")
+    if set(parsed.keys()) != _REPAIR_KEYS:
+        raise LLMResponseParseError("LLM repair response must contain exact proposal fields")
+    repaired = parsed["repairedItinerary"]
+    summary = parsed["repairSummary"]
+    changes = parsed["changes"]
+    if not isinstance(repaired, dict):
+        raise LLMResponseParseError("repairedItinerary must be a JSON object")
+    days = repaired.get("days")
+    if not isinstance(days, list) or not days:
+        raise LLMResponseParseError("repairedItinerary.days must be a non-empty list")
+    if not isinstance(summary, dict):
+        raise LLMResponseParseError("repairSummary must be a JSON object")
+    if not isinstance(changes, list):
+        raise LLMResponseParseError("changes must be a list")
+    for day_index, day in enumerate(days, start=1):
+        if not isinstance(day, dict):
+            raise LLMResponseParseError(f"Repair day {day_index} must be a JSON object")
+        items = day.get("items")
+        if not isinstance(items, list) or not items:
+            raise LLMResponseParseError(f"Repair day {day_index} items must be non-empty")
+        for item_index, item in enumerate(items, start=1):
+            if not isinstance(item, dict):
+                raise LLMResponseParseError(
+                    f"Repair day {day_index} item {item_index} must be a JSON object"
+                )
+            for field in ("time", "type", "name"):
+                if not isinstance(item.get(field), str) or not item[field].strip():
+                    raise LLMResponseParseError(
+                        f"Repair day {day_index} item {item_index} field {field} is required"
+                    )
+
+
+def _day_number(value: Any) -> int | None:
+    if isinstance(value, dict):
+        day = value.get("day")
+        return day if isinstance(day, int) else None
+    return None
 
 
 def _ensure_exact_item_shape(item: Any, label: str) -> None:

@@ -10,6 +10,7 @@ from app.schemas.itinerary import (
     RegenerateItemRequest,
 )
 from app.schemas.knowledge import KnowledgeSearchResult
+from app.schemas.repair import RepairItineraryRequest
 from app.schemas.template_adaptation import TemplateAdaptationRequest
 
 _ITEMS_PER_DAY_BY_PACE = {
@@ -481,6 +482,143 @@ Rules:
   reorder_item, keep_item.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
+""".strip()
+
+
+def build_repair_itinerary_prompt(request: RepairItineraryRequest) -> str:
+    mode = request.constraints.repair_mode
+    selected = (
+        ", ".join(request.constraints.selected_issue_types)
+        if request.constraints.selected_issue_types
+        else "none selected"
+    )
+    special_instructions = request.constraints.special_instructions or "No extra instruction."
+    trip_context = request.trip_context.model_dump_json(by_alias=True, exclude_none=True)
+    policy = json.dumps(request.policy or {}, ensure_ascii=False)
+    policy_evaluation = json.dumps(request.policy_evaluation or {}, ensure_ascii=False)
+    approval_risk = json.dumps(request.approval_risk or {}, ensure_ascii=False)
+    issues = json.dumps(
+        [issue.model_dump(by_alias=True, exclude_none=True) for issue in request.issues],
+        ensure_ascii=False,
+    )
+    constraints = request.constraints.model_dump_json(by_alias=True, exclude_none=True)
+    context = (
+        request.context.model_dump_json(by_alias=True, exclude_none=True)
+        if hasattr(request.context, "model_dump_json")
+        else json.dumps(request.context or {}, ensure_ascii=False)
+    )
+
+    return f"""
+You are an itinerary repair engine for a web-based travel planning application.
+
+Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
+The JSON must exactly match this schema and must not include any top-level fields other
+than repairedItinerary, repairSummary, and changes:
+{{
+  "repairedItinerary": {{
+    "destination": "string",
+    "summary": "string",
+    "travelers": 2,
+    "pace": "balanced",
+    "currency": "EUR",
+    "totalBudget": 700,
+    "days": [
+      {{
+        "day": 1,
+        "title": "string",
+        "items": [
+          {{
+            "time": "09:00",
+            "type": "activity",
+            "name": "string",
+            "note": "string",
+            "estimatedCost": {{
+              "amount": 20,
+              "currency": "EUR",
+              "category": "activity",
+              "confidence": "medium",
+              "source": "ai"
+            }}
+          }}
+        ]
+      }}
+    ]
+  }},
+  "repairSummary": {{
+    "repairMode": "{mode}",
+    "changedItemCount": 1,
+    "addedItemCount": 0,
+    "removedItemCount": 0,
+    "movedItemCount": 0,
+    "estimatedCostBefore": {{"amount": 920, "currency": "EUR"}},
+    "estimatedCostAfter": {{"amount": 690, "currency": "EUR"}},
+    "majorChanges": ["string"],
+    "issuesAddressed": ["maxTripBudget"],
+    "issuesRemaining": ["availability_unchecked"],
+    "warnings": ["Availability must be checked again after repair."]
+  }},
+  "changes": [
+    {{
+      "type": "item_modified",
+      "dayNumber": 1,
+      "itemIndex": 0,
+      "before": {{"name": "string"}},
+      "after": {{"name": "string"}},
+      "reason": "string"
+    }}
+  ]
+}}
+
+Role:
+- Repair the itinerary for policy/risk review.
+- Propose changes only; never claim the repair is approved, booked, paid, or available.
+
+Current itinerary JSON:
+{json.dumps(request.itinerary, ensure_ascii=False)}
+
+Trip context:
+{trip_context}
+
+Workspace policy:
+{policy}
+
+Policy evaluation:
+{policy_evaluation}
+
+Approval risk:
+{approval_risk}
+
+Selected issues and policy/risk factors:
+{issues}
+
+Repair mode:
+- mode: {mode}
+- selectedIssueTypes: {selected}
+
+Preservation constraints:
+{constraints}
+
+Additional context:
+{context}
+
+Special instructions:
+{special_instructions}
+
+Rules:
+- Address the selected issues first.
+- Minimize changes when minimizeChanges is true.
+- Preserve confirmed items when preserveConfirmedItems is true.
+- Preserve user-edited items when preserveUserEditedItems is true.
+- Do not change accommodation when doNotChangeAccommodation is true.
+- Do not change dates, day count, or day numbers when doNotChangeDates is true.
+- Keep the destination stable.
+- Keep trip comments, collaborators, shares, calendar sync, and approval metadata out of the output.
+- Preserve useful item metadata if the item is essentially the same.
+- Keep costs as estimates and use source "ai" for AI-estimated costs.
+- Do not claim booking, payment, legal compliance, or availability.
+- Include warnings for uncertain costs, required availability recheck, partial repairs, or major changes.
+- Use realistic HH:MM 24-hour times for itinerary item time/endTime fields.
+- Return JSON only.
 """.strip()
 
 

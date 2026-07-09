@@ -5,7 +5,8 @@ export type GenerationJobType =
   | "quality_improvement_day"
   | "quality_improvement_item"
   | "budget_optimization_day"
-  | "template_adaptation";
+  | "template_adaptation"
+  | "policy_repair";
 
 export type GenerationJobStatus =
   | "queued"

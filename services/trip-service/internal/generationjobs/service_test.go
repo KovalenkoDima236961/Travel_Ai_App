@@ -15,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 )
 
 func TestServiceCreateQueueModePublishesMessage(t *testing.T) {
@@ -344,6 +345,10 @@ func (f fakeTripService) RegenerateItemForActor(context.Context, uuid.UUID, uuid
 
 func (f fakeTripService) OptimizeBudgetDayForActor(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, int, string, int, budgetoptimization.JobPayload) (*entity.Trip, error) {
 	return &entity.Trip{ItineraryRevision: 1}, nil
+}
+
+func (f fakeTripService) RepairItineraryForActor(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, int, triprepair.JobPayload) (*entity.Trip, json.RawMessage, error) {
+	return &entity.Trip{ItineraryRevision: 1}, json.RawMessage(`{"proposalId":"00000000-0000-0000-0000-000000000000"}`), nil
 }
 
 func (f fakeTripService) PrepareTemplateAdaptation(context.Context, uuid.UUID, appdto.CreateTemplateAdaptationInput) (*entity.Trip, json.RawMessage, error) {

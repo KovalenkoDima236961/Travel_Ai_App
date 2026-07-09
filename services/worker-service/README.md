@@ -83,9 +83,12 @@ Default topology:
 - `quality_improvement_day`
 - `quality_improvement_item`
 - `budget_optimization_day`
+- `policy_repair`
 
 For budget optimization, a completed job means a pending proposal was stored for
 review. It does not mean the itinerary changed.
+For policy repair, a completed job means a pending repair proposal was stored
+for review. The worker never applies the repaired itinerary directly.
 
 ## Idempotency And Retries
 

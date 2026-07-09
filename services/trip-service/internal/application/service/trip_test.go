@@ -23,6 +23,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 )
@@ -84,6 +85,7 @@ type mockRepo struct {
 	calendarSyncs []entity.TripCalendarSync
 
 	budgetOptimizationProposals []entity.BudgetOptimizationProposal
+	tripRepairProposals         []entity.TripRepairProposal
 
 	// Approval workflow.
 	approvalFields          *entity.TripApprovalFields
@@ -872,6 +874,103 @@ func (m *mockRepo) MarkBudgetOptimizationProposalFailed(_ context.Context, id uu
 	return nil, domainerrs.ErrNotFound
 }
 
+func (m *mockRepo) CreateTripRepairProposal(_ context.Context, proposal *entity.TripRepairProposal) (*entity.TripRepairProposal, error) {
+	out := *proposal
+	now := time.Now()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	m.tripRepairProposals = append(m.tripRepairProposals, out)
+	return &out, nil
+}
+
+func (m *mockRepo) GetTripRepairProposalByIDAndTrip(_ context.Context, id, tripID uuid.UUID) (*entity.TripRepairProposal, error) {
+	for i := range m.tripRepairProposals {
+		proposal := m.tripRepairProposals[i]
+		if proposal.ID == id && proposal.TripID == tripID {
+			return &proposal, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) GetPendingTripRepairProposalByJobID(_ context.Context, jobID uuid.UUID) (*entity.TripRepairProposal, error) {
+	for i := range m.tripRepairProposals {
+		proposal := m.tripRepairProposals[i]
+		if proposal.JobID != nil &&
+			*proposal.JobID == jobID &&
+			proposal.Status == entity.TripRepairProposalStatusPending {
+			return &proposal, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripRepairProposalsByTrip(_ context.Context, tripID uuid.UUID, status *entity.TripRepairProposalStatus, limit int) ([]entity.TripRepairProposal, error) {
+	out := make([]entity.TripRepairProposal, 0)
+	for _, proposal := range m.tripRepairProposals {
+		if proposal.TripID != tripID {
+			continue
+		}
+		if status != nil && proposal.Status != *status {
+			continue
+		}
+		out = append(out, proposal)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) MarkTripRepairProposalApplied(_ context.Context, id uuid.UUID, userID uuid.UUID) (*entity.TripRepairProposal, error) {
+	for i := range m.tripRepairProposals {
+		proposal := &m.tripRepairProposals[i]
+		if proposal.ID == id && proposal.Status == entity.TripRepairProposalStatusPending {
+			now := time.Now()
+			proposal.Status = entity.TripRepairProposalStatusApplied
+			proposal.AppliedAt = &now
+			proposal.AppliedByUserID = &userID
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) MarkTripRepairProposalDiscarded(_ context.Context, id uuid.UUID, userID uuid.UUID) (*entity.TripRepairProposal, error) {
+	for i := range m.tripRepairProposals {
+		proposal := &m.tripRepairProposals[i]
+		if proposal.ID == id && proposal.Status == entity.TripRepairProposalStatusPending {
+			now := time.Now()
+			proposal.Status = entity.TripRepairProposalStatusDiscarded
+			proposal.DiscardedAt = &now
+			proposal.DiscardedByUserID = &userID
+			proposal.UpdatedAt = now
+			out := *proposal
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ExpirePendingTripRepairProposalsForTripRevision(_ context.Context, tripID uuid.UUID, keepRevision int) (int64, error) {
+	var expired int64
+	for i := range m.tripRepairProposals {
+		proposal := &m.tripRepairProposals[i]
+		if proposal.TripID == tripID &&
+			proposal.Status == entity.TripRepairProposalStatusPending &&
+			proposal.BaseItineraryRevision != keepRevision {
+			now := time.Now()
+			proposal.Status = entity.TripRepairProposalStatusExpired
+			proposal.ExpiredAt = &now
+			proposal.UpdatedAt = now
+			expired++
+		}
+	}
+	return expired, nil
+}
+
 func countTripVersions(versions []entity.ItineraryVersion, tripID uuid.UUID) int {
 	count := 0
 	for _, version := range versions {
@@ -900,6 +999,10 @@ type mockGenerator struct {
 	optimizeErr           error
 	optimizeCalled        bool
 	capturedOptimizeInput budgetoptimization.OptimizeDayInput
+	repairResult          *triprepair.ProposalContent
+	repairErr             error
+	repairCalled          bool
+	capturedRepairInput   triprepair.Input
 	adaptResult           *templateadaptation.AdaptResult
 	adaptErr              error
 	adaptCalled           bool
@@ -1021,6 +1124,32 @@ func (g *mockGenerator) OptimizeBudgetDay(_ context.Context, input budgetoptimiz
 			Currency:               input.BudgetContext.Currency,
 		}},
 		ProposedDay: proposedDay,
+	}, nil
+}
+
+func (g *mockGenerator) RepairItinerary(_ context.Context, input triprepair.Input) (*triprepair.ProposalContent, error) {
+	g.repairCalled = true
+	g.capturedRepairInput = input
+	if g.repairErr != nil {
+		return nil, g.repairErr
+	}
+	if g.repairResult != nil {
+		return g.repairResult, nil
+	}
+	return &triprepair.ProposalContent{
+		RepairedItinerary: input.CurrentItinerary,
+		RepairSummary: triprepair.Summary{
+			RepairMode:       input.Constraints.RepairMode,
+			ChangedItemCount: 1,
+			MajorChanges:     []string{"Adjusted itinerary for policy repair."},
+			IssuesAddressed:  []string{"Policy repair requested."},
+			Warnings:         []string{"Review prices and availability before booking."},
+		},
+		Changes: []triprepair.Change{{
+			Type:   "keep_item",
+			Reason: "Service test repair stub.",
+		}},
+		Validation: triprepair.Validation{Valid: true},
 	}, nil
 }
 

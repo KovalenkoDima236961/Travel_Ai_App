@@ -25,6 +25,7 @@ from app.schemas.itinerary import (
     RegenerateItemRequest,
     RegenerateItemResponse,
 )
+from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.schemas.template_adaptation import TemplateAdaptationRequest, TemplateAdaptationResponse
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.template_adaptation_validator import TemplateAdaptationValidationError
@@ -187,6 +188,27 @@ def optimize_budget_day(
     except Exception as exc:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to optimize itinerary budget") from exc
+
+
+@router.post("/repair-itinerary", response_model=RepairItineraryResponse)
+def repair_itinerary(
+    request: RepairItineraryRequest,
+    settings: Settings = Depends(get_configured_settings),
+    generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
+) -> RepairItineraryResponse:
+    operation = "repair_itinerary"
+    mode = _generator_mode(settings)
+    started_at = time.monotonic()
+    try:
+        response = generator.repair_itinerary(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
+    except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise
+    except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise ItineraryGenerationError("Failed to repair itinerary") from exc
 
 
 @router.post("/adapt-template", response_model=TemplateAdaptationResponse)

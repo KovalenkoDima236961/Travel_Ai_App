@@ -19,6 +19,7 @@ from app.schemas.itinerary import (
     RegenerateItemResponse,
 )
 from app.schemas.knowledge import KnowledgeSearchResult
+from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.services.destination_knowledge import DestinationKnowledgeProvider
 from app.services.itinerary_generator import ItineraryGenerator, MockItineraryGenerator
 from app.services.itinerary_validator import ItineraryValidationError, ItineraryValidator
@@ -29,6 +30,7 @@ from app.services.llm_response_parser import (
     parse_itinerary_response,
     parse_regenerate_day_response,
     parse_regenerate_item_response,
+    parse_repair_itinerary_response,
 )
 from app.services.prompt_builder import (
     build_itinerary_prompt,
@@ -37,6 +39,7 @@ from app.services.prompt_builder import (
     build_regenerate_day_repair_prompt,
     build_regenerate_item_prompt,
     build_regenerate_item_repair_prompt,
+    build_repair_itinerary_prompt,
     build_repair_prompt,
 )
 
@@ -177,6 +180,31 @@ class OllamaItineraryGenerator:
 
             logger.error("Ollama budget optimization failed", extra=log_context, exc_info=True)
             raise ItineraryGenerationError("Failed to optimize itinerary budget") from exc
+
+    def repair_itinerary(self, request: RepairItineraryRequest) -> RepairItineraryResponse:
+        started_at = time.monotonic()
+        log_context = self._base_repair_log_context(request)
+
+        try:
+            proposal = self._repair_itinerary_with_ollama(request, log_context)
+            log_context["generation_duration_ms"] = self._duration_ms(started_at)
+            logger.info("Ollama itinerary repair succeeded", extra=log_context)
+            return proposal
+        except (httpx.HTTPError, OllamaClientError, LLMResponseParseError) as exc:
+            self._record_generation_error(log_context, exc)
+            log_context["generation_duration_ms"] = self._duration_ms(started_at)
+
+            if self._settings.ollama_fallback_to_mock:
+                log_context["fallback_used"] = True
+                logger.warning(
+                    "Ollama itinerary repair failed; falling back to mock generator",
+                    extra=log_context,
+                    exc_info=True,
+                )
+                return self._fallback_generator.repair_itinerary(request)
+
+            logger.error("Ollama itinerary repair failed", extra=log_context, exc_info=True)
+            raise ItineraryGenerationError("Failed to repair itinerary") from exc
 
     def _generate_with_ollama(
         self,
@@ -374,6 +402,23 @@ class OllamaItineraryGenerator:
         )
         return parse_budget_optimization_response(llm_response, request.day_number)
 
+    def _repair_itinerary_with_ollama(
+        self,
+        request: RepairItineraryRequest,
+        log_context: dict[str, Any],
+    ) -> RepairItineraryResponse:
+        prompt = build_repair_itinerary_prompt(request)
+        self._log_llm_payload("Ollama itinerary repair prompt", "prompt", prompt, log_context)
+
+        llm_response = self._call_ollama(prompt)
+        self._log_llm_payload(
+            "Ollama raw itinerary repair response",
+            "raw_llm_response",
+            llm_response,
+            log_context,
+        )
+        return parse_repair_itinerary_response(llm_response, request)
+
     def _call_ollama(self, prompt: str) -> str:
         payload = {
             "model": self._settings.ollama_model,
@@ -504,6 +549,32 @@ class OllamaItineraryGenerator:
             "validation_error_message": None,
             "instruction_present": request.instruction is not None,
             "target_reduction_amount": str(request.budget_context.target_reduction_amount),
+        }
+
+    def _base_repair_log_context(
+        self,
+        request: RepairItineraryRequest,
+    ) -> dict[str, Any]:
+        destination = request.trip_context.destination or request.itinerary.get("destination") or ""
+        return {
+            "destination": str(destination),
+            "repair_mode": request.constraints.repair_mode,
+            "action": "itinerary_repair",
+            "generator_mode": "ollama",
+            "model": self._settings.ollama_model,
+            "generation_duration_ms": None,
+            "repair_enabled": False,
+            "repair_attempted": False,
+            "repair_succeeded": False,
+            "fallback_used": False,
+            "destination_context_used": False,
+            "rag_enabled": self._settings.rag_enabled,
+            "rag_results_count": 0,
+            "rag_search_failed": False,
+            "validation_error_code": None,
+            "validation_error_message": None,
+            "issue_count": len(request.issues),
+            "selected_issue_count": len(request.constraints.selected_issue_types),
         }
 
     def _get_destination_context(

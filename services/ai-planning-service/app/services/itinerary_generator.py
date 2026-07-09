@@ -1,4 +1,5 @@
-from decimal import Decimal
+from copy import deepcopy
+from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
 from app.schemas.itinerary import (
@@ -16,6 +17,13 @@ from app.schemas.itinerary import (
     RegenerateItemResponse,
     WeatherDay,
 )
+from app.schemas.repair import (
+    RepairChange,
+    RepairItineraryRequest,
+    RepairItineraryResponse,
+    RepairMoney,
+    RepairSummary,
+)
 
 
 class ItineraryGenerator(Protocol):
@@ -28,6 +36,8 @@ class ItineraryGenerator(Protocol):
     def optimize_budget_day(
         self, request: OptimizeBudgetDayRequest
     ) -> BudgetOptimizationProposalResponse: ...
+
+    def repair_itinerary(self, request: RepairItineraryRequest) -> RepairItineraryResponse: ...
 
 
 class MockItineraryGenerator:
@@ -194,6 +204,174 @@ class MockItineraryGenerator:
             tradeoffs=["The replacement is less premium but keeps the route and theme practical."],
             warnings=["Estimated savings are approximate and should be reviewed."],
             proposed_day=proposed_day,
+        )
+
+    def repair_itinerary(self, request: RepairItineraryRequest) -> RepairItineraryResponse:
+        repaired = deepcopy(request.itinerary)
+        currency = _repair_currency(request)
+        before_total = _repair_total_cost(repaired, currency)
+        changes: list[RepairChange] = []
+        issues_addressed = _repair_issue_types(request)
+        max_changes = request.constraints.max_changed_items or 10
+        mode = request.constraints.repair_mode
+
+        def change_budget() -> None:
+            for day, item_index, item in _items_by_cost_desc(repaired):
+                if len(changes) >= max_changes:
+                    return
+                amount = _repair_item_amount(item)
+                if amount is None or amount <= 0:
+                    continue
+                before = _compact_item(item)
+                new_amount = max(Decimal("0"), (amount * Decimal("0.70")).quantize(Decimal("0.01")))
+                _set_repair_item_amount(item, new_amount, currency)
+                item["name"] = _marked_name(item.get("name"), "lower-cost")
+                item["note"] = _append_note(
+                    item.get("note"),
+                    "AI repair lowered this estimated cost for policy review.",
+                )
+                changes.append(
+                    RepairChange(
+                        type="item_modified",
+                        dayNumber=_day_number(day),
+                        itemIndex=item_index,
+                        before=before,
+                        after=_compact_item(item),
+                        reason="Reduce budget risk with a lower-cost version of the item.",
+                    )
+                )
+
+        def change_late_items() -> None:
+            for day in _repair_days(repaired):
+                for item_index, item in enumerate(_day_items(day)):
+                    if len(changes) >= max_changes:
+                        return
+                    value = str(item.get("endTime") or item.get("time") or "").strip()
+                    if not _is_late_time(value):
+                        continue
+                    before = _compact_item(item)
+                    item["time"] = "19:00"
+                    if "endTime" in item:
+                        item["endTime"] = "20:30"
+                    item["note"] = _append_note(
+                        item.get("note"),
+                        "AI repair moved this earlier to reduce late-schedule risk.",
+                    )
+                    changes.append(
+                        RepairChange(
+                            type="item_moved",
+                            dayNumber=_day_number(day),
+                            itemIndex=item_index,
+                            before=before,
+                            after=_compact_item(item),
+                            reason="Move late activity earlier.",
+                        )
+                    )
+
+        def add_rest_blocks() -> None:
+            for day in _repair_days(repaired):
+                if len(changes) >= max_changes:
+                    return
+                items = _day_items(day)
+                if any(_is_rest_item(item) for item in items):
+                    continue
+                rest = {
+                    "time": "15:00",
+                    "type": "rest",
+                    "name": "AI repair rest break",
+                    "note": "Added reviewable downtime to reduce itinerary density risk.",
+                    "estimatedCost": {
+                        "amount": 0,
+                        "currency": currency,
+                        "category": "other",
+                        "confidence": "high",
+                        "source": "ai",
+                    },
+                }
+                items.append(rest)
+                changes.append(
+                    RepairChange(
+                        type="item_added",
+                        dayNumber=_day_number(day),
+                        itemIndex=len(items) - 1,
+                        before=None,
+                        after=_compact_item(rest),
+                        reason="Add rest time.",
+                    )
+                )
+
+        def replace_disallowed() -> None:
+            targets = _affected_targets(request)
+            for target_day, target_index in targets:
+                if len(changes) >= max_changes:
+                    return
+                item = _item_at(repaired, target_day, target_index)
+                if item is None:
+                    continue
+                before = _compact_item(item)
+                item["type"] = "activity"
+                item["name"] = _marked_name(item.get("name"), "allowed alternative")
+                item["note"] = _append_note(
+                    item.get("note"),
+                    "AI repair replaced a potentially disallowed item for review.",
+                )
+                changes.append(
+                    RepairChange(
+                        type="item_replaced",
+                        dayNumber=target_day,
+                        itemIndex=target_index,
+                        before=before,
+                        after=_compact_item(item),
+                        reason="Replace potentially disallowed activity.",
+                    )
+                )
+
+        selected = {item.casefold() for item in request.constraints.selected_issue_types}
+        issue_text = " ".join([mode, *selected, *issues_addressed]).casefold()
+        if mode in {"policy_compliance", "reduce_budget_risk"} or "budget" in issue_text:
+            change_budget()
+        if mode in {"policy_compliance", "fix_schedule_risk"} or "late" in issue_text:
+            change_late_items()
+        if mode in {"policy_compliance", "add_rest_time"} or "rest" in issue_text:
+            add_rest_blocks()
+        if mode in {"policy_compliance", "replace_disallowed_items"} or "disallowed" in issue_text:
+            replace_disallowed()
+        if mode == "reduce_walking":
+            _add_repair_warning_note(repaired, "AI repair reviewed walking risk; verify routes.")
+        if not changes and mode == "selected_issues":
+            change_budget()
+        if not changes:
+            add_rest_blocks()
+
+        after_total = _repair_total_cost(repaired, currency)
+        warnings = [
+            "Availability must be checked again after repair.",
+            "Costs are estimates and should be reviewed before approval.",
+        ]
+        if len(changes) >= max_changes:
+            warnings.append("Repair stopped at the maxChangedItems limit.")
+
+        changed = sum(1 for change in changes if change.type in {"item_modified", "item_replaced"})
+        added = sum(1 for change in changes if change.type == "item_added")
+        removed = sum(1 for change in changes if change.type == "item_removed")
+        moved = sum(1 for change in changes if change.type == "item_moved")
+
+        return RepairItineraryResponse(
+            repairedItinerary=repaired,
+            repairSummary=RepairSummary(
+                repairMode=mode,
+                changedItemCount=changed,
+                addedItemCount=added,
+                removedItemCount=removed,
+                movedItemCount=moved,
+                estimatedCostBefore=RepairMoney(amount=before_total, currency=currency),
+                estimatedCostAfter=RepairMoney(amount=after_total, currency=currency),
+                majorChanges=[change.reason or change.type for change in changes[:8]],
+                issuesAddressed=issues_addressed,
+                issuesRemaining=["availability_unchecked"],
+                warnings=warnings,
+            ),
+            changes=changes,
         )
 
     def _title_for_day(self, request: GenerateItineraryRequest, day_number: int) -> str:
@@ -490,6 +668,195 @@ def _weather_day_for_number(days: list[WeatherDay], day_number: int) -> WeatherD
     index = day_number - 1
     if index < 0 or index >= len(days):
         return None
+    return days[index]
+
+
+def _repair_currency(request: RepairItineraryRequest) -> str:
+    if request.trip_context.budget is not None:
+        return request.trip_context.budget.currency
+    raw = str(request.itinerary.get("currency") or "").strip().upper()
+    return raw if len(raw) == 3 else "EUR"
+
+
+def _repair_issue_types(request: RepairItineraryRequest) -> list[str]:
+    values = [issue.type for issue in request.issues]
+    if request.constraints.selected_issue_types:
+        selected = {item.casefold() for item in request.constraints.selected_issue_types}
+        values = [item for item in values if item.casefold() in selected]
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(value)
+    return out
+
+
+def _repair_days(itinerary: dict) -> list[dict]:
+    days = itinerary.get("days")
+    return [day for day in days if isinstance(day, dict)] if isinstance(days, list) else []
+
+
+def _day_items(day: dict) -> list[dict]:
+    items = day.get("items")
+    if not isinstance(items, list):
+        day["items"] = []
+        return day["items"]
+    filtered = [item for item in items if isinstance(item, dict)]
+    if len(filtered) != len(items):
+        day["items"] = filtered
+    return filtered
+
+
+def _day_number(day: dict) -> int | None:
+    value = day.get("day")
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def _repair_total_cost(itinerary: dict, currency: str) -> Decimal:
+    total = Decimal("0")
+    for day in _repair_days(itinerary):
+        for item in _day_items(day):
+            amount = _repair_item_amount(item)
+            if amount is None or amount < 0:
+                continue
+            cost = item.get("estimatedCost")
+            item_currency = currency
+            if isinstance(cost, dict):
+                item_currency = str(cost.get("currency") or currency).strip().upper()
+            if item_currency == currency:
+                total += amount
+    return total.quantize(Decimal("0.01"))
+
+
+def _repair_item_amount(item: dict) -> Decimal | None:
+    cost = item.get("estimatedCost")
+    raw: object
+    if isinstance(cost, dict):
+        raw = cost.get("amount")
+    else:
+        raw = cost
+    if raw is None or raw == "":
+        return None
+    try:
+        return Decimal(str(raw))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _set_repair_item_amount(item: dict, amount: Decimal, currency: str) -> None:
+    cost = item.get("estimatedCost")
+    if not isinstance(cost, dict):
+        cost = {}
+        item["estimatedCost"] = cost
+    cost["amount"] = _repair_serialize_decimal(amount)
+    cost["currency"] = str(cost.get("currency") or currency).strip().upper() or currency
+    cost["category"] = str(cost.get("category") or item.get("type") or "other").strip() or "other"
+    cost["confidence"] = str(cost.get("confidence") or "medium").strip() or "medium"
+    cost["source"] = "ai"
+
+
+def _items_by_cost_desc(itinerary: dict) -> list[tuple[dict, int, dict]]:
+    refs: list[tuple[Decimal, dict, int, dict]] = []
+    for day in _repair_days(itinerary):
+        for index, item in enumerate(_day_items(day)):
+            amount = _repair_item_amount(item)
+            if amount is not None:
+                refs.append((amount, day, index, item))
+    refs.sort(key=lambda value: value[0], reverse=True)
+    return [(day, index, item) for _, day, index, item in refs]
+
+
+def _repair_serialize_decimal(value: Decimal) -> int | float:
+    if value == value.to_integral_value():
+        return int(value)
+    return float(value)
+
+
+def _compact_item(item: dict) -> dict:
+    return {
+        key: item.get(key)
+        for key in ("time", "endTime", "type", "name", "estimatedCost")
+        if key in item
+    }
+
+
+def _marked_name(raw: object, marker: str) -> str:
+    name = str(raw or "itinerary item").strip()
+    if marker.casefold() in name.casefold():
+        return name
+    return f"{name} ({marker})"
+
+
+def _append_note(raw: object, extra: str) -> str:
+    note = str(raw or "").strip()
+    if not note:
+        return extra
+    if extra in note:
+        return note
+    return f"{note} {extra}"
+
+
+def _is_late_time(raw: str) -> bool:
+    if len(raw) < 5 or raw[2] != ":":
+        return False
+    try:
+        hour = int(raw[:2])
+        minute = int(raw[3:5])
+    except ValueError:
+        return False
+    return hour * 60 + minute > 21 * 60
+
+
+def _is_rest_item(item: dict) -> bool:
+    value = str(item.get("type") or "").strip().casefold()
+    return value in {"rest", "break", "free_time", "freetime"}
+
+
+def _affected_targets(request: RepairItineraryRequest) -> list[tuple[int, int]]:
+    targets: list[tuple[int, int]] = []
+    for issue in request.issues:
+        affected = issue.affected
+        day_number: int | None = None
+        item_index: int | None = None
+        if hasattr(affected, "day_number"):
+            day_number = affected.day_number  # type: ignore[union-attr]
+            item_index = affected.item_index  # type: ignore[union-attr]
+        elif isinstance(affected, dict):
+            day_raw = affected.get("dayNumber")
+            item_raw = affected.get("itemIndex")
+            day_number = day_raw if isinstance(day_raw, int) else None
+            item_index = item_raw if isinstance(item_raw, int) else None
+        if day_number is not None and item_index is not None:
+            targets.append((day_number, item_index))
+    if targets:
+        return targets
+    for day in _repair_days(request.itinerary):
+        items = _day_items(day)
+        if items:
+            number = _day_number(day)
+            if number is not None:
+                return [(number, 0)]
+    return []
+
+
+def _item_at(itinerary: dict, day_number: int, item_index: int) -> dict | None:
+    for day in _repair_days(itinerary):
+        if _day_number(day) != day_number:
+            continue
+        items = _day_items(day)
+        if 0 <= item_index < len(items):
+            return items[item_index]
+    return None
+
+
+def _add_repair_warning_note(itinerary: dict, note: str) -> None:
+    for day in _repair_days(itinerary):
+        for item in _day_items(day)[:1]:
+            item["note"] = _append_note(item.get("note"), note)
+            return
     return days[index]
 
 

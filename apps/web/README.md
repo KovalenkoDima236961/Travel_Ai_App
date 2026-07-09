@@ -47,6 +47,7 @@ notification streams, and calendar OAuth calls.
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
 | Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
+| AI repair | Workspace trip repair jobs, pending repair proposals, before/after itinerary diff preview, revision-safe apply/discard, and approval risk integration. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
 | Availability | Per-item availability checks with a provider badge (Ticketmaster/Mock/Fallback), match-confidence label, price qualifier (`From`/`Est.`), venue/date, price-difference vs the current estimate, safe external booking links, low-confidence/fallback warnings, and apply-price updates that preserve cost-split rules. |
 | Context | Weather cards, route/distance estimates, accommodation routing anchors. |
@@ -218,12 +219,44 @@ traveler management and split-rule writes require the online private API.
 | Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |
 | Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, `/workspaces/{workspaceId}/budgets*`, budget optimization job/proposal routes |
+| AI repair | `/trips/{id}/repair-jobs`, `/trips/{id}/repair-proposals*`, apply/discard repair proposal routes |
 | Cost splitting | `/trips/{id}/travelers`, `/trips/{id}/cost-splitting/summary`, item/accommodation cost-split update routes |
 | Cost analytics | `/trips/{id}/analytics/costs`, `/workspaces/{workspaceId}/analytics/costs`; browser-generated CSV/PDF reports |
 | Places/routes/weather | `/places/search`, `/places/{placeId}`, `/routes/estimate`, `/weather/forecast` |
 | Availability | `POST /availability/search` through the External Integrations API/proxy |
 | Calendar | `/calendar/google/*`, `/trips/{id}/calendar-sync/google/*` |
 | Notifications | `/notifications*`, `/notifications/preferences`, `/notifications/push/*` |
+
+## AI Policy-Aware Trip Repair
+
+Workspace trip detail pages expose `Repair with AI` in the repair proposals
+panel and through approval-risk suggested actions with type `repair_with_ai`.
+The control is available only when the user can edit the trip, the trip belongs
+to a workspace, the app is online, and the trip has an itinerary. Viewers,
+public-share sessions, offline mode, and personal trips do not create/apply
+repair proposals in v1.
+
+The dialog collects repair mode, high-severity risk-factor selection for
+`selected_issues`, preservation constraints, max changed items, and special
+instructions. Submitting starts a `policy_repair` job and the page polls the
+shared generation-job status until a pending proposal is ready.
+
+Pending proposals show repair mode, status, before/after risk score when
+available, cost before/after, changed/added/removed/moved counts, addressed
+issues, warnings, and a preview that fetches full proposal detail on demand.
+The preview displays grouped added/removed/modified/moved changes plus side by
+side current and repaired itinerary days.
+
+Applying a repair asks the Trip Service to replace the full itinerary with
+`expectedItineraryRevision` from the current trip. A stale proposal returns a
+conflict and the UI tells the user to generate a new repair. Successful apply
+refetches trip detail, version history, budget, approval risk, policy
+evaluation, route estimates, activity, and proposal caches. Discard marks the
+proposal discarded without changing the itinerary.
+
+Limitations shown by the flow: repairs are proposals, not automatic edits;
+applying a proposal does not approve the trip, book anything, or apply provider
+prices; availability and costs should be checked again after repair.
 
 ## Trip Templates
 

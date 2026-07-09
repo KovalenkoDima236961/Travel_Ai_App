@@ -23,6 +23,7 @@ import {
 } from "../model/useTripApproval";
 import { getApiErrorMessage } from "@/shared/api/client";
 import type { ApprovalEventType } from "@/entities/approval/model";
+import type { RepairMode } from "@/entities/trip-repair/model";
 
 type DialogKind = "submit" | "approve" | "request-changes" | "cancel" | null;
 
@@ -46,7 +47,13 @@ function formatDateTime(value: string | null | undefined): string {
 // role-aware actions, and history. Personal trips render a short "not required"
 // note. For workspace trips this is the single control surface for the approval
 // lifecycle.
-export function TripApprovalPanel({ tripId }: { tripId: string }) {
+export function TripApprovalPanel({
+  tripId,
+  onOpenTripRepair
+}: {
+  tripId: string;
+  onOpenTripRepair?: (repairMode?: RepairMode) => void;
+}) {
   const router = useRouter();
   const { online } = useNetworkStatus();
   const approvalQuery = useTripApproval(tripId);
@@ -137,6 +144,7 @@ export function TripApprovalPanel({ tripId }: { tripId: string }) {
               handleRiskAction(action, {
                 tripId,
                 workspaceId: approval.workspaceId,
+                openTripRepair: onOpenTripRepair,
                 router
               })
             }
@@ -149,6 +157,7 @@ export function TripApprovalPanel({ tripId }: { tripId: string }) {
                 handleRiskAction(action, {
                   tripId,
                   workspaceId: approval.workspaceId,
+                  openTripRepair: onOpenTripRepair,
                   router
                 })
               }
