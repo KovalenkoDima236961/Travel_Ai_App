@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { activityKeys } from "@/lib/api/activity";
+import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import {
   approvalKeys,
   approveTrip,
@@ -43,6 +44,7 @@ export function useTripApprovalMutations(tripId: string) {
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: approvalKeys.trip(tripId) });
     void queryClient.invalidateQueries({ queryKey: approvalKeys.tripEvents(tripId) });
+    void queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) });
     void queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
     void queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
     void queryClient.invalidateQueries({ queryKey: notificationKeys.all });

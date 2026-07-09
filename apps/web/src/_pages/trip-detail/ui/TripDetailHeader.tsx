@@ -1,17 +1,20 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { RiskBadge } from "@/features/approval-risk";
 import { TripApprovalBadge } from "@/features/trip-approval";
 import { formatPaceLabel } from "@/lib/utils";
 import { formatAccessSource } from "../model/tripDetailPageModel";
 import { formatTripDateRange } from "./tripDetailFormat";
 import { StatusPill } from "./StatusPill";
 import { ArrowLeftIcon, BoltIcon, CalendarIcon, UsersIcon } from "./icons";
+import type { ApprovalRiskQueueSummary } from "@/entities/approval-risk/model";
 import type { Trip, TripAccess } from "@/entities/trip/model";
 
 type TripDetailHeaderProps = {
   trip: Trip;
   workspaceName?: string | null;
   accessSource?: TripAccess["source"] | null;
+  approvalRisk?: ApprovalRiskQueueSummary | null;
   /** Action cluster (Share / Export / Edit or Generate) composed by the page. */
   actions?: ReactNode;
 };
@@ -20,6 +23,7 @@ export function TripDetailHeader({
   trip,
   workspaceName,
   accessSource,
+  approvalRisk,
   actions
 }: TripDetailHeaderProps) {
   const dateRange = formatTripDateRange(trip.startDate, trip.days);
@@ -57,6 +61,12 @@ export function TripDetailHeader({
             </span>
           ) : null}
           {trip.workspaceId ? <TripApprovalBadge tripId={trip.id} /> : null}
+          {trip.workspaceId ? (
+            <RiskBadge
+              status={approvalRisk?.status ?? "unknown"}
+              score={approvalRisk?.score ?? null}
+            />
+          ) : null}
         </div>
         <p className="mt-3.5 flex flex-wrap items-center gap-x-[18px] gap-y-2 text-[14.5px] text-cocoa-500">
           <span className="inline-flex items-center gap-2">

@@ -146,6 +146,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/activity", h.ListActivity)
 		r.Get("/{id}/activity/stream", h.StreamActivity)
 		r.Get("/{id}/approval", h.GetApproval)
+		r.Get("/{id}/approval-risk", h.GetApprovalRisk)
 		r.Post("/{id}/approval/submit", h.SubmitApproval)
 		r.Post("/{id}/approval/approve", h.ApproveTrip)
 		r.Post("/{id}/approval/request-changes", h.RequestTripChanges)

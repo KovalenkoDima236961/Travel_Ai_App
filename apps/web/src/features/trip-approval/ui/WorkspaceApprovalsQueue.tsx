@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ApproveTripDialog, RequestChangesDialog } from "./ApprovalDialogs";
 import { ApprovalStatusBadge } from "./ApprovalStatusBadge";
+import { RiskBadge } from "@/features/approval-risk";
 import { Button, buttonStyles } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { useTripApprovalMutations } from "../model/useTripApproval";
@@ -129,6 +130,7 @@ function ApprovalQueueRow({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-slate-900">{item.title || item.destination}</span>
             <ApprovalStatusBadge status={item.approvalStatus} />
+            <RiskBadge status={item.risk?.status ?? "unknown"} score={item.risk?.score ?? null} />
           </div>
           <p className="mt-1 text-sm text-slate-500">
             {item.destination}
@@ -157,6 +159,11 @@ function ApprovalQueueRow({
                 : `${item.warningCount} warning(s)${item.criticalCount ? `, ${item.criticalCount} blocker(s)` : ""}`}
             </span>
           </p>
+          {item.risk?.topReasons?.length ? (
+            <p className="mt-1 text-sm text-slate-500">
+              Risk: {item.risk.topReasons.slice(0, 2).join("; ")}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

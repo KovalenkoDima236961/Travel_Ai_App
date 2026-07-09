@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import {
@@ -10,6 +11,8 @@ import {
 } from "./ApprovalDialogs";
 import { ApprovalChecklist } from "./ApprovalChecklist";
 import { ApprovalStatusBadge } from "./ApprovalStatusBadge";
+import { RiskFactorsList, RiskScoreCard, useTripApprovalRisk } from "@/features/approval-risk";
+import { handleRiskAction } from "@/lib/approval-risk/action-router";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -44,6 +47,7 @@ function formatDateTime(value: string | null | undefined): string {
 // note. For workspace trips this is the single control surface for the approval
 // lifecycle.
 export function TripApprovalPanel({ tripId }: { tripId: string }) {
+  const router = useRouter();
   const { online } = useNetworkStatus();
   const approvalQuery = useTripApproval(tripId);
   const eventsQuery = useTripApprovalEvents(tripId);
@@ -52,10 +56,12 @@ export function TripApprovalPanel({ tripId }: { tripId: string }) {
   const [showHistory, setShowHistory] = useState(false);
 
   const approval = approvalQuery.data;
+  const riskQuery = useTripApprovalRisk(tripId, Boolean(approval?.workspaceId));
+  const risk = riskQuery.data;
 
   if (approvalQuery.isLoading) {
     return (
-      <Card>
+      <Card id="approval">
         <p className="text-sm text-slate-500">Loading approval status…</p>
       </Card>
     );
@@ -63,7 +69,7 @@ export function TripApprovalPanel({ tripId }: { tripId: string }) {
 
   if (approvalQuery.isError || !approval) {
     return (
-      <Card>
+      <Card id="approval">
         <p className="text-sm text-red-600">Could not load approval status.</p>
       </Card>
     );
@@ -94,7 +100,7 @@ export function TripApprovalPanel({ tripId }: { tripId: string }) {
   }
 
   return (
-    <Card className="space-y-4">
+    <Card id="approval" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-base font-semibold text-slate-900">Approval</h3>
         <ApprovalStatusBadge status={approval.status} />
@@ -114,6 +120,42 @@ export function TripApprovalPanel({ tripId }: { tripId: string }) {
           </div>
         ) : null}
       </dl>
+
+      {riskQuery.isLoading ? (
+        <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">
+          Loading approval risk…
+        </p>
+      ) : riskQuery.isError ? (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Approval risk is temporarily unavailable.
+        </p>
+      ) : risk && risk.status !== "not_applicable" ? (
+        <>
+          <RiskScoreCard
+            risk={risk}
+            onAction={(action) =>
+              handleRiskAction(action, {
+                tripId,
+                workspaceId: approval.workspaceId,
+                router
+              })
+            }
+          />
+          {risk.status === "medium" || risk.status === "high" || risk.status === "critical" ? (
+            <RiskFactorsList
+              defaultOpen={risk.status === "critical"}
+              factors={risk.factors}
+              onAction={(action) =>
+                handleRiskAction(action, {
+                  tripId,
+                  workspaceId: approval.workspaceId,
+                  router
+                })
+              }
+            />
+          ) : null}
+        </>
+      ) : null}
 
       {approval.status === "changes_requested" && approval.decisionNote ? (
         <div className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
@@ -206,6 +248,7 @@ export function TripApprovalPanel({ tripId }: { tripId: string }) {
       <SubmitForApprovalDialog
         open={dialog === "submit"}
         checklist={approval.checklist}
+        risk={risk}
         isSubmitting={mutations.submit.isPending}
         error={mutations.submit.isError ? getApiErrorMessage(mutations.submit.error) : null}
         onClose={closeDialog}

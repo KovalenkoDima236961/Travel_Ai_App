@@ -10,6 +10,7 @@ import (
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvalrisk"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvals"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -100,6 +101,7 @@ func (s *Service) workspaceApprovalItem(ctx context.Context, row entity.Workspac
 		BudgetAmount:      row.BudgetAmount,
 		BudgetCurrency:    row.BudgetCurrency,
 		ChecklistStatus:   string(approvals.ChecklistStatusOK),
+		Risk:              approvalrisk.UnknownSummary(),
 	}
 
 	workspaceID := row.WorkspaceID
@@ -124,6 +126,17 @@ func (s *Service) workspaceApprovalItem(ctx context.Context, row entity.Workspac
 	item.WarningCount = checklist.WarningCount
 	item.CriticalCount = checklist.CriticalCount
 	item.EstimatedTotal = in.EstimatedTotal
+	item.Risk = approvalrisk.QueueSummaryFromResponse(approvalrisk.Score(approvalrisk.Input{
+		TripID:      row.TripID,
+		WorkspaceID: &workspaceID,
+		GeneratedAt: time.Now().UTC(),
+		Trip: approvalrisk.TripContext{
+			BudgetAmount:   row.BudgetAmount,
+			BudgetCurrency: row.BudgetCurrency,
+		},
+		ChecklistInput: in,
+		Itinerary:      parseItineraryLenient(row.Itinerary),
+	}))
 	return item
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvalrisk"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvals"
 )
 
@@ -53,20 +54,21 @@ type TripApprovalEventsResponse struct {
 
 // WorkspaceApprovalQueueItem is one row of the workspace approvals queue.
 type WorkspaceApprovalQueueItem struct {
-	TripID                 uuid.UUID  `json:"tripId"`
-	Title                  string     `json:"title"`
-	Destination            string     `json:"destination"`
-	StartDate              *string    `json:"startDate,omitempty"`
-	ApprovalStatus         string     `json:"approvalStatus"`
-	SubmittedAt            *time.Time `json:"submittedAt"`
-	SubmittedByUserID      *uuid.UUID `json:"submittedByUserId"`
-	SubmittedByDisplayName *string    `json:"submittedByDisplayName,omitempty"`
-	EstimatedTotal         float64    `json:"estimatedTotal"`
-	BudgetAmount           *float64   `json:"budgetAmount,omitempty"`
-	BudgetCurrency         string     `json:"budgetCurrency,omitempty"`
-	ChecklistStatus        string     `json:"checklistStatus"`
-	WarningCount           int        `json:"warningCount"`
-	CriticalCount          int        `json:"criticalCount"`
+	TripID                 uuid.UUID                 `json:"tripId"`
+	Title                  string                    `json:"title"`
+	Destination            string                    `json:"destination"`
+	StartDate              *string                   `json:"startDate,omitempty"`
+	ApprovalStatus         string                    `json:"approvalStatus"`
+	SubmittedAt            *time.Time                `json:"submittedAt"`
+	SubmittedByUserID      *uuid.UUID                `json:"submittedByUserId"`
+	SubmittedByDisplayName *string                   `json:"submittedByDisplayName,omitempty"`
+	EstimatedTotal         float64                   `json:"estimatedTotal"`
+	BudgetAmount           *float64                  `json:"budgetAmount,omitempty"`
+	BudgetCurrency         string                    `json:"budgetCurrency,omitempty"`
+	ChecklistStatus        string                    `json:"checklistStatus"`
+	WarningCount           int                       `json:"warningCount"`
+	CriticalCount          int                       `json:"criticalCount"`
+	Risk                   approvalrisk.QueueSummary `json:"risk"`
 }
 
 // WorkspaceApprovalCountsDTO is the per-status tally above the queue.

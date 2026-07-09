@@ -1,3 +1,5 @@
+import type { ApprovalRiskQueueSummary } from "@/entities/approval-risk/model";
+
 // Types for the Workspace Approval Workflow. They mirror the Trip Service
 // approval API (see services/trip-service/internal/application/dto/approval.go).
 
@@ -89,6 +91,7 @@ export interface WorkspaceApprovalQueueItem {
   checklistStatus: ChecklistOverallStatus;
   warningCount: number;
   criticalCount: number;
+  risk: ApprovalRiskQueueSummary;
 }
 
 export interface WorkspaceApprovalCounts {

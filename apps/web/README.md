@@ -463,8 +463,8 @@ VAPID keys on the Notification Service.
 ## Workspace Approval Workflow
 
 Workspace trips show an **Approval** panel on the trip detail page
-(`components/approvals/TripApprovalPanel.tsx`) with a status badge, the readiness
-checklist, role-aware actions, and approval history:
+(`src/features/trip-approval/ui/TripApprovalPanel.tsx`) with a status badge, the
+readiness checklist, role-aware actions, risk scoring, and approval history:
 
 - Editors can **Submit for approval** (acknowledging warnings and adding an
   optional note). Warnings are shown but never block submission; a missing
@@ -476,16 +476,25 @@ checklist, role-aware actions, and approval history:
   draft (the backend reset is authoritative). Personal trips show
   "Approval not required".
 - Approval actions require connectivity; offline they are disabled with a note.
+- Workspace approval risk comes from `GET /trips/{id}/approval-risk` via
+  `src/lib/api/approval-risk.ts` and `useTripApprovalRisk`. Trip headers and
+  workspace approval queues show compact risk badges; the approval panel expands
+  medium/high/critical factors with suggested actions that route to budget,
+  analytics, cost-splitting, availability, accommodation, policy, or itinerary
+  editing surfaces.
+- Critical risk must be explicitly acknowledged in the submit dialog before an
+  otherwise submittable trip can be sent for review.
 
 The workspace approvals queue lives at `/workspaces/[workspaceId]/approvals`
 (linked from the workspace nav) and lists trips by status tabs (Pending, Changes
-requested, Draft, Approved, All) with per-status counts, checklist status, and
-Approve / Request changes actions for owners/admins.
+requested, Draft, Approved, All) with per-status counts, checklist status, risk
+badges/top reasons, and Approve / Request changes actions for owners/admins.
 
-Data flows through `types/approval.ts`, `lib/api/approvals.ts`, and the
-`useTripApproval` / `useWorkspaceApprovals` hooks (TanStack Query), which
-invalidate the trip, approval state/history, activity, notifications, and the
-workspace queue after each action.
+Data flows through `src/entities/approval`, `src/entities/approval-risk`,
+`src/lib/api/approvals.ts`, `src/lib/api/approval-risk.ts`, and the
+`useTripApproval` / `useWorkspaceApprovals` / `useTripApprovalRisk` hooks
+(TanStack Query), which invalidate the trip, approval state/history, risk,
+activity, notifications, and the workspace queue after each action.
 
 Limitations: this is lightweight planning approval — it does not lock trips,
 support multi-step chains or delegation, and there are no offline approval

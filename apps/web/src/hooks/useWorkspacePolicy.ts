@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { approvalKeys } from "@/lib/api/approvals";
 import {
   archiveWorkspacePolicy,
@@ -22,6 +23,7 @@ export function useWorkspacePolicy(workspaceId: string) {
       queryKey: workspacePolicyKeys.workspace(workspaceId)
     });
     void queryClient.invalidateQueries({ queryKey: workspacePolicyKeys.evaluations() });
+    void queryClient.invalidateQueries({ queryKey: approvalRiskKeys.all });
     void queryClient.invalidateQueries({ queryKey: approvalKeys.all });
     void queryClient.invalidateQueries({ queryKey: ["trips"] });
   }

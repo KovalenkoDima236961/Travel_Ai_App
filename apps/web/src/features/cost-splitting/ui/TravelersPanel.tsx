@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TravelerFormDialog } from "./TravelerFormDialog";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import {
   costSplittingKeys,
   createTripTraveler,
@@ -47,6 +48,7 @@ export function TravelersPanel({
   async function invalidate() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: costSplittingKeys.travelers(tripId) }),
+      queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: costSplittingKeys.all })
     ]);
   }

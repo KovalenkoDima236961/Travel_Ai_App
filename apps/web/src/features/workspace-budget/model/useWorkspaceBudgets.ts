@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { costAnalyticsKeys } from "@/lib/api/cost-analytics";
 import {
   archiveWorkspaceBudget,
@@ -34,6 +35,7 @@ export function useWorkspaceBudgetMutations(workspaceId: string) {
   const queryClient = useQueryClient();
 
   function invalidate() {
+    void queryClient.invalidateQueries({ queryKey: approvalRiskKeys.all });
     void queryClient.invalidateQueries({ queryKey: workspaceBudgetKeys.all });
     void queryClient.invalidateQueries({ queryKey: costAnalyticsKeys.all });
   }

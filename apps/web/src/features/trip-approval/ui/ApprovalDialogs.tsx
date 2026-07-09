@@ -6,6 +6,7 @@ import { ApprovalChecklist } from "./ApprovalChecklist";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Textarea } from "@/shared/ui/textarea";
+import type { ApprovalRiskResponse } from "@/entities/approval-risk/model";
 import type { ApprovalChecklist as ApprovalChecklistData } from "@/entities/approval/model";
 
 function DialogShell({
@@ -42,6 +43,7 @@ function DialogError({ error }: { error?: string | null }) {
 export function SubmitForApprovalDialog({
   open,
   checklist,
+  risk,
   isSubmitting = false,
   error,
   onClose,
@@ -49,6 +51,7 @@ export function SubmitForApprovalDialog({
 }: {
   open: boolean;
   checklist?: ApprovalChecklistData;
+  risk?: ApprovalRiskResponse | null;
   isSubmitting?: boolean;
   error?: string | null;
   onClose: () => void;
@@ -56,11 +59,13 @@ export function SubmitForApprovalDialog({
 }) {
   const [note, setNote] = useState("");
   const [acknowledged, setAcknowledged] = useState<Record<string, boolean>>({});
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
 
   useEffect(() => {
     if (open) {
       setNote("");
       setAcknowledged({});
+      setRiskAcknowledged(false);
     }
   }, [open]);
 
@@ -70,10 +75,12 @@ export function SubmitForApprovalDialog({
 
   const warnings = checklist?.items.filter((item) => item.status === "warning") ?? [];
   const hasBlocker = (checklist?.blockerCount ?? 0) > 0;
+  const hasElevatedRisk = risk?.status === "high" || risk?.status === "critical";
+  const needsRiskAcknowledgement = risk?.status === "critical" && !hasBlocker;
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (hasBlocker) {
+    if (hasBlocker || (needsRiskAcknowledgement && !riskAcknowledged)) {
       return;
     }
     const acknowledgedWarnings = warnings
@@ -86,6 +93,29 @@ export function SubmitForApprovalDialog({
     <DialogShell title="Submit for approval" onClose={onClose}>
       <form className="mt-4 space-y-4" onSubmit={submit}>
         {checklist ? <ApprovalChecklist checklist={checklist} /> : null}
+        {hasElevatedRisk ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            This trip has {risk?.status} approval risk. Review the top issues before submitting.
+            {(risk?.topReasons.length ?? 0) > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {risk?.topReasons.slice(0, 3).map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            ) : null}
+            {needsRiskAcknowledgement ? (
+              <label className="mt-3 flex items-start gap-2 text-sm">
+                <input
+                  checked={riskAcknowledged}
+                  className="mt-1"
+                  onChange={(event) => setRiskAcknowledged(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>I understand this trip has critical risk factors.</span>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
         {hasBlocker ? (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
             {checklist?.items.some(
@@ -130,7 +160,10 @@ export function SubmitForApprovalDialog({
           <Button onClick={onClose} type="button" variant="secondary">
             Cancel
           </Button>
-          <Button disabled={hasBlocker || isSubmitting} type="submit">
+          <Button
+            disabled={hasBlocker || (needsRiskAcknowledgement && !riskAcknowledged) || isSubmitting}
+            type="submit"
+          >
             {isSubmitting ? "Submitting…" : "Submit for approval"}
           </Button>
         </div>

@@ -143,6 +143,12 @@ Key product capabilities:
   approved trip back to draft, and every action records approval history,
   notifications, and activity. It is planning approval only — no locking, legal
   signatures, or compliance workflow.
+- Smart Approval Risk Scoring v1: Trip Service computes deterministic,
+  explainable 0-100 risk scores for workspace trip approvals from policy,
+  budget, cost-splitting, availability, AI/template fallback, and itinerary
+  structure signals. The Web App shows risk badges in trip headers and approval
+  queues, adds factor breakdowns to the approval panel, and requires explicit
+  acknowledgement for critical-risk submissions.
 - Optional place, route, weather, exchange-rate, ticket-price, Google Calendar,
   email, and browser push integrations behind mock-first provider boundaries.
 - Provider Quota & Rate-Limit Management v1: External Integrations Service

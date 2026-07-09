@@ -25,6 +25,20 @@ func (h *Handler) GetApproval(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, state)
 }
 
+// GetApprovalRisk handles GET /trips/{id}/approval-risk.
+func (h *Handler) GetApprovalRisk(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	risk, err := h.svc.GetTripApprovalRisk(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, risk)
+}
+
 // SubmitApproval handles POST /trips/{id}/approval/submit.
 func (h *Handler) SubmitApproval(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.parseID(w, r)

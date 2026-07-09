@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BudgetEditForm } from "./BudgetEditForm";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
+import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { budgetKeys, getTripBudgetSummary, updateTripBudget } from "@/lib/api/budget";
 import { tripKeys } from "@/lib/api/trips";
 import { formatApproxMoney, formatMoney } from "@/entities/budget/model";
@@ -50,6 +51,7 @@ export function BudgetPanel({
       setIsEditing(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(trip.id) }),
+        queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(trip.id) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(trip.id) })
       ]);
     },

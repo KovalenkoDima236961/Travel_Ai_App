@@ -124,7 +124,7 @@ or itinerary JSON.
 | Group | Routes |
 | ----- | ------ |
 | Health | `GET /health`, `GET /ready`, `GET /metrics` |
-| Trips | `POST /trips`, `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}` |
+| Trips | `POST /trips`, `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}`, `GET /trips/{id}/approval-risk` |
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Sync generation compatibility | `POST /trips/{id}/generate`, day regeneration, item regeneration |
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |
@@ -398,13 +398,31 @@ Approve / request-changes / cancel are only allowed from `pending_approval`.
 | `POST` | `/trips/{id}/approval/cancel` | submitter or workspace owner/admin |
 | `GET` | `/trips/{id}/approval/events` | any user with trip view access |
 | `GET` | `/workspaces/{workspaceId}/approvals` | any active workspace member |
+| `GET` | `/trips/{id}/approval-risk` | any user with trip view access |
 
 `GET /approval` returns the state, a freshly computed checklist, and per-caller
 `canSubmit/canApprove/canRequestChanges/canCancel` flags. The workspace queue
 returns rows (with checklist status, warning/critical counts, estimated total),
-per-status `counts`, and a `nextCursor`; it defaults to the active review set
-(pending, changes requested, draft) and accepts
+per-status `counts`, risk summary, top risk reasons, and a `nextCursor`; it
+defaults to the active review set (pending, changes requested, draft) and accepts
 `status=pending_approval|changes_requested|approved|draft|cancelled|all`.
+
+### Risk scoring
+
+`internal/approvalrisk` is a pure deterministic scorer for workspace approval
+review. It returns a 0-100 score, `low|medium|high|critical` level, factor list,
+top reasons, affected day/item hints, and suggested actions. Personal trips
+return `not_applicable`; recoverable signal lookup failures return a scored
+response with a low-weight `risk_signal_unavailable` factor instead of failing
+the approval page.
+
+Inputs are gathered by the application service from the existing checklist,
+workspace policy evaluation, trip/workspace budget summaries, itinerary cost
+and availability metadata, accommodation, and latest itinerary-version metadata
+for template adaptation or repair fallbacks. Blocking policy failures force at
+least `high` risk; multiple blockers force `critical`. The workspace approvals
+queue uses the same scorer with lightweight signals so queue badges stay
+consistent with the detailed trip endpoint.
 
 ### Checklist
 
