@@ -275,6 +275,7 @@
     "other": "Other"
   },
   "tripStyles": {
+    "city_break": "City break",
     "road_trip": "Road trip",
     "train_trip": "Train trip",
     "camping": "Camping",
@@ -288,7 +289,43 @@
     "family": "Family",
     "romantic": "Romantic",
     "low_budget": "Low budget",
+    "luxury": "Luxury",
     "hidden_gem": "Hidden gem"
+  },
+  "planningConstraints": {
+    "title": "AI planning summary",
+    "previewButton": "Preview AI settings",
+    "previewing": "Previewing…",
+    "emptyPreview": "Preview the settings that AI will use.",
+    "noIssues": "No planning issues detected.",
+    "advancedPreferences": "Advanced AI preferences",
+    "language": "Language",
+    "budget": "Budget",
+    "pace": "Pace",
+    "transport": "Transport",
+    "styles": "Styles",
+    "workspaceRules": "Workspace rules",
+    "notSet": "Not set",
+    "warningCount": "{count, plural, one {# warning} other {# warnings}}",
+    "blockerCount": "{count, plural, one {# blocker} other {# blockers}}",
+    "budgetStrictness": "Budget strictness",
+    "walkingLimit": "Walking limit",
+    "maxTransferHours": "Max transfer hours/day",
+    "carAvailable": "Car available",
+    "preferredTransport": "Preferred transport",
+    "avoidTransport": "Avoid transport",
+    "avoidList": "Avoid",
+    "mustHaveList": "Must-have activities",
+    "severity": {
+      "blocking": "Blocker",
+      "warning": "Warning",
+      "info": "Info"
+    },
+    "strictness": {
+      "loose": "Loose",
+      "target": "Target",
+      "strict": "Strict"
+    }
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",

@@ -14,6 +14,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	tripresponse "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 )
 
 type Handler struct {
@@ -162,7 +163,16 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	var invalid *apperrs.InvalidInputError
 	var conflict *apperrs.ConflictError
 	var dependency *apperrs.DependencyError
+	var planningBlocking *planningconstraints.BlockingError
 	switch {
+	case errors.As(err, &planningBlocking):
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error":       "planning_constraints_blocked",
+			"message":     planningBlocking.Error(),
+			"constraints": planningBlocking.Constraints,
+			"warnings":    planningBlocking.Constraints.Warnings,
+			"blockers":    planningBlocking.Constraints.Blockers,
+		})
 	case errors.As(err, &invalid):
 		writeError(w, http.StatusBadRequest, invalid.Error())
 	case errors.Is(err, apperrs.ErrForbidden):

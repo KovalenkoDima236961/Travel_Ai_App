@@ -23,6 +23,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
@@ -551,6 +552,21 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 	if err != nil {
 		return nil, err
 	}
+	constraints, err := s.buildPlanningConstraints(
+		ctx,
+		user,
+		planningconstraints.SourceTripGeneration,
+		current,
+		planningconstraints.RequestOverride{OutputLanguage: in.OutputLanguage},
+		userContext,
+		true,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireNoPlanningBlockers(constraints, planningconstraints.SourceTripGeneration); err != nil {
+		return nil, err
+	}
 
 	if _, err := s.repo.UpdateStatusByUserID(ctx, id, ownerID, entity.StatusProcessing); err != nil {
 		return nil, err
@@ -568,6 +584,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 		UserPreferences:            userContext.Preferences,
 		WeatherForecast:            weatherForecast,
 		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
+		PlanningConstraints:        constraints,
 	})
 	if err != nil {
 		s.markFailed(ctx, id, ownerID)
@@ -799,6 +816,23 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
 		return nil, err
 	}
+	constraints, err := s.buildPlanningConstraints(
+		ctx,
+		user,
+		planningconstraints.SourceDayRegeneration,
+		current,
+		planningconstraints.RequestOverride{OutputLanguage: in.OutputLanguage, Prompt: &planningconstraints.Prompt{UserPrompt: instruction}},
+		userContext,
+		false,
+	)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+	if err := s.requireNoPlanningBlockers(constraints, planningconstraints.SourceDayRegeneration); err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
 
 	replacement, err := s.generator.RegenerateDay(ctx, application.RegenerateDayInput{
 		Trip:                       *current,
@@ -810,6 +844,7 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 		UserPreferences:            userContext.Preferences,
 		WeatherForecast:            weatherForecast,
 		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
+		PlanningConstraints:        constraints,
 	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
@@ -943,6 +978,23 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
 		return nil, err
 	}
+	constraints, err := s.buildPlanningConstraints(
+		ctx,
+		user,
+		planningconstraints.SourceItemRegeneration,
+		current,
+		planningconstraints.RequestOverride{OutputLanguage: in.OutputLanguage, Prompt: &planningconstraints.Prompt{UserPrompt: instruction}},
+		userContext,
+		false,
+	)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+	if err := s.requireNoPlanningBlockers(constraints, planningconstraints.SourceItemRegeneration); err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
 
 	replacement, err := s.generator.RegenerateItem(ctx, application.RegenerateItemInput{
 		Trip:                       *current,
@@ -955,6 +1007,7 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 		UserPreferences:            userContext.Preferences,
 		WeatherForecast:            weatherForecast,
 		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
+		PlanningConstraints:        constraints,
 	})
 	if err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)

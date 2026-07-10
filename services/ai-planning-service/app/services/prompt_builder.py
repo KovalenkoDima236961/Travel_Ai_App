@@ -17,6 +17,7 @@ from app.schemas.template_adaptation import TemplateAdaptationRequest
 
 def build_destination_suggestion_prompt(request: DestinationSuggestionRequest) -> str:
     payload = request.model_dump(by_alias=True, exclude_none=True, mode="json")
+    planning_constraints_section = _planning_constraints_section(request)
     return f"""
 You are a careful destination recommendation assistant.
 
@@ -70,6 +71,7 @@ Rules:
 - Localize all user-facing text values to outputLanguage={request.output_language}.
 - Do not suggest unsafe or illegal travel.
 
+{planning_constraints_section}
 Trusted sanitized request context:
 {json.dumps(payload, ensure_ascii=False, indent=2)}
 """.strip()
@@ -123,6 +125,7 @@ def build_itinerary_prompt(
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
     workspace_policy_section = _workspace_policy_section(request)
+    planning_constraints_section = _planning_constraints_section(request)
     route_context_section = _route_context_section(request)
     instruction = request.instruction or "No extra user instruction provided."
 
@@ -173,6 +176,7 @@ Trip request:
 - Pace: {request.pace}
 - User instruction: {instruction}
 {_output_language_section(request)}
+{planning_constraints_section}
 {user_context_section}
 {weather_context_section}
 {accommodation_context_section}
@@ -251,6 +255,7 @@ def build_repair_prompt(
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
     workspace_policy_section = _workspace_policy_section(request)
+    planning_constraints_section = _planning_constraints_section(request)
     route_context_section = _route_context_section(request)
 
     return f"""
@@ -268,6 +273,7 @@ Original trip request:
 - Interests: {interests}
 - Pace: {request.pace}
 {_output_language_section(request)}
+{planning_constraints_section}
 {user_context_section}
 {weather_context_section}
 {accommodation_context_section}
@@ -354,6 +360,7 @@ def build_regenerate_day_prompt(
     )
     instruction = request.instruction or "No extra user instruction provided."
     opening_hours_section = _attached_place_opening_hours_section(request)
+    planning_constraints_section = _planning_constraints_section(request)
 
     return f"""
 You are regenerating exactly one itinerary day for a web-based travel planning application.
@@ -386,6 +393,7 @@ The JSON must exactly match this schema and must not include any other fields:
 
 Trip request:
 {_partial_trip_section(request)}
+{planning_constraints_section}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
@@ -441,6 +449,7 @@ def build_regenerate_item_prompt(
     )
     instruction = request.instruction or "No extra user instruction provided."
     opening_hours_section = _attached_place_opening_hours_section(request)
+    planning_constraints_section = _planning_constraints_section(request)
 
     return f"""
 You are regenerating exactly one itinerary item for a web-based travel planning application.
@@ -467,6 +476,7 @@ The JSON must exactly match this schema and must not include any other fields:
 
 Trip request:
 {_partial_trip_section(request)}
+{planning_constraints_section}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
@@ -512,6 +522,7 @@ def build_optimize_budget_day_prompt(request: OptimizeBudgetDayRequest) -> str:
     selected_day_json = (
         selected_day.model_dump_json(by_alias=True, exclude_none=True) if selected_day else "{}"
     )
+    planning_constraints_section = _planning_constraints_section(request)
 
     return f"""
 You are creating a reviewable budget optimization proposal for one itinerary day.
@@ -572,6 +583,7 @@ The JSON must exactly match this schema and must not include any other fields:
 
 Trip request:
 {_partial_trip_section(request)}
+{planning_constraints_section}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
@@ -636,6 +648,7 @@ def build_repair_itinerary_prompt(request: RepairItineraryRequest) -> str:
         if hasattr(request.context, "model_dump_json")
         else json.dumps(request.context or {}, ensure_ascii=False)
     )
+    planning_constraints_section = _planning_constraints_section(request, repair_targets=True)
 
     return f"""
 You are an itinerary repair engine for a web-based travel planning application.
@@ -732,6 +745,7 @@ Preservation constraints:
 Additional context:
 {context}
 
+{planning_constraints_section}
 Special instructions:
 {special_instructions}
 
@@ -799,6 +813,7 @@ def build_template_adaptation_prompt(request: TemplateAdaptationRequest) -> str:
     """Build the strict-JSON prompt for adapting a template to a new target."""
     target = request.target
     constraints = request.constraints
+    planning_constraints_section = _planning_constraints_section(request)
 
     return f"""
 You are a travel itinerary adaptation engine for a web-based travel planning
@@ -863,6 +878,7 @@ SAFETY AND PRODUCT CONSTRAINTS:
 - Prices are estimates that the user must verify; availability must be checked.
 
 {_workspace_policy_section(request)}
+{planning_constraints_section}
 {_special_instructions_section(constraints)}
 Return ONLY the JSON described above. Do not include any text outside the JSON.
 """.strip()
@@ -873,6 +889,7 @@ def build_template_adaptation_repair_prompt(
     invalid_response_text: str,
     validation_error: str,
 ) -> str:
+    planning_constraints_section = _planning_constraints_section(request)
     return f"""
 You previously generated a template adaptation JSON response, but it was invalid.
 
@@ -891,6 +908,7 @@ TARGET TRIP REQUIREMENTS:
 {_target_requirements_section(request)}
 
 {_workspace_policy_section(request)}
+{planning_constraints_section}
 Invalid previous response:
 {invalid_response_text}
 
@@ -1006,6 +1024,7 @@ def build_regenerate_day_repair_prompt(
     destination_context: DestinationContext | None = None,
     rag_chunks: list[KnowledgeSearchResult] | None = None,
 ) -> str:
+    planning_constraints_section = _planning_constraints_section(request)
     return f"""
 You previously generated a replacement itinerary day JSON response, but it was invalid.
 
@@ -1039,6 +1058,7 @@ Required schema:
 
 Trip request:
 {_partial_trip_section(request)}
+{planning_constraints_section}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
@@ -1061,6 +1081,7 @@ def build_regenerate_item_repair_prompt(
     destination_context: DestinationContext | None = None,
     rag_chunks: list[KnowledgeSearchResult] | None = None,
 ) -> str:
+    planning_constraints_section = _planning_constraints_section(request)
     return f"""
 You previously generated a replacement itinerary item JSON response, but it was invalid.
 
@@ -1088,6 +1109,7 @@ Required schema:
 
 Trip request:
 {_partial_trip_section(request)}
+{planning_constraints_section}
 {_partial_user_context_section(request)}
 {_weather_context_section(request.weather_forecast)}
 {_accommodation_context_section(request.accommodation)}
@@ -1101,6 +1123,119 @@ Invalid previous response:
 Return ONLY corrected JSON for item index {request.item_index} in day {request.day_number}.
 Do not include markdown, explanations, comments, code fences, or fields outside the schema.
 """.strip()
+
+
+def _planning_constraints_section(request: object, repair_targets: bool = False) -> str:
+    constraints = getattr(request, "planning_constraints", None)
+    if constraints is None:
+        return ""
+
+    lines = [
+        "PLANNING CONSTRAINTS:",
+        "- Respect these normalized constraints consistently across the response.",
+        "- If constraints conflict, prioritize workspace policy and explicit trip/request fields.",
+        "- Keep JSON keys and enum values in English; localize only user-facing text.",
+        "- Do not claim live booking, live availability, legal compliance, medical/accessibility guarantees, or exact prices.",
+    ]
+    if repair_targets:
+        lines.append("- Treat blockers as repair targets rather than a reason to refuse the repair.")
+    else:
+        lines.append("- Treat blockers as hard constraints.")
+
+    language = getattr(constraints, "language", None)
+    if language:
+        lines.append(f"- Output language: {_LANGUAGE_NAMES.get(language, language)}.")
+    budget = getattr(constraints, "budget", None)
+    if budget is not None:
+        amount = getattr(budget, "amount", None)
+        currency = getattr(budget, "currency", None)
+        strictness = getattr(budget, "strictness", None)
+        if amount is not None and currency:
+            lines.append(f"- Budget: {amount} {currency}, strictness: {strictness or 'target'}.")
+        elif currency:
+            lines.append(f"- Budget currency: {currency}, strictness: {strictness or 'loose'}.")
+    pace = getattr(constraints, "pace", None)
+    if pace:
+        lines.append(f"- Pace: {pace}.")
+    walking = getattr(constraints, "walking", None)
+    if walking is not None:
+        max_km = getattr(walking, "max_km_per_day", None)
+        if max_km is not None:
+            lines.append(f"- Max walking: {max_km:g} km/day.")
+        if getattr(walking, "allow_long_hikes", True) is False:
+            lines.append("- Long hikes are not allowed.")
+    transport = getattr(constraints, "transport", None)
+    if transport is not None:
+        _append_optional_line(lines, "Preferred transport", _display_list(getattr(transport, "preferred_modes", [])))
+        _append_optional_line(lines, "Avoid transport", _display_list(getattr(transport, "avoid_modes", [])))
+        _append_optional_line(
+            lines,
+            "Disallowed transport",
+            _display_list(getattr(transport, "disallowed_modes", [])),
+        )
+        max_transfer = getattr(transport, "max_transfer_hours_per_day", None)
+        if max_transfer is not None:
+            lines.append(f"- Max transfer hours per day: {max_transfer}.")
+    trip_styles = getattr(constraints, "trip_styles", [])
+    _append_optional_line(lines, "Trip styles", _display_list(trip_styles))
+    _append_optional_line(lines, "Interests", _display_list(getattr(constraints, "interests", [])))
+    _append_optional_line(lines, "Avoid", _display_list(getattr(constraints, "avoid", [])))
+    _append_optional_line(lines, "Must have", _display_list(getattr(constraints, "must_have", [])))
+
+    accommodation = getattr(constraints, "accommodation", None)
+    if accommodation is not None:
+        _append_optional_line(
+            lines,
+            "Accommodation preferred types",
+            _display_list(getattr(accommodation, "preferred_types", [])),
+        )
+        _append_optional_line(
+            lines,
+            "Accommodation avoid types",
+            _display_list(getattr(accommodation, "avoid_types", [])),
+        )
+    food = getattr(constraints, "food", None)
+    if food is not None:
+        _append_optional_line(lines, "Food preferences", _display_list(getattr(food, "preferences", [])))
+        _append_optional_line(
+            lines,
+            "Dietary restrictions",
+            _display_list(getattr(food, "dietary_restrictions", [])),
+        )
+
+    workspace_policy = getattr(constraints, "workspace_policy", None)
+    if workspace_policy is not None and getattr(workspace_policy, "summary", None):
+        lines.append("- Workspace policy summary:")
+        lines.extend(f"  - {line}" for line in str(workspace_policy.summary).splitlines() if line.strip())
+
+    route = getattr(constraints, "route", None)
+    if route:
+        route_payload = route if isinstance(route, dict) else {}
+        stops = route_payload.get("stops") if isinstance(route_payload, dict) else None
+        if isinstance(stops, list) and stops:
+            stop_names = [
+                str(stop.get("city") or stop.get("destination") or stop.get("name"))
+                for stop in stops[:8]
+                if isinstance(stop, dict)
+            ]
+            _append_optional_line(lines, "Route", " -> ".join(name for name in stop_names if name))
+
+    warnings = getattr(constraints, "warnings", []) or []
+    blockers = getattr(constraints, "blockers", []) or []
+    if warnings:
+        lines.append("Warnings:")
+        for issue in warnings[:8]:
+            message = getattr(issue, "message", "")
+            if message:
+                lines.append(f"- {message}")
+    if blockers:
+        lines.append("Blockers:")
+        for issue in blockers[:8]:
+            message = getattr(issue, "message", "")
+            if message:
+                lines.append(f"- {message}")
+
+    return "\n" + "\n".join(lines) + "\n"
 
 
 def _accommodation_context_section(accommodation: object | None) -> str:

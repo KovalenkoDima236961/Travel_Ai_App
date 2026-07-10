@@ -25,6 +25,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
@@ -85,6 +86,7 @@ func (h *Handler) EnableWorkspacePolicies(svc *workspacepolicies.Service) *Handl
 // RegisterRoutes mounts the trip routes onto the given chi router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/collaboration/invitations", h.ListCollaborationInvitations)
+	r.Post("/planning-constraints/preview", h.PreviewPlanningConstraints)
 	r.Route("/trips", func(r chi.Router) {
 		r.Post("/", h.Create)
 		r.Get("/", h.List)
@@ -189,6 +191,20 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{budgetId}/make-primary", h.MakeWorkspaceBudgetPrimary)
 		r.Get("/{budgetId}/summary", h.GetWorkspaceBudgetSummary)
 	})
+}
+
+func (h *Handler) PreviewPlanningConstraints(w http.ResponseWriter, r *http.Request) {
+	var req planningconstraints.PreviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	response, err := h.svc.PreviewPlanningConstraints(r.Context(), req)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) GetGoogleCalendarSyncStatus(w http.ResponseWriter, r *http.Request) {
@@ -1515,10 +1531,19 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var dependency *apperrs.DependencyError
 	var budgetConversion *apperrs.BudgetConversionError
 	var policyBlocking *workspacepolicies.BlockingViolationError
+	var planningBlocking *planningconstraints.BlockingError
 	var revisionRequired *apperrs.ExpectedItineraryRevisionRequiredError
 	var conflict *apperrs.ItineraryConflictError
 	var stateConflict *apperrs.ConflictError
 	switch {
+	case errors.As(err, &planningBlocking):
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error":       "planning_constraints_blocked",
+			"message":     planningBlocking.Error(),
+			"constraints": planningBlocking.Constraints,
+			"warnings":    planningBlocking.Constraints.Warnings,
+			"blockers":    planningBlocking.Constraints.Blockers,
+		})
 	case errors.As(err, &policyBlocking):
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"error":      "workspace_policy_blocking_violation",

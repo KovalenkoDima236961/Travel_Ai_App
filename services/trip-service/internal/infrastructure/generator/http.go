@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
@@ -36,26 +37,27 @@ type AIPlanningHTTPGenerator struct {
 }
 
 type aiPlanningGenerateRequest struct {
-	TripID                     string                           `json:"tripId"`
-	TripType                   string                           `json:"tripType"`
-	Destination                string                           `json:"destination"`
-	StartDate                  *string                          `json:"startDate,omitempty"`
-	Days                       int32                            `json:"days"`
-	BudgetAmount               *float64                         `json:"budgetAmount,omitempty"`
-	BudgetCurrency             string                           `json:"budgetCurrency"`
-	Travelers                  int32                            `json:"travelers"`
-	Interests                  []string                         `json:"interests"`
-	Pace                       string                           `json:"pace"`
-	Instruction                string                           `json:"instruction,omitempty"`
-	OutputLanguage             string                           `json:"outputLanguage"`
-	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
-	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
-	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
-	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
-	Route                      *aggregate.TripRoute             `json:"route,omitempty"`
-	TransportPreferences       *aggregate.RoutePreferences      `json:"transportPreferences,omitempty"`
-	TripStyles                 []string                         `json:"tripStyles,omitempty"`
-	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
+	TripID                     string                                   `json:"tripId"`
+	TripType                   string                                   `json:"tripType"`
+	Destination                string                                   `json:"destination"`
+	StartDate                  *string                                  `json:"startDate,omitempty"`
+	Days                       int32                                    `json:"days"`
+	BudgetAmount               *float64                                 `json:"budgetAmount,omitempty"`
+	BudgetCurrency             string                                   `json:"budgetCurrency"`
+	Travelers                  int32                                    `json:"travelers"`
+	Interests                  []string                                 `json:"interests"`
+	Pace                       string                                   `json:"pace"`
+	Instruction                string                                   `json:"instruction,omitempty"`
+	OutputLanguage             string                                   `json:"outputLanguage"`
+	UserProfile                *usercontext.UserProfile                 `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences             `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast          `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation                 `json:"accommodation,omitempty"`
+	Route                      *aggregate.TripRoute                     `json:"route,omitempty"`
+	TransportPreferences       *aggregate.RoutePreferences              `json:"transportPreferences,omitempty"`
+	TripStyles                 []string                                 `json:"tripStyles,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 }
 
 type aiPlanningTripRequest struct {
@@ -73,30 +75,32 @@ type aiPlanningTripRequest struct {
 }
 
 type aiPlanningRegenerateDayRequest struct {
-	Trip                       aiPlanningTripRequest            `json:"trip"`
-	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
-	DayNumber                  int                              `json:"dayNumber"`
-	Instruction                string                           `json:"instruction,omitempty"`
-	OutputLanguage             string                           `json:"outputLanguage"`
-	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
-	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
-	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
-	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
-	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
+	Trip                       aiPlanningTripRequest                    `json:"trip"`
+	CurrentItinerary           aggregate.Itinerary                      `json:"currentItinerary"`
+	DayNumber                  int                                      `json:"dayNumber"`
+	Instruction                string                                   `json:"instruction,omitempty"`
+	OutputLanguage             string                                   `json:"outputLanguage"`
+	UserProfile                *usercontext.UserProfile                 `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences             `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast          `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation                 `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 }
 
 type aiPlanningRegenerateItemRequest struct {
-	Trip                       aiPlanningTripRequest            `json:"trip"`
-	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
-	DayNumber                  int                              `json:"dayNumber"`
-	ItemIndex                  int                              `json:"itemIndex"`
-	Instruction                string                           `json:"instruction,omitempty"`
-	OutputLanguage             string                           `json:"outputLanguage"`
-	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
-	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
-	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
-	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
-	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
+	Trip                       aiPlanningTripRequest                    `json:"trip"`
+	CurrentItinerary           aggregate.Itinerary                      `json:"currentItinerary"`
+	DayNumber                  int                                      `json:"dayNumber"`
+	ItemIndex                  int                                      `json:"itemIndex"`
+	Instruction                string                                   `json:"instruction,omitempty"`
+	OutputLanguage             string                                   `json:"outputLanguage"`
+	UserProfile                *usercontext.UserProfile                 `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences             `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast          `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation                 `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 }
 
 type aiPlanningRegenerateDayResponse struct {
@@ -108,28 +112,30 @@ type aiPlanningRegenerateItemResponse struct {
 }
 
 type aiPlanningOptimizeBudgetDayRequest struct {
-	Trip                       aiPlanningTripRequest            `json:"trip"`
-	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
-	DayNumber                  int                              `json:"dayNumber"`
-	CurrentDay                 aggregate.ItineraryDay           `json:"currentDay"`
-	BudgetContext              budgetoptimization.BudgetContext `json:"budgetContext"`
-	Constraints                budgetoptimization.Constraints   `json:"constraints"`
-	Instruction                string                           `json:"instruction,omitempty"`
-	OutputLanguage             string                           `json:"outputLanguage"`
-	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
-	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
-	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
-	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
-	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
+	Trip                       aiPlanningTripRequest                    `json:"trip"`
+	CurrentItinerary           aggregate.Itinerary                      `json:"currentItinerary"`
+	DayNumber                  int                                      `json:"dayNumber"`
+	CurrentDay                 aggregate.ItineraryDay                   `json:"currentDay"`
+	BudgetContext              budgetoptimization.BudgetContext         `json:"budgetContext"`
+	Constraints                budgetoptimization.Constraints           `json:"constraints"`
+	Instruction                string                                   `json:"instruction,omitempty"`
+	OutputLanguage             string                                   `json:"outputLanguage"`
+	UserProfile                *usercontext.UserProfile                 `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences             `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast          `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation                 `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 }
 
 type aiPlanningAdaptTemplateRequest struct {
-	Template                   templateadaptation.Template      `json:"template"`
-	Target                     aiPlanningAdaptTarget            `json:"target"`
-	Constraints                templateadaptation.Constraints   `json:"constraints"`
-	Context                    *aiPlanningAdaptContext          `json:"context,omitempty"`
-	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
-	OutputLanguage             string                           `json:"outputLanguage"`
+	Template                   templateadaptation.Template              `json:"template"`
+	Target                     aiPlanningAdaptTarget                    `json:"target"`
+	Constraints                templateadaptation.Constraints           `json:"constraints"`
+	Context                    *aiPlanningAdaptContext                  `json:"context,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
+	OutputLanguage             string                                   `json:"outputLanguage"`
 }
 
 type aiPlanningAdaptTarget struct {
@@ -189,15 +195,16 @@ type aiPlanningAdaptationSummary struct {
 }
 
 type aiPlanningRepairRequest struct {
-	Itinerary        aggregate.Itinerary          `json:"itinerary"`
-	TripContext      triprepair.TripContext       `json:"tripContext"`
-	Policy           any                          `json:"policy,omitempty"`
-	PolicyEvaluation workspacepolicies.Evaluation `json:"policyEvaluation"`
-	ApprovalRisk     any                          `json:"approvalRisk"`
-	Issues           []triprepair.Issue           `json:"issues"`
-	Constraints      aiPlanningRepairConstraints  `json:"constraints"`
-	Context          aiPlanningRepairContext      `json:"context"`
-	OutputLanguage   string                       `json:"outputLanguage"`
+	Itinerary           aggregate.Itinerary                      `json:"itinerary"`
+	TripContext         triprepair.TripContext                   `json:"tripContext"`
+	Policy              any                                      `json:"policy,omitempty"`
+	PolicyEvaluation    workspacepolicies.Evaluation             `json:"policyEvaluation"`
+	ApprovalRisk        any                                      `json:"approvalRisk"`
+	Issues              []triprepair.Issue                       `json:"issues"`
+	Constraints         aiPlanningRepairConstraints              `json:"constraints"`
+	Context             aiPlanningRepairContext                  `json:"context"`
+	OutputLanguage      string                                   `json:"outputLanguage"`
+	PlanningConstraints *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 }
 
 type aiPlanningRepairConstraints struct {
@@ -236,6 +243,7 @@ func (g *AIPlanningHTTPGenerator) AdaptTemplate(ctx context.Context, input templ
 		},
 		Constraints:                input.Constraints,
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
+		PlanningConstraints:        input.PlanningConstraints,
 		OutputLanguage:             languageFromProfile(input.UserProfile),
 	}
 	if input.UserProfile != nil || input.UserPreferences != nil {
@@ -448,6 +456,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateDay(ctx context.Context, input appli
 		WeatherForecast:            input.WeatherForecast,
 		Accommodation:              trip.Accommodation,
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
+		PlanningConstraints:        input.PlanningConstraints,
 	}
 
 	var result aiPlanningRegenerateDayResponse
@@ -472,6 +481,7 @@ func (g *AIPlanningHTTPGenerator) RegenerateItem(ctx context.Context, input appl
 		WeatherForecast:            input.WeatherForecast,
 		Accommodation:              trip.Accommodation,
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
+		PlanningConstraints:        input.PlanningConstraints,
 	}
 
 	var result aiPlanningRegenerateItemResponse
@@ -498,6 +508,7 @@ func (g *AIPlanningHTTPGenerator) OptimizeBudgetDay(ctx context.Context, input b
 		WeatherForecast:            input.WeatherForecast,
 		Accommodation:              trip.Accommodation,
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
+		PlanningConstraints:        input.PlanningConstraints,
 	}
 
 	var result budgetoptimization.ProposalContent
@@ -510,13 +521,14 @@ func (g *AIPlanningHTTPGenerator) OptimizeBudgetDay(ctx context.Context, input b
 func (g *AIPlanningHTTPGenerator) RepairItinerary(ctx context.Context, input triprepair.Input) (*triprepair.ProposalContent, error) {
 	trip := input.Trip
 	payload := aiPlanningRepairRequest{
-		Itinerary:        input.CurrentItinerary,
-		TripContext:      input.TripContext,
-		Policy:           input.Policy,
-		PolicyEvaluation: input.PolicyEvaluation,
-		ApprovalRisk:     input.ApprovalRisk,
-		Issues:           input.Issues,
-		OutputLanguage:   languageFromProfile(input.UserProfile),
+		Itinerary:           input.CurrentItinerary,
+		TripContext:         input.TripContext,
+		Policy:              input.Policy,
+		PolicyEvaluation:    input.PolicyEvaluation,
+		ApprovalRisk:        input.ApprovalRisk,
+		Issues:              input.Issues,
+		OutputLanguage:      languageFromProfile(input.UserProfile),
+		PlanningConstraints: input.PlanningConstraints,
 		Constraints: aiPlanningRepairConstraints{
 			RepairMode:               input.Constraints.RepairMode,
 			SelectedIssueTypes:       input.Constraints.SelectedIssueTypes,
@@ -581,6 +593,7 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		TransportPreferences:       routePreferencesPtr(trip.Route),
 		TripStyles:                 routeTripStyles(trip.Route),
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
+		PlanningConstraints:        input.PlanningConstraints,
 	}
 }
 

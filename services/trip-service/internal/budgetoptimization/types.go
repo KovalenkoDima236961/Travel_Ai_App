@@ -7,6 +7,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -87,19 +88,20 @@ type BudgetContext struct {
 }
 
 type OptimizeDayInput struct {
-	Trip                       entity.Trip                      `json:"-"`
-	CurrentItinerary           aggregate.Itinerary              `json:"currentItinerary"`
-	DayNumber                  int                              `json:"dayNumber"`
-	CurrentDay                 aggregate.ItineraryDay           `json:"currentDay"`
-	BudgetSummary              budget.Summary                   `json:"budgetSummary"`
-	BudgetContext              BudgetContext                    `json:"budgetContext"`
-	Constraints                Constraints                      `json:"constraints"`
-	Instruction                string                           `json:"instruction,omitempty"`
-	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
-	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
-	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
-	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
-	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
+	Trip                       entity.Trip                              `json:"-"`
+	CurrentItinerary           aggregate.Itinerary                      `json:"currentItinerary"`
+	DayNumber                  int                                      `json:"dayNumber"`
+	CurrentDay                 aggregate.ItineraryDay                   `json:"currentDay"`
+	BudgetSummary              budget.Summary                           `json:"budgetSummary"`
+	BudgetContext              BudgetContext                            `json:"budgetContext"`
+	Constraints                Constraints                              `json:"constraints"`
+	Instruction                string                                   `json:"instruction,omitempty"`
+	UserProfile                *usercontext.UserProfile                 `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences             `json:"userPreferences,omitempty"`
+	WeatherForecast            *weathercontext.WeatherForecast          `json:"weatherForecast,omitempty"`
+	Accommodation              *aggregate.Accommodation                 `json:"accommodation,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 }
 
 type ProposalContent struct {

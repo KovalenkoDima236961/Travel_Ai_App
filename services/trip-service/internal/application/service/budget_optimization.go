@@ -18,6 +18,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 )
 
 func (s *Service) ListBudgetOptimizationProposals(
@@ -102,6 +103,21 @@ func (s *Service) OptimizeBudgetDayForActor(
 	if err != nil {
 		return nil, err
 	}
+	constraints, err := s.buildPlanningConstraints(
+		ctx,
+		user,
+		planningconstraints.SourceBudgetOptimization,
+		current,
+		planningconstraints.RequestOverride{Prompt: &planningconstraints.Prompt{UserPrompt: instruction}},
+		userContext,
+		false,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireNoPlanningBlockers(constraints, planningconstraints.SourceBudgetOptimization); err != nil {
+		return nil, err
+	}
 	summary, err := s.budgetSummaryForTrip(ctx, current)
 	if err != nil {
 		if s.budgetConversionFailOpen {
@@ -131,6 +147,7 @@ func (s *Service) OptimizeBudgetDayForActor(
 		return nil, err
 	}
 	input.WorkspacePolicyConstraints = s.workspacePolicyAIConstraints(ctx, current)
+	input.PlanningConstraints = constraints
 
 	content, err := s.generator.OptimizeBudgetDay(ctx, input)
 	if err != nil {

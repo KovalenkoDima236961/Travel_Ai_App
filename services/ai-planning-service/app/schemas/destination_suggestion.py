@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from app.schemas.itinerary import APIModel, OutputLanguage, TripRoute, UserPreferences
+from app.schemas.planning_constraints import PlanningConstraints
 
 
 class DestinationSuggestionMode(StrEnum):
@@ -107,6 +108,10 @@ class DestinationSuggestionRequest(APIModel):
     workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
         default=None,
         alias="workspacePolicyConstraints",
+    )
+    planning_constraints: PlanningConstraints | None = Field(
+        default=None,
+        alias="planningConstraints",
     )
     refinement: DestinationRefinementContext | None = None
     constraints: DestinationSuggestionConstraints = Field(

@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
@@ -99,6 +100,18 @@ func (s *Service) RepairItineraryForActor(
 	if err != nil {
 		return nil, nil, err
 	}
+	constraints, err := s.buildPlanningConstraints(
+		ctx,
+		user,
+		planningconstraints.SourcePolicyRepair,
+		current,
+		planningconstraints.RequestOverride{Prompt: &planningconstraints.Prompt{UserPrompt: payload.SpecialInstructions}},
+		userContext,
+		false,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	policy, policyEvaluation, err := s.activePolicyAndEvaluation(ctx, current)
 	if err != nil {
 		return nil, nil, err
@@ -110,17 +123,18 @@ func (s *Service) RepairItineraryForActor(
 	}
 
 	content, err := s.generator.RepairItinerary(ctx, triprepair.Input{
-		Trip:             *current,
-		CurrentItinerary: currentItinerary,
-		TripContext:      repairTripContext(*current),
-		Policy:           policy,
-		PolicyEvaluation: policyEvaluation,
-		ApprovalRisk:     risk,
-		Issues:           issues,
-		Constraints:      payload,
-		UserProfile:      userContext.Profile,
-		UserPreferences:  userContext.Preferences,
-		WeatherForecast:  weatherForecast,
+		Trip:                *current,
+		CurrentItinerary:    currentItinerary,
+		TripContext:         repairTripContext(*current),
+		Policy:              policy,
+		PolicyEvaluation:    policyEvaluation,
+		ApprovalRisk:        risk,
+		Issues:              issues,
+		Constraints:         payload,
+		UserProfile:         userContext.Profile,
+		UserPreferences:     userContext.Preferences,
+		WeatherForecast:     weatherForecast,
+		PlanningConstraints: constraints,
 	})
 	if err != nil {
 		return nil, nil, err

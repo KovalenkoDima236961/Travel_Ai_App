@@ -17,6 +17,30 @@ while JSON keys, enum values, and currency codes remain stable and English.
 Mock generation returns deterministic localized text for language propagation
 tests. Unsupported codes fail Pydantic validation.
 
+## Planning Constraints
+
+AI Planning Service accepts optional `planningConstraints` on
+`/generate-itinerary`, `/regenerate-day`, `/regenerate-item`,
+`/optimize-budget/day`, `/adapt-template`, `/repair-itinerary`, and
+`/suggest-destinations`. The shared Pydantic model lives in
+`app/schemas/planning_constraints.py` and mirrors Trip Service schema version 1:
+language, scope, profile, budget, dates, travelers, pace/walking, transport,
+trip styles, accommodation, interests/avoid/must-have, accessibility, food,
+route, workspace policy, previous-trip signals, prompt, warnings, and blockers.
+
+Prompt builders use one shared planning-constraints section. It tells the model
+to respect the normalized context, treat blockers as hard constraints outside
+repair, prefer workspace policy when constraints conflict, keep JSON keys/enums
+in English, localize user-facing text to `outputLanguage`, avoid claims of live
+booking/availability, and keep prices/times clearly approximate. Repair prompts
+describe blockers as targets to fix rather than reasons to reject the request.
+
+Mock mode reads the same context for deterministic behavior: preferred transport
+influences transfer items, avoided/disallowed modes are skipped, trip styles
+shape sample activities, and language still controls localized user-facing
+strings. Requests without `planningConstraints` remain supported for backward
+compatibility.
+
 ## Project Structure
 
 - `app/main.py` is the ASGI entry point and only creates the FastAPI app.
@@ -404,15 +428,10 @@ poetry run make check
 
 ## Workspace Policy Constraints
 
-Generation, day/item regeneration, budget optimization, and template
-adaptation requests may include `workspacePolicyConstraints` with a concise
-summary and the versioned rule document. Prompt builders include this trusted
-Trip Service context in a labeled workspace-policy section. Personal-trip
-requests omit it.
-
-These constraints are best-effort planning guidance. The model must not claim
-compliance, policies do not block generation, and Trip Service performs the
-authoritative deterministic evaluation after output is persisted.
+Legacy `workspacePolicyConstraints` remains accepted where older Trip Service
+payloads still send it, but new flows prefer `planningConstraints.workspacePolicy`
+inside the normalized context. Trip Service remains authoritative for policy
+blocking and post-generation validation.
 
 ## Troubleshooting
 

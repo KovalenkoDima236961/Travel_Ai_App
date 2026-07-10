@@ -867,9 +867,21 @@ def _transfer_item_for_leg(
 
 
 def _preferred_route_mode(request: GenerateItineraryRequest) -> str:
+    planning = request.planning_constraints
+    if planning is not None:
+        blocked = {
+            *planning.transport.avoid_modes,
+            *planning.transport.disallowed_modes,
+        }
+        for mode in planning.transport.preferred_modes:
+            if mode not in blocked:
+                return mode
     prefs = request.transport_preferences or (request.route.preferences if request.route else None)
     if prefs and prefs.preferred_modes:
-        return prefs.preferred_modes[0]
+        avoid = set(prefs.avoid_modes)
+        for mode in prefs.preferred_modes:
+            if mode not in avoid:
+                return mode
     return "train"
 
 
@@ -904,6 +916,8 @@ def _route_style_note(request: GenerateItineraryRequest) -> str:
     styles = list(request.trip_styles)
     if request.route is not None:
         styles.extend(request.route.preferences.trip_styles)
+    if request.planning_constraints is not None:
+        styles.extend(request.planning_constraints.trip_styles)
     if "hiking" in styles:
         return "Keep hiking plans conservative and verify local maps; this is not GPS navigation."
     if "camping" in styles:

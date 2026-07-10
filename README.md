@@ -12,6 +12,13 @@ Internationalization v1 supports English (`en`), Spanish (`es`), Ukrainian
 User Service persists the preference, and Trip Service forwards the requested
 output language to AI Planning Service.
 
+Smart Trip Constraints & Preference Engine v1 centralizes trip settings, user
+preferences, route data, workspace policy, budget, language, and previous-trip
+signals into one normalized planning context. Trip Service exposes a preview
+endpoint, sends the same context to AI Planning Service for discovery,
+generation, regeneration, template adaptation, repair, and budget optimization,
+and keeps deterministic backend validation authoritative after AI returns.
+
 ## System Map
 
 ```mermaid
@@ -106,6 +113,9 @@ Key product capabilities:
 - Multi-Tenant / Team Workspace v1: users can create workspaces, invite members,
   accept/decline invitations, switch between Personal/All/workspace scopes, and
   create workspace-owned trips governed by owner/admin/member/viewer roles.
+- Smart Trip Constraints & Preference Engine v1: preview the AI planning
+  context, detect warnings/blockers such as disallowed flights or unrealistic
+  route density, and pass one normalized constraints object through AI flows.
 - Optimistic concurrency through `itineraryRevision` and explicit
   `expectedItineraryRevision` writes, plus Advanced Collaborative Diff/Merge v1
   for safe day/item-level recovery of stale itinerary drafts.

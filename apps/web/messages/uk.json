@@ -148,6 +148,7 @@
     "other": "Інше"
   },
   "tripStyles": {
+    "city_break": "Міська подорож",
     "road_trip": "Роудтріп",
     "train_trip": "Подорож потягом",
     "camping": "Кемпінг",
@@ -161,7 +162,43 @@
     "family": "Сімейна",
     "romantic": "Романтична",
     "low_budget": "Низький бюджет",
+    "luxury": "Люкс",
     "hidden_gem": "Прихована перлина"
+  },
+  "planningConstraints": {
+    "title": "Підсумок планування ШІ",
+    "previewButton": "Переглянути налаштування ШІ",
+    "previewing": "Переглядаємо…",
+    "emptyPreview": "Перегляньте налаштування, які використає ШІ.",
+    "noIssues": "Проблем планування не виявлено.",
+    "advancedPreferences": "Розширені налаштування ШІ",
+    "language": "Мова",
+    "budget": "Бюджет",
+    "pace": "Темп",
+    "transport": "Транспорт",
+    "styles": "Стилі",
+    "workspaceRules": "Правила простору",
+    "notSet": "Не задано",
+    "warningCount": "{count, plural, one {# попередження} few {# попередження} many {# попереджень} other {# попередження}}",
+    "blockerCount": "{count, plural, one {# блокер} few {# блокери} many {# блокерів} other {# блокера}}",
+    "budgetStrictness": "Суворість бюджету",
+    "walkingLimit": "Ліміт ходьби",
+    "maxTransferHours": "Макс. годин трансферів/день",
+    "carAvailable": "Авто доступне",
+    "preferredTransport": "Бажаний транспорт",
+    "avoidTransport": "Уникати транспорту",
+    "avoidList": "Уникати",
+    "mustHaveList": "Обов’язкові активності",
+    "severity": {
+      "blocking": "Блокер",
+      "warning": "Попередження",
+      "info": "Інфо"
+    },
+    "strictness": {
+      "loose": "Гнучко",
+      "target": "Цільово",
+      "strict": "Суворо"
+    }
   },
   "errors": {
     "generic": "Сталася помилка. Спробуйте ще раз.", "unauthorized": "Увійдіть, щоб продовжити.",

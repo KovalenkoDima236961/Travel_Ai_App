@@ -82,18 +82,31 @@ Use local Grafana credentials `admin` / `admin`.
 24. Select trip styles `Train trip` and `Hiking`.
 25. Confirm route validation warnings appear for any rushed stops, long transfers,
     avoided modes, or hiking/camping verification notes.
-26. Create the route trip with itinerary generation enabled.
-27. Confirm the trip detail page shows a route overview with stops, dates/nights,
+26. Open the advanced preferences area.
+27. Select Ukrainian output, prefer train/public transport, avoid flights, set
+    max walking to `8 km/day`, and set max transfer time to `4 hours/day`.
+28. Preview AI planning settings and confirm the summary shows language, budget,
+    pace, walking, transport, styles, and warning/blocker counts.
+29. Change one route leg to flight and confirm a blocking issue for disallowed
+    flight appears before generation.
+30. Change that leg back to train and confirm the disallowed-flight blocker
+    disappears while non-blocking warnings can still be reviewed.
+31. Create the route trip with itinerary generation enabled.
+32. Confirm the trip detail page shows a route overview with stops, dates/nights,
     transport modes, estimated duration/cost, and an editor-only route edit action.
-28. Confirm the itinerary includes a transfer day/card with from → to, mode,
+33. Confirm the itinerary includes a transfer day/card with from → to, mode,
     estimated duration, estimated cost, and a schedule-verification warning.
-29. Confirm the map shows numbered route stop markers and dashed approximate
+34. Confirm the map shows numbered route stop markers and dashed approximate
     transfer lines in addition to activity markers.
-30. Confirm the budget summary includes a `transport` category cost for transfers.
-31. Edit the route and confirm the UI warns that changing the route can make the
+35. Confirm the budget summary includes a `transport` category cost for transfers.
+36. Edit the route and confirm the UI warns that changing the route can make the
     current itinerary outdated.
-32. Return to the known-destination mode for the baseline flow below.
-33. Create a trip with:
+37. Open Trip Discovery and confirm the compact planning summary reflects the
+    same transport/language/style preferences before requesting suggestions.
+38. Open a workspace AI Repair dialog and confirm constraint blockers are shown
+    as repair targets rather than disabling repair submission.
+39. Return to the known-destination mode for the baseline flow below.
+40. Create a trip with:
    - destination: `Rome`
    - startDate: `2026-08-10`
    - days: `2`

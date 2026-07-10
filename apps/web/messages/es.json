@@ -148,6 +148,7 @@
     "other": "Otro"
   },
   "tripStyles": {
+    "city_break": "Escapada urbana",
     "road_trip": "Viaje por carretera",
     "train_trip": "Viaje en tren",
     "camping": "Camping",
@@ -161,7 +162,43 @@
     "family": "Familia",
     "romantic": "Romántico",
     "low_budget": "Bajo presupuesto",
+    "luxury": "Lujo",
     "hidden_gem": "Joya escondida"
+  },
+  "planningConstraints": {
+    "title": "Resumen de planificación IA",
+    "previewButton": "Previsualizar ajustes de IA",
+    "previewing": "Previsualizando…",
+    "emptyPreview": "Previsualiza los ajustes que usará la IA.",
+    "noIssues": "No se detectaron problemas de planificación.",
+    "advancedPreferences": "Preferencias avanzadas de IA",
+    "language": "Idioma",
+    "budget": "Presupuesto",
+    "pace": "Ritmo",
+    "transport": "Transporte",
+    "styles": "Estilos",
+    "workspaceRules": "Reglas del espacio",
+    "notSet": "Sin definir",
+    "warningCount": "{count, plural, one {# aviso} other {# avisos}}",
+    "blockerCount": "{count, plural, one {# bloqueo} other {# bloqueos}}",
+    "budgetStrictness": "Rigor del presupuesto",
+    "walkingLimit": "Límite de caminata",
+    "maxTransferHours": "Horas máximas de traslado/día",
+    "carAvailable": "Coche disponible",
+    "preferredTransport": "Transporte preferido",
+    "avoidTransport": "Transporte a evitar",
+    "avoidList": "Evitar",
+    "mustHaveList": "Actividades imprescindibles",
+    "severity": {
+      "blocking": "Bloqueo",
+      "warning": "Aviso",
+      "info": "Info"
+    },
+    "strictness": {
+      "loose": "Flexible",
+      "target": "Objetivo",
+      "strict": "Estricto"
+    }
   },
   "errors": {
     "generic": "Algo ha salido mal. Inténtalo de nuevo.", "unauthorized": "Inicia sesión para continuar.",

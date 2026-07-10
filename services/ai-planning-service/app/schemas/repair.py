@@ -11,6 +11,7 @@ from app.schemas.itinerary import (
     UserPreferences,
     UserProfile,
 )
+from app.schemas.planning_constraints import PlanningConstraints
 
 RepairMode = Literal[
     "policy_compliance",
@@ -165,6 +166,10 @@ class RepairItineraryRequest(APIModel):
     constraints: RepairConstraints = Field(default_factory=RepairConstraints)
     context: RepairContext | dict[str, Any] | None = None
     output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
+    planning_constraints: PlanningConstraints | None = Field(
+        default=None,
+        alias="planningConstraints",
+    )
 
     @model_validator(mode="after")
     def itinerary_must_have_days(self) -> "RepairItineraryRequest":

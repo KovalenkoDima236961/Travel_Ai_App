@@ -8,6 +8,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 )
 
 type Mode string
@@ -132,15 +133,16 @@ type Constraints struct {
 }
 
 type AIRequest struct {
-	Prompt                     string                `json:"prompt"`
-	Mode                       Mode                  `json:"mode"`
-	OutputLanguage             string                `json:"outputLanguage"`
-	UserContext                *UserContext          `json:"userContext,omitempty"`
-	TripContext                TripContext           `json:"tripContext"`
-	PreviousTrips              []PreviousTripSummary `json:"previousTrips"`
-	WorkspacePolicyConstraints *PolicyConstraints    `json:"workspacePolicyConstraints,omitempty"`
-	Refinement                 *Refinement           `json:"refinement,omitempty"`
-	Constraints                Constraints           `json:"constraints"`
+	Prompt                     string                                   `json:"prompt"`
+	Mode                       Mode                                     `json:"mode"`
+	OutputLanguage             string                                   `json:"outputLanguage"`
+	UserContext                *UserContext                             `json:"userContext,omitempty"`
+	TripContext                TripContext                              `json:"tripContext"`
+	PreviousTrips              []PreviousTripSummary                    `json:"previousTrips"`
+	WorkspacePolicyConstraints *PolicyConstraints                       `json:"workspacePolicyConstraints,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
+	Refinement                 *Refinement                              `json:"refinement,omitempty"`
+	Constraints                Constraints                              `json:"constraints"`
 }
 
 type Session struct {

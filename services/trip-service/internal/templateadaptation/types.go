@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
@@ -153,6 +154,7 @@ type AdaptInput struct {
 	UserProfile                *usercontext.UserProfile
 	UserPreferences            *usercontext.UserPreferences
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
+	PlanningConstraints        *planningconstraints.PlanningConstraints
 }
 
 // AdaptResult is the adapted itinerary plus a reviewable summary.

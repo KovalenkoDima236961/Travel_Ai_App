@@ -11,10 +11,18 @@ import { createTrip, tripKeys } from "@/lib/api/trips";
 import { getErrorMessage } from "@/lib/utils";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import {
+  AdvancedTripPreferencesForm,
+  type AdvancedTripPreferencesValue
+} from "@/components/planning-constraints/AdvancedTripPreferencesForm";
+import { PlanningConstraintsPreviewPanel } from "@/components/planning-constraints/PlanningConstraintsPreviewPanel";
+import {
   createDefaultTripRoute,
   getRouteValidationWarnings,
   TripRouteBuilder
 } from "@/components/routes/TripRouteBuilder";
+import { usePlanningConstraintsPreview } from "@/hooks/usePlanningConstraintsPreview";
+import type { TripRoute } from "@/entities/route/model";
+import type { PlanningConstraintsPreviewRequest } from "@/types/planning-constraints";
 import { CheckCircleIcon, MapPinIcon, SparklesIcon } from "./icons";
 
 const interestOptions = [
@@ -68,11 +76,22 @@ const FIELD_ERROR = "mt-1.5 block text-[13px] text-clay-deep";
 export function CreateTripForm() {
   const translate = useTranslations("trips");
   const translateCommon = useTranslations("common");
+  const translatePlanning = useTranslations("planningConstraints");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { currentScope, currentWorkspace, editableWorkspaces } = useWorkspaces();
   const [route, setRoute] = useState(createDefaultTripRoute);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [advancedPreferences, setAdvancedPreferences] = useState<AdvancedTripPreferencesValue>({
+    budgetStrictness: "target",
+    outputLanguage: "en",
+    maxWalkingKmPerDay: 8,
+    preferredModes: ["train", "public_transport"],
+    avoidModes: [],
+    carAvailable: false,
+    maxTransferHoursPerDay: 4,
+    tripStyles: []
+  });
 
   const form = useForm<TripFormValues>({
     resolver: zodResolver(tripFormSchema),
@@ -96,10 +115,12 @@ export function CreateTripForm() {
       router.push(`/trips/${trip.id}`);
     }
   });
+  const planningPreviewMutation = usePlanningConstraintsPreview();
 
   const {
     register,
     handleSubmit,
+    getValues,
     setValue,
     watch,
     formState: { errors }
@@ -126,6 +147,7 @@ export function CreateTripForm() {
   const selectedTripMode = watch("tripMode");
   const selectedDays = watch("days") ?? 1;
   const selectedCurrency = watch("budgetCurrency") ?? "EUR";
+  const selectedPace = watch("pace") ?? "balanced";
 
   function toggleInterest(value: string) {
     const next = selectedInterests.includes(value)
@@ -135,8 +157,11 @@ export function CreateTripForm() {
   }
 
   function onSubmit(values: TripFormValues) {
+    const routeForSubmit =
+      values.tripMode === "multi_destination" ? routeWithAdvancedPreferences(route) : null;
+
     if (values.tripMode === "multi_destination") {
-      const blockingWarning = getRouteValidationWarnings(route, values.days).find(
+      const blockingWarning = getRouteValidationWarnings(routeForSubmit ?? route, values.days).find(
         (warning) => warning.severity === "error"
       );
       if (blockingWarning) {
@@ -153,7 +178,7 @@ export function CreateTripForm() {
           ? values.destination.trim() || routeDestination
           : values.destination,
       tripType: values.tripMode,
-      route: values.tripMode === "multi_destination" ? route : null,
+      route: routeForSubmit,
       workspaceId: values.workspaceId || undefined,
       startDate: values.startDate || undefined,
       days: values.days,
@@ -163,6 +188,88 @@ export function CreateTripForm() {
       interests: values.interests ?? [],
       pace: values.pace
     });
+  }
+
+  function previewPlanningConstraints() {
+    planningPreviewMutation.mutate(buildPlanningPreviewRequest(getValues()));
+  }
+
+  function buildPlanningPreviewRequest(values: TripFormValues): PlanningConstraintsPreviewRequest {
+    const routeForPreview =
+      values.tripMode === "multi_destination" ? routeWithAdvancedPreferences(route) : null;
+    const preferredModes =
+      advancedPreferences.preferredModes ??
+      routeForPreview?.preferences?.preferredModes ??
+      [];
+    const avoidModes = advancedPreferences.avoidModes ?? routeForPreview?.preferences?.avoidModes ?? [];
+    const maxTransferHours =
+      advancedPreferences.maxTransferHoursPerDay ??
+      routeForPreview?.preferences?.maxTransferHoursPerDay ??
+      null;
+    const tripStyles =
+      (advancedPreferences.tripStyles?.length ?? 0) > 0
+        ? advancedPreferences.tripStyles
+        : routeForPreview?.preferences?.tripStyles ?? [];
+    const normalizedTripStyles = tripStyles ?? [];
+
+    return {
+      source: "trip_generation",
+      workspaceId: values.workspaceId || null,
+      request: {
+        tripType: values.tripMode,
+        destination:
+          values.tripMode === "multi_destination"
+            ? values.destination.trim() || deriveRouteDestination(route)
+            : values.destination,
+        outputLanguage: advancedPreferences.outputLanguage,
+        startDate: values.startDate || undefined,
+        durationDays: values.days,
+        budget: {
+          amount: optionalNumber(values.budgetAmount) ?? null,
+          currency: values.budgetCurrency.toUpperCase(),
+          strictness: advancedPreferences.budgetStrictness ?? "target"
+        },
+        travelers: { count: values.travelers },
+        pace: advancedPreferences.pace ?? values.pace,
+        walking: {
+          maxKmPerDay: advancedPreferences.maxWalkingKmPerDay ?? null,
+          allowLongHikes: normalizedTripStyles.includes("hiking")
+        },
+        transport: {
+          preferredModes,
+          avoidModes,
+          carAvailable: advancedPreferences.carAvailable ?? false,
+          maxTransferHoursPerDay: maxTransferHours
+        },
+        route: routeForPreview,
+        tripStyles: normalizedTripStyles,
+        interests: values.interests ?? [],
+        avoid: splitPreferenceList(advancedPreferences.avoid),
+        mustHave: splitPreferenceList(advancedPreferences.mustHave)
+      },
+      includePreviousTripSignals: true,
+      includeWorkspacePolicy: true,
+      includeRoute: true
+    };
+  }
+
+  function routeWithAdvancedPreferences(input: TripRoute): TripRoute {
+    const tripStyles =
+      (advancedPreferences.tripStyles?.length ?? 0) > 0
+        ? advancedPreferences.tripStyles
+        : input.preferences?.tripStyles;
+    return {
+      ...input,
+      preferences: {
+        ...input.preferences,
+        ...(advancedPreferences.preferredModes ? { preferredModes: advancedPreferences.preferredModes } : {}),
+        ...(advancedPreferences.avoidModes ? { avoidModes: advancedPreferences.avoidModes } : {}),
+        carAvailable: advancedPreferences.carAvailable ?? input.preferences?.carAvailable ?? false,
+        maxTransferHoursPerDay:
+          advancedPreferences.maxTransferHoursPerDay ?? input.preferences?.maxTransferHoursPerDay ?? null,
+        ...(tripStyles ? { tripStyles } : {})
+      }
+    };
   }
 
   return (
@@ -392,6 +499,33 @@ export function CreateTripForm() {
         {errors.interests?.message ? <p className={FIELD_ERROR}>{errors.interests.message}</p> : null}
       </section>
 
+      <section className="border-t border-sand-200 pt-8">
+        <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
+          {translatePlanning("advancedPreferences")}
+        </h2>
+        <div className="mt-5">
+          <AdvancedTripPreferencesForm
+            value={{
+              ...advancedPreferences,
+              pace: advancedPreferences.pace ?? selectedPace
+            }}
+            onChange={setAdvancedPreferences}
+          />
+        </div>
+        <div className="mt-6 rounded-2xl border border-sand-300 bg-sand-50/60 p-4">
+          <PlanningConstraintsPreviewPanel
+            error={
+              planningPreviewMutation.isError
+                ? getErrorMessage(planningPreviewMutation.error, "Could not preview AI settings.")
+                : null
+            }
+            isLoading={planningPreviewMutation.isPending}
+            onPreview={previewPlanningConstraints}
+            preview={planningPreviewMutation.data ?? null}
+          />
+        </div>
+      </section>
+
       {createMutation.isError ? (
         <div
           role="alert"
@@ -421,6 +555,17 @@ export function CreateTripForm() {
       </div>
     </form>
   );
+}
+
+function optionalNumber(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function splitPreferenceList(value?: string) {
+  return (value ?? "")
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function deriveRouteDestination(route: ReturnType<typeof createDefaultTripRoute>) {

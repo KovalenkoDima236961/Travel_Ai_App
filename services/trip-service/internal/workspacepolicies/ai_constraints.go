@@ -73,6 +73,15 @@ func BuildAIConstraints(policy *Policy) *AIConstraints {
 	if r.PreferredTransportModes.Enabled && len(r.PreferredTransportModes.Modes) > 0 {
 		lines = append(lines, "Prefer "+strings.Join(r.PreferredTransportModes.Modes, " and ")+".")
 	}
+	if r.MaxTransferHoursPerDay.Enabled {
+		lines = append(lines, fmt.Sprintf(
+			"Keep transfer time at or below %.2f hours per day.",
+			r.MaxTransferHoursPerDay.Hours,
+		))
+	}
+	if r.DisallowedTransportModes.Enabled && len(r.DisallowedTransportModes.Modes) > 0 {
+		lines = append(lines, "Do not use "+strings.Join(r.DisallowedTransportModes.Modes, " or ")+".")
+	}
 	if r.DisallowedActivityTypes.Enabled && len(r.DisallowedActivityTypes.Types) > 0 {
 		lines = append(lines, "Do not include "+strings.Join(r.DisallowedActivityTypes.Types, " or ")+".")
 	}

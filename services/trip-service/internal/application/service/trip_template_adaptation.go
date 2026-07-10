@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 )
 
@@ -181,6 +182,21 @@ func (s *Service) AdaptTemplateForActor(
 	if err != nil {
 		return nil, nil, err
 	}
+	constraints, err := s.buildPlanningConstraints(
+		ctx,
+		user,
+		planningconstraints.SourceTemplateAdaptation,
+		current,
+		templateAdaptationPlanningRequest(payload),
+		userContext,
+		true,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.requireNoPlanningBlockers(constraints, planningconstraints.SourceTemplateAdaptation); err != nil {
+		return nil, nil, err
+	}
 
 	if _, err := s.repo.UpdateStatusByUserID(ctx, tripID, ownerID, entity.StatusProcessing); err != nil {
 		return nil, nil, err
@@ -210,6 +226,7 @@ func (s *Service) AdaptTemplateForActor(
 		UserProfile:                userContext.Profile,
 		UserPreferences:            userContext.Preferences,
 		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
+		PlanningConstraints:        constraints,
 	}
 
 	var itinerary *aggregate.Itinerary
@@ -536,4 +553,29 @@ func normalizeAdaptationTags(values []string, maxCount, maxLength int, field str
 		out = append(out, trimmed)
 	}
 	return out, nil
+}
+
+func templateAdaptationPlanningRequest(payload templateadaptation.JobPayload) planningconstraints.RequestOverride {
+	var budgetOverride *planningconstraints.BudgetOverride
+	if payload.Budget != nil {
+		amount := payload.Budget.Amount
+		budgetOverride = &planningconstraints.BudgetOverride{
+			Amount:   &amount,
+			Currency: payload.Budget.Currency,
+		}
+	}
+	count := int32(payload.Travelers)
+	duration := payload.DurationDays
+	return planningconstraints.RequestOverride{
+		Destination:    payload.Destination,
+		StartDate:      payload.StartDate,
+		DurationDays:   &duration,
+		Budget:         budgetOverride,
+		Travelers:      &planningconstraints.TravelerOverride{Count: &count},
+		Pace:           payload.Pace,
+		Interests:      payload.Interests,
+		Avoid:          payload.Avoid,
+		Prompt:         &planningconstraints.Prompt{UserPrompt: payload.SpecialInstructions},
+		OutputLanguage: "",
+	}
 }

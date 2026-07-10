@@ -109,6 +109,37 @@ outdated and should be regenerated.
 Route labels are localized through the `routes`, `transportModes`, and
 `tripStyles` namespaces in `en`, `es`, `uk`, and `fr`.
 
+## Advanced Preferences And Constraints Preview
+
+Smart Trip Constraints v1 exposes shared frontend contracts in
+`src/types/planning-constraints.ts`, an API client in
+`src/lib/api/planning-constraints.ts`, and a TanStack Query mutation hook in
+`src/hooks/usePlanningConstraintsPreview.ts`. Reusable UI lives under
+`src/components/planning-constraints`:
+
+- `AdvancedTripPreferencesForm` edits budget strictness, pace, walking limit,
+  transport modes, car availability, max transfer hours, trip styles,
+  accommodation preferences, avoid/must-have lists, accessibility notes, food
+  preferences, and output language.
+- `PlanningConstraintsPreviewPanel` shows the AI planning summary.
+- `PlanningConstraintsSummaryCard` renders language, budget, pace, transport,
+  styles, workspace policy rule count, and warning/blocker counts.
+- `PlanningConstraintIssuesList` groups info, warning, and blocking issues with
+  suggested actions.
+
+The `planningConstraints` message namespace is present in `en`, `es`, `uk`, and
+`fr`. Supported action types include route, budget, preference, transport,
+accommodation, workspace-policy, and AI-repair recommendations. Page-level
+workflows can use the preview endpoint before generation, route updates, trip
+discovery, template adaptation, repair, or budget optimization. Warnings do not
+always block generation; blockers require changing the input except in repair,
+where blockers become repair targets.
+
+Constraints guide AI output, but backend policy and itinerary validation remain
+authoritative. Route feasibility, transfer time, walking distance, and budget
+signals are estimates. The app does not make bookings or provide legal,
+medical, or accessibility guarantees.
+
 ## Source Layout
 
 ```text

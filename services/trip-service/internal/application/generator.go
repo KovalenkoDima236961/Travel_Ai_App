@@ -8,6 +8,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -25,6 +26,7 @@ type GenerateItineraryInput struct {
 	UserPreferences            *usercontext.UserPreferences
 	WeatherForecast            *weathercontext.WeatherForecast
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
+	PlanningConstraints        *planningconstraints.PlanningConstraints
 }
 
 // RegenerateDayInput is the internal generator request for replacing one day
@@ -39,6 +41,7 @@ type RegenerateDayInput struct {
 	UserPreferences            *usercontext.UserPreferences
 	WeatherForecast            *weathercontext.WeatherForecast
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
+	PlanningConstraints        *planningconstraints.PlanningConstraints
 }
 
 // RegenerateItemInput is the internal generator request for replacing one item
@@ -54,6 +57,7 @@ type RegenerateItemInput struct {
 	UserPreferences            *usercontext.UserPreferences
 	WeatherForecast            *weathercontext.WeatherForecast
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
+	PlanningConstraints        *planningconstraints.PlanningConstraints
 }
 
 // ItineraryGenerator is the port for turning a trip into a concrete itinerary.

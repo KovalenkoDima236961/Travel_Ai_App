@@ -17,6 +17,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.planning_constraints import PlanningConstraints
+
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 CurrencyCode = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=3)]
 Pace = Literal["relaxed", "balanced", "intensive"]
@@ -528,6 +530,9 @@ class GenerateItineraryRequest(APIModel):
     workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
         default=None, alias="workspacePolicyConstraints"
     )
+    planning_constraints: PlanningConstraints | None = Field(
+        default=None, alias="planningConstraints"
+    )
 
     @field_validator("budget_currency", mode="before")
     @classmethod
@@ -548,7 +553,8 @@ class GenerateItineraryRequest(APIModel):
         if isinstance(value, str) and value.strip() == "":
             return "balanced"
         if isinstance(value, str):
-            return value.strip().lower()
+            normalized = value.strip().lower()
+            return "intensive" if normalized == "packed" else normalized
         return value
 
     @field_validator("interests", mode="before")
@@ -893,6 +899,9 @@ class RegenerateDayRequest(APIModel):
     workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
         default=None, alias="workspacePolicyConstraints"
     )
+    planning_constraints: PlanningConstraints | None = Field(
+        default=None, alias="planningConstraints"
+    )
 
     @field_validator("instruction", mode="before")
     @classmethod
@@ -1034,6 +1043,9 @@ class OptimizeBudgetDayRequest(APIModel):
     accommodation: AccommodationContext | None = None
     workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
         default=None, alias="workspacePolicyConstraints"
+    )
+    planning_constraints: PlanningConstraints | None = Field(
+        default=None, alias="planningConstraints"
     )
 
     @field_validator("instruction", mode="before")

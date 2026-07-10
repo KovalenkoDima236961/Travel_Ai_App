@@ -20,6 +20,62 @@ Trip language is not stored as separate trip metadata in this v1 slice, so
 background regeneration follows the current profile preference unless an
 explicit language is supplied.
 
+## Smart Trip Constraints
+
+Trip Service owns Smart Trip Constraints & Preference Engine v1 in
+`internal/planningconstraints`. The module derives a sanitized
+`PlanningConstraints` JSON object from request overrides, existing trip state,
+user profile/preferences, route data, budget, language, workspace policy, and a
+compact previous-trip summary.
+
+Merge precedence is:
+
+1. Explicit request fields.
+2. Current trip fields.
+3. User profile/preferences.
+4. Workspace defaults and policy.
+5. App defaults.
+
+Workspace blocking policy always overrides user or request preferences. Existing
+trip regeneration and repair use the trip's stored language metadata when
+available; new discovery/generation/adaptation requests may override with
+`outputLanguage`.
+
+`POST /planning-constraints/preview` returns:
+
+- `constraints`: schema version 1, source, scope, profile, budget, dates,
+  travelers, pace/walking, transport, styles, accommodation, food,
+  accessibility, route, workspace policy, previous-trip signals, prompt,
+  warnings, and blockers.
+- `summary`: localized-ish display strings/counts for UI preview.
+- `warnings` and `blockers`: flattened issue lists with suggested actions.
+
+Preview requires normal private auth. A `tripId` requires trip view access; a
+workspace-only preview requires workspace create access. Public share tokens
+cannot use it.
+
+The conflict detector is deterministic and intentionally small. It flags
+transport contradictions, disallowed route modes, too many stops for duration,
+long transfers, missing route estimates, high transfer cost share, invalid
+dates, hiking/low-walking conflicts, camping/accommodation conflicts, and
+budget-policy violations. Warnings are advisory; blockers prevent normal
+generation/discovery/adaptation/optimization, while `policy_repair` accepts
+blockers as repair targets.
+
+AI request builders now attach `planningConstraints` to trip discovery,
+full-generation, day/item regeneration, budget optimization, template
+adaptation, and policy repair payloads. Logs record only source, language, trip
+id/workspace id, and warning/blocker counts. The constraints object is
+sanitized: comments, collaborator emails, share tokens, calendar sync IDs, raw
+provider metadata/secrets, notification data, and full previous itineraries are
+not included. Route provider metadata and private stop notes are stripped.
+
+Constraints guide AI output, but deterministic Trip Service validation,
+workspace-policy evaluation, revision checks, and approval rules remain
+authoritative. Costs, transfer times, route feasibility, and budget fit are
+planning estimates only; there is no booking, legal/medical/accessibility
+guarantee, or live availability promise.
+
 ## AI Trip Discovery
 
 Trip Service persists private discovery sessions and exposes:

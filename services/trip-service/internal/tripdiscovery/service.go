@@ -16,6 +16,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
@@ -418,11 +419,13 @@ func (s *Service) buildAIRequest(
 		return AIRequest{}, err
 	}
 	var policyConstraints *PolicyConstraints
+	var policy *workspacepolicies.Policy
 	if input.WorkspaceID != nil && s.policies != nil {
-		policy, policyErr := s.policies.GetActive(ctx, *input.WorkspaceID)
+		policyValue, policyErr := s.policies.GetActive(ctx, *input.WorkspaceID)
 		if policyErr != nil && !errors.Is(policyErr, domainerrs.ErrNotFound) {
 			return AIRequest{}, policyErr
 		}
+		policy = policyValue
 		if policy != nil {
 			if constraints := workspacepolicies.BuildAIConstraints(policy); constraints != nil {
 				policyConstraints = &PolicyConstraints{
@@ -459,6 +462,35 @@ func (s *Service) buildAIRequest(
 	if origin == "" && userContext != nil {
 		origin = joinLocation(userContext.HomeCity, userContext.HomeCountry)
 	}
+	planningUserContext := usercontext.UserContext{}
+	if trustedContext != nil {
+		planningUserContext = *trustedContext
+	}
+	planning := planningconstraints.Build(planningconstraints.BuildInput{
+		UserID:      user.ID,
+		WorkspaceID: input.WorkspaceID,
+		Source:      planningconstraints.SourceTripDiscovery,
+		Request: planningconstraints.RequestOverride{
+			OutputLanguage:  language,
+			StartDate:       stringPtrValue(input.StartDate),
+			DurationDays:    input.DurationDays,
+			DateFlexibility: input.DateFlexibility,
+			Budget:          discoveryBudgetOverride(input.Budget),
+			Travelers:       discoveryTravelersOverride(input.Travelers),
+			Prompt: &planningconstraints.Prompt{
+				UserPrompt: prompt,
+				QuickChips: input.QuickChips,
+			},
+		},
+		UserContext:                planningUserContext,
+		WorkspacePolicy:            policy,
+		PreviousTrips:              previous,
+		IncludePreviousTripSignals: true,
+		IncludeRoute:               false,
+	})
+	if len(planning.Blockers) > 0 {
+		return AIRequest{}, planningconstraints.NewBlockingError(planning)
+	}
 	return AIRequest{
 		Prompt:         prompt,
 		Mode:           mode,
@@ -475,6 +507,7 @@ func (s *Service) buildAIRequest(
 		},
 		PreviousTrips:              summarizeTrips(previous),
 		WorkspacePolicyConstraints: policyConstraints,
+		PlanningConstraints:        &planning,
 		Refinement:                 refinement,
 		Constraints: Constraints{
 			SuggestionCount:        s.cfg.DefaultSuggestionCount,
@@ -713,4 +746,27 @@ func truncate(value string, limit int) string {
 		return value
 	}
 	return value[:limit]
+}
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func discoveryBudgetOverride(value *Budget) *planningconstraints.BudgetOverride {
+	if value == nil {
+		return nil
+	}
+	amount := value.Amount
+	return &planningconstraints.BudgetOverride{Amount: &amount, Currency: value.Currency}
+}
+
+func discoveryTravelersOverride(value int) *planningconstraints.TravelerOverride {
+	if value <= 0 {
+		return nil
+	}
+	count := int32(value)
+	return &planningconstraints.TravelerOverride{Count: &count}
 }

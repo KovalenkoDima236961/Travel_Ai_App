@@ -9,6 +9,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvalrisk"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -91,17 +92,18 @@ type Issue struct {
 }
 
 type Input struct {
-	Trip             entity.Trip                     `json:"-"`
-	CurrentItinerary aggregate.Itinerary             `json:"itinerary"`
-	TripContext      TripContext                     `json:"tripContext"`
-	Policy           *workspacepolicies.Policy       `json:"policy,omitempty"`
-	PolicyEvaluation workspacepolicies.Evaluation    `json:"policyEvaluation"`
-	ApprovalRisk     approvalrisk.Response           `json:"approvalRisk"`
-	Issues           []Issue                         `json:"issues"`
-	Constraints      JobPayload                      `json:"constraints"`
-	UserProfile      *usercontext.UserProfile        `json:"userProfile,omitempty"`
-	UserPreferences  *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
-	WeatherForecast  *weathercontext.WeatherForecast `json:"weatherContext,omitempty"`
+	Trip                entity.Trip                              `json:"-"`
+	CurrentItinerary    aggregate.Itinerary                      `json:"itinerary"`
+	TripContext         TripContext                              `json:"tripContext"`
+	Policy              *workspacepolicies.Policy                `json:"policy,omitempty"`
+	PolicyEvaluation    workspacepolicies.Evaluation             `json:"policyEvaluation"`
+	ApprovalRisk        approvalrisk.Response                    `json:"approvalRisk"`
+	Issues              []Issue                                  `json:"issues"`
+	Constraints         JobPayload                               `json:"constraints"`
+	UserProfile         *usercontext.UserProfile                 `json:"userProfile,omitempty"`
+	UserPreferences     *usercontext.UserPreferences             `json:"userPreferences,omitempty"`
+	WeatherForecast     *weathercontext.WeatherForecast          `json:"weatherContext,omitempty"`
+	PlanningConstraints *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 }
 
 type Summary struct {

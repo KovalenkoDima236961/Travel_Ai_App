@@ -965,7 +965,7 @@ PATCH_PREFERENCES_PAYLOAD='{
   "maxWalkingKmPerDay": 8,
   "foodPreferences": ["local", "cheap"],
   "avoid": ["nightclubs"],
-  "preferredTransport": ["walking", "public_transport"],
+  "preferredTransport": ["train", "public_transport"],
   "accommodationStyle": ["budget_hotel"]
 }'
 request_with_bearer PATCH "${USER_SERVICE_URL}/users/me/preferences" "${ACCESS_TOKEN}" "${PATCH_PREFERENCES_PAYLOAD}"
@@ -1119,7 +1119,9 @@ WORKSPACE_POLICY_RULES="$(jq -nc '{
     maxWalkingKmPerDay:{enabled:false,severity:"warning",km:12},
     noLateActivitiesAfter:{enabled:false,severity:"warning",time:"22:00"},
     requiredRestTimePerDay:{enabled:false,severity:"info",minutes:60},
-    preferredTransportModes:{enabled:false,severity:"info",modes:[]},
+    preferredTransportModes:{enabled:true,severity:"info",modes:["train","public_transport"]},
+    maxTransferHoursPerDay:{enabled:true,severity:"warning",hours:4},
+    disallowedTransportModes:{enabled:true,severity:"blocking",modes:["flight"]},
     disallowedActivityTypes:{enabled:false,severity:"warning",types:[]}
   }
 }')"
@@ -1150,6 +1152,99 @@ WORKSPACE_WARNING_POLICY_PAYLOAD="$(jq -nc --argjson rules "${WORKSPACE_WARNING_
   '{name:"Smoke planning policy",description:"Smoke policy",rules:$rules}')"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/policy" "${ACCESS_TOKEN}" "${WORKSPACE_WARNING_POLICY_PAYLOAD}"
 assert_2xx "Workspace owner changes policy violation to warning"
+
+echo "Checking planning constraints preview..."
+CONSTRAINTS_FLIGHT_ROUTE="$(
+  jq -nc '{
+    origin:{name:"Bratislava",country:"Slovakia"},
+    stops:[
+      {id:"stop_1",destination:"Vienna",country:"Austria",arrivalDate:"2026-09-10",departureDate:"2026-09-11"},
+      {id:"stop_2",destination:"Salzburg",country:"Austria",arrivalDate:"2026-09-11",departureDate:"2026-09-12"}
+    ],
+    legs:[
+      {
+        id:"leg_1",
+        fromStopId:"origin",
+        toStopId:"stop_1",
+        fromName:"Bratislava",
+        toName:"Vienna",
+        mode:"flight",
+        departureDate:"2026-09-10",
+        estimatedDurationMinutes:60,
+        estimatedDistanceKm:80,
+        estimatedCost:{amount:90,currency:"EUR",category:"transport",confidence:"medium",source:"mock"}
+      }
+    ],
+    preferences:{
+      preferredModes:["train"],
+      avoidModes:["flight"],
+      carAvailable:false,
+      maxTransferHoursPerDay:4,
+      tripStyles:["city_break","food"]
+    }
+  }'
+)"
+CONSTRAINTS_FLIGHT_PREVIEW_PAYLOAD="$(
+  jq -nc --arg workspaceId "${WORKSPACE_ID}" --argjson route "${CONSTRAINTS_FLIGHT_ROUTE}" '{
+    source:"trip_generation",
+    workspaceId:$workspaceId,
+    request:{
+      tripType:"multi_destination",
+      destination:"Austria rail route",
+      outputLanguage:"uk",
+      startDate:"2026-09-10",
+      durationDays:3,
+      budget:{amount:700,currency:"EUR",strictness:"target"},
+      travelers:{count:2,type:"friends"},
+      pace:"balanced",
+      walking:{maxKmPerDay:8,allowLongHikes:false},
+      transport:{preferredModes:["train"],avoidModes:["flight"],carAvailable:false,maxTransferHoursPerDay:4},
+      tripStyles:["city_break","food"],
+      route:$route
+    }
+  }'
+)"
+request_with_bearer POST "${TRIP_SERVICE_URL}/planning-constraints/preview" "${ACCESS_TOKEN}" "${CONSTRAINTS_FLIGHT_PREVIEW_PAYLOAD}"
+assert_2xx "Preview planning constraints with disallowed flight"
+if ! jq -e '
+  .constraints.schemaVersion == 1
+  and .constraints.language == "uk"
+  and (.constraints.transport.disallowedModes | index("flight"))
+  and (.blockers | any(.type == "transport_mode_disallowed"))
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Planning constraints preview did not report the expected disallowed-flight blocker." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+CONSTRAINTS_TRAIN_ROUTE="$(jq '.legs[0].mode = "train"' <<<"${CONSTRAINTS_FLIGHT_ROUTE}")"
+CONSTRAINTS_TRAIN_PREVIEW_PAYLOAD="$(
+  jq -nc --arg workspaceId "${WORKSPACE_ID}" --argjson route "${CONSTRAINTS_TRAIN_ROUTE}" '{
+    source:"trip_generation",
+    workspaceId:$workspaceId,
+    request:{
+      tripType:"multi_destination",
+      destination:"Austria rail route",
+      outputLanguage:"uk",
+      startDate:"2026-09-10",
+      durationDays:3,
+      budget:{amount:700,currency:"EUR",strictness:"target"},
+      travelers:{count:2,type:"friends"},
+      pace:"balanced",
+      walking:{maxKmPerDay:8,allowLongHikes:false},
+      transport:{preferredModes:["train"],avoidModes:["flight"],carAvailable:false,maxTransferHoursPerDay:4},
+      tripStyles:["city_break","food"],
+      route:$route
+    }
+  }'
+)"
+request_with_bearer POST "${TRIP_SERVICE_URL}/planning-constraints/preview" "${ACCESS_TOKEN}" "${CONSTRAINTS_TRAIN_PREVIEW_PAYLOAD}"
+assert_2xx "Preview planning constraints with allowed train"
+if jq -e '.blockers | any(.type == "transport_mode_disallowed")' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Planning constraints preview still reported a disallowed transport blocker after switching to train." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 echo "Checking AI policy-aware trip repair workflow..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/approval-risk" "${COLLAB_ACCESS_TOKEN}"

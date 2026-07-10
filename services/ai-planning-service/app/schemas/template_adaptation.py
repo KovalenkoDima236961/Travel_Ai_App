@@ -23,6 +23,7 @@ from app.schemas.itinerary import (
     WorkspacePolicyConstraints,
     _normalize_string_list,
 )
+from app.schemas.planning_constraints import PlanningConstraints
 
 # Item types accepted in template days / adapted days. Kept in sync with the
 # itinerary validator vocabulary so adapted output can persist unchanged.
@@ -204,6 +205,9 @@ class TemplateAdaptationRequest(APIModel):
     output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
     workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
         default=None, alias="workspacePolicyConstraints"
+    )
+    planning_constraints: PlanningConstraints | None = Field(
+        default=None, alias="planningConstraints"
     )
 
 
