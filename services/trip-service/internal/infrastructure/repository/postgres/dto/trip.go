@@ -23,7 +23,7 @@ import (
 // Columns is the canonical column order used by all SELECT/RETURNING statements
 // and the Scan helper.
 const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
-	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, workspace_id, created_at, updated_at"
+	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, workspace_id, creation_metadata, created_at, updated_at"
 
 // InsertColumns returns the columns set on INSERT (DB-defaulted columns omitted),
 // in the same order as InsertValues.
@@ -89,6 +89,7 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 		pace, status            string
 		itineraryRaw            []byte
 		accommodationRaw        []byte
+		creationMetadataRaw     []byte
 		itineraryRevision       int32
 		createdAt, updatedAt    pgtype.Timestamp
 	)
@@ -96,7 +97,8 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 	err := row.Scan(
 		&id, &userID, &destination, &startDate, &days, &budgetAmount,
 		&budgetCurrency, &travelers, &interestsRaw, &pace, &status,
-		&itineraryRaw, &itineraryRevision, &accommodationRaw, &workspaceID, &createdAt, &updatedAt,
+		&itineraryRaw, &itineraryRevision, &accommodationRaw, &workspaceID, &creationMetadataRaw,
+		&createdAt, &updatedAt,
 	)
 	if err != nil {
 		if postgres.NoRowsFound(err) {
@@ -136,6 +138,14 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 			return nil, err
 		}
 		t.Accommodation = accommodation
+	}
+	if len(creationMetadataRaw) > 0 {
+		if err := json.Unmarshal(creationMetadataRaw, &t.CreationMetadata); err != nil {
+			return nil, fmt.Errorf("unmarshal trip creation metadata: %w", err)
+		}
+	}
+	if t.CreationMetadata == nil {
+		t.CreationMetadata = map[string]any{}
 	}
 
 	return t, nil

@@ -25,6 +25,7 @@ func NewRouter(
 	corsCfg config.CORSConfig,
 	authCfg config.AuthConfig,
 	opsCfg config.OpsConfig,
+	featureHandlers ...interface{ RegisterRoutes(chi.Router) },
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -56,6 +57,11 @@ func NewRouter(
 			DevUserID:       devUserID,
 		}))
 		tripHandler.RegisterRoutes(r)
+		for _, featureHandler := range featureHandlers {
+			if featureHandler != nil {
+				featureHandler.RegisterRoutes(r)
+			}
+		}
 		if opsCfg.DashboardEnabled {
 			r.Group(func(r chi.Router) {
 				r.Use(ops.NewAdminChecker(opsCfg, log).Middleware)

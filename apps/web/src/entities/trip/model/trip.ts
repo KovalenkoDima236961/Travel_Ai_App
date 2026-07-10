@@ -96,6 +96,7 @@ export type Trip = {
   budgetCurrency: string;
   budget?: Budget | null;
   accommodation?: TripAccommodation | null;
+  creationMetadata?: Record<string, unknown>;
   travelers: number;
   interests: string[];
   pace: Pace;

@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
+import {
+  TripCreateModeSelector,
+  type TripCreateMode
+} from "@/components/trip-discovery/TripCreateModeSelector";
+import { TripDiscoveryExperience } from "@/components/trip-discovery/TripDiscoveryExperience";
 import { cn } from "@/shared/lib/cn";
 import { CreateTripForm } from "./CreateTripForm";
 import { CreateTripHeader } from "./CreateTripHeader";
@@ -25,6 +31,8 @@ const STEPS = [
 
 export function NewTripPageContent() {
   const translate = useTranslations("trips");
+  const discovery = useTranslations("tripDiscovery");
+  const [mode, setMode] = useState<TripCreateMode>("known");
   return (
     <div
       className={cn(
@@ -50,13 +58,18 @@ export function NewTripPageContent() {
           {translate("whereNext")}
         </h1>
         <p className="mt-3.5 max-w-[560px] text-[16px] leading-[1.6] text-cocoa-500">
-          {translate("createDescription")}
+          {mode === "known" ? translate("createDescription") : discovery("pageDescription")}
         </p>
 
-        <div className="mt-10 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <CreateTripForm />
+        <div className="mt-8 max-w-[760px]">
+          <TripCreateModeSelector value={mode} onChange={setMode} />
+        </div>
 
-          <aside className="flex flex-col gap-5">
+        {mode === "known" ? (
+          <div className="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <CreateTripForm />
+
+            <aside className="flex flex-col gap-5">
             <div className="rounded-[20px] border border-sand-300 bg-white px-[26px] py-6">
               <h2 className="font-newsreader text-[19px] font-semibold text-cocoa-900">
                 What happens next
@@ -97,8 +110,13 @@ export function NewTripPageContent() {
                 <ArrowRightIcon className="h-[18px] w-[18px] shrink-0 text-clay-dark" />
               </div>
             </Link>
-          </aside>
-        </div>
+            </aside>
+          </div>
+        ) : (
+          <div className="mt-8">
+            <TripDiscoveryExperience />
+          </div>
+        )}
       </div>
     </div>
   );

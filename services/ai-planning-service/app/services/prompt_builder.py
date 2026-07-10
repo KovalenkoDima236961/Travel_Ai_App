@@ -2,6 +2,7 @@ import json
 from datetime import timedelta
 
 from app.schemas.destination_context import DestinationContext
+from app.schemas.destination_suggestion import DestinationSuggestionRequest
 from app.schemas.itinerary import (
     GenerateItineraryRequest,
     OpeningHoursInterval,
@@ -12,6 +13,56 @@ from app.schemas.itinerary import (
 from app.schemas.knowledge import KnowledgeSearchResult
 from app.schemas.repair import RepairItineraryRequest
 from app.schemas.template_adaptation import TemplateAdaptationRequest
+
+
+def build_destination_suggestion_prompt(request: DestinationSuggestionRequest) -> str:
+    payload = request.model_dump(by_alias=True, exclude_none=True, mode="json")
+    return f"""
+You are a careful destination recommendation assistant.
+
+Return strict JSON only, matching this shape:
+{{
+  "sessionTitle": "string",
+  "suggestions": [{{
+    "id": "stable-slug",
+    "destination": "City, Country",
+    "city": "string",
+    "country": "string",
+    "region": "string or null",
+    "matchScore": 0,
+    "recommendedDurationDays": 1,
+    "bestFor": ["string"],
+    "estimatedBudget": {{"amount": 0, "currency": "EUR", "confidence": "low|medium|high"}},
+    "bestTimeToGo": "string",
+    "whyItFits": "string",
+    "possibleDownsides": ["string"],
+    "tripPreview": {{"title": "string", "summary": "string", "sampleDay": ["string"]}},
+    "tags": ["string"],
+    "suggestedPromptForItinerary": "string",
+    "concerns": [{{"type": "string", "message": "string"}}]
+  }}],
+  "followUpQuestions": ["string"],
+  "warnings": ["string"]
+}}
+
+Rules:
+- Return 3 to {request.constraints.suggestion_count} plausible, distinct suggestions.
+- Treat matchScore as an estimate and clamp it to 0-100.
+- Never claim live prices, availability, booking, visa, legal, health, or safety guarantees.
+- Budget values are rough estimates only.
+- Consider preferences, previous-trip summaries, budget, season, origin, and workspace policy.
+- When avoidPreviouslyVisited is true, do not repeat a previous destination.
+- In refine mode, follow the refinement instruction and avoid rejected suggestions unless the
+  user explicitly asks for similar places.
+- Explain fit and downsides, and include suggestedPromptForItinerary.
+- Keep JSON keys and enum values in English.
+- Localize all user-facing text values to outputLanguage={request.output_language}.
+- Do not suggest unsafe or illegal travel.
+
+Trusted sanitized request context:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
+""".strip()
+
 
 _ITEMS_PER_DAY_BY_PACE = {
     "relaxed": 3,
@@ -61,6 +112,7 @@ def build_itinerary_prompt(
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
     workspace_policy_section = _workspace_policy_section(request)
+    instruction = request.instruction or "No extra user instruction provided."
 
     return f"""
 You are generating an itinerary for a web-based travel planning application.
@@ -99,6 +151,7 @@ Trip request:
 - Travelers: {request.travelers}
 - Interests: {interests}
 - Pace: {request.pace}
+- User instruction: {instruction}
 {_output_language_section(request)}
 {user_context_section}
 {weather_context_section}
@@ -128,6 +181,7 @@ Rules:
 - Respect user profile and travel preferences where possible.
 - Prefer activities matching travelStyles and interests.
 - If preferences conflict with the explicit trip request, prioritize the trip request first.
+- Follow the user instruction when provided, while preserving all safety and schema rules.
 - Avoid preference items listed under Avoid unless necessary; if unavoidable, explain why
   in the item note.
 - Keep walking-heavy days reasonable when maxWalkingKmPerDay is set.

@@ -20,6 +20,31 @@ Trip language is not stored as separate trip metadata in this v1 slice, so
 background regeneration follows the current profile preference unless an
 explicit language is supplied.
 
+## AI Trip Discovery
+
+Trip Service persists private discovery sessions and exposes:
+
+- `POST /trip-discovery/suggestions`
+- `POST /trip-discovery/surprise-me`
+- `POST /trip-discovery/{sessionId}/refine`
+- `POST /trip-discovery/{sessionId}/suggestions/{suggestionId}/create-trip`
+- `GET /trip-discovery/sessions`
+- `GET /trip-discovery/sessions/{sessionId}`
+
+The service builds AI context from the trusted user profile/preferences, at
+most 15 compact previous-trip summaries, requested budget/dates/origin, output
+language, and active workspace policy. It never forwards itineraries, comments,
+collaborators, share tokens, calendar IDs, or provider payloads. Sessions are
+owner-scoped. Workspace discovery and creation require an active
+owner/admin/member role; viewers are rejected.
+
+Surprise and refine only create suggestion sessions. A trip is created after an
+explicit suggestion confirmation, receives `creationMetadata` identifying the
+session/suggestion, and can optionally queue a normal `full_generation` job.
+Budgets are estimates, no booking is performed, and changing a discovery
+session between personal and workspace scope is rejected so policy context
+cannot be bypassed.
+
 ## Architecture
 
 ```mermaid

@@ -29,6 +29,7 @@ type Trip struct {
 	Status            entity.Status            `json:"status"`
 	Itinerary         any                      `json:"itinerary,omitempty"`
 	Accommodation     *aggregate.Accommodation `json:"accommodation"`
+	CreationMetadata  map[string]any           `json:"creationMetadata"`
 	ItineraryRevision int                      `json:"itineraryRevision"`
 	Access            *TripAccess              `json:"access,omitempty"`
 	CreatedAt         time.Time                `json:"createdAt"`
@@ -425,6 +426,7 @@ func NewTrip(t *entity.Trip) Trip {
 		Status:            t.Status,
 		ItineraryRevision: t.ItineraryRevision,
 		Accommodation:     t.Accommodation,
+		CreationMetadata:  metadataOrEmpty(t.CreationMetadata),
 		CreatedAt:         t.CreatedAt,
 		UpdatedAt:         t.UpdatedAt,
 	}

@@ -256,6 +256,7 @@ class GenerateItineraryRequest(APIModel):
     travelers: int = Field(ge=1)
     interests: list[str] = Field(default_factory=list)
     pace: Pace = "balanced"
+    instruction: str | None = Field(default=None, max_length=2000)
     output_language: OutputLanguage = Field(default="en", alias="outputLanguage")
     user_profile: UserProfile | None = Field(default=None, alias="userProfile")
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")

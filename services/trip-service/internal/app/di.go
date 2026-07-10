@@ -31,6 +31,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/tripdiscovery"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -289,6 +290,29 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		generationJobOptions = append(generationJobOptions, generationjobs.WithPublisher(publisher))
 	}
 	generationJobSvc := generationjobs.NewService(repo, svc, generationJobsCfg, generationJobOptions...)
+	discoveryAIClient, err := tripdiscovery.NewHTTPAIClient(
+		cfg.ItineraryGenerator.AIPlanningServiceURL,
+		time.Duration(cfg.TripDiscovery.AITimeoutSeconds)*time.Second,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("init trip discovery AI client: %w", err)
+	}
+	discoverySvc := tripdiscovery.NewService(
+		repo,
+		discoveryAIClient,
+		svc,
+		generationJobSvc,
+		userContextClient,
+		workspaceClient,
+		policySvc,
+		tripdiscovery.Config{
+			Enabled:                cfg.TripDiscovery.Enabled,
+			MaxPreviousTrips:       cfg.TripDiscovery.MaxPreviousTrips,
+			DefaultSuggestionCount: cfg.TripDiscovery.DefaultSuggestionCount,
+		},
+		log,
+	)
+	discoveryHandler := tripdiscovery.NewHandler(discoverySvc)
 	generationJobWorker := generationjobs.NewWorker(repo, svc, generationJobsCfg, log)
 	closer.Add(
 		"generation-job-worker",
@@ -326,7 +350,15 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		time.Duration(cfg.ItineraryGenerator.AIPlanningTimeoutSeconds)*time.Second,
 		log,
 	)
-	router := httpserver.NewRouter(log, tripHandler, readinessHandler, cfg.CORS, cfg.Auth, cfg.Ops)
+	router := httpserver.NewRouter(
+		log,
+		tripHandler,
+		readinessHandler,
+		cfg.CORS,
+		cfg.Auth,
+		cfg.Ops,
+		discoveryHandler,
+	)
 
 	return &container{
 		db:     db,

@@ -45,6 +45,7 @@ type aiPlanningGenerateRequest struct {
 	Travelers                  int32                            `json:"travelers"`
 	Interests                  []string                         `json:"interests"`
 	Pace                       string                           `json:"pace"`
+	Instruction                string                           `json:"instruction,omitempty"`
 	OutputLanguage             string                           `json:"outputLanguage"`
 	UserProfile                *usercontext.UserProfile         `json:"userProfile,omitempty"`
 	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
@@ -563,6 +564,7 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		Travelers:                  trip.Travelers,
 		Interests:                  interests,
 		Pace:                       pace,
+		Instruction:                strings.TrimSpace(input.Instruction),
 		OutputLanguage:             normalizeOutputLanguage(input.OutputLanguage),
 		UserProfile:                input.UserProfile,
 		UserPreferences:            input.UserPreferences,

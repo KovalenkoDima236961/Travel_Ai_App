@@ -544,6 +544,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 
 	itinerary, err := s.generator.Generate(ctx, application.GenerateItineraryInput{
 		Trip:                       *current,
+		Instruction:                discoveryGenerationInstruction(current),
 		OutputLanguage:             resolveOutputLanguage(in.OutputLanguage, userContext.Profile),
 		UserProfile:                userContext.Profile,
 		UserPreferences:            userContext.Preferences,
@@ -623,6 +624,18 @@ func (s *Service) GenerateForActor(
 	return s.Generate(ctx, id, appdto.GenerateItineraryInput{
 		ExpectedItineraryRevision: &expectedRevision,
 	})
+}
+
+func discoveryGenerationInstruction(trip *entity.Trip) string {
+	if trip == nil || trip.CreationMetadata == nil {
+		return ""
+	}
+	source, _ := trip.CreationMetadata["creationSource"].(string)
+	if source != "trip_discovery" {
+		return ""
+	}
+	instruction, _ := trip.CreationMetadata["suggestedPromptForItinerary"].(string)
+	return strings.TrimSpace(instruction)
 }
 
 // UpdateItinerary validates and replaces the full itinerary JSON for a trip

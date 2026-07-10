@@ -10,6 +10,10 @@ from app.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.observability import metrics_response, request_context_middleware
 from app.services.destination_knowledge import DestinationKnowledgeProvider
+from app.services.destination_suggestion import (
+    DestinationSuggestionGenerator,
+    get_destination_suggestion_generator,
+)
 from app.services.generator_factory import (
     get_destination_knowledge_provider,
     get_itinerary_generator,
@@ -26,6 +30,7 @@ class ApplicationServices:
     template_adapter: TemplateAdapter
     destination_knowledge_provider: DestinationKnowledgeProvider | None
     knowledge_search_service: KnowledgeSearchService | None
+    destination_suggestion_generator: DestinationSuggestionGenerator
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -53,12 +58,14 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_search_service=knowledge_search_service,
     )
     template_adapter = get_template_adapter(settings)
+    destination_suggestion_generator = get_destination_suggestion_generator(settings)
 
     return ApplicationServices(
         itinerary_generator=itinerary_generator,
         template_adapter=template_adapter,
         destination_knowledge_provider=destination_knowledge_provider,
         knowledge_search_service=knowledge_search_service,
+        destination_suggestion_generator=destination_suggestion_generator,
     )
 
 
@@ -73,6 +80,7 @@ def _configure_state(
     app.state.template_adapter = services.template_adapter
     app.state.destination_knowledge_provider = services.destination_knowledge_provider
     app.state.knowledge_search_service = services.knowledge_search_service
+    app.state.destination_suggestion_generator = services.destination_suggestion_generator
 
 
 def _configure_observability(app: FastAPI) -> None:

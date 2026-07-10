@@ -59,6 +59,7 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
+| Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, confirmation, and optional itinerary generation. |
 | Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, create new trips from templates, and adapt templates to a new destination with AI. |
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
@@ -74,6 +75,19 @@ notification streams, and calendar OAuth calls.
 | Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
 | Export | Browser-generated PDF, CSV cost reports, and `.ics` downloads for private and public views. |
 | Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip cache, offline itinerary drafts, and revision conflict recovery. |
+
+## Create Trip discovery mode
+
+`/trips/new` keeps the existing destination form and adds “Help me choose”.
+The discovery UI supports a natural-language prompt, localized quick chips,
+budget/duration/origin/workspace context, smart Surprise Me, per-card rejection
+or similarity feedback, a refinement bar, and recent session history. Choosing
+a card opens a confirmation dialog; no trip is created before confirmation.
+
+The `tripDiscovery` namespace exists in all four message catalogs. API functions
+live in `src/lib/api/trip-discovery.ts`, shared request/response contracts in
+`src/types/trip-discovery.ts`, and React Query mutations in
+`src/hooks/useTripDiscovery.ts`.
 
 ## Source Layout
 

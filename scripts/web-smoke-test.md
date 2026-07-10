@@ -64,7 +64,18 @@ Use local Grafana credentials `admin` / `admin`.
 9. Switch to French and confirm the UI changes without changing the URL.
 10. Switch back to English before continuing with the baseline flow.
 11. Open the create trip page.
-12. Create a trip with:
+12. Confirm the page offers both `I know where I want to go` and `Help me choose`.
+13. Open `Help me choose`, enter `cheap 3-day warm food trip`, and request suggestions.
+14. Confirm rich cards show destination, match score, estimated budget, duration,
+    reasoning, downsides, and a trip preview.
+15. Click `Cheaper` or `Not this vibe` and confirm a new refined shortlist appears.
+16. Click `Surprise me` and confirm suggestions appear without creating a trip.
+17. Choose a suggestion, review the confirmation dialog, and create it with
+    itinerary generation enabled. Confirm the trip page opens and generation starts.
+18. Switch to Ukrainian and repeat discovery; confirm both UI labels and AI
+    user-facing suggestion text are Ukrainian.
+19. Return to the known-destination mode for the baseline flow below.
+20. Create a trip with:
    - destination: `Rome`
    - startDate: `2026-08-10`
    - days: `2`

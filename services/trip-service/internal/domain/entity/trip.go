@@ -36,6 +36,7 @@ type Trip struct {
 	Status            Status
 	Itinerary         json.RawMessage
 	Accommodation     *aggregate.Accommodation
+	CreationMetadata  map[string]any
 	ItineraryRevision int
 	CreatedAt         time.Time
 	UpdatedAt         time.Time

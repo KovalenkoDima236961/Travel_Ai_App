@@ -64,6 +64,7 @@ flowchart TD
 | `POST` | `/optimize-budget/day` | Return a reviewable cheaper-day proposal. |
 | `POST` | `/repair-itinerary` | Return a reviewable policy/risk repair proposal with repaired itinerary, summary, and changes. |
 | `POST` | `/adapt-template` | Adapt a reusable template to a new destination/duration/budget. |
+| `POST` | `/suggest-destinations` | Return 3–5 destination ideas for `prompt`, `surprise`, or `refine` mode. |
 | `GET` | `/destination-context` | List curated destination context. |
 | `GET` | `/destination-context/{destination}` | Read one destination context. |
 | `POST` | `/destination-context/{destination}/preview-prompt` | Development prompt preview. |
@@ -71,6 +72,22 @@ flowchart TD
 
 Destination context and knowledge routes are development/internal routes in v1.
 Protect them before exposing the service outside a private network.
+
+## AI Trip Discovery
+
+`POST /suggest-destinations` accepts sanitized profile/preferences, a compact
+trip context, up to 20 previous-trip summaries, optional workspace policy
+constraints, and `outputLanguage` (`en`, `es`, `uk`, `fr`). It returns match
+scores, rough budgets, fit reasoning, downsides, a sample-day preview, concerns,
+and an itinerary prompt. JSON keys and enums remain English while user-facing
+values are localized.
+
+Mock mode is deterministic: prompt keywords select known destination families,
+surprise mode combines preferences with prior destinations, and refine mode
+reacts to cheaper/warmer/nature/city instructions. Ollama mode requires strict
+JSON and falls back to mock when configured. Estimates are not live prices or
+availability; the endpoint performs no booking and gives no visa, legal,
+health, or safety guarantees.
 
 ## Context Inputs
 

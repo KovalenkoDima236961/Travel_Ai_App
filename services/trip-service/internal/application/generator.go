@@ -19,6 +19,7 @@ import (
 // loading trusted user context; frontend callers cannot submit these fields.
 type GenerateItineraryInput struct {
 	Trip                       entity.Trip
+	Instruction                string
 	OutputLanguage             string
 	UserProfile                *usercontext.UserProfile
 	UserPreferences            *usercontext.UserPreferences

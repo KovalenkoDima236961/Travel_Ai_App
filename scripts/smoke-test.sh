@@ -3059,6 +3059,93 @@ if [[ "${MATCHING_TRIPS}" -ne 1 ]]; then
   exit 1
 fi
 
+echo "Exercising AI Trip Discovery..."
+PRAGUE_TRIP_PAYLOAD='{
+  "destination":"Prague, Czechia",
+  "days":3,
+  "budgetAmount":450,
+  "budgetCurrency":"EUR",
+  "travelers":2,
+  "interests":["city","food","architecture"],
+  "pace":"balanced"
+}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips" "${ACCESS_TOKEN}" "${PRAGUE_TRIP_PAYLOAD}"
+assert_2xx "Create previous Prague trip for discovery context"
+
+SURPRISE_PAYLOAD='{
+  "scope":"personal",
+  "durationDays":3,
+  "budget":{"amount":500,"currency":"EUR"},
+  "travelers":1,
+  "origin":"Bratislava, Slovakia",
+  "outputLanguage":"en",
+  "noveltyLevel":"balanced",
+  "avoidPreviouslyVisited":true
+}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-discovery/surprise-me" "${ACCESS_TOKEN}" "${SURPRISE_PAYLOAD}"
+assert_2xx "Trip discovery surprise me"
+if [[ "$(jq '.response.suggestions | length' <<<"${LAST_BODY}")" -lt 1 ]]; then
+  echo "Surprise Me returned no suggestions." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ "$(jq -r '.response.suggestions[0].city' <<<"${LAST_BODY}")" == "Prague" ]]; then
+  echo "Surprise Me repeated Prague as the first suggestion." >&2
+  exit 1
+fi
+if [[ "$(jq -r '.createdTripId // empty' <<<"${LAST_BODY}")" != "" ]]; then
+  echo "Surprise Me created a trip without confirmation." >&2
+  exit 1
+fi
+
+DISCOVERY_PROMPT_PAYLOAD='{
+  "prompt":"cheap warm food weekend",
+  "scope":"personal",
+  "durationDays":3,
+  "budget":{"amount":700,"currency":"EUR"},
+  "travelers":2,
+  "origin":"Bratislava, Slovakia",
+  "quickChips":["warm","food","low_budget"],
+  "outputLanguage":"en",
+  "avoidPreviouslyVisited":true,
+  "preferNovelty":true
+}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-discovery/suggestions" "${ACCESS_TOKEN}" "${DISCOVERY_PROMPT_PAYLOAD}"
+assert_2xx "Trip discovery prompt suggestions"
+DISCOVERY_SESSION_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${DISCOVERY_SESSION_ID}" ]]; then
+  echo "Trip discovery response did not include a session id." >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-discovery/${DISCOVERY_SESSION_ID}/refine" "${ACCESS_TOKEN}" '{"instruction":"cheaper and more nature","feedbackType":"too_expensive","outputLanguage":"en"}'
+assert_2xx "Refine trip discovery"
+DISCOVERY_SESSION_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+DISCOVERY_SUGGESTION_ID="$(jq -r '.response.suggestions[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${DISCOVERY_SESSION_ID}" || -z "${DISCOVERY_SUGGESTION_ID}" ]]; then
+  echo "Refined discovery response was incomplete." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+DISCOVERY_CREATE_PAYLOAD='{
+  "durationDays":3,
+  "budget":{"amount":450,"currency":"EUR"},
+  "travelers":2,
+  "autoGenerateItinerary":false
+}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trip-discovery/${DISCOVERY_SESSION_ID}/suggestions/${DISCOVERY_SUGGESTION_ID}/create-trip" "${ACCESS_TOKEN}" "${DISCOVERY_CREATE_PAYLOAD}"
+assert_2xx "Create trip from discovery suggestion"
+if [[ "$(jq -r '.trip.creationMetadata.creationSource // empty' <<<"${LAST_BODY}")" != "trip_discovery" ]]; then
+  echo "Discovery-created trip did not store source metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ "$(jq -r '.generationJob // empty' <<<"${LAST_BODY}")" != "" ]]; then
+  echo "Discovery trip unexpectedly created a generation job." >&2
+  exit 1
+fi
+
 echo "Verifying another user cannot access the first user's trip..."
 OTHER_EMAIL="smoke-other+$(date +%s)-$$@example.com"
 OTHER_PAYLOAD="$(jq -nc --arg email "${OTHER_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
@@ -3076,6 +3163,9 @@ fi
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's trip" "404"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trip-discovery/sessions/${DISCOVERY_SESSION_ID}" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user fetch first user's discovery session" "404"
 
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/generate" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user generate first user's trip" "404"

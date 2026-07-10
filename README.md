@@ -141,6 +141,10 @@ Key product capabilities:
   adapted itinerary, optionally falls back to a deterministic template copy, and
   marks the created trip as AI-adapted for review. It never auto-books or
   auto-approves; costs are estimates and availability stays unchecked.
+- AI Trip Discovery v1: Create Trip supports prompt-based destination ideas,
+  smart Surprise Me, preference/past-trip/workspace-policy personalization,
+  iterative refinements, and confirmation-only trip creation with optional
+  itinerary generation. Suggestions use rough budgets and never book travel.
 - Workspace Approval Workflow v1: workspace trips carry a lightweight approval
   status (draft → pending → approved / changes requested / cancelled). Editors
   submit trips for review against a readiness checklist, owners/admins approve or

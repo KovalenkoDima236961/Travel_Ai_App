@@ -72,6 +72,53 @@
     "aiDisclaimer": "Les brouillons générés par l’IA doivent être vérifiés."
   },
   "offline": {}, "pwa": {},
+  "tripDiscovery": {
+    "modeLabel": "Mode de création du voyage", "knownDestination": "Je sais où je veux aller", "knownDestinationHint": "Créer un voyage avec le formulaire",
+    "helpMeChoose": "Aidez-moi à choisir", "helpMeChooseHint": "Découvrir des destinations avec l’IA",
+    "pageDescription": "Décrivez l’ambiance, le budget ou le rythme souhaité et nous proposerons des destinations.",
+    "eyebrow": "Découverte de voyage par IA", "heroTitle": "Où partir ensuite ?",
+    "heroSubtitle": "Décrivez votre voyage idéal ou laissez l’IA vous surprendre selon vos préférences.",
+    "promptLabel": "À quoi ressemblerait le voyage idéal ?", "promptPlaceholder": "Ex. Un séjour de 3 jours abordable, au chaud, avec une bonne cuisine et peu de marche…",
+    "quickPreferences": "Préférences rapides", "tripDetails": "Ajouter budget, durée, origine ou espace",
+    "duration": "Durée (jours)", "budget": "Budget", "travelers": "Voyageurs", "origin": "Point de départ",
+    "scope": "Type de voyage", "personalTrip": "Voyage personnel", "getSuggestions": "Voir les suggestions",
+    "surpriseMe": "Surprenez-moi", "findingPlaces": "Recherche de lieux adaptés à votre style…",
+    "suggestionsEyebrow": "Votre sélection de destinations", "match": "compatibilité",
+    "matchTooltip": "Compatibilité estimée selon votre demande, vos préférences et vos voyages passés.",
+    "estimatedBudget": "Budget estimé", "recommendedDuration": "Durée idéale",
+    "daysCount": "{count, plural, one {# jour} other {# jours}}", "whyItFits": "Pourquoi ce choix",
+    "tripPreview": "Aperçu du voyage", "possibleDownsides": "Inconvénients possibles",
+    "useDestination": "Choisir cette destination", "showSimilar": "Voir des lieux similaires", "notThisVibe": "Pas mon style",
+    "emptyTitle": "Aucune bonne correspondance", "emptyBody": "Essayez de modifier le budget, la durée ou la description.",
+    "refineTitle": "Améliorer ces suggestions", "refineSubtitle": "Dites-nous ce qui ne convient pas et la prochaine sélection s’adaptera.",
+    "refinePlaceholder": "Dites-nous quoi changer…", "refineButton": "Affiner", "refining": "Affinage de vos idées de destinations…",
+    "confirmDestination": "Confirmez votre choix",
+    "confirmDescription": "Vérifiez les détails avant toute création. « Surprenez-moi » ne crée jamais de voyage automatiquement.",
+    "title": "Titre du voyage", "startDate": "Date de départ", "autoGenerate": "Lancer la génération de l’itinéraire",
+    "autoGenerateHint": "Créer le brouillon et mettre immédiatement un itinéraire IA en file.",
+    "budgetDisclaimer": "Les budgets sont approximatifs et excluent les prix en temps réel des vols et hôtels. Aucune réservation n’est effectuée.",
+    "cancel": "Annuler", "createTrip": "Créer le voyage", "creatingTrip": "Création du voyage…",
+    "createError": "Impossible de créer le voyage depuis cette suggestion.", "errorTitle": "Impossible de créer une sélection",
+    "errorBody": "Réessayez ou modifiez votre demande. Aucun voyage n’a été créé.", "recentDiscoveries": "Découvertes récentes",
+    "chips": {
+      "weekend": "Week-end", "warm": "Temps chaud", "mountains": "Montagnes", "food": "Gastronomie",
+      "museums": "Musées", "lowBudget": "Petit budget", "noFlights": "Sans avion", "hiddenGem": "Perle cachée",
+      "nature": "Nature", "cityBreak": "Escapade urbaine", "romantic": "Romantique", "family": "En famille", "lessWalking": "Moins de marche"
+    },
+    "refine": {
+      "cheaper": "Moins cher", "warmer": "Plus chaud", "moreNature": "Plus de nature", "moreCity": "Plus urbain",
+      "lessWalking": "Moins de marche", "differentCountry": "Autre pays", "similarPlaces": "Lieux similaires",
+      "hiddenGem": "Plus confidentiel", "betterFood": "Meilleure cuisine", "betterMuseums": "Meilleurs musées"
+    },
+    "refineInstructions": {
+      "cheaper": "Propose des options moins chères.", "warmer": "Propose des destinations plus chaudes.",
+      "moreNature": "Ajoute davantage de destinations nature.", "moreCity": "Ajoute davantage de destinations urbaines.",
+      "lessWalking": "Privilégie les destinations qui demandent moins de marche.", "differentCountry": "Propose d’autres pays.",
+      "similarPlaces": "Montre des lieux similaires, mais pas la même destination.", "hiddenGem": "Privilégie les destinations moins évidentes.",
+      "betterFood": "Privilégie les destinations à excellente cuisine locale.", "betterMuseums": "Privilégie les destinations riches en musées et culture.",
+      "notThisVibe": "Cette suggestion ne convient pas. Remplace-la par une option vraiment différente."
+    }
+  },
   "errors": {
     "generic": "Une erreur est survenue. Réessayez.", "unauthorized": "Connectez-vous pour continuer.",
     "forbidden": "Vous n’avez pas l’autorisation.", "notFound": "L’élément demandé est introuvable.",

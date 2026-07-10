@@ -2,6 +2,7 @@ from fastapi import Request
 
 from app.config import Settings
 from app.services.destination_knowledge import DestinationKnowledgeProvider
+from app.services.destination_suggestion import DestinationSuggestionGenerator
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.knowledge_search import KnowledgeSearchService
 from app.services.template_adapter import TemplateAdapter
@@ -27,3 +28,9 @@ def get_configured_destination_knowledge_provider(
 
 def get_configured_knowledge_search_service(request: Request) -> KnowledgeSearchService | None:
     return getattr(request.app.state, "knowledge_search_service", None)
+
+
+def get_configured_destination_suggestion_generator(
+    request: Request,
+) -> DestinationSuggestionGenerator:
+    return request.app.state.destination_suggestion_generator

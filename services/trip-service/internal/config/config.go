@@ -46,6 +46,14 @@ type Config struct {
 	CalendarSync       CalendarSyncConfig       `yaml:"calendar_sync"`
 	BudgetConversion   BudgetConversionConfig   `yaml:"budget_conversion"`
 	Ops                OpsConfig                `yaml:"ops"`
+	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
+}
+
+type TripDiscoveryConfig struct {
+	Enabled                bool `yaml:"enabled" env:"TRIP_DISCOVERY_ENABLED" env-default:"true"`
+	AITimeoutSeconds       int  `yaml:"ai_timeout_seconds" env:"TRIP_DISCOVERY_AI_TIMEOUT_SECONDS" env-default:"120" validate:"min=1"`
+	MaxPreviousTrips       int  `yaml:"max_previous_trips" env:"TRIP_DISCOVERY_MAX_PREVIOUS_TRIPS" env-default:"15" validate:"min=1,max=20"`
+	DefaultSuggestionCount int  `yaml:"default_suggestion_count" env:"TRIP_DISCOVERY_DEFAULT_SUGGESTION_COUNT" env-default:"5" validate:"min=3,max=5"`
 }
 
 // WorkspacesConfig controls service-to-service checks against User Service for

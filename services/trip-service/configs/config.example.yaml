@@ -37,6 +37,12 @@ itinerary_generator:
   ai_planning_service_url: http://localhost:8000
   ai_planning_timeout_seconds: 120
 
+trip_discovery:
+  enabled: true
+  ai_timeout_seconds: 120
+  max_previous_trips: 15
+  default_suggestion_count: 5
+
 user_context:
   enabled: true
   user_service_url: http://localhost:8083
