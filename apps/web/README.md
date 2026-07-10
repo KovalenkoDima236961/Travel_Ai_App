@@ -60,6 +60,7 @@ notification streams, and calendar OAuth calls.
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
 | Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
+| Route alternatives | AI route alternatives panel with cards, comparison table, route-order preview, refinement controls, create-trip/apply dialogs, and route-poll creation. |
 | Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
 | Decisions | Trip detail has a Decisions section for polls, editable votes, item reactions, group preference summaries, and trip-linked discovery suggestion voting. |
 | Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, create new trips from templates, and adapt templates to a new destination with AI. |
@@ -149,6 +150,40 @@ outdated and should be regenerated.
 
 Route labels are localized through the `routes`, `transportModes`, and
 `tripStyles` namespaces in `en`, `es`, `uk`, and `fr`.
+
+## Route Alternatives
+
+`/trips/new` includes a Route Alternatives panel inside the multi-destination
+flow. Users can describe a route goal, compare generated alternatives, refine
+with quick prompts such as cheaper, more relaxed, fewer stops, no flights, more
+train-friendly, camping, hiking, or shorter transfers, and create a trip only
+after confirming a selected alternative.
+
+Trip detail pages expose `Find better routes` near the route overview for
+owners/editors. The panel sends the current trip route as context, shows route
+cards and a comparison table, and applies a selected route only through a
+confirmation dialog with the current `itineraryRevision`. It can also create a
+standard Decisions poll from the route alternatives; group preferences then show
+the preferred route alternative and pass that vote summary back into planning
+constraints.
+
+Frontend contracts live in:
+
+- `src/types/route-alternatives.ts`
+- `src/lib/api/route-alternatives.ts`
+- `src/hooks/useSuggestRouteAlternatives.ts`
+- `src/hooks/useRouteAlternativeSession.ts`
+- `src/hooks/useRefineRouteAlternatives.ts`
+- `src/hooks/useCreateTripFromRouteAlternative.ts`
+- `src/hooks/useSuggestTripRouteAlternatives.ts`
+- `src/hooks/useApplyRouteAlternative.ts`
+- `src/hooks/useCreateRouteAlternativesPoll.ts`
+- `src/components/route-alternatives/*`
+
+The `routeAlternatives` message namespace is present in `en`, `es`, `uk`, and
+`fr`. Route budgets, transfer times, difficulty, scores, warnings, and map lines
+are approximate planning aids. There are no live schedules, ticket prices,
+bookings, permits, car-rental checkout, or automatic route replacement.
 
 ## Advanced Preferences And Constraints Preview
 

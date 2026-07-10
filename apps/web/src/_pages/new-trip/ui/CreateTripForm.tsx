@@ -15,6 +15,7 @@ import {
   type AdvancedTripPreferencesValue
 } from "@/components/planning-constraints/AdvancedTripPreferencesForm";
 import { PlanningConstraintsPreviewPanel } from "@/components/planning-constraints/PlanningConstraintsPreviewPanel";
+import { RouteAlternativesPanel } from "@/components/route-alternatives";
 import {
   createDefaultTripRoute,
   getRouteValidationWarnings,
@@ -148,6 +149,10 @@ export function CreateTripForm() {
   const selectedDays = watch("days") ?? 1;
   const selectedCurrency = watch("budgetCurrency") ?? "EUR";
   const selectedPace = watch("pace") ?? "balanced";
+  const selectedWorkspaceId = watch("workspaceId") ?? "";
+  const selectedStartDate = watch("startDate") ?? "";
+  const selectedBudgetAmount = watch("budgetAmount");
+  const selectedTravelers = watch("travelers") ?? 1;
 
   function toggleInterest(value: string) {
     const next = selectedInterests.includes(value)
@@ -377,6 +382,35 @@ export function CreateTripForm() {
           <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
             Multi-destination route
           </h2>
+          <div className="mt-5">
+            <RouteAlternativesPanel
+              canCreateTrip
+              defaultPrompt={`Plan a ${selectedDays}-day route with ${selectedInterests.join(", ") || "balanced travel"} from ${route.origin?.name || "my origin"}.`}
+              preTripDefaults={{
+                origin: route.origin,
+                durationDays: selectedDays,
+                startDate: selectedStartDate || undefined,
+                budget:
+                  optionalNumber(selectedBudgetAmount) != null
+                    ? {
+                        amount: optionalNumber(selectedBudgetAmount),
+                        currency: selectedCurrency
+                      }
+                    : undefined,
+                travelers: selectedTravelers,
+                workspaceId: selectedWorkspaceId || undefined,
+                transport: {
+                  preferredModes: advancedPreferences.preferredModes,
+                  avoidModes: advancedPreferences.avoidModes,
+                  carAvailable: advancedPreferences.carAvailable ?? false,
+                  maxTransferHoursPerDay: advancedPreferences.maxTransferHoursPerDay ?? undefined
+                },
+                tripStyles: advancedPreferences.tripStyles,
+                outputLanguage: advancedPreferences.outputLanguage ?? "en"
+              }}
+              onTripCreated={(trip) => router.push(`/trips/${trip.id}`)}
+            />
+          </div>
           <div className="mt-5">
             <TripRouteBuilder
               value={route}

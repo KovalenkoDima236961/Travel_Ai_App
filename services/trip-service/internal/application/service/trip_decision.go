@@ -338,6 +338,7 @@ func (s *Service) buildGroupPreferences(ctx context.Context, trip *entity.Trip) 
 	transportScores := map[string]*appdto.GroupPreferenceScore{}
 	destinationScores := map[string]*appdto.GroupPreferenceScore{}
 	dateScores := map[string]*appdto.GroupPreferenceScore{}
+	routeAlternativeScores := map[string]*appdto.GroupRouteAlternativeVote{}
 
 	for _, poll := range polls {
 		if poll.Status == entity.PollStatusOpen {
@@ -375,7 +376,15 @@ func (s *Service) buildGroupPreferences(ctx context.Context, trip *entity.Trip) 
 				result.TopPollChoices = append(result.TopPollChoices, choice)
 			}
 		}
-		accumulatePollPreferenceScores(poll, options, results, transportScores, destinationScores, dateScores)
+		accumulatePollPreferenceScores(
+			poll,
+			options,
+			results,
+			transportScores,
+			destinationScores,
+			dateScores,
+			routeAlternativeScores,
+		)
 	}
 
 	reactionSummaries := reactionSummaries(trip, reactions, uuid.Nil)
@@ -426,6 +435,7 @@ func (s *Service) buildGroupPreferences(ctx context.Context, trip *entity.Trip) 
 	result.TransportPreferences = sortedScores(transportScores, 5)
 	result.DestinationPreferences = sortedScores(destinationScores, 5)
 	result.DatePreferences = sortedScores(dateScores, 5)
+	result.RouteAlternativeVotes = sortedRouteAlternativeVotes(routeAlternativeScores, 5)
 	result.AIConstraintSummary = buildAIConstraintSummary(result)
 	result.AIConstraints = appdto.GroupPreferencesAIConstraints{
 		Summary:                 result.AIConstraintSummary,
@@ -434,7 +444,12 @@ func (s *Service) buildGroupPreferences(ctx context.Context, trip *entity.Trip) 
 		PreferredDestinations:   scoreLabels(result.DestinationPreferences),
 		PreferredTransportModes: scoreKeys(result.TransportPreferences),
 		PreferredDates:          scoreLabels(result.DatePreferences),
+		RouteAlternativeVotes:   result.RouteAlternativeVotes,
 		OpenDecisionCount:       result.Summary.OpenDecisionCount,
+	}
+	if len(result.RouteAlternativeVotes) > 0 {
+		result.AIConstraints.PreferredRouteAlternativeID = result.RouteAlternativeVotes[0].AlternativeID
+		result.AIConstraints.PreferredRouteSessionID = result.RouteAlternativeVotes[0].SessionID
 	}
 	return result, nil
 }
@@ -745,6 +760,7 @@ func accumulatePollPreferenceScores(
 	transportScores map[string]*appdto.GroupPreferenceScore,
 	destinationScores map[string]*appdto.GroupPreferenceScore,
 	dateScores map[string]*appdto.GroupPreferenceScore,
+	routeAlternativeScores map[string]*appdto.GroupRouteAlternativeVote,
 ) {
 	optionByID := map[uuid.UUID]entity.TripPollOption{}
 	for _, option := range options {
@@ -766,6 +782,24 @@ func accumulatePollPreferenceScores(
 				key = option.OptionKey
 			}
 			addScore(transportScores, key, option.Label, result.VoteCount, result.VoteCount)
+		case "route_alternative":
+			alternativeID := metadataString(option.Metadata, "alternativeId")
+			if alternativeID == "" {
+				alternativeID = option.OptionKey
+			}
+			sessionID := metadataString(option.Metadata, "sessionId")
+			if sessionID == "" {
+				sessionID = metadataString(poll.Metadata, "sessionId")
+			}
+			label := metadataString(option.Metadata, "routeTitle")
+			if label == "" {
+				label = metadataString(option.Metadata, "destination")
+			}
+			if label == "" {
+				label = option.Label
+			}
+			addRouteAlternativeScore(routeAlternativeScores, poll.ID, sessionID, alternativeID, label, result.VoteCount, result.VoteCount)
+			addScore(destinationScores, normalizeScoreKey(label), label, result.VoteCount, result.VoteCount)
 		case "destination", "route":
 			label := metadataString(option.Metadata, "destination")
 			if label == "" {
@@ -815,6 +849,9 @@ func buildAIConstraintSummary(summary appdto.GroupPreferencesSummary) string {
 	}
 	if len(summary.DatePreferences) > 0 {
 		lines = append(lines, "Date preference: "+summary.DatePreferences[0].Label+".")
+	}
+	if len(summary.RouteAlternativeVotes) > 0 {
+		lines = append(lines, "Preferred route alternative: "+summary.RouteAlternativeVotes[0].Label+".")
 	}
 	if summary.Summary.OpenDecisionCount > 0 {
 		lines = append(lines, fmt.Sprintf("%d group decision(s) are still open.", summary.Summary.OpenDecisionCount))
@@ -969,8 +1006,66 @@ func addScore(scores map[string]*appdto.GroupPreferenceScore, key, label string,
 	existing.Votes += votes
 }
 
+func addRouteAlternativeScore(
+	scores map[string]*appdto.GroupRouteAlternativeVote,
+	pollID uuid.UUID,
+	sessionID string,
+	alternativeID string,
+	label string,
+	score int,
+	votes int,
+) {
+	sessionID = strings.TrimSpace(sessionID)
+	alternativeID = strings.TrimSpace(alternativeID)
+	if sessionID == "" || alternativeID == "" {
+		return
+	}
+	key := sessionID + ":" + alternativeID
+	label = strings.TrimSpace(label)
+	if label == "" {
+		label = alternativeID
+	}
+	existing := scores[key]
+	if existing == nil {
+		scores[key] = &appdto.GroupRouteAlternativeVote{
+			SessionID:     sessionID,
+			AlternativeID: alternativeID,
+			Label:         label,
+			Score:         score,
+			Votes:         votes,
+			PollID:        pollID,
+		}
+		return
+	}
+	existing.Score += score
+	existing.Votes += votes
+}
+
 func sortedScores(scores map[string]*appdto.GroupPreferenceScore, limit int) []appdto.GroupPreferenceScore {
 	out := make([]appdto.GroupPreferenceScore, 0, len(scores))
+	for _, score := range scores {
+		if score.Score <= 0 {
+			continue
+		}
+		out = append(out, *score)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Score == out[j].Score {
+			return out[i].Label < out[j].Label
+		}
+		return out[i].Score > out[j].Score
+	})
+	if len(out) > limit {
+		return out[:limit]
+	}
+	return out
+}
+
+func sortedRouteAlternativeVotes(
+	scores map[string]*appdto.GroupRouteAlternativeVote,
+	limit int,
+) []appdto.GroupRouteAlternativeVote {
+	out := make([]appdto.GroupRouteAlternativeVote, 0, len(scores))
 	for _, score := range scores {
 		if score.Score <= 0 {
 			continue

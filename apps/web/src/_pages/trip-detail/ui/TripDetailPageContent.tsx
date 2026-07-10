@@ -42,6 +42,7 @@ import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
+import { RouteAlternativesPanel } from "@/components/route-alternatives";
 import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
 import { Button } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
@@ -222,6 +223,7 @@ export function TripDetailPageContent() {
   const [offlineCacheLoading, setOfflineCacheLoading] = useState(false);
   const [offlineUnavailable, setOfflineUnavailable] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [routeAlternativesOpen, setRouteAlternativesOpen] = useState(false);
 
   const offlineSync = useOfflineSync({
     userId: currentUserId,
@@ -2002,10 +2004,35 @@ export function TripDetailPageContent() {
 
             {trip.status === "COMPLETED" && trip.itinerary ? (
               <div className="flex flex-col gap-4">
-                <RouteSummaryCard
-                  route={trip.route}
-                  currency={trip.budgetCurrency}
-                />
+                <section id="route" className="scroll-mt-24 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <RouteSummaryCard
+                      route={trip.route}
+                      currency={trip.budgetCurrency}
+                    />
+                    {canMutateTrip ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setRouteAlternativesOpen((open) => !open)}
+                      >
+                        {routeAlternativesOpen ? "Hide route options" : "Find better routes"}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {routeAlternativesOpen ? (
+                    <RouteAlternativesPanel
+                      trip={trip}
+                      canApply={canMutateTrip}
+                      canCreatePoll={canCreatePoll}
+                      onRouteApplied={(updatedTrip) => {
+                        setSuccessMessage("Route alternative applied.");
+                        queryClient.setQueryData(tripKeys.detail(trip.id), updatedTrip);
+                        setRouteAlternativesOpen(false);
+                      }}
+                    />
+                  ) : null}
+                </section>
                 <TripQualityChecks
                 availabilityResultsByItem={availabilityResultsByItem}
                 budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
@@ -2252,7 +2279,32 @@ export function TripDetailPageContent() {
 
             {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
               <div className="flex flex-col gap-4">
-                <RouteSummaryCard route={trip.route} currency={trip.budgetCurrency} />
+                <section id="route" className="scroll-mt-24 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <RouteSummaryCard route={trip.route} currency={trip.budgetCurrency} />
+                    {canMutateTrip ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setRouteAlternativesOpen((open) => !open)}
+                      >
+                        {routeAlternativesOpen ? "Hide route options" : "Find better routes"}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {routeAlternativesOpen ? (
+                    <RouteAlternativesPanel
+                      trip={trip}
+                      canApply={canMutateTrip}
+                      canCreatePoll={canCreatePoll}
+                      onRouteApplied={(updatedTrip) => {
+                        setSuccessMessage("Route alternative applied.");
+                        queryClient.setQueryData(tripKeys.detail(trip.id), updatedTrip);
+                        setRouteAlternativesOpen(false);
+                      }}
+                    />
+                  ) : null}
+                </section>
                 <div className="rounded-[18px] border border-sand-300 bg-white p-6">
                   <h2 className="font-newsreader text-[20px] font-semibold text-cocoa-900">
                     No itinerary yet

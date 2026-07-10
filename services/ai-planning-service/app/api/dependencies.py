@@ -5,6 +5,7 @@ from app.services.destination_knowledge import DestinationKnowledgeProvider
 from app.services.destination_suggestion import DestinationSuggestionGenerator
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.knowledge_search import KnowledgeSearchService
+from app.services.route_alternatives import RouteAlternativeGenerator
 from app.services.template_adapter import TemplateAdapter
 
 
@@ -34,3 +35,9 @@ def get_configured_destination_suggestion_generator(
     request: Request,
 ) -> DestinationSuggestionGenerator:
     return request.app.state.destination_suggestion_generator
+
+
+def get_configured_route_alternative_generator(
+    request: Request,
+) -> RouteAlternativeGenerator:
+    return request.app.state.route_alternative_generator

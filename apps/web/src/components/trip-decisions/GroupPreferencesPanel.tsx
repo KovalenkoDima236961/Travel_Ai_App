@@ -58,6 +58,15 @@ export function GroupPreferencesPanel({ tripId, enabled = true }: GroupPreferenc
               title="Transport"
             />
             <PreferenceList
+              empty="No route poll winner yet."
+              items={(summary.routeAlternativeVotes ?? []).map((item) => ({
+                key: `${item.sessionId}:${item.alternativeId}`,
+                label: item.label,
+                value: `${item.votes} votes`
+              }))}
+              title="Route alternatives"
+            />
+            <PreferenceList
               empty="No must-have activities yet."
               items={summary.itineraryPreferences.mustHaveItems.map((item) => ({
                 key: `${item.dayNumber}:${item.itemIndex}`,

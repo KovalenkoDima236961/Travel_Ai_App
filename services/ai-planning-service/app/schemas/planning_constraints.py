@@ -19,6 +19,9 @@ PlanningSource = Literal[
     "policy_repair",
     "budget_optimization",
     "route_generation",
+    "route_alternatives",
+    "route_alternative_refinement",
+    "route_alternative_apply_preview",
     "route_update_preview",
 ]
 
@@ -118,6 +121,14 @@ class GroupPreferenceItem(APIModel):
     score: int = 0
 
 
+class GroupRouteAlternativeVote(APIModel):
+    session_id: str = Field(default="", alias="sessionId")
+    alternative_id: str = Field(default="", alias="alternativeId")
+    label: str = ""
+    score: int = 0
+    votes: int = 0
+
+
 class PlanningConstraintGroupPreferences(APIModel):
     summary: str = ""
     must_have_items: list[GroupPreferenceItem] = Field(
@@ -137,6 +148,18 @@ class PlanningConstraintGroupPreferences(APIModel):
         alias="preferredTransportModes",
     )
     preferred_dates: list[str] = Field(default_factory=list, alias="preferredDates")
+    preferred_route_alternative_id: str | None = Field(
+        default=None,
+        alias="preferredRouteAlternativeId",
+    )
+    preferred_route_session_id: str | None = Field(
+        default=None,
+        alias="preferredRouteSessionId",
+    )
+    route_alternative_votes: list[GroupRouteAlternativeVote] = Field(
+        default_factory=list,
+        alias="routeAlternativeVotes",
+    )
     open_decision_count: int = Field(default=0, alias="openDecisionCount")
 
 

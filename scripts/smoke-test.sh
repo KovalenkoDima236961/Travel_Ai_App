@@ -981,6 +981,119 @@ if [[ "${PATCHED_STYLE_COUNT}" -ne 3 || "${PATCHED_WALKING}" != "8" || "${PATCHE
   exit 1
 fi
 
+echo "Checking route alternatives workflow..."
+ROUTE_ALT_SUGGEST_PAYLOAD="$(
+  jq -nc '{
+    origin:{name:"Bratislava",country:"Slovakia",coordinates:{lat:48.1486,lng:17.1077}},
+    prompt:"A 5-day Austria trip with nature, old towns, and train travel.",
+    durationDays:5,
+    startDate:"2026-09-10",
+    budget:{amount:700,currency:"EUR"},
+    travelers:2,
+    transport:{preferredModes:["train"],avoidModes:["flight"],carAvailable:false,maxTransferHoursPerDay:4},
+    tripStyles:["nature","culture","train_trip"],
+    outputLanguage:"en",
+    suggestionCount:3
+  }'
+)"
+request_with_bearer POST "${TRIP_SERVICE_URL}/route-alternatives/suggest" "${ACCESS_TOKEN}" "${ROUTE_ALT_SUGGEST_PAYLOAD}"
+assert_status "Suggest route alternatives" "201"
+ROUTE_ALT_SESSION_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+ROUTE_ALT_FIRST_ID="$(jq -r '.alternatives[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ROUTE_ALT_SESSION_ID}" || -z "${ROUTE_ALT_FIRST_ID}" ]]; then
+  echo "Route alternatives response did not include a session and first alternative." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '
+  (.alternatives | length) >= 2
+  and (.alternatives[0].route.stops | length) >= 1
+  and (.alternatives[0].route.legs | length) >= 1
+  and (.alternatives[0].scores.overallFit >= 0)
+  and ((.alternatives[0].difficulty // "") | length > 0)
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Route alternatives response did not include expected route, score, and difficulty data." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+ROUTE_ALT_REFINE_PAYLOAD="$(jq -nc --arg id "${ROUTE_ALT_FIRST_ID}" '{instruction:"Make it cheaper and use fewer stops.",selectedAlternativeId:$id}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/route-alternatives/sessions/${ROUTE_ALT_SESSION_ID}/refine" "${ACCESS_TOKEN}" "${ROUTE_ALT_REFINE_PAYLOAD}"
+assert_status "Refine route alternatives" "201"
+ROUTE_ALT_CHILD_SESSION_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+ROUTE_ALT_CHILD_PARENT_ID="$(jq -r '.parentSessionId // empty' <<<"${LAST_BODY}")"
+ROUTE_ALT_CHILD_FIRST_ID="$(jq -r '.alternatives[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ROUTE_ALT_CHILD_SESSION_ID}" || "${ROUTE_ALT_CHILD_PARENT_ID}" != "${ROUTE_ALT_SESSION_ID}" || -z "${ROUTE_ALT_CHILD_FIRST_ID}" ]]; then
+  echo "Refined route alternatives response did not include expected child session metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+ROUTE_ALT_CREATE_TRIP_PAYLOAD="$(jq -nc '{title:"Smoke Austria route alternative",startDate:"2026-09-10",budget:{amount:700,currency:"EUR"},travelers:2,autoGenerateItinerary:false}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/route-alternatives/sessions/${ROUTE_ALT_CHILD_SESSION_ID}/alternatives/${ROUTE_ALT_CHILD_FIRST_ID}/create-trip" "${ACCESS_TOKEN}" "${ROUTE_ALT_CREATE_TRIP_PAYLOAD}"
+assert_status "Create trip from route alternative" "201"
+ROUTE_ALT_TRIP_ID="$(jq -r '.trip.id // empty' <<<"${LAST_BODY}")"
+ROUTE_ALT_TRIP_REVISION="$(jq -r '.trip.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ -z "${ROUTE_ALT_TRIP_ID}" ]]; then
+  echo "Create trip from route alternative did not return a trip id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.trip.tripType == "multi_destination" and (.trip.route.stops | length) >= 2 and .trip.creationMetadata.creationSource == "route_alternative"' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Trip created from route alternative did not include expected multi-destination metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+ROUTE_ALT_EXISTING_PAYLOAD="$(jq -nc '{prompt:"Make this route more relaxed and avoid flights.",suggestionCount:3,useCurrentRouteAsBaseline:true,outputLanguage:"en"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${ROUTE_ALT_TRIP_ID}/route-alternatives" "${ACCESS_TOKEN}" "${ROUTE_ALT_EXISTING_PAYLOAD}"
+assert_status "Suggest existing trip route alternatives" "201"
+ROUTE_ALT_EXISTING_SESSION_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+ROUTE_ALT_EXISTING_FIRST_ID="$(jq -r '.alternatives[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ROUTE_ALT_EXISTING_SESSION_ID}" || -z "${ROUTE_ALT_EXISTING_FIRST_ID}" ]]; then
+  echo "Existing trip route alternatives response did not include expected ids." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+ROUTE_ALT_APPLY_PAYLOAD="$(jq -nc --argjson revision "${ROUTE_ALT_TRIP_REVISION}" '{expectedItineraryRevision:$revision,regenerateItinerary:false}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${ROUTE_ALT_TRIP_ID}/route-alternatives/${ROUTE_ALT_EXISTING_SESSION_ID}/alternatives/${ROUTE_ALT_EXISTING_FIRST_ID}/apply" "${ACCESS_TOKEN}" "${ROUTE_ALT_APPLY_PAYLOAD}"
+assert_2xx "Apply route alternative"
+if ! jq -e '.tripType == "multi_destination" and (.route.stops | length) >= 1' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Applying route alternative did not return an updated route." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${ROUTE_ALT_TRIP_ID}/activity?limit=20" "${ACCESS_TOKEN}"
+assert_2xx "Route alternative activity"
+assert_activity_has "Route alternative activity" "route_alternative_applied"
+
+ROUTE_ALT_POLL_PAYLOAD="$(jq -nc '{title:"Which smoke route should we choose?"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${ROUTE_ALT_TRIP_ID}/route-alternatives/${ROUTE_ALT_EXISTING_SESSION_ID}/create-poll" "${ACCESS_TOKEN}" "${ROUTE_ALT_POLL_PAYLOAD}"
+assert_status "Create route alternatives poll" "201"
+ROUTE_ALT_POLL_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+ROUTE_ALT_POLL_OPTION_ID="$(jq -r '.options[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ROUTE_ALT_POLL_ID}" || -z "${ROUTE_ALT_POLL_OPTION_ID}" ]]; then
+  echo "Route alternatives poll did not return a poll and option id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+ROUTE_ALT_POLL_VOTE_PAYLOAD="$(jq -nc --arg optionId "${ROUTE_ALT_POLL_OPTION_ID}" '{optionIds:[$optionId]}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${ROUTE_ALT_TRIP_ID}/polls/${ROUTE_ALT_POLL_ID}/vote" "${ACCESS_TOKEN}" "${ROUTE_ALT_POLL_VOTE_PAYLOAD}"
+assert_2xx "Vote route alternatives poll"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${ROUTE_ALT_TRIP_ID}/group-preferences" "${ACCESS_TOKEN}"
+assert_2xx "Route alternative group preferences"
+if ! jq -e --arg sessionId "${ROUTE_ALT_EXISTING_SESSION_ID}" '
+  .aiConstraints.preferredRouteSessionId == $sessionId
+  and ((.routeAlternativeVotes // []) | length) >= 1
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Group preferences did not include the preferred route alternative." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking default notification preferences..."
 request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${ACCESS_TOKEN}"
 assert_2xx "Get default notification preferences"

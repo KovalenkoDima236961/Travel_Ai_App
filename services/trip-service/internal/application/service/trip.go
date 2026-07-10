@@ -26,6 +26,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -75,6 +76,7 @@ type tripRepository interface {
 	UpdateTripAccommodation(ctx context.Context, id, userID uuid.UUID, accommodation *aggregate.Accommodation) (*entity.Trip, error)
 	ClearTripAccommodation(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	UpdateTripRoute(ctx context.Context, id, userID uuid.UUID, route *aggregate.TripRoute, tripType string) (*entity.Trip, error)
+	UpdateTripCreationMetadata(ctx context.Context, id, userID uuid.UUID, metadata map[string]any) (*entity.Trip, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error)
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
@@ -176,6 +178,13 @@ type tripRepository interface {
 	ArchiveWorkspaceBudget(ctx context.Context, workspaceID, budgetID, actorUserID uuid.UUID) (*entity.WorkspaceBudget, error)
 	SetWorkspaceBudgetPrimary(ctx context.Context, workspaceID, budgetID uuid.UUID) (*entity.WorkspaceBudget, error)
 	CountWorkspaceBudgets(ctx context.Context, workspaceID uuid.UUID, status *entity.WorkspaceBudgetStatus) (int, error)
+	CreateRouteAlternativeSession(ctx context.Context, session *routealternatives.Session) (*routealternatives.Session, error)
+	GetRouteAlternativeSessionByID(ctx context.Context, id uuid.UUID) (*routealternatives.Session, error)
+	ListRouteAlternativeSessionsByTrip(ctx context.Context, tripID uuid.UUID, limit int) ([]routealternatives.Session, error)
+	ListRouteAlternativeSessionsByUser(ctx context.Context, userID uuid.UUID, limit int) ([]routealternatives.Session, error)
+	MarkRouteAlternativeSessionCreatedTrip(ctx context.Context, id uuid.UUID, alternativeID string, createdTripID uuid.UUID) (*routealternatives.Session, error)
+	MarkRouteAlternativeSessionApplied(ctx context.Context, id uuid.UUID, alternativeID string, appliedToTripID uuid.UUID) (*routealternatives.Session, error)
+	ArchiveRouteAlternativeSession(ctx context.Context, id uuid.UUID) (*routealternatives.Session, error)
 	approvalRepository
 }
 

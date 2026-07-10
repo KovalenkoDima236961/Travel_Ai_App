@@ -11,6 +11,7 @@ from app.schemas.itinerary import (
     RegenerateItemResponse,
 )
 from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
+from app.schemas.route_alternatives import RouteAlternativeResponse
 from app.schemas.template_adaptation import TemplateAdaptationResponse
 
 _TOP_LEVEL_KEYS = {"days"}
@@ -182,6 +183,25 @@ def parse_template_adaptation_response(
     for day in response.itinerary.days:
         if len(day.items) < 1:
             raise LLMResponseParseError("Each adapted day must include at least one item")
+    return response
+
+
+def parse_route_alternatives_response(response_text: str) -> RouteAlternativeResponse:
+    parsed = _parse_json(response_text)
+    if not isinstance(parsed, dict):
+        raise LLMResponseParseError("LLM response must be a JSON object")
+    if "sessionTitle" not in parsed or "alternatives" not in parsed:
+        raise LLMResponseParseError(
+            "LLM response must contain sessionTitle and alternatives fields"
+        )
+
+    try:
+        response = RouteAlternativeResponse.model_validate(parsed)
+    except ValidationError as exc:
+        raise LLMResponseParseError("LLM response did not match route alternatives schema") from exc
+
+    if not response.alternatives:
+        raise LLMResponseParseError("Route alternatives response must include alternatives")
     return response
 
 

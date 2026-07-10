@@ -9,6 +9,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -69,4 +70,5 @@ type ItineraryGenerator interface {
 	OptimizeBudgetDay(ctx context.Context, input budgetoptimization.OptimizeDayInput) (*budgetoptimization.ProposalContent, error)
 	AdaptTemplate(ctx context.Context, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error)
 	RepairItinerary(ctx context.Context, input triprepair.Input) (*triprepair.ProposalContent, error)
+	SuggestRouteAlternatives(ctx context.Context, input routealternatives.AIRequest) (*routealternatives.Response, error)
 }

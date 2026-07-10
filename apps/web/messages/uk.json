@@ -213,6 +213,31 @@
       "strict": "Суворо"
     }
   },
+  "routeAlternatives": {
+    "eyebrow": "Варіанти маршруту",
+    "title": "Порівняти маршрути",
+    "generate": "Згенерувати маршрути",
+    "generating": "Генеруємо...",
+    "compareRoutes": "Порівняти маршрути",
+    "useThisRoute": "Використати цей маршрут",
+    "applyRoute": "Застосувати маршрут",
+    "createTripFromRoute": "Створити подорож із маршруту",
+    "estimatedBudget": "Орієнтовний бюджет",
+    "transferTime": "Час трансферів",
+    "difficulty": "Складність",
+    "relaxed": "Спокійний",
+    "balanced": "Збалансований",
+    "intense": "Інтенсивний",
+    "rushed": "Поспішний",
+    "moreRelaxed": "Спокійніше",
+    "cheaper": "Дешевше",
+    "fewerStops": "Менше зупинок",
+    "noFlights": "Без перельотів",
+    "moreTrainFriendly": "Більше під поїзди",
+    "createPollFromRoutes": "Створити опитування маршрутів",
+    "rushedWarning": "Цей маршрут може бути поспішним",
+    "approximateWarning": "Оцінки приблизні й не містять актуальних цін на квитки."
+  },
   "errors": {
     "generic": "Сталася помилка. Спробуйте ще раз.", "unauthorized": "Увійдіть, щоб продовжити.",
     "forbidden": "У вас немає дозволу на цю дію.", "notFound": "Запитаний елемент не знайдено.",

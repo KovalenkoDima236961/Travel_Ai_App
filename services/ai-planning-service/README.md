@@ -99,6 +99,7 @@ flowchart TD
 | `POST` | `/repair-itinerary` | Return a reviewable policy/risk repair proposal with repaired itinerary, summary, and changes. |
 | `POST` | `/adapt-template` | Adapt a reusable template to a new destination/duration/budget. |
 | `POST` | `/suggest-destinations` | Return 3–5 destination ideas for `prompt`, `surprise`, or `refine` mode. |
+| `POST` | `/suggest-route-alternatives` | Return route alternatives with stops, legs, estimates, scores, pros/cons, and warnings. |
 | `GET` | `/destination-context` | List curated destination context. |
 | `GET` | `/destination-context/{destination}` | Read one destination context. |
 | `POST` | `/destination-context/{destination}/preview-prompt` | Development prompt preview. |
@@ -128,6 +129,40 @@ Discovery suggestions may be `suggestionType: "single_destination"` or
 transport preferences, trip styles, rough transfer costs, fit reasons, and
 downsides. They are planning proposals only; no ticket, accommodation, permit,
 or transport booking is made.
+
+## Route Alternatives
+
+`POST /suggest-route-alternatives` generates advisory route options before a
+trip exists, for an existing `currentRoute`, or as a refinement of previous
+alternatives. The request accepts `origin`, `prompt`, `durationDays`,
+`startDate`, `budget`, `travelers`, `outputLanguage`, `planningConstraints`,
+`currentRoute`, `refinement`, and `suggestionCount`.
+
+Responses include a session title, 1-5 alternatives, comparison summary,
+follow-up questions, and warnings. Each alternative contains a `TripRoute`
+snapshot, route scores (`overallFit`, `budgetFit`, `timeEfficiency`,
+`relaxation`, `nature`, `culture`, `transportSimplicity`,
+`policyCompliance`), estimated budget/transfer cost/time, difficulty
+(`relaxed`, `balanced`, `intense`, `rushed`), pros, cons, warnings, and an
+optional itinerary prompt. Estimates are approximate and never claim live
+ticket prices, schedules, bookings, permits, or reservations.
+
+Mock mode is deterministic. Austria/Bratislava prompts return classic Austria
+train, relaxed two-city, and nature-heavy options; Spain prompts return
+Barcelona/Valencia/Madrid, Girona/Costa Brava, and Madrid/Toledo/Granada; and
+general Europe train/city prompts return compact Central European train routes.
+Constraints influence mock output: avoided/disallowed flights are removed,
+preferred train produces train legs, car availability plus `road_trip` can add
+car/rental-car routes, camping/hiking emphasizes nature, and low budget favors
+fewer stops.
+
+Ollama prompts require strict JSON only, stable English keys/enums, localized
+user-facing values, approximate estimates, route alternatives rather than a full
+itinerary, and workspace policy precedence when preferences conflict. Parsed
+responses are validated for unique IDs, supported transport modes, route leg
+references, non-negative costs, capped arrays, and clamped scores. When Ollama
+repair is enabled, invalid responses get one repair attempt before a controlled
+failure or configured mock fallback.
 
 ## Multi-Destination Generation
 

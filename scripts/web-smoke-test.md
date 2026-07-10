@@ -82,31 +82,49 @@ Use local Grafana credentials `admin` / `admin`.
 24. Select trip styles `Train trip` and `Hiking`.
 25. Confirm route validation warnings appear for any rushed stops, long transfers,
     avoided modes, or hiking/camping verification notes.
-26. Open the advanced preferences area.
-27. Select Ukrainian output, prefer train/public transport, avoid flights, set
+26. In the route alternatives panel, ask for `A 5-day Austria train and nature
+    route from Bratislava`.
+27. Confirm multiple route cards appear with stop order, transport modes,
+    estimated budget, transfer time, difficulty, scores, pros/cons, and warnings.
+28. Open the comparison table and confirm best/cheapest/relaxed/nature badges
+    are visible where applicable.
+29. Refine with `Fewer stops` and confirm a new child set of alternatives
+    replaces the previous set.
+30. Select one alternative, create the trip from the confirmation dialog, and
+    confirm the new trip opens as a multi-destination route.
+31. Return to create trip if you want to continue the baseline manual route flow.
+32. Open the advanced preferences area.
+33. Select Ukrainian output, prefer train/public transport, avoid flights, set
     max walking to `8 km/day`, and set max transfer time to `4 hours/day`.
-28. Preview AI planning settings and confirm the summary shows language, budget,
+34. Preview AI planning settings and confirm the summary shows language, budget,
     pace, walking, transport, styles, and warning/blocker counts.
-29. Change one route leg to flight and confirm a blocking issue for disallowed
+35. Change one route leg to flight and confirm a blocking issue for disallowed
     flight appears before generation.
-30. Change that leg back to train and confirm the disallowed-flight blocker
+36. Change that leg back to train and confirm the disallowed-flight blocker
     disappears while non-blocking warnings can still be reviewed.
-31. Create the route trip with itinerary generation enabled.
-32. Confirm the trip detail page shows a route overview with stops, dates/nights,
+37. Create the route trip with itinerary generation enabled.
+38. Confirm the trip detail page shows a route overview with stops, dates/nights,
     transport modes, estimated duration/cost, and an editor-only route edit action.
-33. Confirm the itinerary includes a transfer day/card with from → to, mode,
+39. Click `Find better routes`, request a more relaxed no-flight route, and
+    confirm route alternatives appear using the current route as baseline.
+40. Apply a selected route and confirm the revision warning/confirmation dialog
+    appears before the route changes.
+41. Create a poll from the route alternatives. Vote as owner or collaborator,
+    then confirm the Decisions and Group preferences panels show the preferred
+    route alternative.
+42. Confirm the itinerary includes a transfer day/card with from → to, mode,
     estimated duration, estimated cost, and a schedule-verification warning.
-34. Confirm the map shows numbered route stop markers and dashed approximate
+43. Confirm the map shows numbered route stop markers and dashed approximate
     transfer lines in addition to activity markers.
-35. Confirm the budget summary includes a `transport` category cost for transfers.
-36. Edit the route and confirm the UI warns that changing the route can make the
+44. Confirm the budget summary includes a `transport` category cost for transfers.
+45. Edit the route and confirm the UI warns that changing the route can make the
     current itinerary outdated.
-37. Open Trip Discovery and confirm the compact planning summary reflects the
+46. Open Trip Discovery and confirm the compact planning summary reflects the
     same transport/language/style preferences before requesting suggestions.
-38. Open a workspace AI Repair dialog and confirm constraint blockers are shown
+47. Open a workspace AI Repair dialog and confirm constraint blockers are shown
     as repair targets rather than disabling repair submission.
-39. Return to the known-destination mode for the baseline flow below.
-40. Create a trip with:
+48. Return to the known-destination mode for the baseline flow below.
+49. Create a trip with:
    - destination: `Rome`
    - startDate: `2026-08-10`
    - days: `2`

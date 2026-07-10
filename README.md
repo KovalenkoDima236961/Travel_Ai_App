@@ -126,6 +126,12 @@ Key product capabilities:
   trip polls; owners, editors, and accepted viewers can vote/react; group
   preferences guide regeneration, repair, budget optimization, discovery, and
   route planning without automatically applying winning choices.
+- Route Alternatives & Comparison v1: users can generate 2-4 advisory
+  multi-destination route options before a trip exists or from an existing trip,
+  compare stops, transfer modes, rough cost/time, difficulty, scores, pros/cons,
+  and warnings, refine the shortlist, create a trip from one option, apply one
+  to an existing trip with confirmation, and turn alternatives into a normal
+  collaborative poll.
 - Optimistic concurrency through `itineraryRevision` and explicit
   `expectedItineraryRevision` writes, plus Advanced Collaborative Diff/Merge v1
   for safe day/item-level recovery of stale itinerary drafts.
@@ -172,6 +178,11 @@ Key product capabilities:
   transfer days/items in mock and Ollama modes, trip detail shows route overview
   and approximate map lines, and budget/policy/risk/public-share paths consume
   route data where practical. Estimates are not live schedules or bookings.
+- Route Alternatives & Comparison v1: the create trip flow and trip detail route
+  overview can request AI route alternatives, compare scored options, refine the
+  set, create/apply a selected route only after explicit confirmation, and create
+  a standard trip poll from route options. Estimates and map lines are
+  approximate; no schedules, prices, tickets, permits, or bookings are live.
 - Workspace Approval Workflow v1: workspace trips carry a lightweight approval
   status (draft → pending → approved / changes requested / cancelled). Editors
   submit trips for review against a readiness checklist, owners/admins approve or

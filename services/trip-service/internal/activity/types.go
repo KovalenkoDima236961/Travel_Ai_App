@@ -7,6 +7,11 @@ const (
 	EventTripCreated                         = "trip_created"
 	EventTripBudgetUpdated                   = "trip_budget_updated"
 	EventRouteUpdated                        = "route_updated"
+	EventRouteAlternativesGenerated          = "route_alternatives_generated"
+	EventRouteAlternativeRefined             = "route_alternative_refined"
+	EventTripCreatedFromRouteAlternative     = "trip_created_from_route_alternative"
+	EventRouteAlternativeApplied             = "route_alternative_applied"
+	EventRouteAlternativesPollCreated        = "route_alternatives_poll_created"
 	EventTripCreatedFromTemplate             = "trip_created_from_template"
 	EventTripCreatedFromAITemplateAdaptation = "trip_created_from_ai_template_adaptation"
 	EventTripTravelerAdded                   = "trip_traveler_added"
@@ -102,6 +107,11 @@ var knownEventTypes = map[string]struct{}{
 	EventTripCreated:                         {},
 	EventTripBudgetUpdated:                   {},
 	EventRouteUpdated:                        {},
+	EventRouteAlternativesGenerated:          {},
+	EventRouteAlternativeRefined:             {},
+	EventTripCreatedFromRouteAlternative:     {},
+	EventRouteAlternativeApplied:             {},
+	EventRouteAlternativesPollCreated:        {},
 	EventTripCreatedFromTemplate:             {},
 	EventTripCreatedFromAITemplateAdaptation: {},
 	EventTripTravelerAdded:                   {},

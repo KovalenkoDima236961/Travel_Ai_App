@@ -154,13 +154,16 @@ func groupPreferencesToPlanning(
 	in appdto.GroupPreferencesAIConstraints,
 ) *planningconstraints.GroupPreferences {
 	return &planningconstraints.GroupPreferences{
-		Summary:                 in.Summary,
-		MustHaveItems:           groupPreferenceItemsToPlanning(in.MustHaveItems),
-		SkipCandidates:          groupPreferenceItemsToPlanning(in.SkipCandidates),
-		PreferredDestinations:   append([]string(nil), in.PreferredDestinations...),
-		PreferredTransportModes: append([]string(nil), in.PreferredTransportModes...),
-		PreferredDates:          append([]string(nil), in.PreferredDates...),
-		OpenDecisionCount:       in.OpenDecisionCount,
+		Summary:                     in.Summary,
+		MustHaveItems:               groupPreferenceItemsToPlanning(in.MustHaveItems),
+		SkipCandidates:              groupPreferenceItemsToPlanning(in.SkipCandidates),
+		PreferredDestinations:       append([]string(nil), in.PreferredDestinations...),
+		PreferredTransportModes:     append([]string(nil), in.PreferredTransportModes...),
+		PreferredDates:              append([]string(nil), in.PreferredDates...),
+		PreferredRouteAlternativeID: in.PreferredRouteAlternativeID,
+		PreferredRouteSessionID:     in.PreferredRouteSessionID,
+		RouteAlternativeVotes:       routeAlternativeVotesToPlanning(in.RouteAlternativeVotes),
+		OpenDecisionCount:           in.OpenDecisionCount,
 	}
 }
 
@@ -176,6 +179,22 @@ func groupPreferenceItemsToPlanning(
 			Name:      item.Name,
 			Count:     item.Count,
 			Score:     item.Score,
+		})
+	}
+	return out
+}
+
+func routeAlternativeVotesToPlanning(
+	items []appdto.GroupRouteAlternativeVote,
+) []planningconstraints.GroupRouteAlternativeVote {
+	out := make([]planningconstraints.GroupRouteAlternativeVote, 0, len(items))
+	for _, item := range items {
+		out = append(out, planningconstraints.GroupRouteAlternativeVote{
+			SessionID:     item.SessionID,
+			AlternativeID: item.AlternativeID,
+			Label:         item.Label,
+			Score:         item.Score,
+			Votes:         item.Votes,
 		})
 	}
 	return out

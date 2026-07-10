@@ -354,6 +354,31 @@
       "strict": "Strict"
     }
   },
+  "routeAlternatives": {
+    "eyebrow": "Route alternatives",
+    "title": "Compare routes",
+    "generate": "Generate routes",
+    "generating": "Generating...",
+    "compareRoutes": "Compare routes",
+    "useThisRoute": "Use this route",
+    "applyRoute": "Apply route",
+    "createTripFromRoute": "Create trip from route",
+    "estimatedBudget": "Estimated budget",
+    "transferTime": "Transfer time",
+    "difficulty": "Difficulty",
+    "relaxed": "Relaxed",
+    "balanced": "Balanced",
+    "intense": "Intense",
+    "rushed": "Rushed",
+    "moreRelaxed": "More relaxed",
+    "cheaper": "Cheaper",
+    "fewerStops": "Fewer stops",
+    "noFlights": "No flights",
+    "moreTrainFriendly": "More train-friendly",
+    "createPollFromRoutes": "Create poll from routes",
+    "rushedWarning": "This route may be rushed",
+    "approximateWarning": "Estimates are approximate and do not include live ticket prices."
+  },
   "errors": {
     "generic": "Something went wrong. Please try again.",
     "unauthorized": "Please log in to continue.",

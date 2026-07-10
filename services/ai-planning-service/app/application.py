@@ -21,6 +21,10 @@ from app.services.generator_factory import (
 )
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.knowledge_search import KnowledgeSearchService
+from app.services.route_alternatives import (
+    RouteAlternativeGenerator,
+    get_route_alternative_generator,
+)
 from app.services.template_adapter import TemplateAdapter, get_template_adapter
 
 
@@ -31,6 +35,7 @@ class ApplicationServices:
     destination_knowledge_provider: DestinationKnowledgeProvider | None
     knowledge_search_service: KnowledgeSearchService | None
     destination_suggestion_generator: DestinationSuggestionGenerator
+    route_alternative_generator: RouteAlternativeGenerator
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -59,6 +64,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     template_adapter = get_template_adapter(settings)
     destination_suggestion_generator = get_destination_suggestion_generator(settings)
+    route_alternative_generator = get_route_alternative_generator(settings)
 
     return ApplicationServices(
         itinerary_generator=itinerary_generator,
@@ -66,6 +72,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         destination_knowledge_provider=destination_knowledge_provider,
         knowledge_search_service=knowledge_search_service,
         destination_suggestion_generator=destination_suggestion_generator,
+        route_alternative_generator=route_alternative_generator,
     )
 
 
@@ -81,6 +88,7 @@ def _configure_state(
     app.state.destination_knowledge_provider = services.destination_knowledge_provider
     app.state.knowledge_search_service = services.knowledge_search_service
     app.state.destination_suggestion_generator = services.destination_suggestion_generator
+    app.state.route_alternative_generator = services.route_alternative_generator
 
 
 def _configure_observability(app: FastAPI) -> None:

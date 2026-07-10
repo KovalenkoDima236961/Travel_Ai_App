@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -22,6 +23,129 @@ import (
 // locally.
 type MockItineraryGenerator struct {
 	logger *zap.Logger
+}
+
+func (g *MockItineraryGenerator) SuggestRouteAlternatives(
+	_ context.Context,
+	input routealternatives.AIRequest,
+) (*routealternatives.Response, error) {
+	currency := "EUR"
+	if input.Budget != nil && strings.TrimSpace(input.Budget.Currency) != "" {
+		currency = strings.ToUpper(strings.TrimSpace(input.Budget.Currency))
+	}
+	mode := aggregate.TransportModeTrain
+	if input.PlanningConstraints != nil && len(input.PlanningConstraints.Transport.PreferredModes) > 0 {
+		mode = aggregate.NormalizeRouteToken(input.PlanningConstraints.Transport.PreferredModes[0])
+	}
+	response := &routealternatives.Response{
+		SessionTitle: "Route alternatives",
+		Alternatives: []routealternatives.Alternative{
+			mockRouteAlternative(input, "classic-austria-train-route", "Classic Austria Train Route", mode, currency, []aggregate.RouteStop{
+				mockRouteStop("stop_1", "Vienna", "Austria", 2, 48.2082, 16.3738),
+				mockRouteStop("stop_2", "Salzburg", "Austria", 2, 47.8095, 13.0550),
+				mockRouteStop("stop_3", "Hallstatt", "Austria", 1, 47.5622, 13.6493),
+			}, []int{70, 150, 150}, []float64{18, 35, 20}),
+			mockRouteAlternative(input, "relaxed-two-city-route", "Relaxed Two-City Route", mode, currency, []aggregate.RouteStop{
+				mockRouteStop("stop_1", "Vienna", "Austria", 2, 48.2082, 16.3738),
+				mockRouteStop("stop_2", "Salzburg", "Austria", 3, 47.8095, 13.0550),
+			}, []int{70, 150}, []float64{18, 35}),
+			mockRouteAlternative(input, "nature-heavy-route", "Nature-Heavy Route", mode, currency, []aggregate.RouteStop{
+				mockRouteStop("stop_1", "Graz", "Austria", 1, 47.0707, 15.4395),
+				mockRouteStop("stop_2", "Hallstatt", "Austria", 2, 47.5622, 13.6493),
+				mockRouteStop("stop_3", "Salzburg", "Austria", 2, 47.8095, 13.0550),
+			}, []int{155, 180, 150}, []float64{32, 38, 20}),
+		},
+		FollowUpQuestions: []string{"Would you prefer fewer stops or more nature?"},
+		Warnings:          []string{"Route estimates are approximate and do not include live ticket prices."},
+	}
+	if input.SuggestionCount > 0 && input.SuggestionCount < len(response.Alternatives) {
+		response.Alternatives = response.Alternatives[:input.SuggestionCount]
+	}
+	routealternatives.NormalizeAndScore(response, input.Budget, input.PlanningConstraints)
+	return response, nil
+}
+
+func mockRouteAlternative(
+	input routealternatives.AIRequest,
+	id string,
+	title string,
+	mode string,
+	currency string,
+	stops []aggregate.RouteStop,
+	durations []int,
+	costs []float64,
+) routealternatives.Alternative {
+	route := aggregate.TripRoute{
+		Origin:         input.Origin,
+		ReturnToOrigin: false,
+		Stops:          stops,
+		Preferences: aggregate.RoutePreferences{
+			PreferredModes:         []string{mode},
+			CarAvailable:           input.PlanningConstraints != nil && input.PlanningConstraints.Transport.CarAvailable,
+			MaxTransferHoursPerDay: intPtrValue(6),
+			TripStyles:             []string{"train_trip", "nature", "culture"},
+		},
+	}
+	if route.Origin == nil {
+		route.Origin = &aggregate.RoutePlace{Name: "Bratislava", Country: "Slovakia", Coordinates: &aggregate.Coordinates{Lat: 48.1486, Lng: 17.1077}}
+	}
+	for i, stop := range stops {
+		fromID := "origin"
+		fromName := route.Origin.Name
+		if i > 0 {
+			fromID = stops[i-1].ID
+			fromName = stops[i-1].Destination
+		}
+		cost := costs[minInt(i, len(costs)-1)]
+		duration := durations[minInt(i, len(durations)-1)]
+		distance := float64(duration) * 1.4
+		route.Legs = append(route.Legs, aggregate.RouteLeg{
+			ID:                       fmt.Sprintf("leg_%d", i+1),
+			FromStopID:               fromID,
+			ToStopID:                 stop.ID,
+			FromName:                 fromName,
+			ToName:                   stop.Destination,
+			Mode:                     mode,
+			EstimatedDurationMinutes: &duration,
+			EstimatedDistanceKm:      &distance,
+			EstimatedCost:            mockCost(cost, "transport", currency, "medium", "Approximate route estimate"),
+			Notes:                    "Approximate estimate; verify schedules and prices before travel.",
+		})
+	}
+	return routealternatives.Alternative{
+		ID:                       id,
+		Title:                    title,
+		Summary:                  "A deterministic mock route alternative for comparison.",
+		Route:                    route,
+		Scores:                   routealternatives.Scores{OverallFit: 82, BudgetFit: 70, TimeEfficiency: 70, Relaxation: 70, Nature: 75, Culture: 80, TransportSimplicity: 85, PolicyCompliance: 100},
+		EstimatedBudget:          &routealternatives.BudgetEstimate{Amount: floatPtr(620), Currency: currency, Confidence: "medium"},
+		Difficulty:               "balanced",
+		BestFor:                  []string{"train travel", "nature", "culture"},
+		Pros:                     []string{"Mostly simple transfers."},
+		Cons:                     []string{"Schedules and prices are estimates."},
+		Warnings:                 []string{"Estimates are approximate."},
+		SuggestedItineraryPrompt: fmt.Sprintf("Create a route itinerary for %s.", title),
+	}
+}
+
+func mockRouteStop(id, city, country string, nights int, lat, lng float64) aggregate.RouteStop {
+	return aggregate.RouteStop{
+		ID:                id,
+		Destination:       city,
+		City:              city,
+		Country:           country,
+		Nights:            &nights,
+		Coordinates:       &aggregate.Coordinates{Lat: lat, Lng: lng},
+		AccommodationHint: "guesthouse",
+	}
+}
+
+func intPtrValue(value int) *int {
+	return &value
+}
+
+func floatPtr(value float64) *float64 {
+	return &value
 }
 
 // NewMockItineraryGenerator constructs the mock generator.

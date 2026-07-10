@@ -233,6 +233,57 @@ flight, ferry, car-rental, campsite, permit, or ticket booking is performed.
 Hiking/camping guidance is conservative planning text, not technical GPS
 navigation or a safety guarantee. Map lines may be approximate.
 
+## Route Alternatives & Comparison
+
+Route Alternatives v1 persists AI-generated route comparison sessions in
+`route_alternative_sessions` (migration `000027_add_route_alternative_sessions`).
+Each row stores owner, optional trip/workspace, source (`pre_trip`,
+`existing_trip`, `discovery_refinement`, `route_refinement`), output language,
+status (`completed`, `failed`, `created_trip`, `applied`, `archived`), request
+JSON, response JSON, selected alternative, created/applied trip IDs, optional
+parent session, and timestamps. Indexes cover user, trip, workspace, and parent
+session history.
+
+Routes:
+
+- `POST /route-alternatives/suggest` creates pre-trip route alternatives.
+- `GET /route-alternatives/sessions` lists personal or trip-filtered sessions.
+- `GET /route-alternatives/sessions/{sessionId}` reads an authorized session.
+- `POST /route-alternatives/sessions/{sessionId}/refine` creates a child
+  session using previous alternatives plus an instruction.
+- `POST /route-alternatives/sessions/{sessionId}/alternatives/{alternativeId}/create-trip`
+  creates an explicit `multi_destination` trip from a selected alternative and
+  can queue a normal `full_generation` job.
+- `POST /trips/{id}/route-alternatives` generates alternatives for an existing
+  trip and can include the current route as a baseline.
+- `POST /trips/{id}/route-alternatives/{sessionId}/alternatives/{alternativeId}/apply`
+  applies a selected route through the normal route update path, with
+  edit-permission and itinerary-revision checks when an itinerary exists.
+- `POST /trips/{id}/route-alternatives/{sessionId}/create-poll` creates a
+  regular trip poll with route alternative option metadata.
+
+Trip Service normalizes alternatives after AI returns: missing legs/durations,
+distances, and transfer costs are filled with deterministic fallback estimates;
+scores are clamped and recomputed for budget fit, time efficiency, relaxation,
+nature/culture, transport simplicity, policy compliance, and overall fit; and
+difficulty is derived from stops per day and transfer minutes. The comparison
+summary identifies cheapest, most relaxed, best nature, and best overall
+alternatives.
+
+Planning constraints use new sources `route_alternatives`,
+`route_alternative_refinement`, and `route_alternative_apply_preview`. Pre-trip
+suggestion blockers stop normal suggestions; existing-trip route alternatives
+can still be used to explore fixes when appropriate. Group preferences now
+recognize poll option metadata with `category = route_alternative` and expose
+`preferredRouteAlternativeId`, `preferredRouteSessionId`, and
+`routeAlternativeVotes` to downstream AI constraints.
+
+Permissions follow private trip rules: pre-trip sessions are owner-only unless
+used to create a trip; trip-linked sessions require trip view access to read and
+edit access to refine/apply/create polls. Public share visitors cannot access
+route alternative sessions. No route is applied automatically, winning votes do
+not mutate trips, and all estimates remain advisory with no booking behavior.
+
 ## Architecture
 
 ```mermaid

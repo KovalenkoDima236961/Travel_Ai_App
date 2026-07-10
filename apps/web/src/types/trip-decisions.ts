@@ -120,6 +120,15 @@ export type GroupPreferenceScore = {
   votes: number;
 };
 
+export type GroupRouteAlternativeVote = {
+  sessionId: string;
+  alternativeId: string;
+  label: string;
+  score: number;
+  votes: number;
+  pollId: string;
+};
+
 export type GroupPreferenceItineraryItem = {
   dayNumber: number;
   itemIndex: number;
@@ -161,7 +170,13 @@ export type GroupPreferencesSummary = {
   transportPreferences: GroupPreferenceScore[];
   destinationPreferences: GroupPreferenceScore[];
   datePreferences: GroupPreferenceScore[];
+  routeAlternativeVotes: GroupRouteAlternativeVote[];
   aiConstraintSummary: string;
+  aiConstraints?: {
+    preferredRouteAlternativeId?: string;
+    preferredRouteSessionId?: string;
+    routeAlternativeVotes?: GroupRouteAlternativeVote[];
+  };
 };
 
 export type DiscoverySuggestionVoteSummary = {

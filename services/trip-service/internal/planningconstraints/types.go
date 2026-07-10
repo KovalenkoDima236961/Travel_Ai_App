@@ -13,15 +13,18 @@ const SchemaVersion = 1
 type Source string
 
 const (
-	SourceTripDiscovery      Source = "trip_discovery"
-	SourceTripGeneration     Source = "trip_generation"
-	SourceDayRegeneration    Source = "day_regeneration"
-	SourceItemRegeneration   Source = "item_regeneration"
-	SourceTemplateAdaptation Source = "template_adaptation"
-	SourcePolicyRepair       Source = "policy_repair"
-	SourceBudgetOptimization Source = "budget_optimization"
-	SourceRouteGeneration    Source = "route_generation"
-	SourceRouteUpdatePreview Source = "route_update_preview"
+	SourceTripDiscovery                Source = "trip_discovery"
+	SourceTripGeneration               Source = "trip_generation"
+	SourceDayRegeneration              Source = "day_regeneration"
+	SourceItemRegeneration             Source = "item_regeneration"
+	SourceTemplateAdaptation           Source = "template_adaptation"
+	SourcePolicyRepair                 Source = "policy_repair"
+	SourceBudgetOptimization           Source = "budget_optimization"
+	SourceRouteGeneration              Source = "route_generation"
+	SourceRouteAlternatives            Source = "route_alternatives"
+	SourceRouteAlternativeRefinement   Source = "route_alternative_refinement"
+	SourceRouteAlternativeApplyPreview Source = "route_alternative_apply_preview"
+	SourceRouteUpdatePreview           Source = "route_update_preview"
 )
 
 func (s Source) Valid() bool {
@@ -34,6 +37,9 @@ func (s Source) Valid() bool {
 		SourcePolicyRepair,
 		SourceBudgetOptimization,
 		SourceRouteGeneration,
+		SourceRouteAlternatives,
+		SourceRouteAlternativeRefinement,
+		SourceRouteAlternativeApplyPreview,
 		SourceRouteUpdatePreview:
 		return true
 	default:
@@ -151,13 +157,16 @@ type WorkspacePolicy struct {
 }
 
 type GroupPreferences struct {
-	Summary                 string                    `json:"summary"`
-	MustHaveItems           []GroupPreferenceItem     `json:"mustHaveItems"`
-	SkipCandidates          []GroupPreferenceItem     `json:"skipCandidates"`
-	PreferredDestinations   []string                  `json:"preferredDestinations"`
-	PreferredTransportModes []string                  `json:"preferredTransportModes"`
-	PreferredDates          []string                  `json:"preferredDates"`
-	OpenDecisionCount       int                       `json:"openDecisionCount"`
+	Summary                     string                      `json:"summary"`
+	MustHaveItems               []GroupPreferenceItem       `json:"mustHaveItems"`
+	SkipCandidates              []GroupPreferenceItem       `json:"skipCandidates"`
+	PreferredDestinations       []string                    `json:"preferredDestinations"`
+	PreferredTransportModes     []string                    `json:"preferredTransportModes"`
+	PreferredDates              []string                    `json:"preferredDates"`
+	PreferredRouteAlternativeID string                      `json:"preferredRouteAlternativeId,omitempty"`
+	PreferredRouteSessionID     string                      `json:"preferredRouteSessionId,omitempty"`
+	RouteAlternativeVotes       []GroupRouteAlternativeVote `json:"routeAlternativeVotes,omitempty"`
+	OpenDecisionCount           int                         `json:"openDecisionCount"`
 }
 
 type GroupPreferenceItem struct {
@@ -167,6 +176,14 @@ type GroupPreferenceItem struct {
 	Name      string `json:"name"`
 	Count     int    `json:"count"`
 	Score     int    `json:"score"`
+}
+
+type GroupRouteAlternativeVote struct {
+	SessionID     string `json:"sessionId"`
+	AlternativeID string `json:"alternativeId"`
+	Label         string `json:"label"`
+	Score         int    `json:"score"`
+	Votes         int    `json:"votes"`
 }
 
 type PreviousTripSignals struct {

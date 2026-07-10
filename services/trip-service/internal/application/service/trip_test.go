@@ -22,6 +22,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -46,6 +47,9 @@ type mockRepo struct {
 	routeUpdateUserID uuid.UUID
 	routeUpdateRoute  *aggregate.TripRoute
 	routeUpdateType   string
+
+	creationMetadataCalled bool
+	creationMetadata       map[string]any
 
 	getByIDResult *entity.Trip
 	getByIDErr    error
@@ -100,6 +104,7 @@ type mockRepo struct {
 
 	budgetOptimizationProposals []entity.BudgetOptimizationProposal
 	tripRepairProposals         []entity.TripRepairProposal
+	routeAlternativeSessions    []routealternatives.Session
 
 	// Approval workflow.
 	approvalFields          *entity.TripApprovalFields
@@ -188,6 +193,8 @@ func (m *mockRepo) Create(_ context.Context, t *entity.Trip) (*entity.Trip, erro
 	out.ID = uuid.New()
 	out.CreatedAt = time.Now()
 	out.UpdatedAt = time.Now()
+	m.createdTrip = &out
+	m.getByIDResult = &out
 	return &out, nil
 }
 
@@ -221,6 +228,19 @@ func (m *mockRepo) UpdateTripRoute(_ context.Context, id, userID uuid.UUID, rout
 	}
 	out.Route = route
 	out.TripType = tripType
+	out.UpdatedAt = time.Now()
+	m.getByIDResult = &out
+	return &out, nil
+}
+
+func (m *mockRepo) UpdateTripCreationMetadata(_ context.Context, id, userID uuid.UUID, metadata map[string]any) (*entity.Trip, error) {
+	m.creationMetadataCalled = true
+	m.creationMetadata = metadata
+	out := entity.Trip{ID: id, UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}
+	if m.getByIDResult != nil {
+		out = *m.getByIDResult
+	}
+	out.CreationMetadata = metadata
 	out.UpdatedAt = time.Now()
 	m.getByIDResult = &out
 	return &out, nil
@@ -338,6 +358,106 @@ func (m *mockRepo) SetWorkspaceBudgetPrimary(context.Context, uuid.UUID, uuid.UU
 
 func (m *mockRepo) CountWorkspaceBudgets(context.Context, uuid.UUID, *entity.WorkspaceBudgetStatus) (int, error) {
 	return 0, nil
+}
+
+func (m *mockRepo) CreateRouteAlternativeSession(_ context.Context, session *routealternatives.Session) (*routealternatives.Session, error) {
+	out := copyRouteAlternativeSession(session)
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now()
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = now
+	}
+	if out.UpdatedAt.IsZero() {
+		out.UpdatedAt = out.CreatedAt
+	}
+	if out.Status == "" {
+		out.Status = routealternatives.StatusCompleted
+	}
+	if out.OutputLanguage == "" {
+		out.OutputLanguage = "en"
+	}
+	m.routeAlternativeSessions = append(m.routeAlternativeSessions, *out)
+	return copyRouteAlternativeSession(out), nil
+}
+
+func (m *mockRepo) GetRouteAlternativeSessionByID(_ context.Context, id uuid.UUID) (*routealternatives.Session, error) {
+	for i := range m.routeAlternativeSessions {
+		if m.routeAlternativeSessions[i].ID == id {
+			return copyRouteAlternativeSession(&m.routeAlternativeSessions[i]), nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListRouteAlternativeSessionsByTrip(_ context.Context, tripID uuid.UUID, limit int) ([]routealternatives.Session, error) {
+	out := make([]routealternatives.Session, 0)
+	for i := range m.routeAlternativeSessions {
+		session := m.routeAlternativeSessions[i]
+		if session.TripID == nil || *session.TripID != tripID || session.Status == routealternatives.StatusArchived {
+			continue
+		}
+		out = append(out, *copyRouteAlternativeSession(&session))
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) ListRouteAlternativeSessionsByUser(_ context.Context, userID uuid.UUID, limit int) ([]routealternatives.Session, error) {
+	out := make([]routealternatives.Session, 0)
+	for i := range m.routeAlternativeSessions {
+		session := m.routeAlternativeSessions[i]
+		if session.UserID != userID || session.Status == routealternatives.StatusArchived {
+			continue
+		}
+		out = append(out, *copyRouteAlternativeSession(&session))
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) MarkRouteAlternativeSessionCreatedTrip(_ context.Context, id uuid.UUID, alternativeID string, createdTripID uuid.UUID) (*routealternatives.Session, error) {
+	for i := range m.routeAlternativeSessions {
+		if m.routeAlternativeSessions[i].ID == id {
+			now := time.Now()
+			m.routeAlternativeSessions[i].Status = routealternatives.StatusCreatedTrip
+			m.routeAlternativeSessions[i].SelectedAlternativeID = alternativeID
+			m.routeAlternativeSessions[i].CreatedTripID = &createdTripID
+			m.routeAlternativeSessions[i].UpdatedAt = now
+			return copyRouteAlternativeSession(&m.routeAlternativeSessions[i]), nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) MarkRouteAlternativeSessionApplied(_ context.Context, id uuid.UUID, alternativeID string, appliedToTripID uuid.UUID) (*routealternatives.Session, error) {
+	for i := range m.routeAlternativeSessions {
+		if m.routeAlternativeSessions[i].ID == id {
+			now := time.Now()
+			m.routeAlternativeSessions[i].Status = routealternatives.StatusApplied
+			m.routeAlternativeSessions[i].SelectedAlternativeID = alternativeID
+			m.routeAlternativeSessions[i].AppliedToTripID = &appliedToTripID
+			m.routeAlternativeSessions[i].UpdatedAt = now
+			return copyRouteAlternativeSession(&m.routeAlternativeSessions[i]), nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ArchiveRouteAlternativeSession(_ context.Context, id uuid.UUID) (*routealternatives.Session, error) {
+	for i := range m.routeAlternativeSessions {
+		if m.routeAlternativeSessions[i].ID == id {
+			m.routeAlternativeSessions[i].Status = routealternatives.StatusArchived
+			m.routeAlternativeSessions[i].UpdatedAt = time.Now()
+			return copyRouteAlternativeSession(&m.routeAlternativeSessions[i]), nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
 }
 
 func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
@@ -1228,32 +1348,100 @@ func countTripVersions(versions []entity.ItineraryVersion, tripID uuid.UUID) int
 	return count
 }
 
+func copyRouteAlternativeSession(session *routealternatives.Session) *routealternatives.Session {
+	if session == nil {
+		return nil
+	}
+	out := *session
+	if session.RequestJSON != nil {
+		out.RequestJSON = append(json.RawMessage(nil), session.RequestJSON...)
+	}
+	if session.ResponseJSON != nil {
+		out.ResponseJSON = append(json.RawMessage(nil), session.ResponseJSON...)
+	}
+	return &out
+}
+
 // mockGenerator is an application.ItineraryGenerator test double.
 type mockGenerator struct {
-	result                *aggregate.Itinerary
-	err                   error
-	called                bool
-	capturedInput         application.GenerateItineraryInput
-	dayResult             *aggregate.ItineraryDay
-	dayErr                error
-	regenerateDayCalled   bool
-	capturedDayInput      application.RegenerateDayInput
-	itemResult            *aggregate.ItineraryItem
-	itemErr               error
-	regenerateItemCalled  bool
-	capturedItemInput     application.RegenerateItemInput
-	optimizeResult        *budgetoptimization.ProposalContent
-	optimizeErr           error
-	optimizeCalled        bool
-	capturedOptimizeInput budgetoptimization.OptimizeDayInput
-	repairResult          *triprepair.ProposalContent
-	repairErr             error
-	repairCalled          bool
-	capturedRepairInput   triprepair.Input
-	adaptResult           *templateadaptation.AdaptResult
-	adaptErr              error
-	adaptCalled           bool
-	capturedAdaptInput    templateadaptation.AdaptInput
+	result                         *aggregate.Itinerary
+	err                            error
+	called                         bool
+	capturedInput                  application.GenerateItineraryInput
+	dayResult                      *aggregate.ItineraryDay
+	dayErr                         error
+	regenerateDayCalled            bool
+	capturedDayInput               application.RegenerateDayInput
+	itemResult                     *aggregate.ItineraryItem
+	itemErr                        error
+	regenerateItemCalled           bool
+	capturedItemInput              application.RegenerateItemInput
+	optimizeResult                 *budgetoptimization.ProposalContent
+	optimizeErr                    error
+	optimizeCalled                 bool
+	capturedOptimizeInput          budgetoptimization.OptimizeDayInput
+	repairResult                   *triprepair.ProposalContent
+	repairErr                      error
+	repairCalled                   bool
+	capturedRepairInput            triprepair.Input
+	adaptResult                    *templateadaptation.AdaptResult
+	adaptErr                       error
+	adaptCalled                    bool
+	capturedAdaptInput             templateadaptation.AdaptInput
+	routeAlternativesResult        *routealternatives.Response
+	routeAlternativesErr           error
+	routeAlternativesCalled        bool
+	capturedRouteAlternativesInput routealternatives.AIRequest
+}
+
+func (g *mockGenerator) SuggestRouteAlternatives(_ context.Context, input routealternatives.AIRequest) (*routealternatives.Response, error) {
+	g.routeAlternativesCalled = true
+	g.capturedRouteAlternativesInput = input
+	if g.routeAlternativesErr != nil {
+		return nil, g.routeAlternativesErr
+	}
+	if g.routeAlternativesResult != nil {
+		return g.routeAlternativesResult, nil
+	}
+	nights := 2
+	duration := 90
+	distance := 80.0
+	response := &routealternatives.Response{
+		SessionTitle: "Route alternatives",
+		Alternatives: []routealternatives.Alternative{{
+			ID:      "classic-train-route",
+			Title:   "Classic train route",
+			Summary: "A balanced route with simple train transfers.",
+			Route: aggregate.TripRoute{
+				Origin: input.Origin,
+				Stops: []aggregate.RouteStop{{
+					ID:          "stop-vienna",
+					Destination: "Vienna",
+					City:        "Vienna",
+					Country:     "Austria",
+					Nights:      &nights,
+				}},
+				Legs: []aggregate.RouteLeg{{
+					ID:                       "leg-1",
+					FromStopID:               "origin",
+					ToStopID:                 "stop-vienna",
+					FromName:                 "Origin",
+					ToName:                   "Vienna",
+					Mode:                     aggregate.TransportModeTrain,
+					EstimatedDurationMinutes: &duration,
+					EstimatedDistanceKm:      &distance,
+				}},
+				Preferences: aggregate.RoutePreferences{PreferredModes: []string{aggregate.TransportModeTrain}},
+			},
+			BestFor: []string{"culture", "train_trip"},
+			Pros:    []string{"Simple transfers"},
+			Cons:    []string{"Limited nature time"},
+		}},
+		FollowUpQuestions: []string{"Do you prefer fewer stops or more variety?"},
+		Warnings:          []string{"Estimates are approximate."},
+	}
+	routealternatives.NormalizeAndScore(response, input.Budget, input.PlanningConstraints)
+	return response, nil
 }
 
 func (g *mockGenerator) AdaptTemplate(_ context.Context, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error) {

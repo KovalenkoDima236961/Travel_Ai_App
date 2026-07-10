@@ -213,6 +213,31 @@
       "strict": "Estricto"
     }
   },
+  "routeAlternatives": {
+    "eyebrow": "Alternativas de ruta",
+    "title": "Comparar rutas",
+    "generate": "Generar rutas",
+    "generating": "Generando...",
+    "compareRoutes": "Comparar rutas",
+    "useThisRoute": "Usar esta ruta",
+    "applyRoute": "Aplicar ruta",
+    "createTripFromRoute": "Crear viaje desde la ruta",
+    "estimatedBudget": "Presupuesto estimado",
+    "transferTime": "Tiempo de traslado",
+    "difficulty": "Dificultad",
+    "relaxed": "Relajada",
+    "balanced": "Equilibrada",
+    "intense": "Intensa",
+    "rushed": "Apresurada",
+    "moreRelaxed": "Más relajada",
+    "cheaper": "Más barata",
+    "fewerStops": "Menos paradas",
+    "noFlights": "Sin vuelos",
+    "moreTrainFriendly": "Más apta para tren",
+    "createPollFromRoutes": "Crear encuesta de rutas",
+    "rushedWarning": "Esta ruta puede ser apresurada",
+    "approximateWarning": "Las estimaciones son aproximadas y no incluyen precios en vivo."
+  },
   "errors": {
     "generic": "Algo ha salido mal. Inténtalo de nuevo.", "unauthorized": "Inicia sesión para continuar.",
     "forbidden": "No tienes permiso para hacer eso.", "notFound": "No se encontró el elemento solicitado.",

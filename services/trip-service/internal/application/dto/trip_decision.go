@@ -84,6 +84,7 @@ type GroupPreferencesSummary struct {
 	TransportPreferences   []GroupPreferenceScore        `json:"transportPreferences"`
 	DestinationPreferences []GroupPreferenceScore        `json:"destinationPreferences"`
 	DatePreferences        []GroupPreferenceScore        `json:"datePreferences"`
+	RouteAlternativeVotes  []GroupRouteAlternativeVote   `json:"routeAlternativeVotes"`
 	AIConstraintSummary    string                        `json:"aiConstraintSummary"`
 	AIConstraints          GroupPreferencesAIConstraints `json:"aiConstraints"`
 }
@@ -135,12 +136,24 @@ type GroupPreferenceScore struct {
 	Votes int    `json:"votes"`
 }
 
+type GroupRouteAlternativeVote struct {
+	SessionID     string    `json:"sessionId"`
+	AlternativeID string    `json:"alternativeId"`
+	Label         string    `json:"label"`
+	Score         int       `json:"score"`
+	Votes         int       `json:"votes"`
+	PollID        uuid.UUID `json:"pollId"`
+}
+
 type GroupPreferencesAIConstraints struct {
-	Summary                 string                         `json:"summary"`
-	MustHaveItems           []GroupPreferenceItineraryItem `json:"mustHaveItems"`
-	SkipCandidates          []GroupPreferenceItineraryItem `json:"skipCandidates"`
-	PreferredDestinations   []string                       `json:"preferredDestinations"`
-	PreferredTransportModes []string                       `json:"preferredTransportModes"`
-	PreferredDates          []string                       `json:"preferredDates"`
-	OpenDecisionCount       int                            `json:"openDecisionCount"`
+	Summary                     string                         `json:"summary"`
+	MustHaveItems               []GroupPreferenceItineraryItem `json:"mustHaveItems"`
+	SkipCandidates              []GroupPreferenceItineraryItem `json:"skipCandidates"`
+	PreferredDestinations       []string                       `json:"preferredDestinations"`
+	PreferredTransportModes     []string                       `json:"preferredTransportModes"`
+	PreferredDates              []string                       `json:"preferredDates"`
+	PreferredRouteAlternativeID string                         `json:"preferredRouteAlternativeId,omitempty"`
+	PreferredRouteSessionID     string                         `json:"preferredRouteSessionId,omitempty"`
+	RouteAlternativeVotes       []GroupRouteAlternativeVote    `json:"routeAlternativeVotes,omitempty"`
+	OpenDecisionCount           int                            `json:"openDecisionCount"`
 }

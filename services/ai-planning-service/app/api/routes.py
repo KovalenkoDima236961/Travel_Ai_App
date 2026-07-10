@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from app.api.dependencies import (
     get_configured_destination_suggestion_generator,
     get_configured_itinerary_generator,
+    get_configured_route_alternative_generator,
     get_configured_settings,
     get_configured_template_adapter,
 )
@@ -31,9 +32,11 @@ from app.schemas.itinerary import (
     RegenerateItemResponse,
 )
 from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
+from app.schemas.route_alternatives import RouteAlternativeRequest, RouteAlternativeResponse
 from app.schemas.template_adaptation import TemplateAdaptationRequest, TemplateAdaptationResponse
 from app.services.destination_suggestion import DestinationSuggestionGenerator
 from app.services.itinerary_generator import ItineraryGenerator
+from app.services.route_alternatives import RouteAlternativeGenerator
 from app.services.template_adaptation_validator import TemplateAdaptationValidationError
 from app.services.template_adapter import TemplateAdapter, validate_adaptation
 
@@ -63,6 +66,27 @@ def suggest_destinations(
     except Exception as exc:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to suggest destinations") from exc
+
+
+@router.post("/suggest-route-alternatives", response_model=RouteAlternativeResponse)
+def suggest_route_alternatives(
+    request: RouteAlternativeRequest,
+    settings: Settings = Depends(get_configured_settings),
+    generator: RouteAlternativeGenerator = Depends(get_configured_route_alternative_generator),
+) -> RouteAlternativeResponse:
+    operation = "suggest_route_alternatives"
+    mode = _generator_mode(settings)
+    started_at = time.monotonic()
+    try:
+        response = generator.suggest(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
+    except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise
+    except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise ItineraryGenerationError("Failed to suggest route alternatives") from exc
 
 
 @router.get("/health")

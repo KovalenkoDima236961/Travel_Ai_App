@@ -87,6 +87,11 @@ func (h *Handler) EnableWorkspacePolicies(svc *workspacepolicies.Service) *Handl
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/collaboration/invitations", h.ListCollaborationInvitations)
 	r.Post("/planning-constraints/preview", h.PreviewPlanningConstraints)
+	r.Post("/route-alternatives/suggest", h.SuggestRouteAlternatives)
+	r.Get("/route-alternatives/sessions", h.ListRouteAlternativeSessions)
+	r.Get("/route-alternatives/sessions/{sessionId}", h.GetRouteAlternativeSession)
+	r.Post("/route-alternatives/sessions/{sessionId}/refine", h.RefineRouteAlternativeSession)
+	r.Post("/route-alternatives/sessions/{sessionId}/alternatives/{alternativeId}/create-trip", h.CreateTripFromRouteAlternative)
 	r.Route("/trips", func(r chi.Router) {
 		r.Post("/", h.Create)
 		r.Get("/", h.List)
@@ -98,6 +103,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Delete("/{id}/accommodation", h.DeleteAccommodation)
 		r.Get("/{id}/route", h.GetRoute)
 		r.Put("/{id}/route", h.UpdateRoute)
+		r.Post("/{id}/route-alternatives", h.SuggestTripRouteAlternatives)
+		r.Post("/{id}/route-alternatives/{sessionId}/alternatives/{alternativeId}/apply", h.ApplyRouteAlternative)
+		r.Post("/{id}/route-alternatives/{sessionId}/create-poll", h.CreateRouteAlternativesPoll)
 		r.Patch("/{id}/accommodation/cost-split", h.UpdateAccommodationCostSplit)
 		r.Get("/{id}/budget-summary", h.GetBudgetSummary)
 		r.Get("/{id}/analytics/costs", h.GetTripCostAnalytics)

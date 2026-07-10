@@ -12,6 +12,7 @@ from app.schemas.itinerary import (
 )
 from app.schemas.knowledge import KnowledgeSearchResult
 from app.schemas.repair import RepairItineraryRequest
+from app.schemas.route_alternatives import RouteAlternativeRequest
 from app.schemas.template_adaptation import TemplateAdaptationRequest
 
 
@@ -74,6 +75,134 @@ Rules:
 {planning_constraints_section}
 Trusted sanitized request context:
 {json.dumps(payload, ensure_ascii=False, indent=2)}
+""".strip()
+
+
+def build_route_alternatives_prompt(request: RouteAlternativeRequest) -> str:
+    payload = request.model_dump(by_alias=True, exclude_none=True, mode="json")
+    planning_constraints_section = _planning_constraints_section(request)
+    return f"""
+You are a route alternatives engine for a web-based AI travel planning app.
+
+Return strict JSON only, matching this shape:
+{{
+  "sessionTitle": "string",
+  "alternatives": [{{
+    "id": "stable-slug",
+    "title": "string",
+    "summary": "string",
+    "route": {{
+      "origin": {{"name": "string", "country": "string", "coordinates": {{"lat": 0, "lng": 0}}}},
+      "returnToOrigin": false,
+      "stops": [{{
+        "id": "stop_1",
+        "destination": "string",
+        "city": "string",
+        "country": "string",
+        "arrivalDate": "YYYY-MM-DD",
+        "departureDate": "YYYY-MM-DD",
+        "nights": 1,
+        "coordinates": {{"lat": 0, "lng": 0}},
+        "accommodationHint": "hotel|hostel|apartment|guesthouse|campsite|cabin|other",
+        "notes": "string"
+      }}],
+      "legs": [{{
+        "id": "leg_1",
+        "fromStopId": "origin",
+        "toStopId": "stop_1",
+        "fromName": "string",
+        "toName": "string",
+        "mode": "walk|car|rental_car|train|bus|flight|boat|public_transport|other",
+        "departureDate": "YYYY-MM-DD",
+        "estimatedDurationMinutes": 0,
+        "estimatedDistanceKm": 0,
+        "estimatedCost": {{
+          "amount": 0,
+          "currency": "EUR",
+          "category": "transport",
+          "confidence": "low|medium|high",
+          "source": "ai"
+        }},
+        "notes": "string"
+      }}],
+      "preferences": {{
+        "preferredModes": ["train"],
+        "avoidModes": ["flight"],
+        "carAvailable": false,
+        "maxTransferHoursPerDay": 4,
+        "tripStyles": ["train_trip", "nature"]
+      }}
+    }},
+    "scores": {{
+      "overallFit": 0,
+      "budgetFit": 0,
+      "timeEfficiency": 0,
+      "relaxation": 0,
+      "nature": 0,
+      "culture": 0,
+      "transportSimplicity": 0,
+      "policyCompliance": 0
+    }},
+    "estimatedBudget": {{"amount": 0, "currency": "EUR", "confidence": "medium"}},
+    "estimatedTransferMinutes": 0,
+    "estimatedTransferCost": {{"amount": 0, "currency": "EUR", "confidence": "medium"}},
+    "difficulty": "relaxed|balanced|intense|rushed",
+    "bestFor": ["string"],
+    "pros": ["string"],
+    "cons": ["string"],
+    "warnings": ["string"],
+    "suggestedItineraryPrompt": "string"
+  }}],
+  "comparisonSummary": {{
+    "cheapestAlternativeId": "stable-slug",
+    "mostRelaxedAlternativeId": "stable-slug",
+    "bestNatureAlternativeId": "stable-slug",
+    "bestOverallAlternativeId": "stable-slug"
+  }},
+  "followUpQuestions": ["string"],
+  "warnings": ["string"]
+}}
+
+Rules:
+- Generate route alternatives, not a detailed day-by-day itinerary.
+- Return 1 to {request.suggestion_count} plausible, distinct alternatives.
+- Respect duration, budget, origin, currentRoute, refinement, and planningConstraints.
+- Prefer workspace policy over user preferences when conflicts exist.
+- Suggest fewer stops if duration is short or budget is low.
+- Avoid impossible routes and avoid disallowed transport modes.
+- Include route stops and connecting legs with transport mode per leg.
+- Use approximate estimates only; do not claim live schedules, live prices, bookings,
+  reservations, ticket purchase, permits, or availability.
+- Include clear pros, cons, and warnings for each alternative.
+- Keep JSON keys and enum values in English.
+- Localize user-facing text values to outputLanguage={request.output_language}.
+
+{planning_constraints_section}
+Trusted sanitized request context:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
+""".strip()
+
+
+def build_route_alternatives_repair_prompt(
+    request: RouteAlternativeRequest,
+    invalid_response_text: str,
+    validation_error: str,
+) -> str:
+    payload = request.model_dump(by_alias=True, exclude_none=True, mode="json")
+    return f"""
+Repair this invalid route alternatives JSON response.
+
+Return strict JSON only. Keep the same response shape required by
+build_route_alternatives_prompt. Do not add markdown.
+
+Validation error:
+{validation_error}
+
+Original trusted request context:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
+
+Invalid response:
+{invalid_response_text}
 """.strip()
 
 
@@ -1134,13 +1263,24 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
         "PLANNING CONSTRAINTS:",
         "- Respect these normalized constraints consistently across the response.",
         "- If constraints conflict, prioritize workspace policy and explicit trip/request fields.",
-        "- Treat group preferences as soft constraints unless they also appear in explicit request fields.",
-        "- Do not claim group consensus when the group preference summary says decisions are still open or unclear.",
+        (
+            "- Treat group preferences as soft constraints unless they also appear in explicit "
+            "request fields."
+        ),
+        (
+            "- Do not claim group consensus when the group preference summary says decisions are "
+            "still open or unclear."
+        ),
         "- Keep JSON keys and enum values in English; localize only user-facing text.",
-        "- Do not claim live booking, live availability, legal compliance, medical/accessibility guarantees, or exact prices.",
+        (
+            "- Do not claim live booking, live availability, legal compliance, "
+            "medical/accessibility guarantees, or exact prices."
+        ),
     ]
     if repair_targets:
-        lines.append("- Treat blockers as repair targets rather than a reason to refuse the repair.")
+        lines.append(
+            "- Treat blockers as repair targets rather than a reason to refuse the repair."
+        )
     else:
         lines.append("- Treat blockers as hard constraints.")
 
@@ -1168,8 +1308,16 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
             lines.append("- Long hikes are not allowed.")
     transport = getattr(constraints, "transport", None)
     if transport is not None:
-        _append_optional_line(lines, "Preferred transport", _display_list(getattr(transport, "preferred_modes", [])))
-        _append_optional_line(lines, "Avoid transport", _display_list(getattr(transport, "avoid_modes", [])))
+        _append_optional_line(
+            lines,
+            "Preferred transport",
+            _display_list(getattr(transport, "preferred_modes", [])),
+        )
+        _append_optional_line(
+            lines,
+            "Avoid transport",
+            _display_list(getattr(transport, "avoid_modes", [])),
+        )
         _append_optional_line(
             lines,
             "Disallowed transport",
@@ -1198,7 +1346,11 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
         )
     food = getattr(constraints, "food", None)
     if food is not None:
-        _append_optional_line(lines, "Food preferences", _display_list(getattr(food, "preferences", [])))
+        _append_optional_line(
+            lines,
+            "Food preferences",
+            _display_list(getattr(food, "preferences", [])),
+        )
         _append_optional_line(
             lines,
             "Dietary restrictions",
@@ -1208,7 +1360,9 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
     workspace_policy = getattr(constraints, "workspace_policy", None)
     if workspace_policy is not None and getattr(workspace_policy, "summary", None):
         lines.append("- Workspace policy summary:")
-        lines.extend(f"  - {line}" for line in str(workspace_policy.summary).splitlines() if line.strip())
+        lines.extend(
+            f"  - {line}" for line in str(workspace_policy.summary).splitlines() if line.strip()
+        )
 
     group_preferences = getattr(constraints, "group_preferences", None)
     if group_preferences is not None:
@@ -1241,7 +1395,9 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
         _append_optional_line(lines, "Group skip candidates", _display_list(skip_names))
         open_count = getattr(group_preferences, "open_decision_count", 0)
         if open_count:
-            lines.append(f"- {open_count} group decision(s) remain open; avoid overstating consensus.")
+            lines.append(
+                f"- {open_count} group decision(s) remain open; avoid overstating consensus."
+            )
         if must_have_names:
             lines.append("- Preserve group must-have activities where possible.")
         if skip_names:
@@ -1364,8 +1520,14 @@ def _route_context_section(request: GenerateItineraryRequest) -> str:
         "Route planning instructions:",
         "- Treat this as a multi-destination route when it has more than one stop.",
         "- Use route legs for transfer items and keep costs/durations approximate.",
-        "- Respect avoidModes and do not use disallowed modes unless the route explicitly requires it.",
-        "- Do not claim live schedules, ticket purchase, accommodation booking, permits, or reservations.",
+        (
+            "- Respect avoidModes and do not use disallowed modes unless the route explicitly "
+            "requires it."
+        ),
+        (
+            "- Do not claim live schedules, ticket purchase, accommodation booking, permits, "
+            "or reservations."
+        ),
     ]
     if transport_preferences is not None:
         lines.append(

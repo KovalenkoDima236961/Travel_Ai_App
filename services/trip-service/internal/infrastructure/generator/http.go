@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -549,6 +550,17 @@ func (g *AIPlanningHTTPGenerator) RepairItinerary(ctx context.Context, input tri
 
 	var result triprepair.ProposalContent
 	if err := g.postJSON(ctx, trip.ID, "repair-itinerary", payload, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (g *AIPlanningHTTPGenerator) SuggestRouteAlternatives(
+	ctx context.Context,
+	input routealternatives.AIRequest,
+) (*routealternatives.Response, error) {
+	var result routealternatives.Response
+	if err := g.postJSON(ctx, uuid.Nil, "suggest-route-alternatives", input, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

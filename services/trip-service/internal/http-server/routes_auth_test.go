@@ -30,6 +30,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 )
@@ -1496,6 +1497,12 @@ func newAuthTestRouterWithOptions(t *testing.T, authCfg config.AuthConfig, extra
 		budgetOptimizationProposals: []entity.BudgetOptimizationProposal{},
 		tripRepairProposals:         []entity.TripRepairProposal{},
 		tripTravelers:               map[uuid.UUID]entity.TripTraveler{},
+		routeAlternativeSessions:    []routealternatives.Session{},
+		polls:                       []entity.TripPoll{},
+		pollOptions:                 []entity.TripPollOption{},
+		pollVotes:                   []entity.TripPollVote{},
+		itemReactions:               []entity.ItineraryItemReaction{},
+		discoveryVotes:              []entity.DiscoverySuggestionVote{},
 	}
 	gen := routeTestGenerator{}
 	opts := []service.Option{
@@ -1542,6 +1549,12 @@ type routeTestRepo struct {
 	tripRepairProposals         []entity.TripRepairProposal
 	workspaceBudgets            map[uuid.UUID]entity.WorkspaceBudget
 	tripTravelers               map[uuid.UUID]entity.TripTraveler
+	routeAlternativeSessions    []routealternatives.Session
+	polls                       []entity.TripPoll
+	pollOptions                 []entity.TripPollOption
+	pollVotes                   []entity.TripPollVote
+	itemReactions               []entity.ItineraryItemReaction
+	discoveryVotes              []entity.DiscoverySuggestionVote
 }
 
 // --- approval workflow (route tests do not exercise approval endpoints; these
@@ -1657,6 +1670,17 @@ func (r *routeTestRepo) UpdateTripRoute(_ context.Context, id, userID uuid.UUID,
 	if trip.TripType == "" {
 		trip.TripType = entity.TripTypeSingleDestination
 	}
+	trip.UpdatedAt = time.Now().UTC()
+	r.trips[id] = trip
+	return &trip, nil
+}
+
+func (r *routeTestRepo) UpdateTripCreationMetadata(_ context.Context, id, userID uuid.UUID, metadata map[string]any) (*entity.Trip, error) {
+	trip, ok := r.trips[id]
+	if !ok || trip.UserID == nil || *trip.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	trip.CreationMetadata = metadata
 	trip.UpdatedAt = time.Now().UTC()
 	r.trips[id] = trip
 	return &trip, nil
@@ -2364,6 +2388,257 @@ func (r *routeTestRepo) CountItineraryCommentsByTripGrouped(_ context.Context, t
 	return out, nil
 }
 
+func (r *routeTestRepo) CreateTripPollWithOptions(
+	_ context.Context,
+	poll *entity.TripPoll,
+	options []entity.TripPollOption,
+) (*entity.TripPoll, []entity.TripPollOption, error) {
+	now := time.Now()
+	created := *poll
+	if created.ID == uuid.Nil {
+		created.ID = uuid.New()
+	}
+	if created.CreatedAt.IsZero() {
+		created.CreatedAt = now
+	}
+	if created.UpdatedAt.IsZero() {
+		created.UpdatedAt = created.CreatedAt
+	}
+	r.polls = append(r.polls, created)
+
+	createdOptions := make([]entity.TripPollOption, 0, len(options))
+	for i, option := range options {
+		out := option
+		if out.ID == uuid.Nil {
+			out.ID = uuid.New()
+		}
+		out.PollID = created.ID
+		if out.SortOrder == 0 && i > 0 {
+			out.SortOrder = i
+		}
+		if out.CreatedAt.IsZero() {
+			out.CreatedAt = now
+		}
+		r.pollOptions = append(r.pollOptions, out)
+		createdOptions = append(createdOptions, out)
+	}
+	return &created, createdOptions, nil
+}
+
+func (r *routeTestRepo) GetTripPollByID(_ context.Context, tripID, pollID uuid.UUID) (*entity.TripPoll, error) {
+	for _, poll := range r.polls {
+		if poll.ID == pollID && poll.TripID == tripID {
+			out := poll
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListTripPollsByTrip(
+	_ context.Context,
+	tripID uuid.UUID,
+	includeArchived bool,
+) ([]entity.TripPoll, error) {
+	out := make([]entity.TripPoll, 0)
+	for _, poll := range r.polls {
+		if poll.TripID != tripID {
+			continue
+		}
+		if !includeArchived && poll.Status == entity.PollStatusArchived {
+			continue
+		}
+		out = append(out, poll)
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) ListPollOptions(_ context.Context, pollID uuid.UUID) ([]entity.TripPollOption, error) {
+	out := make([]entity.TripPollOption, 0)
+	for _, option := range r.pollOptions {
+		if option.PollID == pollID {
+			out = append(out, option)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) ListPollVotesByPoll(_ context.Context, pollID uuid.UUID) ([]entity.TripPollVote, error) {
+	out := make([]entity.TripPollVote, 0)
+	for _, vote := range r.pollVotes {
+		if vote.PollID == pollID {
+			out = append(out, vote)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) ReplaceUserPollVotes(
+	_ context.Context,
+	pollID,
+	userID uuid.UUID,
+	votes []entity.TripPollVote,
+) ([]entity.TripPollVote, error) {
+	kept := r.pollVotes[:0]
+	for _, vote := range r.pollVotes {
+		if vote.PollID == pollID && vote.UserID == userID {
+			continue
+		}
+		kept = append(kept, vote)
+	}
+	r.pollVotes = kept
+
+	now := time.Now()
+	out := make([]entity.TripPollVote, 0, len(votes))
+	for _, vote := range votes {
+		next := vote
+		if next.ID == uuid.Nil {
+			next.ID = uuid.New()
+		}
+		next.PollID = pollID
+		next.UserID = userID
+		if next.CreatedAt.IsZero() {
+			next.CreatedAt = now
+		}
+		if next.UpdatedAt.IsZero() {
+			next.UpdatedAt = next.CreatedAt
+		}
+		r.pollVotes = append(r.pollVotes, next)
+		out = append(out, next)
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) CloseTripPoll(
+	_ context.Context,
+	tripID,
+	pollID,
+	actorUserID uuid.UUID,
+) (*entity.TripPoll, error) {
+	now := time.Now()
+	for i := range r.polls {
+		poll := &r.polls[i]
+		if poll.ID == pollID && poll.TripID == tripID {
+			poll.Status = entity.PollStatusClosed
+			poll.ClosedAt = &now
+			poll.ClosedByUserID = &actorUserID
+			poll.UpdatedAt = now
+			out := *poll
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ArchiveTripPoll(
+	_ context.Context,
+	tripID,
+	pollID uuid.UUID,
+) (*entity.TripPoll, error) {
+	for i := range r.polls {
+		poll := &r.polls[i]
+		if poll.ID == pollID && poll.TripID == tripID {
+			poll.Status = entity.PollStatusArchived
+			poll.UpdatedAt = time.Now()
+			out := *poll
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) UpsertItineraryItemReaction(
+	_ context.Context,
+	reaction *entity.ItineraryItemReaction,
+) (*entity.ItineraryItemReaction, error) {
+	out := *reaction
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now()
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = now
+	}
+	out.UpdatedAt = now
+	for i := range r.itemReactions {
+		existing := &r.itemReactions[i]
+		if existing.TripID == out.TripID &&
+			existing.DayNumber == out.DayNumber &&
+			existing.ItemIndex == out.ItemIndex &&
+			existing.UserID == out.UserID {
+			out.CreatedAt = existing.CreatedAt
+			r.itemReactions[i] = out
+			return &out, nil
+		}
+	}
+	r.itemReactions = append(r.itemReactions, out)
+	return &out, nil
+}
+
+func (r *routeTestRepo) DeleteItineraryItemReaction(
+	_ context.Context,
+	tripID uuid.UUID,
+	dayNumber int,
+	itemIndex int,
+	userID uuid.UUID,
+) error {
+	kept := r.itemReactions[:0]
+	for _, reaction := range r.itemReactions {
+		if reaction.TripID == tripID &&
+			reaction.DayNumber == dayNumber &&
+			reaction.ItemIndex == itemIndex &&
+			reaction.UserID == userID {
+			continue
+		}
+		kept = append(kept, reaction)
+	}
+	r.itemReactions = kept
+	return nil
+}
+
+func (r *routeTestRepo) ListItineraryItemReactionsByTrip(
+	_ context.Context,
+	tripID uuid.UUID,
+) ([]entity.ItineraryItemReaction, error) {
+	out := make([]entity.ItineraryItemReaction, 0)
+	for _, reaction := range r.itemReactions {
+		if reaction.TripID == tripID {
+			out = append(out, reaction)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) ListItineraryItemReactionsByItem(
+	_ context.Context,
+	tripID uuid.UUID,
+	dayNumber int,
+	itemIndex int,
+) ([]entity.ItineraryItemReaction, error) {
+	out := make([]entity.ItineraryItemReaction, 0)
+	for _, reaction := range r.itemReactions {
+		if reaction.TripID == tripID &&
+			reaction.DayNumber == dayNumber &&
+			reaction.ItemIndex == itemIndex {
+			out = append(out, reaction)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) ListDiscoverySuggestionVotesByTrip(
+	_ context.Context,
+	tripID uuid.UUID,
+) ([]entity.DiscoverySuggestionVote, error) {
+	out := make([]entity.DiscoverySuggestionVote, 0)
+	for _, vote := range r.discoveryVotes {
+		if vote.TripID != nil && *vote.TripID == tripID {
+			out = append(out, vote)
+		}
+	}
+	return out, nil
+}
+
 func (r *routeTestRepo) UpsertTripCalendarSync(_ context.Context, sync *entity.TripCalendarSync) (*entity.TripCalendarSync, error) {
 	out := *sync
 	if out.ID == uuid.Nil {
@@ -2651,6 +2926,159 @@ func (r *routeTestRepo) ExpirePendingTripRepairProposalsForTripRevision(_ contex
 	return expired, nil
 }
 
+func (r *routeTestRepo) CreateRouteAlternativeSession(
+	_ context.Context,
+	session *routealternatives.Session,
+) (*routealternatives.Session, error) {
+	stored := cloneRouteTestAlternativeSession(*session)
+	if stored.ID == uuid.Nil {
+		stored.ID = uuid.New()
+	}
+	now := time.Now().UTC()
+	if stored.CreatedAt.IsZero() {
+		stored.CreatedAt = now
+	}
+	if stored.UpdatedAt.IsZero() {
+		stored.UpdatedAt = stored.CreatedAt
+	}
+	r.routeAlternativeSessions = append(r.routeAlternativeSessions, stored)
+	out := cloneRouteTestAlternativeSession(stored)
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetRouteAlternativeSessionByID(
+	_ context.Context,
+	id uuid.UUID,
+) (*routealternatives.Session, error) {
+	for _, session := range r.routeAlternativeSessions {
+		if session.ID == id {
+			out := cloneRouteTestAlternativeSession(session)
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListRouteAlternativeSessionsByTrip(
+	_ context.Context,
+	tripID uuid.UUID,
+	limit int,
+) ([]routealternatives.Session, error) {
+	sessions := make([]routealternatives.Session, 0, len(r.routeAlternativeSessions))
+	for _, session := range r.routeAlternativeSessions {
+		if session.TripID != nil && *session.TripID == tripID {
+			sessions = append(sessions, cloneRouteTestAlternativeSession(session))
+		}
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].CreatedAt.After(sessions[j].CreatedAt)
+	})
+	if limit > 0 && len(sessions) > limit {
+		sessions = sessions[:limit]
+	}
+	return sessions, nil
+}
+
+func (r *routeTestRepo) ListRouteAlternativeSessionsByUser(
+	_ context.Context,
+	userID uuid.UUID,
+	limit int,
+) ([]routealternatives.Session, error) {
+	sessions := make([]routealternatives.Session, 0, len(r.routeAlternativeSessions))
+	for _, session := range r.routeAlternativeSessions {
+		if session.UserID == userID && session.TripID == nil {
+			sessions = append(sessions, cloneRouteTestAlternativeSession(session))
+		}
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].CreatedAt.After(sessions[j].CreatedAt)
+	})
+	if limit > 0 && len(sessions) > limit {
+		sessions = sessions[:limit]
+	}
+	return sessions, nil
+}
+
+func (r *routeTestRepo) MarkRouteAlternativeSessionCreatedTrip(
+	_ context.Context,
+	id uuid.UUID,
+	alternativeID string,
+	createdTripID uuid.UUID,
+) (*routealternatives.Session, error) {
+	for i := range r.routeAlternativeSessions {
+		if r.routeAlternativeSessions[i].ID == id {
+			r.routeAlternativeSessions[i].SelectedAlternativeID = alternativeID
+			r.routeAlternativeSessions[i].CreatedTripID = &createdTripID
+			r.routeAlternativeSessions[i].Status = routealternatives.StatusCreatedTrip
+			r.routeAlternativeSessions[i].UpdatedAt = time.Now().UTC()
+			out := cloneRouteTestAlternativeSession(r.routeAlternativeSessions[i])
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) MarkRouteAlternativeSessionApplied(
+	_ context.Context,
+	id uuid.UUID,
+	alternativeID string,
+	appliedToTripID uuid.UUID,
+) (*routealternatives.Session, error) {
+	for i := range r.routeAlternativeSessions {
+		if r.routeAlternativeSessions[i].ID == id {
+			r.routeAlternativeSessions[i].SelectedAlternativeID = alternativeID
+			r.routeAlternativeSessions[i].AppliedToTripID = &appliedToTripID
+			r.routeAlternativeSessions[i].Status = routealternatives.StatusApplied
+			r.routeAlternativeSessions[i].UpdatedAt = time.Now().UTC()
+			out := cloneRouteTestAlternativeSession(r.routeAlternativeSessions[i])
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ArchiveRouteAlternativeSession(
+	_ context.Context,
+	id uuid.UUID,
+) (*routealternatives.Session, error) {
+	for i := range r.routeAlternativeSessions {
+		if r.routeAlternativeSessions[i].ID == id {
+			r.routeAlternativeSessions[i].Status = routealternatives.StatusArchived
+			r.routeAlternativeSessions[i].UpdatedAt = time.Now().UTC()
+			out := cloneRouteTestAlternativeSession(r.routeAlternativeSessions[i])
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func cloneRouteTestAlternativeSession(session routealternatives.Session) routealternatives.Session {
+	out := session
+	if session.TripID != nil {
+		value := *session.TripID
+		out.TripID = &value
+	}
+	if session.WorkspaceID != nil {
+		value := *session.WorkspaceID
+		out.WorkspaceID = &value
+	}
+	if session.CreatedTripID != nil {
+		value := *session.CreatedTripID
+		out.CreatedTripID = &value
+	}
+	if session.AppliedToTripID != nil {
+		value := *session.AppliedToTripID
+		out.AppliedToTripID = &value
+	}
+	if session.ParentSessionID != nil {
+		value := *session.ParentSessionID
+		out.ParentSessionID = &value
+	}
+	out.RequestJSON = append([]byte(nil), session.RequestJSON...)
+	out.ResponseJSON = append([]byte(nil), session.ResponseJSON...)
+	return out
+}
+
 func routeTestNextVersionNumber(versions []entity.ItineraryVersion, tripID uuid.UUID) int {
 	next := 1
 	for _, version := range versions {
@@ -2673,6 +3101,97 @@ func (l routeTestUserLookup) LookupByEmail(_ context.Context, email string) (*ap
 		return nil, domainerrs.ErrNotFound
 	}
 	return &user, nil
+}
+
+func (routeTestGenerator) SuggestRouteAlternatives(
+	_ context.Context,
+	input routealternatives.AIRequest,
+) (*routealternatives.Response, error) {
+	nights := 2
+	duration := 80
+	distance := 120.0
+	cost := 24.0
+	budget := 360.0
+	maxTransfer := 6
+	origin := input.Origin
+	if origin == nil {
+		origin = &aggregate.RoutePlace{
+			Name:        "Bratislava",
+			Country:     "Slovakia",
+			Coordinates: &aggregate.Coordinates{Lat: 48.1486, Lng: 17.1077},
+		}
+	}
+	currency := "EUR"
+	if input.Budget != nil && input.Budget.Currency != "" {
+		currency = input.Budget.Currency
+	}
+	response := &routealternatives.Response{
+		SessionTitle: "Route alternatives",
+		Alternatives: []routealternatives.Alternative{{
+			ID:      "test-route-alternative",
+			Title:   "Test route alternative",
+			Summary: "A deterministic route alternative for HTTP route tests.",
+			Route: aggregate.TripRoute{
+				Origin:         origin,
+				ReturnToOrigin: false,
+				Stops: []aggregate.RouteStop{{
+					ID:                "stop_1",
+					Destination:       "Vienna",
+					City:              "Vienna",
+					Country:           "Austria",
+					Nights:            &nights,
+					Coordinates:       &aggregate.Coordinates{Lat: 48.2082, Lng: 16.3738},
+					AccommodationHint: "hotel",
+				}},
+				Legs: []aggregate.RouteLeg{{
+					ID:                       "leg_1",
+					FromStopID:               "origin",
+					ToStopID:                 "stop_1",
+					FromName:                 origin.Name,
+					ToName:                   "Vienna",
+					Mode:                     aggregate.TransportModeTrain,
+					EstimatedDurationMinutes: &duration,
+					EstimatedDistanceKm:      &distance,
+					EstimatedCost: &aggregate.EstimatedCost{
+						Amount:     &cost,
+						Currency:   currency,
+						Category:   "transport",
+						Confidence: "medium",
+						Source:     "mock",
+					},
+				}},
+				Preferences: aggregate.RoutePreferences{
+					PreferredModes:         []string{aggregate.TransportModeTrain},
+					MaxTransferHoursPerDay: &maxTransfer,
+				},
+			},
+			Scores: routealternatives.Scores{
+				OverallFit:          82,
+				BudgetFit:           75,
+				TimeEfficiency:      80,
+				Relaxation:          78,
+				Nature:              65,
+				Culture:             84,
+				TransportSimplicity: 90,
+				PolicyCompliance:    100,
+			},
+			EstimatedBudget: &routealternatives.BudgetEstimate{
+				Amount:     &budget,
+				Currency:   currency,
+				Confidence: "medium",
+			},
+			Difficulty:               "balanced",
+			BestFor:                  []string{"simple transfer", "culture"},
+			Pros:                     []string{"Short transfer."},
+			Cons:                     []string{"Prices are approximate."},
+			Warnings:                 []string{"Verify schedules before travel."},
+			SuggestedItineraryPrompt: "Create a short route itinerary through Vienna.",
+		}},
+		FollowUpQuestions: []string{"Would you prefer a cheaper route?"},
+		Warnings:          []string{"Route estimates are approximate."},
+	}
+	routealternatives.NormalizeAndScore(response, input.Budget, input.PlanningConstraints)
+	return response, nil
 }
 
 func (routeTestGenerator) Generate(_ context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
