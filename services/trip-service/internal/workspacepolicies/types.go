@@ -54,6 +54,11 @@ type RestTimeRule struct {
 	Minutes int `json:"minutes"`
 }
 
+type TransferHoursRule struct {
+	Rule
+	Hours float64 `json:"hours"`
+}
+
 type TransportRule struct {
 	Rule
 	Modes []string `json:"modes"`
@@ -77,6 +82,8 @@ type Rules struct {
 	NoLateActivitiesAfter               LateActivityRule  `json:"noLateActivitiesAfter"`
 	RequiredRestTimePerDay              RestTimeRule      `json:"requiredRestTimePerDay"`
 	PreferredTransportModes             TransportRule     `json:"preferredTransportModes"`
+	MaxTransferHoursPerDay              TransferHoursRule `json:"maxTransferHoursPerDay"`
+	DisallowedTransportModes            TransportRule     `json:"disallowedTransportModes"`
 	DisallowedActivityTypes             ActivityTypesRule `json:"disallowedActivityTypes"`
 }
 

@@ -37,6 +37,12 @@ func DefaultRules() RulesDocument {
 			PreferredTransportModes: TransportRule{
 				Rule: Rule{Enabled: false, Severity: SeverityInfo}, Modes: []string{},
 			},
+			MaxTransferHoursPerDay: TransferHoursRule{
+				Rule: Rule{Enabled: false, Severity: SeverityWarning}, Hours: 6,
+			},
+			DisallowedTransportModes: TransportRule{
+				Rule: Rule{Enabled: false, Severity: SeverityWarning}, Modes: []string{},
+			},
 			DisallowedActivityTypes: ActivityTypesRule{
 				Rule: Rule{Enabled: false, Severity: SeverityWarning}, Types: []string{},
 			},

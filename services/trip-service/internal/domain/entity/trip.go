@@ -19,12 +19,18 @@ const (
 	StatusFailed     Status = "FAILED"
 )
 
+const (
+	TripTypeSingleDestination = "single_destination"
+	TripTypeMultiDestination  = "multi_destination"
+)
+
 // Trip is the domain entity, using plain Go types. Infrastructure adapters map
 // between this and their own representations (DB rows, API payloads).
 type Trip struct {
 	ID                uuid.UUID
 	UserID            *uuid.UUID
 	WorkspaceID       *uuid.UUID
+	TripType          string
 	Destination       string
 	StartDate         *time.Time
 	Days              int32
@@ -34,6 +40,7 @@ type Trip struct {
 	Interests         []string
 	Pace              string
 	Status            Status
+	Route             *aggregate.TripRoute
 	Itinerary         json.RawMessage
 	Accommodation     *aggregate.Accommodation
 	CreationMetadata  map[string]any

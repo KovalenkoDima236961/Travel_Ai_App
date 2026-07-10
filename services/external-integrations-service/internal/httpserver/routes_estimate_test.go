@@ -31,8 +31,8 @@ func TestRouteEstimateValidWalkingReturnsOK(t *testing.T) {
 	if estimate.Provider != "mock" {
 		t.Fatalf("expected provider mock, got %q", estimate.Provider)
 	}
-	if estimate.Mode != "walking" {
-		t.Fatalf("expected mode walking, got %q", estimate.Mode)
+	if estimate.Mode != "walk" {
+		t.Fatalf("expected canonical mode walk, got %q", estimate.Mode)
 	}
 	if estimate.DistanceKm <= 0 {
 		t.Fatalf("expected positive distance, got %v", estimate.DistanceKm)
@@ -42,6 +42,9 @@ func TestRouteEstimateValidWalkingReturnsOK(t *testing.T) {
 	}
 	if len(estimate.Segments) != 1 {
 		t.Fatalf("expected 1 segment, got %d", len(estimate.Segments))
+	}
+	if estimate.EstimatedCost == nil || estimate.EstimatedCost.Category != "transport" {
+		t.Fatalf("expected transport estimated cost, got %+v", estimate.EstimatedCost)
 	}
 }
 
@@ -54,10 +57,31 @@ func TestRouteEstimateMissingModeReturnsBadRequest(t *testing.T) {
 }
 
 func TestRouteEstimateUnsupportedModeReturnsBadRequest(t *testing.T) {
-	body := `{"mode":"driving","stops":[{"name":"A","latitude":41.0,"longitude":12.0},{"name":"B","latitude":41.1,"longitude":12.1}]}`
+	body := `{"mode":"swimming","stops":[{"name":"A","latitude":41.0,"longitude":12.0},{"name":"B","latitude":41.1,"longitude":12.1}]}`
 	resp := performRequest(newTestRouter(), http.MethodPost, "/routes/estimate", body)
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestRouteEstimateAcceptsFromToShapeAndMultiModalWarnings(t *testing.T) {
+	body := `{"mode":"train","from":{"name":"Vienna","lat":48.2082,"lng":16.3738},"to":{"name":"Salzburg","lat":47.8095,"lng":13.0550},"currency":"EUR"}`
+	resp := performRequest(newTestRouter(), http.MethodPost, "/routes/estimate", body)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	estimate := decodeEstimate(t, resp)
+	if estimate.Mode != "train" {
+		t.Fatalf("expected train mode, got %q", estimate.Mode)
+	}
+	if estimate.EstimatedDistanceKm <= 0 || estimate.EstimatedDurationMinutes <= 0 {
+		t.Fatalf("expected positive estimated distance/duration, got %+v", estimate)
+	}
+	if estimate.EstimatedCost == nil || estimate.EstimatedCost.Amount <= 0 || estimate.EstimatedCost.Source != "mock" {
+		t.Fatalf("expected mock transport cost, got %+v", estimate.EstimatedCost)
+	}
+	if len(estimate.Warnings) == 0 {
+		t.Fatalf("expected non-live schedule warning, got %+v", estimate.Warnings)
 	}
 }
 

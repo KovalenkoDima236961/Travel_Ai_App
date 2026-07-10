@@ -126,6 +126,36 @@ func (r *Repository) ClearTripAccommodation(ctx context.Context, id, userID uuid
 	return dto.Scan(r.db.QueryRow(ctx, query, args...))
 }
 
+// UpdateTripRoute replaces the structured route JSON for an owned trip. The
+// itinerary JSON remains unchanged; callers decide whether this metadata change
+// should make the current itinerary stale or reset approval.
+func (r *Repository) UpdateTripRoute(ctx context.Context, id, userID uuid.UUID, route *aggregate.TripRoute, tripType string) (*entity.Trip, error) {
+	raw, err := json.Marshal(route)
+	if err != nil {
+		return nil, fmt.Errorf("marshal route: %w", err)
+	}
+	if route == nil {
+		raw = nil
+	}
+
+	query, args, err := r.db.Builder.
+		Update("trips").
+		Set("route_json", []byte(raw)).
+		Set("trip_type", tripType).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":      dto.IDArg(id),
+			"user_id": dto.IDArg(userID),
+		}).
+		Suffix("RETURNING " + dto.Columns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build update trip route: %w", err)
+	}
+
+	return dto.Scan(r.db.QueryRow(ctx, query, args...))
+}
+
 // GetByID loads a trip without owner scoping. It is used only after an enabled
 // public share token has already been validated.
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error) {

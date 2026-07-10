@@ -51,6 +51,7 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
     lines.push({ text: exportTrip.itinerary.summary, variant: "body" });
   }
 
+  appendRouteSummary(lines, exportTrip);
   appendAccommodationSummary(lines, exportTrip);
 
   if (exportTrip.itinerary?.days?.length) {
@@ -72,6 +73,29 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
         lines.push({ text: formatItemHeading(item), variant: "body", indent: 14 });
         if (item.note) {
           lines.push({ text: item.note, variant: "muted", indent: 28 });
+        }
+        if (item.description && item.description !== item.note) {
+          lines.push({ text: item.description, variant: "muted", indent: 28 });
+        }
+        if (item.transfer) {
+          lines.push({
+            text: `${item.transfer.from} -> ${item.transfer.to} by ${formatRouteToken(item.transfer.mode)}`,
+            variant: "small",
+            indent: 28
+          });
+          const transferDetails = [
+            item.transfer.estimatedDurationMinutes != null
+              ? `~${item.transfer.estimatedDurationMinutes} min`
+              : null,
+            item.transfer.estimatedDistanceKm != null
+              ? `${item.transfer.estimatedDistanceKm.toFixed(1)} km`
+              : null,
+            "Verify schedules before travel"
+          ].filter(Boolean);
+          lines.push({ text: transferDetails.join(" · "), variant: "small", indent: 28 });
+          if (item.transfer.warnings?.length) {
+            lines.push({ text: item.transfer.warnings.join("; "), variant: "small", indent: 28 });
+          }
         }
         if (item.place) {
           lines.push({
@@ -107,6 +131,49 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
   });
 
   return lines;
+}
+
+function appendRouteSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
+  const route = exportTrip.route;
+  if (!route?.stops?.length) {
+    return;
+  }
+
+  lines.push({ text: "Route overview", variant: "heading" });
+  const sequence = [
+    route.origin?.name,
+    ...route.stops.map((stop) => stop.destination || stop.city).filter(Boolean)
+  ].filter(Boolean);
+  if (sequence.length) {
+    lines.push({ text: sequence.join(" -> "), variant: "body", indent: 14 });
+  }
+  route.stops.forEach((stop, index) => {
+    const dates = [stop.arrivalDate, stop.departureDate].filter(Boolean).join(" to ");
+    const details = [
+      `${index + 1}. ${stop.destination || stop.city || "Stop"}`,
+      stop.country,
+      stop.nights != null ? `${stop.nights} night${stop.nights === 1 ? "" : "s"}` : null,
+      dates || null,
+      stop.accommodationHint ? formatRouteToken(stop.accommodationHint) : null
+    ].filter(Boolean);
+    lines.push({ text: details.join(" · "), variant: "small", indent: 28 });
+  });
+  route.legs?.forEach((leg) => {
+    const costBadge = costBadgeLabel(leg.estimatedCost, exportTrip.budgetCurrency ?? undefined);
+    const details = [
+      `${leg.fromName || leg.fromStopId} -> ${leg.toName || leg.toStopId}`,
+      formatRouteToken(leg.mode),
+      leg.estimatedDurationMinutes != null ? `~${leg.estimatedDurationMinutes} min` : null,
+      leg.estimatedDistanceKm != null ? `${leg.estimatedDistanceKm.toFixed(1)} km` : null,
+      costBadge ? `est. ${costBadge}` : null
+    ].filter(Boolean);
+    lines.push({ text: details.join(" · "), variant: "small", indent: 28 });
+  });
+  lines.push({
+    text: "Transfer durations and costs are planning estimates; verify schedules before travel.",
+    variant: "muted",
+    indent: 14
+  });
 }
 
 function buildTripFacts(exportTrip: ExportTrip): string[] {
@@ -149,6 +216,15 @@ function formatDayDate(startDate: string | null | undefined, dayNumber: number):
 }
 
 function formatItemHeading(item: ItineraryItem): string {
+  if (item.transfer) {
+    return [
+      item.time || "Untimed",
+      `Transfer: ${item.transfer.from} -> ${item.transfer.to}`,
+      formatRouteToken(item.transfer.mode)
+    ]
+      .filter(Boolean)
+      .join(" - ");
+  }
   const parts = [
     item.time || "Untimed",
     item.name || "Itinerary item",
@@ -156,6 +232,15 @@ function formatItemHeading(item: ItineraryItem): string {
   ].filter(Boolean);
 
   return parts.join(" - ");
+}
+
+function formatRouteToken(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  return String(value)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function appendAccommodationSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {

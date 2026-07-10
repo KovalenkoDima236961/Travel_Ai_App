@@ -41,6 +41,7 @@ import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
+import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
 import { Button } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { activityKeys } from "@/lib/api/activity";
@@ -1973,6 +1974,10 @@ export function TripDetailPageContent() {
 
             {trip.status === "COMPLETED" && trip.itinerary ? (
               <div className="flex flex-col gap-4">
+                <RouteSummaryCard
+                  route={trip.route}
+                  currency={trip.budgetCurrency}
+                />
                 <TripQualityChecks
                 availabilityResultsByItem={availabilityResultsByItem}
                 budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
@@ -2217,13 +2222,16 @@ export function TripDetailPageContent() {
             ) : null}
 
             {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
-              <div className="rounded-[18px] border border-sand-300 bg-white p-6">
-                <h2 className="font-newsreader text-[20px] font-semibold text-cocoa-900">
-                  No itinerary yet
-                </h2>
-                <p className="mt-2 text-[14px] leading-[1.6] text-cocoa-500">
-                  Generate an itinerary when the Trip Service and AI Planning Service are running.
-                </p>
+              <div className="flex flex-col gap-4">
+                <RouteSummaryCard route={trip.route} currency={trip.budgetCurrency} />
+                <div className="rounded-[18px] border border-sand-300 bg-white p-6">
+                  <h2 className="font-newsreader text-[20px] font-semibold text-cocoa-900">
+                    No itinerary yet
+                  </h2>
+                  <p className="mt-2 text-[14px] leading-[1.6] text-cocoa-500">
+                    Generate an itinerary when the Trip Service and AI Planning Service are running.
+                  </p>
+                </div>
               </div>
             ) : null}
 
@@ -2323,6 +2331,7 @@ export function TripDetailPageContent() {
               <RightRailMap
                 accommodation={trip.accommodation ?? null}
                 itinerary={trip.itinerary}
+                route={trip.route}
                 startDate={trip.startDate}
               />
             ) : null}

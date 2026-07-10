@@ -62,9 +62,11 @@ func NewOpenRouteServiceProvider(cfg config.RouteProviderConfig, log *zap.Logger
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		profiles: map[string]string{
-			"walking": firstNonEmpty(cfg.ORSProfileWalking, "foot-walking"),
-			"driving": firstNonEmpty(cfg.ORSProfileDriving, "driving-car"),
-			"cycling": firstNonEmpty(cfg.ORSProfileCycling, "cycling-regular"),
+			entity.RouteModeWalk:      firstNonEmpty(cfg.ORSProfileWalking, "foot-walking"),
+			entity.RouteModeHiking:    firstNonEmpty(cfg.ORSProfileWalking, "foot-walking"),
+			entity.RouteModeCar:       firstNonEmpty(cfg.ORSProfileDriving, "driving-car"),
+			entity.RouteModeRentalCar: firstNonEmpty(cfg.ORSProfileDriving, "driving-car"),
+			entity.RouteModeBike:      firstNonEmpty(cfg.ORSProfileCycling, "cycling-regular"),
 		},
 		client: &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
 		log:    log,
@@ -76,6 +78,7 @@ func NewOpenRouteServiceProvider(cfg config.RouteProviderConfig, log *zap.Logger
 // the order ORS requires.
 func (p *OpenRouteServiceProvider) EstimateRoute(ctx context.Context, req entity.RouteEstimateRequest) (*entity.RouteEstimate, error) {
 	start := time.Now()
+	req = entity.NormalizeRouteEstimateRequest(req)
 	mode := strings.ToLower(strings.TrimSpace(req.Mode))
 
 	profile, ok := p.profiles[mode]
@@ -176,21 +179,30 @@ func normalizeORSRoute(req entity.RouteEstimateRequest, mode string, payload ors
 		durationMinutes := int(math.Round(durationSeconds / 60))
 
 		segments = append(segments, entity.RouteSegment{
-			FromName:        req.Stops[i-1].Name,
-			ToName:          req.Stops[i].Name,
-			DistanceKm:      distanceKm,
-			DurationMinutes: durationMinutes,
+			FromName:                 req.Stops[i-1].Name,
+			ToName:                   req.Stops[i].Name,
+			DistanceKm:               distanceKm,
+			EstimatedDistanceKm:      distanceKm,
+			DurationMinutes:          durationMinutes,
+			EstimatedDurationMinutes: durationMinutes,
+			EstimatedCost:            estimatedCostForMode(distanceKm, mode, req.Currency),
 		})
 		totalDistanceKm += distanceKm
 		totalDurationMinutes += durationMinutes
 	}
 
 	estimate := &entity.RouteEstimate{
-		Mode:            mode,
-		Provider:        orsProviderName,
-		DistanceKm:      round2(totalDistanceKm),
-		DurationMinutes: totalDurationMinutes,
-		Segments:        segments,
+		Mode:                     mode,
+		Provider:                 orsProviderName,
+		DistanceKm:               round2(totalDistanceKm),
+		EstimatedDistanceKm:      round2(totalDistanceKm),
+		DurationMinutes:          totalDurationMinutes,
+		EstimatedDurationMinutes: totalDurationMinutes,
+		EstimatedCost:            estimatedCostForMode(totalDistanceKm, mode, req.Currency),
+		Segments:                 segments,
+	}
+	if mode == entity.RouteModeHiking {
+		estimate.Warnings = warningsForMode(mode)
 	}
 	if geometry := strings.TrimSpace(route.Geometry); geometry != "" {
 		estimate.RouteGeometry = geometry

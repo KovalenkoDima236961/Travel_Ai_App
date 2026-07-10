@@ -487,6 +487,33 @@ echo "Checking route estimate validation rejects a single stop..."
 request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" '{"mode":"walking","stops":[{"name":"Colosseum","latitude":41.8902,"longitude":12.4922}]}'
 assert_status "Route estimate rejects fewer than 2 stops" "400"
 
+echo "Checking deterministic multi-modal route estimates..."
+for MODE in train bus flight ferry; do
+  MODE_ROUTE_PAYLOAD="$(
+    jq -nc --arg mode "${MODE}" '{
+      from:{name:"Vienna",lat:48.2082,lng:16.3738},
+      to:{name:"Salzburg",lat:47.8095,lng:13.0550},
+      mode:$mode,
+      date:"2026-09-12",
+      currency:"EUR"
+    }'
+  )"
+  request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/routes/estimate" "${MODE_ROUTE_PAYLOAD}"
+  assert_2xx "Route estimate ${MODE}"
+  if ! jq -e --arg mode "${MODE}" '
+    .mode == $mode
+    and .estimatedDistanceKm > 0
+    and .estimatedDurationMinutes > 0
+    and .estimatedCost.category == "transport"
+    and .estimatedCost.currency == "EUR"
+    and (.warnings | length) >= 1
+  ' >/dev/null <<<"${LAST_BODY}"; then
+    echo "Route estimate for ${MODE} did not include the expected deterministic estimate shape." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+done
+
 echo "Checking mock weather forecast..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
 assert_2xx "Weather forecast"
@@ -1500,6 +1527,174 @@ if request POST "${AI_PLANNING_SERVICE_URL}/knowledge/search" "${KNOWLEDGE_PAYLO
 else
   echo "Knowledge search request failed; continuing."
 fi
+
+echo "Creating a multi-destination route trip..."
+MULTI_ROUTE_JSON="$(
+  jq -nc '{
+    origin:{
+      name:"Bratislava",
+      country:"Slovakia",
+      coordinates:{lat:48.1486,lng:17.1077}
+    },
+    returnToOrigin:false,
+    stops:[
+      {
+        id:"stop_1",
+        destination:"Vienna",
+        city:"Vienna",
+        country:"Austria",
+        arrivalDate:"2026-09-10",
+        departureDate:"2026-09-12",
+        nights:2,
+        coordinates:{lat:48.2082,lng:16.3738},
+        accommodationHint:"hotel"
+      },
+      {
+        id:"stop_2",
+        destination:"Salzburg",
+        city:"Salzburg",
+        country:"Austria",
+        arrivalDate:"2026-09-12",
+        departureDate:"2026-09-14",
+        nights:2,
+        coordinates:{lat:47.8095,lng:13.0550},
+        accommodationHint:"guesthouse"
+      }
+    ],
+    legs:[
+      {
+        id:"leg_1",
+        fromStopId:"origin",
+        toStopId:"stop_1",
+        fromName:"Bratislava",
+        toName:"Vienna",
+        mode:"train",
+        departureDate:"2026-09-10",
+        estimatedDurationMinutes:70,
+        estimatedDistanceKm:80,
+        estimatedCost:{amount:18,currency:"EUR",category:"transport",confidence:"medium",source:"mock"},
+        notes:"Direct regional train estimate; verify schedules before travel."
+      },
+      {
+        id:"leg_2",
+        fromStopId:"stop_1",
+        toStopId:"stop_2",
+        fromName:"Vienna",
+        toName:"Salzburg",
+        mode:"train",
+        departureDate:"2026-09-12",
+        estimatedDurationMinutes:150,
+        estimatedDistanceKm:295,
+        estimatedCost:{amount:35,currency:"EUR",category:"transport",confidence:"medium",source:"mock"},
+        notes:"Intercity train estimate; verify schedules before travel."
+      }
+    ],
+    preferences:{
+      preferredModes:["train","public_transport"],
+      avoidModes:["flight"],
+      carAvailable:false,
+      maxTransferHoursPerDay:4,
+      tripStyles:["train_trip","city_break"]
+    }
+  }'
+)"
+MULTI_TRIP_PAYLOAD="$(
+  jq -nc --argjson route "${MULTI_ROUTE_JSON}" '{
+    tripType:"multi_destination",
+    destination:"Austria route",
+    startDate:"2026-09-10",
+    days:5,
+    budgetAmount:900,
+    budgetCurrency:"EUR",
+    travelers:2,
+    interests:["culture","food"],
+    pace:"balanced",
+    route:$route
+  }'
+)"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips" "${ACCESS_TOKEN}" "${MULTI_TRIP_PAYLOAD}"
+assert_2xx "Create multi-destination trip"
+MULTI_TRIP_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+MULTI_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ -z "${MULTI_TRIP_ID}" || "${MULTI_TRIP_REVISION}" != "0" ]]; then
+  echo "Multi-destination trip response did not include id and itineraryRevision=0." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.tripType == "multi_destination" and (.route.stops | length) == 2 and .route.preferences.tripStyles[0] == "train_trip"' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Multi-destination trip did not echo expected route metadata." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${MULTI_TRIP_ID}/route" "${ACCESS_TOKEN}"
+assert_2xx "Get multi-destination trip route"
+if ! jq -e '.route.origin.name == "Bratislava" and (.route.legs | length) == 2 and .route.legs[1].mode == "train"' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Route endpoint did not return the expected stored route." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Queueing multi-destination itinerary generation job..."
+MULTI_GENERATE_PAYLOAD="$(jq -nc --argjson revision "${MULTI_TRIP_REVISION}" '{jobType:"full_generation",expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${MULTI_TRIP_ID}/generation-jobs" "${ACCESS_TOKEN}" "${MULTI_GENERATE_PAYLOAD}"
+assert_status "Create multi-destination generation job" "202"
+MULTI_GENERATION_JOB_ID="$(jq -r '.job.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${MULTI_GENERATION_JOB_ID}" ]]; then
+  echo "Multi-destination generation job response did not include a job id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+poll_generation_job "Multi-destination generation" "${MULTI_TRIP_ID}" "${MULTI_GENERATION_JOB_ID}" "${ACCESS_TOKEN}"
+if [[ "$(jq -r '.job.status // empty' <<<"${LAST_BODY}")" != "completed" ]]; then
+  echo "Multi-destination generation job did not complete." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${MULTI_TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Fetch generated multi-destination trip"
+MULTI_TRIP_REVISION="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if ! jq -e '
+  .status == "COMPLETED"
+  and (.itinerary.days | length) == 5
+  and ([.itinerary.days[]?.items[]? | select(.type == "transfer" and .transfer.mode == "train")] | length) >= 1
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Generated multi-destination trip did not include expected transfer itinerary items." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${MULTI_TRIP_ID}/budget-summary" "${ACCESS_TOKEN}"
+assert_2xx "Multi-destination budget summary"
+if ! jq -e '.tripBudget == 900 and (.byCategory | any(.category == "transport" and .estimatedTotal > 0 and .itemCount >= 1))' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Multi-destination budget summary did not include transfer transport costs." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Updating a multi-destination route leg..."
+UPDATED_MULTI_ROUTE_JSON="$(
+  jq -c '
+    .legs[1].mode = "car"
+    | .legs[1].estimatedDurationMinutes = 240
+    | .legs[1].estimatedCost = {amount:53.1,currency:"EUR",category:"transport",confidence:"medium",source:"mock"}
+    | .preferences.preferredModes = ["car"]
+    | .preferences.carAvailable = true
+    | .preferences.tripStyles = ["road_trip"]
+  ' <<<"${MULTI_ROUTE_JSON}"
+)"
+UPDATE_MULTI_ROUTE_PAYLOAD="$(jq -nc --argjson route "${UPDATED_MULTI_ROUTE_JSON}" --argjson revision "${MULTI_TRIP_REVISION}" '{route:$route,expectedItineraryRevision:$revision}')"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${MULTI_TRIP_ID}/route" "${ACCESS_TOKEN}" "${UPDATE_MULTI_ROUTE_PAYLOAD}"
+assert_2xx "Update multi-destination trip route"
+if ! jq -e '.tripType == "multi_destination" and .route.legs[1].mode == "car" and .route.preferences.carAvailable == true' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Route update did not persist the changed car leg." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${MULTI_TRIP_ID}/activity?limit=20" "${ACCESS_TOKEN}"
+assert_2xx "Multi-destination route activity"
+assert_activity_has "Multi-destination route activity" "route_updated"
 
 echo "Creating a trip with Authorization header..."
 CREATE_TRIP_PAYLOAD='{

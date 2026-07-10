@@ -18,15 +18,17 @@ import (
 // CreateTrip is the JSON body accepted by POST /trips. Validation tags are
 // enforced by the project's validation package in the handler.
 type CreateTrip struct {
-	Destination    string   `json:"destination" validate:"required"`
-	WorkspaceID    *string  `json:"workspaceId" validate:"omitempty,uuid"`
-	StartDate      string   `json:"startDate" validate:"omitempty,datetime=2006-01-02"`
-	Days           int32    `json:"days" validate:"required,gte=1,lte=30"`
-	BudgetAmount   *float64 `json:"budgetAmount" validate:"omitempty,gte=0"`
-	BudgetCurrency string   `json:"budgetCurrency" validate:"omitempty,len=3"`
-	Travelers      int32    `json:"travelers" validate:"required,gte=1"`
-	Interests      []string `json:"interests" validate:"omitempty,dive,required"`
-	Pace           string   `json:"pace" validate:"omitempty,oneof=relaxed balanced packed"`
+	Destination    string               `json:"destination"`
+	WorkspaceID    *string              `json:"workspaceId" validate:"omitempty,uuid"`
+	TripType       string               `json:"tripType" validate:"omitempty,oneof=single_destination multi_destination"`
+	StartDate      string               `json:"startDate" validate:"omitempty,datetime=2006-01-02"`
+	Days           int32                `json:"days" validate:"required,gte=1,lte=30"`
+	BudgetAmount   *float64             `json:"budgetAmount" validate:"omitempty,gte=0"`
+	BudgetCurrency string               `json:"budgetCurrency" validate:"omitempty,len=3"`
+	Travelers      int32                `json:"travelers" validate:"required,gte=1"`
+	Interests      []string             `json:"interests" validate:"omitempty,dive,required"`
+	Pace           string               `json:"pace" validate:"omitempty,oneof=relaxed balanced packed"`
+	Route          *aggregate.TripRoute `json:"route"`
 }
 
 // ToInput maps the transport request to the application-level input.
@@ -39,6 +41,7 @@ func (r CreateTrip) ToInput() appdto.CreateTripInput {
 	return appdto.CreateTripInput{
 		Destination:    r.Destination,
 		WorkspaceID:    workspaceID,
+		TripType:       r.TripType,
 		StartDate:      r.StartDate,
 		Days:           r.Days,
 		BudgetAmount:   r.BudgetAmount,
@@ -46,6 +49,19 @@ func (r CreateTrip) ToInput() appdto.CreateTripInput {
 		Travelers:      r.Travelers,
 		Interests:      r.Interests,
 		Pace:           r.Pace,
+		Route:          r.Route,
+	}
+}
+
+type UpdateTripRoute struct {
+	Route                     *aggregate.TripRoute `json:"route"`
+	ExpectedItineraryRevision *int                 `json:"expectedItineraryRevision"`
+}
+
+func (r UpdateTripRoute) ToInput() appdto.UpdateTripRouteInput {
+	return appdto.UpdateTripRouteInput{
+		Route:                     r.Route,
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
 	}
 }
 

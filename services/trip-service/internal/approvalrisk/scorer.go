@@ -66,6 +66,7 @@ func Score(in Input) Response {
 	builder.add(costSplittingFactors(in)...)
 	builder.add(availabilityFactors(in)...)
 	builder.add(metadataFactors(in)...)
+	builder.add(routeFactors(in)...)
 	builder.add(scheduleFactors(in)...)
 	builder.add(accommodationFactors(in)...)
 	for _, name := range in.SignalUnavailableNames {
@@ -542,6 +543,139 @@ func metadataFactors(in Input) []Factor {
 			Affected:         affected("ai", 1, nil),
 			SuggestedActions: []SuggestedAction{action("review_ai_adaptation", "Review generated itinerary", ActionPriorityMedium)},
 		})
+	}
+	return out
+}
+
+func routeFactors(in Input) []Factor {
+	route := in.Trip.Route
+	if route == nil || len(route.Stops) == 0 {
+		return nil
+	}
+	out := make([]Factor, 0, 6)
+	stopCount := len(route.Stops)
+	if in.Trip.Days > 0 && stopCount > in.Trip.Days {
+		out = append(out, Factor{
+			Type:             "too_many_stops_for_duration",
+			Severity:         FactorSeverityHigh,
+			Points:           18,
+			Title:            "Too many stops for trip duration",
+			Message:          fmt.Sprintf("%d stop(s) in %d day(s) may be rushed.", stopCount, in.Trip.Days),
+			Source:           SourceRoute,
+			Affected:         affected("route", stopCount, nil),
+			SuggestedActions: []SuggestedAction{action("repair_with_ai", "Repair with AI", ActionPriorityHigh)},
+		})
+	}
+
+	longTransfers := 0
+	missingEstimates := 0
+	highCost := 0.0
+	for _, leg := range route.Legs {
+		if leg.EstimatedDurationMinutes == nil || *leg.EstimatedDurationMinutes <= 0 {
+			missingEstimates++
+		} else if *leg.EstimatedDurationMinutes > 6*60 {
+			longTransfers++
+		}
+		if leg.EstimatedCost != nil && leg.EstimatedCost.Amount != nil {
+			highCost += *leg.EstimatedCost.Amount
+		}
+	}
+	if longTransfers > 0 {
+		out = append(out, Factor{
+			Type:             "long_transfer_day",
+			Severity:         FactorSeverityHigh,
+			Points:           minInt(12+longTransfers*4, 24),
+			Title:            "Long transfer day",
+			Message:          fmt.Sprintf("%d transfer leg(s) exceed six hours.", longTransfers),
+			Source:           SourceRoute,
+			Affected:         affected("route", longTransfers, nil),
+			SuggestedActions: []SuggestedAction{action("repair_with_ai", "Repair with AI", ActionPriorityHigh)},
+		})
+	}
+	if missingEstimates > 0 {
+		out = append(out, Factor{
+			Type:             "route_estimate_missing",
+			Severity:         FactorSeverityMedium,
+			Points:           minInt(5+missingEstimates*3, 15),
+			Title:            "Route estimate missing",
+			Message:          fmt.Sprintf("%d route leg(s) are missing duration estimates.", missingEstimates),
+			Source:           SourceRoute,
+			Affected:         affected("route", missingEstimates, nil),
+			SuggestedActions: []SuggestedAction{action("review_route", "Review route", ActionPriorityMedium)},
+		})
+	}
+	if in.Trip.BudgetAmount != nil && *in.Trip.BudgetAmount > 0 && highCost > *in.Trip.BudgetAmount*0.35 {
+		out = append(out, Factor{
+			Type:     "high_transport_cost",
+			Severity: FactorSeverityMedium,
+			Points:   10,
+			Title:    "High transport cost",
+			Message:  "Estimated transfer costs are a large share of the trip budget.",
+			Source:   SourceRoute,
+			Affected: affected("route", len(route.Legs), nil),
+			SuggestedActions: []SuggestedAction{
+				action("repair_with_ai", "Repair with AI", ActionPriorityMedium),
+				action("optimize_budget", "Optimize budget", ActionPriorityMedium),
+			},
+		})
+	}
+	styles := tokenSet(route.Preferences.TripStyles)
+	if _, ok := styles["hiking"]; ok && denseHikingDays(in.Itinerary) > 0 {
+		out = append(out, Factor{
+			Type:             "hiking_day_too_dense",
+			Severity:         FactorSeverityMedium,
+			Points:           10,
+			Title:            "Hiking day may be too dense",
+			Message:          "Hiking style is selected and one or more days are densely scheduled.",
+			Source:           SourceRoute,
+			Affected:         affected("route", 1, nil),
+			SuggestedActions: []SuggestedAction{action("repair_with_ai", "Repair with AI", ActionPriorityMedium)},
+		})
+	}
+	if _, ok := styles["camping"]; ok && !routeHasCampingAccommodation(route) {
+		out = append(out, Factor{
+			Type:             "camping_accommodation_missing",
+			Severity:         FactorSeverityMedium,
+			Points:           8,
+			Title:            "Camping accommodation not configured",
+			Message:          "Camping style is selected, but no route stop is marked as campsite or cabin.",
+			Source:           SourceRoute,
+			Affected:         affected("route", 1, nil),
+			SuggestedActions: []SuggestedAction{action("review_route", "Review route", ActionPriorityMedium)},
+		})
+	}
+	return out
+}
+
+func denseHikingDays(itinerary aggregate.Itinerary) int {
+	count := 0
+	for _, day := range itinerary.Days {
+		if len(day.Items) >= denseDayItemThreshold && !hasRestBlock(day) {
+			count++
+		}
+	}
+	return count
+}
+
+func routeHasCampingAccommodation(route *aggregate.TripRoute) bool {
+	if route == nil {
+		return false
+	}
+	for _, stop := range route.Stops {
+		switch normalizeToken(stop.AccommodationHint) {
+		case "campsite", "camping", "cabin", "campervan":
+			return true
+		}
+	}
+	return false
+}
+
+func tokenSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if normalized := normalizeToken(value); normalized != "" {
+			out[normalized] = struct{}{}
+		}
 	}
 	return out
 }

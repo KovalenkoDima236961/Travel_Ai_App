@@ -17,6 +17,7 @@ type Trip struct {
 	UserID            *uuid.UUID               `json:"userId,omitempty"`
 	WorkspaceID       *uuid.UUID               `json:"workspaceId,omitempty"`
 	Scope             string                   `json:"scope"`
+	TripType          string                   `json:"tripType"`
 	Destination       string                   `json:"destination"`
 	StartDate         *string                  `json:"startDate,omitempty"`
 	Days              int32                    `json:"days"`
@@ -27,6 +28,7 @@ type Trip struct {
 	Interests         []string                 `json:"interests"`
 	Pace              string                   `json:"pace"`
 	Status            entity.Status            `json:"status"`
+	Route             *aggregate.TripRoute     `json:"route,omitempty"`
 	Itinerary         any                      `json:"itinerary,omitempty"`
 	Accommodation     *aggregate.Accommodation `json:"accommodation"`
 	CreationMetadata  map[string]any           `json:"creationMetadata"`
@@ -169,17 +171,23 @@ type AccommodationEnvelope struct {
 // intentionally omitted; item-level estimated costs within the itinerary remain
 // visible because they are part of the shared plan.
 type PublicTrip struct {
-	Destination string        `json:"destination"`
-	StartDate   *string       `json:"startDate,omitempty"`
-	Days        int32         `json:"days"`
-	Travelers   int32         `json:"travelers,omitempty"`
-	Interests   []string      `json:"interests"`
-	Pace        string        `json:"pace,omitempty"`
-	Status      entity.Status `json:"status"`
-	Itinerary   any           `json:"itinerary,omitempty"`
-	CreatedAt   time.Time     `json:"createdAt"`
-	UpdatedAt   time.Time     `json:"updatedAt"`
-	SharedAt    time.Time     `json:"sharedAt"`
+	TripType    string               `json:"tripType"`
+	Destination string               `json:"destination"`
+	Route       *aggregate.TripRoute `json:"route,omitempty"`
+	StartDate   *string              `json:"startDate,omitempty"`
+	Days        int32                `json:"days"`
+	Travelers   int32                `json:"travelers,omitempty"`
+	Interests   []string             `json:"interests"`
+	Pace        string               `json:"pace,omitempty"`
+	Status      entity.Status        `json:"status"`
+	Itinerary   any                  `json:"itinerary,omitempty"`
+	CreatedAt   time.Time            `json:"createdAt"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
+	SharedAt    time.Time            `json:"sharedAt"`
+}
+
+type TripRouteEnvelope struct {
+	Route *aggregate.TripRoute `json:"route"`
 }
 
 // NewListTrips maps a page of domain trips to the API envelope. Items is always
@@ -356,7 +364,9 @@ func NewAccommodationEnvelope(accommodation *aggregate.Accommodation) Accommodat
 // itinerary.
 func NewPublicTrip(t *entity.Trip, sharedAt time.Time) PublicTrip {
 	resp := PublicTrip{
+		TripType:    tripTypeOrDefault(t),
 		Destination: t.Destination,
+		Route:       aggregate.PublicRoute(t.Route),
 		Days:        t.Days,
 		Travelers:   t.Travelers,
 		Interests:   t.Interests,
@@ -415,6 +425,7 @@ func NewTrip(t *entity.Trip) Trip {
 		UserID:            t.UserID,
 		WorkspaceID:       t.WorkspaceID,
 		Scope:             tripScope(t),
+		TripType:          tripTypeOrDefault(t),
 		Destination:       t.Destination,
 		Days:              t.Days,
 		BudgetAmount:      t.BudgetAmount,
@@ -424,6 +435,7 @@ func NewTrip(t *entity.Trip) Trip {
 		Interests:         t.Interests,
 		Pace:              t.Pace,
 		Status:            t.Status,
+		Route:             t.Route,
 		ItineraryRevision: t.ItineraryRevision,
 		Accommodation:     t.Accommodation,
 		CreationMetadata:  metadataOrEmpty(t.CreationMetadata),
@@ -443,6 +455,10 @@ func NewTrip(t *entity.Trip) Trip {
 	}
 
 	return resp
+}
+
+func NewTripRouteEnvelope(route *aggregate.TripRoute) TripRouteEnvelope {
+	return TripRouteEnvelope{Route: route}
 }
 
 func NewTripWithAccess(t *entity.Trip, access interface {
@@ -472,6 +488,13 @@ func tripScope(t *entity.Trip) string {
 		return "workspace"
 	}
 	return "personal"
+}
+
+func tripTypeOrDefault(t *entity.Trip) string {
+	if t != nil && t.TripType == entity.TripTypeMultiDestination {
+		return entity.TripTypeMultiDestination
+	}
+	return entity.TripTypeSingleDestination
 }
 
 func metadataOrEmpty(metadata map[string]any) map[string]any {

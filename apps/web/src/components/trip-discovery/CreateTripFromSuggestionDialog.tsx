@@ -141,6 +141,8 @@ export function CreateTripFromSuggestionDialog({
                 budget: { amount: Number(budget), currency },
                 travelers,
                 workspaceId: sessionWorkspaceId || undefined,
+                tripType: suggestion.suggestionType === "route" ? "multi_destination" : "single_destination",
+                route: suggestion.suggestionType === "route" ? suggestion.route ?? null : null,
                 autoGenerateItinerary: autoGenerate
               })
             }

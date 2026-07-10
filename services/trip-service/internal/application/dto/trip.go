@@ -23,6 +23,7 @@ const (
 type CreateTripInput struct {
 	Destination    string
 	WorkspaceID    *uuid.UUID
+	TripType       string
 	StartDate      string
 	Days           int32
 	BudgetAmount   *float64
@@ -30,6 +31,7 @@ type CreateTripInput struct {
 	Travelers      int32
 	Interests      []string
 	Pace           string
+	Route          *aggregate.TripRoute
 }
 
 type ListTripsInput struct {
@@ -60,6 +62,11 @@ type UpdateTripBudgetInput struct {
 // replacing a trip's structured accommodation.
 type UpdateTripAccommodationInput struct {
 	Accommodation *aggregate.Accommodation
+}
+
+type UpdateTripRouteInput struct {
+	Route                     *aggregate.TripRoute
+	ExpectedItineraryRevision *int
 }
 
 // GenerateItineraryInput is the application-level payload for full itinerary

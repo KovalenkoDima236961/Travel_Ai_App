@@ -100,6 +100,36 @@ Unsupported provider names fail startup. When fallback is enabled, missing keys
 or provider failures return mock data with `fallbackUsed: true` where the
 response shape supports it.
 
+### Route estimates
+
+`POST /routes/estimate` accepts the legacy ordered `stops[]` shape and the
+multi-destination `{ from, to, mode, date, currency }` shape. Modes are
+normalized to: `walk`, `car`, `rental_car`, `train`, `bus`, `flight`, `boat`,
+`ferry`, `bike`, `public_transport`, `hiking`, and `other`.
+
+The mock provider is deterministic and returns `estimatedDistanceKm`,
+`estimatedDurationMinutes`, `estimatedCost`, `provider: "mock"`, and warnings
+for non-live schedules. Rules:
+
+- walk: distance / 5 km/h, cost 0.
+- bike: distance / 15 km/h, low/0 planning cost.
+- hiking: distance / 3.5 km/h, cost 0 plus terrain/local-map warning.
+- car/rental_car: distance / 80 km/h plus 20 minutes, fuel estimate at
+  `0.18 EUR/km`.
+- bus: distance / 60 km/h plus 30 minutes, `0.08 EUR/km`.
+- train: distance / 100 km/h plus 20 minutes, `0.12 EUR/km`.
+- flight: 180-minute airport overhead plus distance / 700 km/h, at least
+  `50 EUR` or `0.15 EUR/km`.
+- boat/ferry: distance / 35 km/h plus 30 minutes, `0.20 EUR/km`.
+- public_transport: distance / 35 km/h plus 30 minutes, `0.10 EUR/km`.
+- other: distance / 50 km/h.
+
+OpenRouteService, when enabled, is used only for modes it can safely represent:
+`car`/`rental_car` map to driving, `bike` to cycling, and `walk`/`hiking` to
+walking. Train, bus, flight, boat, ferry, and public transport intentionally use
+the mock estimator in v1 with warnings; the service does not pretend to have
+live schedules or prices.
+
 ### Availability provider architecture (Advanced Availability Provider Adapters v1)
 
 The availability port is a chain of decorators, all in `internal/availability`:
@@ -199,6 +229,12 @@ curl -X POST "http://localhost:8084/routes/estimate" \
     {"name":"Colosseum","latitude":41.8902,"longitude":12.4922},
     {"name":"Trevi Fountain","latitude":41.9009,"longitude":12.4833}
   ]}'
+
+curl -X POST "http://localhost:8084/routes/estimate" \
+  -H "Content-Type: application/json" \
+  -d '{"from":{"name":"Vienna","lat":48.2082,"lng":16.3738},
+       "to":{"name":"Salzburg","lat":47.8095,"lng":13.0550},
+       "mode":"train","date":"2026-09-12","currency":"EUR"}'
 
 curl "http://localhost:8084/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
 
@@ -362,6 +398,9 @@ production.
   runaway usage, they do not charge or meter money.
 - Caches are process-local and cleared on restart.
 - Mock routing is an estimate, not turn-by-turn navigation.
+- Multi-modal transfer estimates are planning estimates only. There is no live
+  train, bus, flight, ferry, rental-car, boat, permit, or booking inventory in
+  v1.
 - OpenWeatherMap free-tier forecast coverage is limited; out-of-range dates
   should use mock fallback in local development.
 - Price estimates are approximate hints, not booking, checkout, inventory, or

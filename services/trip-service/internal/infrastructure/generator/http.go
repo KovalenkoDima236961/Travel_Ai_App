@@ -37,6 +37,7 @@ type AIPlanningHTTPGenerator struct {
 
 type aiPlanningGenerateRequest struct {
 	TripID                     string                           `json:"tripId"`
+	TripType                   string                           `json:"tripType"`
 	Destination                string                           `json:"destination"`
 	StartDate                  *string                          `json:"startDate,omitempty"`
 	Days                       int32                            `json:"days"`
@@ -51,19 +52,24 @@ type aiPlanningGenerateRequest struct {
 	UserPreferences            *usercontext.UserPreferences     `json:"userPreferences,omitempty"`
 	WeatherForecast            *weathercontext.WeatherForecast  `json:"weatherForecast,omitempty"`
 	Accommodation              *aggregate.Accommodation         `json:"accommodation,omitempty"`
+	Route                      *aggregate.TripRoute             `json:"route,omitempty"`
+	TransportPreferences       *aggregate.RoutePreferences      `json:"transportPreferences,omitempty"`
+	TripStyles                 []string                         `json:"tripStyles,omitempty"`
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints `json:"workspacePolicyConstraints,omitempty"`
 }
 
 type aiPlanningTripRequest struct {
-	ID             string   `json:"id"`
-	Destination    string   `json:"destination"`
-	StartDate      *string  `json:"startDate,omitempty"`
-	Days           int32    `json:"days"`
-	BudgetAmount   *float64 `json:"budgetAmount,omitempty"`
-	BudgetCurrency string   `json:"budgetCurrency"`
-	Travelers      int32    `json:"travelers"`
-	Interests      []string `json:"interests"`
-	Pace           string   `json:"pace"`
+	ID             string               `json:"id"`
+	TripType       string               `json:"tripType"`
+	Destination    string               `json:"destination"`
+	StartDate      *string              `json:"startDate,omitempty"`
+	Days           int32                `json:"days"`
+	BudgetAmount   *float64             `json:"budgetAmount,omitempty"`
+	BudgetCurrency string               `json:"budgetCurrency"`
+	Travelers      int32                `json:"travelers"`
+	Interests      []string             `json:"interests"`
+	Pace           string               `json:"pace"`
+	Route          *aggregate.TripRoute `json:"route,omitempty"`
 }
 
 type aiPlanningRegenerateDayRequest struct {
@@ -556,6 +562,7 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 
 	return aiPlanningGenerateRequest{
 		TripID:                     trip.ID.String(),
+		TripType:                   tripTypeOrDefault(trip),
 		Destination:                trip.Destination,
 		StartDate:                  startDate,
 		Days:                       trip.Days,
@@ -570,6 +577,9 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		UserPreferences:            input.UserPreferences,
 		WeatherForecast:            input.WeatherForecast,
 		Accommodation:              trip.Accommodation,
+		Route:                      trip.Route,
+		TransportPreferences:       routePreferencesPtr(trip.Route),
+		TripStyles:                 routeTripStyles(trip.Route),
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 	}
 }
@@ -623,6 +633,7 @@ func newAIPlanningTripRequest(trip entity.Trip, profile *usercontext.UserProfile
 
 	return aiPlanningTripRequest{
 		ID:             trip.ID.String(),
+		TripType:       tripTypeOrDefault(trip),
 		Destination:    trip.Destination,
 		StartDate:      startDate,
 		Days:           trip.Days,
@@ -631,7 +642,29 @@ func newAIPlanningTripRequest(trip entity.Trip, profile *usercontext.UserProfile
 		Travelers:      trip.Travelers,
 		Interests:      interests,
 		Pace:           pace,
+		Route:          trip.Route,
 	}
+}
+
+func tripTypeOrDefault(trip entity.Trip) string {
+	if trip.TripType == entity.TripTypeMultiDestination {
+		return entity.TripTypeMultiDestination
+	}
+	return entity.TripTypeSingleDestination
+}
+
+func routePreferencesPtr(route *aggregate.TripRoute) *aggregate.RoutePreferences {
+	if route == nil {
+		return nil
+	}
+	return &route.Preferences
+}
+
+func routeTripStyles(route *aggregate.TripRoute) []string {
+	if route == nil || route.Preferences.TripStyles == nil {
+		return []string{}
+	}
+	return route.Preferences.TripStyles
 }
 
 func (g *AIPlanningHTTPGenerator) postJSON(ctx context.Context, tripID uuid.UUID, path string, payload, out any) error {

@@ -72,5 +72,8 @@ func (p *fallbackRouteProvider) EstimateRoute(ctx context.Context, req entity.Ro
 	// The response provider reflects the actual source that answered.
 	fallbackEstimate.Provider = p.fallbackProviderName
 	fallbackEstimate.FallbackUsed = true
+	fallbackEstimate.Warnings = append([]string{
+		"Live routing was unavailable or unsupported for this mode; returned a deterministic estimate.",
+	}, fallbackEstimate.Warnings...)
 	return fallbackEstimate, nil
 }

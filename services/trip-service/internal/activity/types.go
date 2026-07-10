@@ -6,6 +6,7 @@ const (
 	// Trip.
 	EventTripCreated                         = "trip_created"
 	EventTripBudgetUpdated                   = "trip_budget_updated"
+	EventRouteUpdated                        = "route_updated"
 	EventTripCreatedFromTemplate             = "trip_created_from_template"
 	EventTripCreatedFromAITemplateAdaptation = "trip_created_from_ai_template_adaptation"
 	EventTripTravelerAdded                   = "trip_traveler_added"
@@ -94,6 +95,7 @@ const (
 var knownEventTypes = map[string]struct{}{
 	EventTripCreated:                         {},
 	EventTripBudgetUpdated:                   {},
+	EventRouteUpdated:                        {},
 	EventTripCreatedFromTemplate:             {},
 	EventTripCreatedFromAITemplateAdaptation: {},
 	EventTripTravelerAdded:                   {},

@@ -1647,6 +1647,21 @@ func (r *routeTestRepo) UpdateTripBudget(_ context.Context, id, userID uuid.UUID
 	return &trip, nil
 }
 
+func (r *routeTestRepo) UpdateTripRoute(_ context.Context, id, userID uuid.UUID, route *aggregate.TripRoute, tripType string) (*entity.Trip, error) {
+	trip, ok := r.trips[id]
+	if !ok || trip.UserID == nil || *trip.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	trip.Route = route
+	trip.TripType = tripType
+	if trip.TripType == "" {
+		trip.TripType = entity.TripTypeSingleDestination
+	}
+	trip.UpdatedAt = time.Now().UTC()
+	r.trips[id] = trip
+	return &trip, nil
+}
+
 func (r *routeTestRepo) UpdateTripAccommodation(_ context.Context, id, userID uuid.UUID, accommodation *aggregate.Accommodation) (*entity.Trip, error) {
 	trip, ok := r.trips[id]
 	if !ok || trip.UserID == nil || *trip.UserID != userID {

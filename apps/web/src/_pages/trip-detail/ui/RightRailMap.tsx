@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getAvailableDays,
   getItineraryMapMarkers,
-  getMapCenter
+  getMapCenter,
+  getRouteMapLines
 } from "@/entities/itinerary/model/map-utils";
 import type { TripAccommodation } from "@/entities/accommodation/model";
+import type { TripRoute } from "@/entities/route/model";
 import type { Itinerary } from "@/entities/trip/model";
 
 const LeafletItineraryMap = dynamic(
@@ -28,6 +30,7 @@ const LeafletItineraryMap = dynamic(
 type RightRailMapProps = {
   itinerary: Itinerary;
   accommodation?: TripAccommodation | null;
+  route?: TripRoute | null;
   startDate?: string | null;
 };
 
@@ -36,12 +39,13 @@ type RightRailMapProps = {
  * marker/center helpers and the Leaflet renderer; only the surrounding chrome and
  * day-filter pills are restyled to the Trip Detail mock.
  */
-export function RightRailMap({ itinerary, accommodation, startDate }: RightRailMapProps) {
+export function RightRailMap({ itinerary, accommodation, route, startDate }: RightRailMapProps) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const markers = useMemo(
-    () => getItineraryMapMarkers(itinerary, accommodation),
-    [itinerary, accommodation]
+    () => getItineraryMapMarkers(itinerary, accommodation, route),
+    [itinerary, accommodation, route]
   );
+  const routeLines = useMemo(() => getRouteMapLines(route), [route]);
   const availableDays = useMemo(() => getAvailableDays(markers), [markers]);
 
   useEffect(() => {
@@ -93,6 +97,7 @@ export function RightRailMap({ itinerary, accommodation, startDate }: RightRailM
             center={center}
             currency={currency}
             markers={filteredMarkers}
+            routeLines={selectedDay == null ? routeLines : []}
             startDate={startDate}
           />
         )}

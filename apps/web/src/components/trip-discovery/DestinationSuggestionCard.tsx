@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { transportModeLabel } from "@/components/routes/route-options";
 import type { TripDiscoverySuggestion } from "@/types/trip-discovery";
 
 export function DestinationSuggestionCard({
@@ -77,6 +78,23 @@ export function DestinationSuggestionCard({
           </ul>
         </div>
 
+        {suggestion.suggestionType === "route" && suggestion.route ? (
+          <div className="mt-4 rounded-[14px] border border-sand-300 bg-[#FFFDFA] p-3">
+            <h4 className="text-[12px] font-bold uppercase tracking-[0.08em] text-cocoa-400">
+              Route
+            </h4>
+            <p className="mt-2 text-[13.5px] font-semibold text-cocoa-800">
+              {suggestion.route.stops.map((stop) => stop.city || stop.destination).join(" to ")}
+            </p>
+            {suggestion.route.legs?.[0] ? (
+              <p className="mt-1 text-[12.5px] text-cocoa-500">
+                {transportModeLabel(suggestion.route.legs[0].mode)}
+                {suggestion.route.legs.length > 1 ? ` · ${suggestion.route.legs.length} transfers` : ""}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {suggestion.possibleDownsides.length > 0 ? (
           <details className="mt-4 text-[13px] text-cocoa-500">
             <summary className="cursor-pointer font-semibold text-cocoa-600">
@@ -94,7 +112,7 @@ export function DestinationSuggestionCard({
             onClick={onSelect}
             className="flex-1 rounded-full bg-cocoa-900 px-4 py-2.5 text-[13px] font-semibold text-sand-100 hover:bg-cocoa-700"
           >
-            {t("useDestination")}
+            {suggestion.suggestionType === "route" ? "Use this route" : t("useDestination")}
           </button>
           <button type="button" onClick={onSimilar} className={secondaryButton}>
             {t("showSimilar")}

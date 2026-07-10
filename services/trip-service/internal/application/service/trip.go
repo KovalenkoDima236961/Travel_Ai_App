@@ -73,6 +73,7 @@ type tripRepository interface {
 	UpdateTripBudget(ctx context.Context, id, userID uuid.UUID, amount *float64, currency string) (*entity.Trip, error)
 	UpdateTripAccommodation(ctx context.Context, id, userID uuid.UUID, accommodation *aggregate.Accommodation) (*entity.Trip, error)
 	ClearTripAccommodation(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
+	UpdateTripRoute(ctx context.Context, id, userID uuid.UUID, route *aggregate.TripRoute, tripType string) (*entity.Trip, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.Trip, error)
 	GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID) (*entity.Trip, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error)
@@ -369,9 +370,24 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 		return nil, err
 	}
 
+	tripType := normalizeTripType(in.TripType, in.Route)
+	route := in.Route
+	if route != nil {
+		if err := validateAndNormalizeRoute(route, in.StartDate, in.Days); err != nil {
+			return nil, err
+		}
+	}
 	destination := strings.TrimSpace(in.Destination)
-	if destination == "" {
+	if tripType == entity.TripTypeSingleDestination && destination == "" {
 		return nil, apperrs.NewInvalidInput("destination is required")
+	}
+	if tripType == entity.TripTypeMultiDestination {
+		if route == nil || len(route.Stops) == 0 {
+			return nil, apperrs.NewInvalidInput("route.stops must contain at least 1 stop")
+		}
+		if destination == "" {
+			destination = deriveRouteDestination(route)
+		}
 	}
 	if in.Days < 1 || in.Days > maxDays {
 		return nil, apperrs.NewInvalidInput("days must be between 1 and %d", maxDays)
@@ -411,6 +427,7 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 	created, err := s.repo.Create(ctx, &entity.Trip{
 		UserID:         &user.ID,
 		WorkspaceID:    in.WorkspaceID,
+		TripType:       tripType,
 		Destination:    destination,
 		StartDate:      startDate,
 		Days:           in.Days,
@@ -420,6 +437,7 @@ func (s *Service) Create(ctx context.Context, in appdto.CreateTripInput) (*entit
 		Interests:      interests,
 		Pace:           pace,
 		Status:         entity.StatusDraft,
+		Route:          route,
 	})
 	if err != nil {
 		return nil, err
@@ -577,7 +595,8 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 		expectedRevision,
 		entity.ItineraryVersionSourceGenerated,
 		map[string]any{
-			"generator": "full",
+			"generator":     "full",
+			"routeSnapshot": current.Route,
 		},
 	)
 	if err != nil {
@@ -1060,6 +1079,14 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 		if day.Title == "" {
 			return nil, apperrs.NewInvalidInput("itinerary.days[%d].title is required", dayIndex)
 		}
+		day.Date = strings.TrimSpace(day.Date)
+		if day.Date != "" {
+			if _, err := time.Parse("2006-01-02", day.Date); err != nil {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].date must be in YYYY-MM-DD format", dayIndex)
+			}
+		}
+		day.PrimaryStopID = strings.TrimSpace(day.PrimaryStopID)
+		day.LocationName = strings.TrimSpace(day.LocationName)
 		if len(day.Items) == 0 {
 			return nil, apperrs.NewInvalidInput("itinerary.days[%d].items must contain at least 1 item", dayIndex)
 		}
@@ -1073,9 +1100,20 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 			if item.Time == "" {
 				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].time is required", dayIndex, itemIndex)
 			}
+			item.EndTime = strings.TrimSpace(item.EndTime)
+			if item.EndTime != "" && !validHHMM(item.EndTime) {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].endTime must be in HH:mm format", dayIndex, itemIndex)
+			}
 			item.Type = strings.TrimSpace(item.Type)
 			if item.Type == "" {
 				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].type is required", dayIndex, itemIndex)
+			}
+			item.Category = strings.TrimSpace(item.Category)
+			item.TransportMode = aggregate.NormalizeRouteToken(item.TransportMode)
+			if item.TransportMode != "" {
+				if _, ok := aggregate.SupportedTransportModes[item.TransportMode]; !ok {
+					return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].transportMode is unsupported", dayIndex, itemIndex)
+				}
 			}
 			item.Name = strings.TrimSpace(item.Name)
 			if item.Name == "" {
@@ -1084,6 +1122,9 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 			item.Note = strings.TrimSpace(item.Note)
 			if err := budget.NormalizeEstimatedCost(item.EstimatedCost, budget.SourceManual); err != nil {
 				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].estimatedCost: %s", dayIndex, itemIndex, err.Error())
+			}
+			if err := validateAndNormalizeTransfer(item.Transfer, "itinerary.days[%d].items[%d].transfer", dayIndex, itemIndex); err != nil {
+				return nil, err
 			}
 			if err := validateAndNormalizePlaceRef(item.Place, "itinerary.days[%d].items[%d].place", dayIndex, itemIndex); err != nil {
 				return nil, err
@@ -1164,6 +1205,11 @@ func validateCurrentItinerary(itinerary aggregate.Itinerary) error {
 				strings.TrimSpace(item.Name) == "" {
 				return currentItineraryInvalidError()
 			}
+			if item.Transfer != nil {
+				if err := validateAndNormalizeTransfer(item.Transfer, "transfer"); err != nil {
+					return currentItineraryInvalidError()
+				}
+			}
 			if item.EstimatedCost != nil && item.EstimatedCost.Amount != nil && *item.EstimatedCost.Amount < 0 {
 				return currentItineraryInvalidError()
 			}
@@ -1217,6 +1263,7 @@ func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.Itinerar
 	normalized.Type = strings.TrimSpace(normalized.Type)
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Note = strings.TrimSpace(normalized.Note)
+	normalized.TransportMode = aggregate.NormalizeRouteToken(normalized.TransportMode)
 	if normalized.Time == "" {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item time is required")
 	}
@@ -1228,6 +1275,9 @@ func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.Itinerar
 	}
 	if err := budget.NormalizeEstimatedCost(normalized.EstimatedCost, budget.SourceAI); err != nil {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item estimatedCost is invalid: %s", err.Error())
+	}
+	if err := validateAndNormalizeTransfer(normalized.Transfer, "replacement item transfer"); err != nil {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item transfer is invalid")
 	}
 	if err := validateAndNormalizePlaceRef(normalized.Place, "replacement item place"); err != nil {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item place is invalid")
@@ -1452,6 +1502,43 @@ func validateAndNormalizeAvailabilityCheck(meta *aggregate.AvailabilityCheckMeta
 	return nil
 }
 
+func validateAndNormalizeTransfer(transfer *aggregate.TransferDetails, path string, args ...any) error {
+	if transfer == nil {
+		return nil
+	}
+	label := path
+	if len(args) > 0 {
+		label = fmt.Sprintf(path, args...)
+	}
+	transfer.LegID = strings.TrimSpace(transfer.LegID)
+	transfer.From = strings.TrimSpace(transfer.From)
+	if transfer.From == "" {
+		return apperrs.NewInvalidInput("%s.from is required", label)
+	}
+	transfer.To = strings.TrimSpace(transfer.To)
+	if transfer.To == "" {
+		return apperrs.NewInvalidInput("%s.to is required", label)
+	}
+	transfer.Mode = aggregate.NormalizeRouteToken(transfer.Mode)
+	if _, ok := aggregate.SupportedTransportModes[transfer.Mode]; !ok {
+		return apperrs.NewInvalidInput("%s.mode is unsupported", label)
+	}
+	if transfer.EstimatedDurationMinutes != nil && *transfer.EstimatedDurationMinutes < 0 {
+		return apperrs.NewInvalidInput("%s.estimatedDurationMinutes must be >= 0", label)
+	}
+	if transfer.EstimatedDistanceKm != nil && *transfer.EstimatedDistanceKm < 0 {
+		return apperrs.NewInvalidInput("%s.estimatedDistanceKm must be >= 0", label)
+	}
+	if err := budget.NormalizeEstimatedCost(transfer.EstimatedCost, budget.SourceAI); err != nil {
+		return apperrs.NewInvalidInput("%s.estimatedCost: %s", label, err.Error())
+	}
+	if transfer.EstimatedCost != nil && transfer.EstimatedCost.Category == "" {
+		transfer.EstimatedCost.Category = "transport"
+	}
+	transfer.Notes = strings.TrimSpace(transfer.Notes)
+	return nil
+}
+
 func parseHHMM(value string) (int, bool) {
 	if len(value) != len("15:04") || value[2] != ':' {
 		return 0, false
@@ -1467,6 +1554,11 @@ func parseHHMM(value string) (int, bool) {
 		return 0, false
 	}
 	return hour*60 + minute, true
+}
+
+func validHHMM(value string) bool {
+	_, ok := parseHHMM(value)
+	return ok
 }
 
 func asciiDigit(value byte) bool {

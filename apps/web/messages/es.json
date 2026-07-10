@@ -119,6 +119,50 @@
       "notThisVibe": "Esta sugerencia no encaja. Sustitúyela por algo claramente diferente."
     }
   },
+  "routes": {
+    "multiDestinationRoute": "Ruta multidestino",
+    "addStop": "Añadir parada",
+    "removeStop": "Eliminar parada",
+    "reorder": "Reordenar",
+    "origin": "Origen",
+    "stop": "Parada",
+    "transfer": "Traslado",
+    "transportMode": "Modo de transporte",
+    "estimatedDuration": "Duración estimada",
+    "estimatedCost": "Coste estimado",
+    "verifySchedules": "Verifica los horarios antes de viajar",
+    "routeMayBeUnrealistic": "La ruta puede ser poco realista"
+  },
+  "transportModes": {
+    "walk": "Caminando",
+    "car": "Coche",
+    "rental_car": "Coche de alquiler",
+    "train": "Tren",
+    "bus": "Autobús",
+    "flight": "Vuelo",
+    "ferry": "Ferry/barco",
+    "boat": "Ferry/barco",
+    "bike": "Bicicleta",
+    "hiking": "Senderismo",
+    "public_transport": "Transporte público",
+    "other": "Otro"
+  },
+  "tripStyles": {
+    "road_trip": "Viaje por carretera",
+    "train_trip": "Viaje en tren",
+    "camping": "Camping",
+    "hiking": "Senderismo",
+    "island_hopping": "Salto entre islas",
+    "nature": "Naturaleza",
+    "beach": "Playa",
+    "food": "Gastronomía",
+    "culture": "Cultura",
+    "adventure": "Aventura",
+    "family": "Familia",
+    "romantic": "Romántico",
+    "low_budget": "Bajo presupuesto",
+    "hidden_gem": "Joya escondida"
+  },
   "errors": {
     "generic": "Algo ha salido mal. Inténtalo de nuevo.", "unauthorized": "Inicia sesión para continuar.",
     "forbidden": "No tienes permiso para hacer eso.", "notFound": "No se encontró el elemento solicitado.",

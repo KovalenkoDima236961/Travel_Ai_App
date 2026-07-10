@@ -3,14 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
 )
 
@@ -22,47 +20,21 @@ const (
 
 // RoutesHandler wires route-estimation use cases to HTTP.
 type RoutesHandler struct {
-	svc            *appservice.RoutesService
-	log            *zap.Logger
-	supportedModes map[string]struct{}
-	modesLabel     string
+	svc *appservice.RoutesService
+	log *zap.Logger
 }
 
-// NewRoutesHandler builds the handler. The set of accepted travel modes depends
-// on the configured provider: the mock provider estimates walking only, while
-// the real ORS provider also supports driving and cycling. This keeps the API
-// honest about what the active provider can actually estimate.
-func NewRoutesHandler(svc *appservice.RoutesService, log *zap.Logger, providerName string) *RoutesHandler {
+// NewRoutesHandler builds the handler. The API accepts the full v1 planned
+// transport vocabulary; provider adapters decide whether a real estimate or the
+// deterministic mock estimate is appropriate for each mode.
+func NewRoutesHandler(svc *appservice.RoutesService, log *zap.Logger, _ string) *RoutesHandler {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	modes := supportedRouteModesFor(providerName)
 	return &RoutesHandler{
-		svc:            svc,
-		log:            log,
-		supportedModes: modes,
-		modesLabel:     sortedModeLabel(modes),
+		svc: svc,
+		log: log,
 	}
-}
-
-// supportedRouteModesFor returns the closed set of travel modes the active
-// provider can estimate. Unknown providers default to walking only.
-func supportedRouteModesFor(providerName string) map[string]struct{} {
-	switch strings.ToLower(strings.TrimSpace(providerName)) {
-	case config.RouteProviderORS:
-		return map[string]struct{}{"walking": {}, "driving": {}, "cycling": {}}
-	default:
-		return map[string]struct{}{"walking": {}}
-	}
-}
-
-func sortedModeLabel(modes map[string]struct{}) string {
-	names := make([]string, 0, len(modes))
-	for mode := range modes {
-		names = append(names, mode)
-	}
-	sort.Strings(names)
-	return strings.Join(names, ", ")
 }
 
 // RegisterRoutes mounts route-estimation routes onto the given chi router.
@@ -80,7 +52,7 @@ func (h *RoutesHandler) Estimate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Mode = strings.ToLower(strings.TrimSpace(req.Mode))
+	req = entity.NormalizeRouteEstimateRequest(req)
 	if message, ok := h.validateRouteEstimateRequest(req); !ok {
 		writeError(w, http.StatusBadRequest, message)
 		return
@@ -107,8 +79,8 @@ func (h *RoutesHandler) validateRouteEstimateRequest(req entity.RouteEstimateReq
 	if req.Mode == "" {
 		return "mode is required", false
 	}
-	if _, ok := h.supportedModes[req.Mode]; !ok {
-		return "unsupported mode: supported modes are " + h.modesLabel, false
+	if _, ok := entity.SupportedRouteModes[req.Mode]; !ok {
+		return "unsupported mode", false
 	}
 	if len(req.Stops) < minRouteStops {
 		return "at least 2 stops are required", false

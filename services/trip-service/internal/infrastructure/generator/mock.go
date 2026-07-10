@@ -40,6 +40,10 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 		zap.Bool("user_context_loaded", input.UserProfile != nil || input.UserPreferences != nil),
 	)
 
+	if trip.Route != nil && len(trip.Route.Stops) > 1 {
+		return g.generateRouteItinerary(input), nil
+	}
+
 	interests := trip.Interests
 	if len(interests) == 0 {
 		interests = []string{"sightseeing"}
@@ -116,6 +120,272 @@ func (g *MockItineraryGenerator) Generate(_ context.Context, input application.G
 		GeneratedAt: time.Now().UTC(),
 		Source:      "mock-local-generator",
 	}, nil
+}
+
+func (g *MockItineraryGenerator) generateRouteItinerary(input application.GenerateItineraryInput) *aggregate.Itinerary {
+	trip := input.Trip
+	route := trip.Route
+	currency := mockCurrency(input)
+	days := make([]aggregate.ItineraryDay, 0, trip.Days)
+	remaining := int(trip.Days)
+	if remaining < 1 {
+		remaining = 1
+	}
+
+	for stopIndex, stop := range route.Stops {
+		if len(days) >= int(trip.Days) {
+			break
+		}
+		stopDays := routeStopDays(stop, remaining, len(route.Stops)-stopIndex)
+		for dayAtStop := 0; dayAtStop < stopDays && len(days) < int(trip.Days); dayAtStop++ {
+			dayNumber := len(days) + 1
+			transferDay := dayAtStop == 0
+			leg := routeLegForStop(route, stopIndex)
+			items := make([]aggregate.ItineraryItem, 0, 4)
+			if transferDay {
+				items = append(items, transferItemForLeg(leg, stop, currency))
+			}
+			items = append(items,
+				aggregate.ItineraryItem{
+					Time:          "13:00",
+					Type:          "food",
+					Name:          fmt.Sprintf("Local lunch in %s", stopName(stop)),
+					Note:          "Keep this meal flexible around transfer timing and check-in.",
+					EstimatedCost: mockCost(16, "food", currency, "medium", "Approximate local meal estimate"),
+				},
+				aggregate.ItineraryItem{
+					Time: "15:30",
+					Type: "activity",
+					Name: fmt.Sprintf("%s orientation walk", stopName(stop)),
+					Note: routeStyleNote(route),
+				},
+				aggregate.ItineraryItem{
+					Time:          "19:00",
+					Type:          "food",
+					Name:          fmt.Sprintf("Dinner near %s center", stopName(stop)),
+					EstimatedCost: mockCost(24, "food", currency, "low", "Mid-range dinner estimate"),
+				},
+			)
+			days = append(days, aggregate.ItineraryDay{
+				Day:           dayNumber,
+				Date:          mockDateForDay(trip.StartDate, dayNumber),
+				Title:         routeDayTitle(stop, transferDay),
+				PrimaryStopID: stop.ID,
+				LocationName:  stopName(stop),
+				TransferDay:   transferDay,
+				Items:         items,
+			})
+		}
+		remaining = int(trip.Days) - len(days)
+	}
+
+	for len(days) < int(trip.Days) {
+		dayNumber := len(days) + 1
+		stop := route.Stops[len(route.Stops)-1]
+		days = append(days, aggregate.ItineraryDay{
+			Day:           dayNumber,
+			Date:          mockDateForDay(trip.StartDate, dayNumber),
+			Title:         fmt.Sprintf("Flexible final day in %s", stopName(stop)),
+			PrimaryStopID: stop.ID,
+			LocationName:  stopName(stop),
+			Items: []aggregate.ItineraryItem{
+				{
+					Time: "10:00",
+					Type: "activity",
+					Name: fmt.Sprintf("Slow morning in %s", stopName(stop)),
+					Note: "Use this as buffer time in case earlier transfers run late.",
+				},
+				{
+					Time:          "13:00",
+					Type:          "food",
+					Name:          "Final local lunch",
+					EstimatedCost: mockCost(16, "food", currency, "medium", "Approximate local meal estimate"),
+				},
+				{
+					Time: "16:00",
+					Type: "rest",
+					Name: "Pack and departure buffer",
+					Note: "No bookings are confirmed; verify transport schedules before travel.",
+				},
+			},
+		})
+	}
+
+	summary := fmt.Sprintf("A %d-day multi-destination %s route with %d stop(s). Transfer times and costs are estimates.",
+		trip.Days, trip.Pace, len(route.Stops))
+	return &aggregate.Itinerary{
+		Destination: trip.Destination,
+		Summary:     summary,
+		Travelers:   trip.Travelers,
+		Pace:        trip.Pace,
+		Currency:    currency,
+		TotalBudget: trip.BudgetAmount,
+		Days:        days,
+		GeneratedAt: time.Now().UTC(),
+		Source:      "mock-local-route-generator",
+	}
+}
+
+func routeStopDays(stop aggregate.RouteStop, remainingDays, remainingStops int) int {
+	if remainingDays <= 1 || remainingStops <= 1 {
+		return maxInt(1, remainingDays)
+	}
+	if stop.Nights != nil && *stop.Nights > 0 {
+		return minInt(maxInt(1, *stop.Nights), remainingDays-remainingStops+1)
+	}
+	return maxInt(1, remainingDays/remainingStops)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func routeLegForStop(route *aggregate.TripRoute, stopIndex int) *aggregate.RouteLeg {
+	if route == nil || stopIndex < 0 || stopIndex >= len(route.Stops) {
+		return nil
+	}
+	toID := route.Stops[stopIndex].ID
+	fromID := "origin"
+	if stopIndex > 0 {
+		fromID = route.Stops[stopIndex-1].ID
+	}
+	for index := range route.Legs {
+		leg := &route.Legs[index]
+		if leg.FromStopID == fromID && leg.ToStopID == toID {
+			return leg
+		}
+	}
+	return nil
+}
+
+func transferItemForLeg(leg *aggregate.RouteLeg, stop aggregate.RouteStop, currency string) aggregate.ItineraryItem {
+	from := "Origin"
+	to := stopName(stop)
+	mode := aggregate.TransportModeTrain
+	duration := 90
+	var distance *float64
+	var cost *aggregate.EstimatedCost
+	legID := ""
+	note := "Verify schedules before travel. This is an estimate, not a booking."
+	if leg != nil {
+		legID = leg.ID
+		if strings.TrimSpace(leg.FromName) != "" {
+			from = leg.FromName
+		}
+		if strings.TrimSpace(leg.ToName) != "" {
+			to = leg.ToName
+		}
+		if strings.TrimSpace(leg.Mode) != "" {
+			mode = leg.Mode
+		}
+		if leg.EstimatedDurationMinutes != nil {
+			duration = *leg.EstimatedDurationMinutes
+		}
+		distance = leg.EstimatedDistanceKm
+		cost = leg.EstimatedCost
+		if strings.TrimSpace(leg.Notes) != "" {
+			note = leg.Notes + " Verify schedules before travel."
+		}
+	}
+	if cost == nil {
+		cost = mockCost(estimatedTransferCost(mode, distance), "transport", currency, "medium", "Approximate transfer estimate")
+	}
+	end := timeFromMinutes(9*60 + duration)
+	return aggregate.ItineraryItem{
+		Time:            "09:00",
+		EndTime:         end,
+		Type:            "transfer",
+		TransportMode:   mode,
+		DurationMinutes: &duration,
+		Name:            fmt.Sprintf("%s from %s to %s", titleCase(mode), from, to),
+		Note:            note,
+		EstimatedCost:   cost,
+		Transfer: &aggregate.TransferDetails{
+			LegID:                    legID,
+			From:                     from,
+			To:                       to,
+			Mode:                     mode,
+			EstimatedDurationMinutes: &duration,
+			EstimatedDistanceKm:      distance,
+			EstimatedCost:            cost,
+			BookingRequired:          false,
+			Notes:                    note,
+			Warnings:                 []string{"Verify schedules before travel."},
+		},
+	}
+}
+
+func estimatedTransferCost(mode string, distance *float64) float64 {
+	km := 100.0
+	if distance != nil && *distance > 0 {
+		km = *distance
+	}
+	switch mode {
+	case aggregate.TransportModeBus:
+		return km * 0.08
+	case aggregate.TransportModeFlight:
+		return maxFloat(50, km*0.15)
+	case aggregate.TransportModeFerry, aggregate.TransportModeBoat:
+		return km * 0.20
+	case aggregate.TransportModeCar, aggregate.TransportModeRentalCar:
+		return km * 0.18
+	case aggregate.TransportModeBike, aggregate.TransportModeHiking, aggregate.TransportModeWalk:
+		return 0
+	default:
+		return km * 0.12
+	}
+}
+
+func stopName(stop aggregate.RouteStop) string {
+	if strings.TrimSpace(stop.City) != "" {
+		return strings.TrimSpace(stop.City)
+	}
+	return strings.TrimSpace(stop.Destination)
+}
+
+func routeDayTitle(stop aggregate.RouteStop, transfer bool) string {
+	if transfer {
+		return fmt.Sprintf("Transfer to %s", stopName(stop))
+	}
+	return fmt.Sprintf("Explore %s", stopName(stop))
+}
+
+func routeStyleNote(route *aggregate.TripRoute) string {
+	if route != nil {
+		for _, style := range route.Preferences.TripStyles {
+			switch style {
+			case "hiking":
+				return "Keep hiking plans conservative and verify local maps before leaving."
+			case "camping":
+				return "Check campsite availability separately; no reservation is confirmed."
+			case "island_hopping":
+				return "Ferry and boat times are approximate; verify schedules locally."
+			}
+		}
+	}
+	return "Start with a light orientation route so the day stays realistic after travel."
+}
+
+func mockDateForDay(start *time.Time, dayNumber int) string {
+	if start == nil {
+		return ""
+	}
+	return start.AddDate(0, 0, dayNumber-1).Format("2006-01-02")
+}
+
+func timeFromMinutes(minutes int) string {
+	minutes = minutes % (24 * 60)
+	return fmt.Sprintf("%02d:%02d", minutes/60, minutes%60)
 }
 
 // RegenerateDay returns a deterministic replacement for a single existing day.

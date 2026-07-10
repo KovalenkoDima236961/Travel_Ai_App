@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import re
-from datetime import date
+from datetime import date, date as Date
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
@@ -11,6 +13,7 @@ from pydantic import (
     StringConstraints,
     field_serializer,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -31,8 +34,52 @@ COST_CATEGORIES = {
     "other",
 }
 COST_CONFIDENCES = {"low", "medium", "high"}
-COST_SOURCES = {"ai", "manual", "provider"}
-ACCOMMODATION_TYPES = {"hotel", "hostel", "apartment", "guesthouse", "home", "other"}
+COST_SOURCES = {"ai", "manual", "provider", "mock"}
+ACCOMMODATION_TYPES = {
+    "hotel",
+    "hostel",
+    "apartment",
+    "guesthouse",
+    "campsite",
+    "cabin",
+    "campervan",
+    "home",
+    "other",
+    "unknown",
+}
+TRANSPORT_MODES = {
+    "walk",
+    "car",
+    "rental_car",
+    "train",
+    "bus",
+    "flight",
+    "boat",
+    "ferry",
+    "bike",
+    "public_transport",
+    "hiking",
+    "other",
+}
+TRIP_STYLES = {
+    "city_break",
+    "road_trip",
+    "train_trip",
+    "backpacking",
+    "camping",
+    "hiking",
+    "island_hopping",
+    "nature",
+    "beach",
+    "food",
+    "culture",
+    "adventure",
+    "family",
+    "romantic",
+    "low_budget",
+    "luxury",
+    "hidden_gem",
+}
 _CURRENCY_PATTERN = re.compile(r"^[A-Z]{3}$")
 _MAX_COST_NOTE = 300
 
@@ -80,6 +127,24 @@ def _normalize_string_list(value: object) -> object:
         seen.add(key)
         normalized.append(trimmed)
     return normalized
+
+
+def _normalize_token(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _normalize_transport_mode(value: object) -> str:
+    mode = _normalize_token(value)
+    aliases = {
+        "walking": "walk",
+        "driving": "car",
+        "cycling": "bike",
+        "public_transportation": "public_transport",
+        "transit": "public_transport",
+    }
+    return aliases.get(mode, mode)
 
 
 class UserProfile(APIModel):
@@ -246,9 +311,202 @@ class AccommodationContext(APIModel):
         return self
 
 
+class Coordinates(APIModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class RoutePlace(APIModel):
+    name: str | None = Field(default=None, max_length=200)
+    country: str | None = Field(default=None, max_length=200)
+    coordinates: Coordinates | None = None
+
+    @field_validator("name", "country", mode="before")
+    @classmethod
+    def normalize_optional_string(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+
+class RouteCost(APIModel):
+    amount: Decimal | None = Field(default=None, ge=Decimal("0"))
+    currency: str | None = None
+    category: str | None = "transport"
+    confidence: str | None = "low"
+    source: str | None = "ai"
+    note: str | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if not normalized or not _CURRENCY_PATTERN.match(normalized):
+            return None
+        return normalized
+
+    @field_validator("category")
+    @classmethod
+    def normalize_category(cls, value: str | None) -> str:
+        normalized = (value or "transport").strip().lower()
+        return normalized if normalized in COST_CATEGORIES else "transport"
+
+    @field_validator("confidence")
+    @classmethod
+    def normalize_confidence(cls, value: str | None) -> str | None:
+        normalized = (value or "low").strip().lower()
+        return normalized if normalized in COST_CONFIDENCES else "low"
+
+    @field_validator("source")
+    @classmethod
+    def normalize_source(cls, value: str | None) -> str | None:
+        normalized = (value or "ai").strip().lower()
+        return normalized if normalized in COST_SOURCES else "ai"
+
+    @field_serializer("amount", when_used="json")
+    def serialize_amount(self, value: Decimal | None) -> int | float | None:
+        return _serialize_decimal(value)
+
+
+class RouteStop(APIModel):
+    id: str = Field(min_length=1, max_length=100)
+    destination: NonEmptyString
+    city: str | None = Field(default=None, max_length=200)
+    country: str | None = Field(default=None, max_length=200)
+    arrival_date: date | None = Field(default=None, alias="arrivalDate")
+    departure_date: date | None = Field(default=None, alias="departureDate")
+    nights: int | None = Field(default=None, ge=0, le=365)
+    coordinates: Coordinates | None = None
+    accommodation_hint: str | None = Field(default="unknown", alias="accommodationHint")
+    notes: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("city", "country", "notes", mode="before")
+    @classmethod
+    def normalize_optional_string(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+    @field_validator("accommodation_hint", mode="before")
+    @classmethod
+    def normalize_accommodation_hint(cls, value: object) -> str:
+        hint = _normalize_token(value)
+        return hint if hint in ACCOMMODATION_TYPES else "unknown"
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "RouteStop":
+        if (
+            self.arrival_date is not None
+            and self.departure_date is not None
+            and self.departure_date < self.arrival_date
+        ):
+            raise ValueError("departureDate must be on or after arrivalDate")
+        return self
+
+
+class RouteLeg(APIModel):
+    id: str | None = Field(default=None, max_length=100)
+    from_stop_id: str = Field(alias="fromStopId", min_length=1, max_length=100)
+    to_stop_id: str = Field(alias="toStopId", min_length=1, max_length=100)
+    from_name: str | None = Field(default=None, alias="fromName", max_length=200)
+    to_name: str | None = Field(default=None, alias="toName", max_length=200)
+    mode: str = "train"
+    departure_date: date | None = Field(default=None, alias="departureDate")
+    estimated_duration_minutes: int | None = Field(
+        default=None, ge=0, alias="estimatedDurationMinutes"
+    )
+    estimated_distance_km: float | None = Field(default=None, ge=0, alias="estimatedDistanceKm")
+    estimated_cost: RouteCost | None = Field(default=None, alias="estimatedCost")
+    notes: str | None = Field(default=None, max_length=1000)
+    provider_metadata: dict[str, object] | None = Field(default=None, alias="providerMetadata")
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def normalize_mode(cls, value: object) -> str:
+        mode = _normalize_transport_mode(value)
+        return mode if mode in TRANSPORT_MODES else "other"
+
+    @field_validator("from_name", "to_name", "notes", mode="before")
+    @classmethod
+    def normalize_optional_string(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
+
+
+class RoutePreferences(APIModel):
+    preferred_modes: list[str] = Field(default_factory=list, alias="preferredModes")
+    avoid_modes: list[str] = Field(default_factory=list, alias="avoidModes")
+    car_available: bool = Field(default=False, alias="carAvailable")
+    max_transfer_hours_per_day: int | None = Field(
+        default=None, ge=1, le=24, alias="maxTransferHoursPerDay"
+    )
+    trip_styles: list[str] = Field(default_factory=list, alias="tripStyles")
+
+    @field_validator("preferred_modes", "avoid_modes", mode="before")
+    @classmethod
+    def normalize_modes(cls, value: object) -> object:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return value
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            mode = _normalize_transport_mode(item)
+            if mode not in TRANSPORT_MODES or mode in seen:
+                continue
+            seen.add(mode)
+            normalized.append(mode)
+        return normalized
+
+    @field_validator("trip_styles", mode="before")
+    @classmethod
+    def normalize_trip_styles(cls, value: object) -> object:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return value
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            style = _normalize_token(item)
+            if style not in TRIP_STYLES or style in seen:
+                continue
+            seen.add(style)
+            normalized.append(style)
+        return normalized
+
+
+class TripRoute(APIModel):
+    origin: RoutePlace | None = None
+    return_to_origin: bool = Field(default=False, alias="returnToOrigin")
+    stops: list[RouteStop] = Field(default_factory=list, max_length=20)
+    legs: list[RouteLeg] = Field(default_factory=list)
+    preferences: RoutePreferences = Field(default_factory=RoutePreferences)
+
+
+class TransportPreferences(RoutePreferences):
+    pass
+
+
 class GenerateItineraryRequest(APIModel):
     trip_id: UUID = Field(alias="tripId")
     destination: NonEmptyString
+    trip_type: Literal["single_destination", "multi_destination"] = Field(
+        default="single_destination", alias="tripType"
+    )
     start_date: date | None = Field(default=None, alias="startDate")
     days: int = Field(ge=1, le=30)
     budget_amount: Decimal | None = Field(default=None, ge=Decimal("0"), alias="budgetAmount")
@@ -262,6 +520,11 @@ class GenerateItineraryRequest(APIModel):
     user_preferences: UserPreferences | None = Field(default=None, alias="userPreferences")
     weather_forecast: WeatherForecast | None = Field(default=None, alias="weatherForecast")
     accommodation: AccommodationContext | None = None
+    route: TripRoute | None = None
+    transport_preferences: TransportPreferences | None = Field(
+        default=None, alias="transportPreferences"
+    )
+    trip_styles: list[str] = Field(default_factory=list, alias="tripStyles")
     workspace_policy_constraints: WorkspacePolicyConstraints | None = Field(
         default=None, alias="workspacePolicyConstraints"
     )
@@ -299,6 +562,11 @@ class GenerateItineraryRequest(APIModel):
     @classmethod
     def normalize_interests(cls, value: list[str]) -> list[str]:
         return [item.strip().lower() for item in value if item.strip()]
+
+    @field_validator("trip_styles", mode="before")
+    @classmethod
+    def normalize_trip_styles(cls, value: object) -> object:
+        return RoutePreferences.normalize_trip_styles(value)
 
 
 class OpeningHoursInterval(APIModel):
@@ -409,12 +677,53 @@ class EstimatedCost(APIModel):
         return _serialize_decimal(value)
 
 
+class TransferDetails(APIModel):
+    leg_id: str | None = Field(default=None, alias="legId", max_length=100)
+    from_: str = Field(alias="from", min_length=1, max_length=200)
+    to: str = Field(min_length=1, max_length=200)
+    mode: str = "train"
+    estimated_duration_minutes: int | None = Field(
+        default=None, ge=0, alias="estimatedDurationMinutes"
+    )
+    estimated_distance_km: float | None = Field(default=None, ge=0, alias="estimatedDistanceKm")
+    estimated_cost: EstimatedCost | None = Field(default=None, alias="estimatedCost")
+    booking_required: bool = Field(default=False, alias="bookingRequired")
+    notes: str | None = Field(default=None, max_length=1000)
+    warnings: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def normalize_mode(cls, value: object) -> str:
+        mode = _normalize_transport_mode(value)
+        return mode if mode in TRANSPORT_MODES else "other"
+
+
 class ItineraryItem(APIModel):
     time: str
+    end_time: str | None = Field(default=None, alias="endTime")
     type: str
     name: str
+    description: str | None = None
     note: str | None = None
+    transport_mode: str | None = Field(default=None, alias="transportMode")
+    duration_minutes: int | None = Field(default=None, ge=0, alias="durationMinutes")
+    transfer: TransferDetails | None = None
     estimated_cost: EstimatedCost | None = Field(default=None, alias="estimatedCost")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("transport_mode", mode="before")
+    @classmethod
+    def normalize_transport_mode(cls, value: object) -> object:
+        if value is None:
+            return None
+        mode = _normalize_transport_mode(value)
+        return mode if mode in TRANSPORT_MODES else "other"
 
     @field_validator("estimated_cost", mode="before")
     @classmethod
@@ -445,11 +754,66 @@ class ItineraryItem(APIModel):
         except ValueError:
             return None
 
+    @model_serializer(mode="plain")
+    def serialize_item(self) -> dict[str, object]:
+        out: dict[str, object] = {
+            "time": self.time,
+            "type": self.type,
+            "name": self.name,
+        }
+        if self.end_time is not None:
+            out["endTime"] = self.end_time
+        if self.description is not None:
+            out["description"] = self.description
+        if self.note is not None:
+            out["note"] = self.note
+        if self.transport_mode is not None:
+            out["transportMode"] = self.transport_mode
+        if self.duration_minutes is not None:
+            out["durationMinutes"] = self.duration_minutes
+        if self.transfer is not None:
+            out["transfer"] = self.transfer.model_dump(
+                by_alias=True,
+                exclude_none=True,
+                mode="json",
+            )
+        if self.estimated_cost is not None:
+            out["estimatedCost"] = self.estimated_cost.model_dump(
+                by_alias=True,
+                exclude_none=True,
+                mode="json",
+            )
+        return out
+
 
 class ItineraryDay(APIModel):
     day: int = Field(ge=1)
+    date: Date | None = None
     title: str
+    primary_stop_id: str | None = Field(default=None, alias="primaryStopId")
+    location_name: str | None = Field(default=None, alias="locationName")
+    transfer_day: bool = Field(default=False, alias="transferDay")
     items: list[ItineraryItem] = Field(min_length=1)
+
+    @model_serializer(mode="plain")
+    def serialize_day(self) -> dict[str, object]:
+        out: dict[str, object] = {
+            "day": self.day,
+            "title": self.title,
+            "items": [
+                item.model_dump(by_alias=True, exclude_none=True, mode="json")
+                for item in self.items
+            ],
+        }
+        if self.date is not None:
+            out["date"] = self.date.isoformat()
+        if self.primary_stop_id is not None:
+            out["primaryStopId"] = self.primary_stop_id
+        if self.location_name is not None:
+            out["locationName"] = self.location_name
+        if self.transfer_day:
+            out["transferDay"] = self.transfer_day
+        return out
 
 
 class ItineraryResponse(APIModel):

@@ -23,9 +23,13 @@ type Itinerary struct {
 
 // ItineraryDay is a single day within a generated itinerary.
 type ItineraryDay struct {
-	Day   int             `json:"day"`
-	Title string          `json:"title"`
-	Items []ItineraryItem `json:"items"`
+	Day           int             `json:"day"`
+	Date          string          `json:"date,omitempty"`
+	Title         string          `json:"title"`
+	PrimaryStopID string          `json:"primaryStopId,omitempty"`
+	LocationName  string          `json:"locationName,omitempty"`
+	TransferDay   bool            `json:"transferDay,omitempty"`
+	Items         []ItineraryItem `json:"items"`
 }
 
 // ItineraryItem is a single planned activity within a day.
@@ -40,6 +44,7 @@ type ItineraryItem struct {
 	Name              string                 `json:"name"`
 	Note              string                 `json:"note,omitempty"`
 	EstimatedCost     *EstimatedCost         `json:"estimatedCost,omitempty"`
+	Transfer          *TransferDetails       `json:"transfer,omitempty"`
 	Place             *PlaceRef              `json:"place,omitempty"`
 	PlaceEnrichment   *PlaceEnrichmentMeta   `json:"placeEnrichment,omitempty"`
 	PriceEnrichment   *PriceEnrichmentMeta   `json:"priceEnrichment,omitempty"`

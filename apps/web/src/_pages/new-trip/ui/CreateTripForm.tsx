@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -10,6 +10,11 @@ import { useTranslations } from "next-intl";
 import { createTrip, tripKeys } from "@/lib/api/trips";
 import { getErrorMessage } from "@/lib/utils";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
+import {
+  createDefaultTripRoute,
+  getRouteValidationWarnings,
+  TripRouteBuilder
+} from "@/components/routes/TripRouteBuilder";
 import { CheckCircleIcon, MapPinIcon, SparklesIcon } from "./icons";
 
 const interestOptions = [
@@ -29,17 +34,28 @@ const paceOptions = [
   { value: "packed", label: "Intensive" }
 ] as const;
 
-const tripFormSchema = z.object({
-  destination: z.string().trim().min(1, "Destination is required"),
-  workspaceId: z.string().optional(),
-  startDate: z.string().optional(),
-  days: z.number().int().min(1, "Days must be at least 1").max(30, "Days must be 30 or fewer"),
-  budgetAmount: z.number().min(0, "Budget must be zero or greater").optional(),
-  budgetCurrency: z.string().trim().length(3, "Use a 3-letter currency code"),
-  travelers: z.number().int().min(1, "Travelers must be at least 1"),
-  interests: z.array(z.string()),
-  pace: z.enum(["relaxed", "balanced", "packed"])
-});
+const tripFormSchema = z
+  .object({
+    tripMode: z.enum(["single_destination", "multi_destination"]),
+    destination: z.string().trim(),
+    workspaceId: z.string().optional(),
+    startDate: z.string().optional(),
+    days: z.number().int().min(1, "Days must be at least 1").max(30, "Days must be 30 or fewer"),
+    budgetAmount: z.number().min(0, "Budget must be zero or greater").optional(),
+    budgetCurrency: z.string().trim().length(3, "Use a 3-letter currency code"),
+    travelers: z.number().int().min(1, "Travelers must be at least 1"),
+    interests: z.array(z.string()),
+    pace: z.enum(["relaxed", "balanced", "packed"])
+  })
+  .superRefine((values, context) => {
+    if (values.tripMode === "single_destination" && values.destination.trim().length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["destination"],
+        message: "Destination is required"
+      });
+    }
+  });
 
 type TripFormValues = z.infer<typeof tripFormSchema>;
 
@@ -55,10 +71,13 @@ export function CreateTripForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { currentScope, currentWorkspace, editableWorkspaces } = useWorkspaces();
+  const [route, setRoute] = useState(createDefaultTripRoute);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   const form = useForm<TripFormValues>({
     resolver: zodResolver(tripFormSchema),
     defaultValues: {
+      tripMode: "single_destination",
       destination: "",
       workspaceId: "",
       startDate: "",
@@ -104,6 +123,9 @@ export function CreateTripForm() {
   }, [currentScope, currentWorkspace, editableWorkspaces, setValue]);
 
   const selectedInterests = watch("interests") ?? [];
+  const selectedTripMode = watch("tripMode");
+  const selectedDays = watch("days") ?? 1;
+  const selectedCurrency = watch("budgetCurrency") ?? "EUR";
 
   function toggleInterest(value: string) {
     const next = selectedInterests.includes(value)
@@ -113,8 +135,25 @@ export function CreateTripForm() {
   }
 
   function onSubmit(values: TripFormValues) {
+    if (values.tripMode === "multi_destination") {
+      const blockingWarning = getRouteValidationWarnings(route, values.days).find(
+        (warning) => warning.severity === "error"
+      );
+      if (blockingWarning) {
+        setRouteError(blockingWarning.message);
+        return;
+      }
+      setRouteError(null);
+    }
+
+    const routeDestination = deriveRouteDestination(route);
     createMutation.mutate({
-      destination: values.destination,
+      destination:
+        values.tripMode === "multi_destination"
+          ? values.destination.trim() || routeDestination
+          : values.destination,
+      tripType: values.tripMode,
+      route: values.tripMode === "multi_destination" ? route : null,
       workspaceId: values.workspaceId || undefined,
       startDate: values.startDate || undefined,
       days: values.days,
@@ -136,8 +175,35 @@ export function CreateTripForm() {
           {translate("basics")}
         </h2>
         <div className="mt-5 flex flex-col gap-[18px]">
+          <div className="inline-flex w-fit gap-1 rounded-full border border-sand-300 bg-sand-50 p-1">
+            {[
+              { value: "single_destination", label: "Single destination" },
+              { value: "multi_destination", label: "Multi-destination route" }
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selectedTripMode === option.value}
+                onClick={() =>
+                  setValue("tripMode", option.value as TripFormValues["tripMode"], {
+                    shouldDirty: true
+                  })
+                }
+                className={
+                  selectedTripMode === option.value
+                    ? "h-10 rounded-full bg-cocoa-900 px-5 text-[14px] font-semibold text-sand-150"
+                    : "h-10 rounded-full px-5 text-[14px] font-medium text-cocoa-500 transition hover:bg-sand-200 hover:text-cocoa-900"
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           <label className="block">
-            <span className={FIELD_LABEL}>{translate("destination")}</span>
+            <span className={FIELD_LABEL}>
+              {selectedTripMode === "multi_destination" ? "Trip name or region" : translate("destination")}
+            </span>
             <span className="mt-2 flex h-[52px] items-center gap-2.5 rounded-[14px] border border-sand-400 bg-[#FFFDFA] px-4 transition focus-within:border-clay focus-within:ring-[3px] focus-within:ring-clay-tint">
               <MapPinIcon className="h-[19px] w-[19px] shrink-0 text-clay" />
               <input
@@ -198,6 +264,23 @@ export function CreateTripForm() {
           </div>
         </div>
       </section>
+
+      {selectedTripMode === "multi_destination" ? (
+        <section className="border-t border-sand-200 pt-8">
+          <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
+            Multi-destination route
+          </h2>
+          <div className="mt-5">
+            <TripRouteBuilder
+              value={route}
+              onChange={setRoute}
+              totalDays={selectedDays}
+              currency={selectedCurrency}
+            />
+          </div>
+          {routeError ? <p className={FIELD_ERROR}>{routeError}</p> : null}
+        </section>
+      ) : null}
 
       <section className="border-t border-sand-200 pt-8">
         <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
@@ -338,4 +421,18 @@ export function CreateTripForm() {
       </div>
     </form>
   );
+}
+
+function deriveRouteDestination(route: ReturnType<typeof createDefaultTripRoute>) {
+  const firstStop = route.stops.find((stop) => stop.destination.trim().length > 0);
+  if (!firstStop) {
+    return "Multi-destination route";
+  }
+  const sameCountry =
+    firstStop.country &&
+    route.stops.every((stop) => (stop.country ?? "").trim() === firstStop.country?.trim());
+  if (sameCountry) {
+    return `${firstStop.country} route`;
+  }
+  return `${firstStop.destination} route`;
 }

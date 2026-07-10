@@ -109,6 +109,7 @@ func (s *Service) calculateApprovalRiskForTrip(
 			BudgetCurrency: trip.BudgetCurrency,
 			Days:           int(trip.Days),
 			Accommodation:  trip.Accommodation,
+			Route:          trip.Route,
 		},
 		ChecklistInput:         checklistInput,
 		PolicyEvaluation:       policyEvaluationPtr,

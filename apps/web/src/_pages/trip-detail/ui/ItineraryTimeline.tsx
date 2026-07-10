@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { AvailabilityCard } from "@/features/availability-search";
 import { formatMoney, getCostAmount } from "@/entities/budget/model";
+import { transportModeLabel } from "@/components/routes/route-options";
 import { getOpeningStatus } from "@/entities/itinerary/model/opening-hours-utils";
 import type {
   AvailabilityOption,
@@ -239,6 +240,9 @@ function TimelineItem({
               {item.note ? (
                 <p className="mt-1.5 text-[13.5px] leading-[1.55] text-cocoa-500">{item.note}</p>
               ) : null}
+              {item.type === "transfer" && item.transfer ? (
+                <TransferDetails item={item} currency={currency} />
+              ) : null}
               <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12.5px] text-cocoa-400">
                 {openingStatus ? <OpeningPill status={openingStatus} /> : null}
                 {item.place?.rating != null ? (
@@ -329,6 +333,44 @@ function TimelineItem({
   );
 }
 
+function TransferDetails({ item, currency }: { item: ItineraryItem; currency: string }) {
+  const transfer = item.transfer;
+  if (!transfer) {
+    return null;
+  }
+  const transferCost = getCostAmount(transfer.estimatedCost ?? item.estimatedCost);
+  const duration = transfer.estimatedDurationMinutes ?? item.durationMinutes;
+
+  return (
+    <div className="mt-3 rounded-[14px] border border-sand-300 bg-sand-50 p-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-cocoa-800">
+        <span>{transfer.from}</span>
+        <span className="text-cocoa-300">to</span>
+        <span>{transfer.to}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 text-[12.5px] font-medium text-cocoa-500">
+        <span className="rounded-full bg-white px-2.5 py-1">
+          {transportModeLabel(transfer.mode)}
+        </span>
+        {duration ? <span className="rounded-full bg-white px-2.5 py-1">{formatDuration(duration)}</span> : null}
+        {transfer.estimatedDistanceKm ? (
+          <span className="rounded-full bg-white px-2.5 py-1">
+            {Math.round(transfer.estimatedDistanceKm)} km
+          </span>
+        ) : null}
+        {transferCost != null ? (
+          <span className="rounded-full bg-white px-2.5 py-1">
+            {formatMoney(transferCost, transfer.estimatedCost?.currency ?? currency)}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-2 text-[12.5px] leading-[1.45] text-[#96682A]">
+        Verify schedules before travel.
+      </p>
+    </div>
+  );
+}
+
 function IconButton({
   title,
   disabled,
@@ -409,6 +451,15 @@ function compactNumber(value: number): string {
   );
 }
 
+function formatDuration(minutes: number) {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder === 0 ? `${hours} hr` : `${hours} hr ${remainder} min`;
+}
+
 // Mirrors ItineraryView.isLikelyBookableItem so the availability search shows up
 // on exactly the same items in both the shared and forked views.
 function isLikelyBookableItem(item: ItineraryItem) {
@@ -422,6 +473,7 @@ function isLikelyBookableItem(item: ItineraryItem) {
       "break",
       "walk",
       "walking",
+      "transfer",
       "transport",
       "accommodation",
       "hotel",

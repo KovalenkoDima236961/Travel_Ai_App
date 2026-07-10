@@ -136,6 +136,9 @@ function buildIcsEvents(exportTrip: ExportTrip): IcsEvent[] {
       if (!timeRange) {
         return [];
       }
+      if (!timeRange.end && item.endTime) {
+        timeRange.end = parseItemTime(item.endTime);
+      }
 
       const startMinutes = timeToMinutes(timeRange.start);
       const explicitEndMinutes = timeRange.end ? timeToMinutes(timeRange.end) : null;
@@ -156,8 +159,8 @@ function buildIcsEvents(exportTrip: ExportTrip): IcsEvent[] {
             Math.floor(endMinutesInDay / 60),
             endMinutesInDay % 60
           ),
-          summary: item.name || `${exportTrip.destination} itinerary item`,
-          location: item.place?.address || item.place?.name || exportTrip.destination,
+          summary: formatEventSummary(item, exportTrip.destination),
+          location: formatEventLocation(item, exportTrip.destination),
           description: buildDescription(item, exportTrip.budgetCurrency)
         }
       ];
@@ -190,6 +193,12 @@ function parseItemTimeRange(time: string | null | undefined):
 }
 
 function durationMinutesForItem(item: ItineraryItem): number {
+  if (item.transfer?.estimatedDurationMinutes != null) {
+    return item.transfer.estimatedDurationMinutes;
+  }
+  if (item.durationMinutes != null) {
+    return item.durationMinutes;
+  }
   const type = (item.type || "").toLowerCase();
 
   if (["food", "restaurant", "cafe"].includes(type)) {
@@ -198,6 +207,9 @@ function durationMinutesForItem(item: ItineraryItem): number {
   if (type === "transport") {
     return 30;
   }
+  if (type === "transfer") {
+    return 120;
+  }
   if (["rest", "break", "free_time", "free time"].includes(type)) {
     return 60;
   }
@@ -205,8 +217,31 @@ function durationMinutesForItem(item: ItineraryItem): number {
   return 60;
 }
 
+function formatEventSummary(item: ItineraryItem, fallbackDestination: string): string {
+  if (item.transfer) {
+    return `Transfer: ${item.transfer.from} -> ${item.transfer.to}`;
+  }
+  return item.name || `${fallbackDestination} itinerary item`;
+}
+
+function formatEventLocation(item: ItineraryItem, fallbackDestination: string): string {
+  if (item.transfer) {
+    return `${item.transfer.from} -> ${item.transfer.to}`;
+  }
+  return item.place?.address || item.place?.name || fallbackDestination;
+}
+
 function buildDescription(item: ItineraryItem, currency?: string | null): string {
   const lines = [
+    item.transfer ? `Transport mode: ${String(item.transfer.mode).replace(/_/g, " ")}` : null,
+    item.transfer?.estimatedDurationMinutes != null
+      ? `Estimated duration: ${item.transfer.estimatedDurationMinutes} minutes`
+      : null,
+    item.transfer?.estimatedDistanceKm != null
+      ? `Estimated distance: ${item.transfer.estimatedDistanceKm.toFixed(1)} km`
+      : null,
+    item.transfer ? "Verify schedules before travel." : null,
+    ...(item.transfer?.warnings ?? []),
     item.note?.trim(),
     item.place?.name ? `Place: ${item.place.name}` : null,
     item.place?.address ? `Address: ${item.place.address}` : null,

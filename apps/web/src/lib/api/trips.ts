@@ -16,6 +16,7 @@ import type {
   SharedTripSummary,
   TripCollaborator
 } from "@/entities/collaboration/model";
+import type { TripRoute } from "@/entities/route/model";
 import type { CreateTripInput, Itinerary, Trip, TripScope, TripsListResponse } from "@/entities/trip/model";
 
 type ListTripsParams = {
@@ -33,6 +34,7 @@ export const tripKeys = {
   invitations: () => ["collaboration", "invitations"] as const,
   details: () => [...tripKeys.all, "detail"] as const,
   detail: (id: string) => [...tripKeys.details(), id] as const,
+  route: (id: string) => [...tripKeys.detail(id), "route"] as const,
   collaborators: (id: string) => [...tripKeys.detail(id), "collaborators"] as const,
   share: (id: string) => [...tripKeys.detail(id), "share"] as const,
   publicShare: (shareToken: string) => ["public-trip-share", shareToken] as const,
@@ -68,6 +70,20 @@ export function listTrips(params: ListTripsParams = {}) {
 
 export function getTrip(id: string) {
   return apiFetch<Trip>(`/trips/${id}`);
+}
+
+export function getTripRoute(id: string) {
+  return apiFetch<{ route: TripRoute | null }>(`/trips/${id}/route`);
+}
+
+export function updateTripRoute(
+  id: string,
+  input: { expectedItineraryRevision?: number; route: TripRoute | null }
+) {
+  return apiFetch<Trip>(`/trips/${id}/route`, {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
 }
 
 export function listSharedTrips() {
@@ -262,6 +278,8 @@ export function getPublicTrip(shareToken: string, accessToken?: string | null) {
 function cleanCreateTripPayload(input: CreateTripInput) {
   return {
     destination: input.destination.trim(),
+    ...(input.tripType ? { tripType: input.tripType } : {}),
+    ...(input.route ? { route: input.route } : {}),
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
     ...(input.startDate ? { startDate: input.startDate } : {}),
     days: input.days,

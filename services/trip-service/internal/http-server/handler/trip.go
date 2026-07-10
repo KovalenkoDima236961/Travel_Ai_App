@@ -94,6 +94,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/accommodation", h.GetAccommodation)
 		r.Put("/{id}/accommodation", h.UpdateAccommodation)
 		r.Delete("/{id}/accommodation", h.DeleteAccommodation)
+		r.Get("/{id}/route", h.GetRoute)
+		r.Put("/{id}/route", h.UpdateRoute)
 		r.Patch("/{id}/accommodation/cost-split", h.UpdateAccommodationCostSplit)
 		r.Get("/{id}/budget-summary", h.GetBudgetSummary)
 		r.Get("/{id}/analytics/costs", h.GetTripCostAnalytics)
@@ -331,6 +333,37 @@ func (h *Handler) GetAccommodation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response.NewAccommodationEnvelope(accommodation))
+}
+
+func (h *Handler) GetRoute(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	route, err := h.svc.GetTripRoute(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripRouteEnvelope(route))
+}
+
+func (h *Handler) UpdateRoute(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var req request.UpdateTripRoute
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	updated, err := h.svc.UpdateTripRoute(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTrip(updated))
 }
 
 // UpdateAccommodation handles PUT /trips/{id}/accommodation. Only owner/editor

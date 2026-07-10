@@ -34,8 +34,8 @@ var restTypes = tokenSet([]string{
 })
 
 var transportTypes = tokenSet([]string{
-	"transport", "public_transport", "walking", "train", "bus", "metro",
-	"taxi", "rideshare", "car", "flight", "bike",
+	"transport", "transfer", "public_transport", "walking", "walk", "train", "bus", "metro",
+	"taxi", "rideshare", "car", "rental_car", "flight", "bike", "ferry", "boat", "hiking",
 })
 
 type EvaluationInput struct {
@@ -301,6 +301,12 @@ func Evaluate(ctx context.Context, in EvaluationInput) Evaluation {
 	if rules.PreferredTransportModes.Enabled {
 		result.add(evaluateTransport(in.Itinerary, rules.PreferredTransportModes))
 	}
+	if rules.MaxTransferHoursPerDay.Enabled {
+		result.add(evaluateMaxTransferHours(in.Itinerary, rules.MaxTransferHoursPerDay))
+	}
+	if rules.DisallowedTransportModes.Enabled {
+		result.add(evaluateDisallowedTransport(in.Itinerary, rules.DisallowedTransportModes))
+	}
 	if rules.DisallowedActivityTypes.Enabled {
 		result.add(evaluateDisallowed(in.Itinerary, rules.DisallowedActivityTypes))
 	}
@@ -505,10 +511,7 @@ func evaluateTransport(itinerary aggregate.Itinerary, rule TransportRule) Evalua
 	for _, day := range itinerary.Days {
 		for itemIndex, item := range day.Items {
 			itemType := normalizeToken(item.Type)
-			mode := normalizeToken(item.TransportMode)
-			if mode == "" {
-				mode = itemType
-			}
+			mode := transportModeForItem(item)
 			if _, isTransport := transportTypes[itemType]; !isTransport {
 				if _, isMode := transportTypes[mode]; !isMode {
 					continue
@@ -536,6 +539,102 @@ func evaluateTransport(itinerary aggregate.Itinerary, rule TransportRule) Evalua
 		fmt.Sprintf("%d transport item(s) use non-preferred modes.", len(affected)),
 		map[string]any{"items": affected}, map[string]any{"modes": rule.Modes},
 		action("replace_transport", "Replace transport", affected[0].DayNumber, affected[0].ItemIndex))
+	item.AffectedItems = affected
+	return item
+}
+
+func evaluateMaxTransferHours(
+	itinerary aggregate.Itinerary,
+	rule TransferHoursRule,
+) EvaluationResult {
+	limit := int(math.Round(rule.Hours * 60))
+	if limit <= 0 {
+		return unknown("maxTransferHoursPerDay", rule.Severity, "Maximum transfer time",
+			"Not enough data to evaluate this rule.")
+	}
+	affected := make([]AffectedItem, 0)
+	transferCount := 0
+	hasDuration := false
+	for _, day := range itinerary.Days {
+		for itemIndex, item := range day.Items {
+			if !isTransferItem(item) {
+				continue
+			}
+			transferCount++
+			duration, ok := itemDurationMinutes(item)
+			if !ok && item.Transfer != nil && item.Transfer.EstimatedDurationMinutes != nil {
+				duration = *item.Transfer.EstimatedDurationMinutes
+				ok = true
+			}
+			if !ok {
+				continue
+			}
+			hasDuration = true
+			if duration > limit {
+				dayNumber, index := day.Day, itemIndex
+				amount := float64(duration)
+				affected = appendLimited(affected, AffectedItem{
+					DayNumber: &dayNumber, ItemIndex: &index, Name: item.Name, Amount: &amount,
+				})
+			}
+		}
+	}
+	if transferCount == 0 {
+		return pass("maxTransferHoursPerDay", rule.Severity,
+			"No transfer-day conflicts found", "No transfer items require comparison.")
+	}
+	if !hasDuration {
+		return unknown("maxTransferHoursPerDay", rule.Severity, "Maximum transfer time",
+			"Transfer duration estimates are missing.")
+	}
+	if len(affected) == 0 {
+		return pass("maxTransferHoursPerDay", rule.Severity,
+			"Transfer times are within the workspace limit", "Transfer days fit the maximum transfer time.")
+	}
+	item := violation("maxTransferHoursPerDay", rule.Severity,
+		"Transfer day is too long",
+		fmt.Sprintf("%d transfer item(s) exceed %.1f hour(s).", len(affected), rule.Hours),
+		map[string]any{"items": affected}, map[string]any{"hours": rule.Hours},
+		action("repair_with_ai", "Repair with AI", affected[0].DayNumber, nil),
+		action("replace_transport", "Change transport", affected[0].DayNumber, affected[0].ItemIndex))
+	item.AffectedItems = affected
+	return item
+}
+
+func evaluateDisallowedTransport(
+	itinerary aggregate.Itinerary,
+	rule TransportRule,
+) EvaluationResult {
+	disallowed := tokenSet(rule.Modes)
+	if len(disallowed) == 0 {
+		return pass("disallowedTransportModes", rule.Severity,
+			"No disallowed transport modes configured", "No transport modes are disallowed.")
+	}
+	affected := make([]AffectedItem, 0)
+	for _, day := range itinerary.Days {
+		for itemIndex, item := range day.Items {
+			mode := transportModeForItem(item)
+			if mode == "" {
+				continue
+			}
+			if _, ok := disallowed[mode]; ok {
+				dayNumber, index := day.Day, itemIndex
+				affected = appendLimited(affected, AffectedItem{
+					DayNumber: &dayNumber, ItemIndex: &index, Name: item.Name,
+				})
+			}
+		}
+	}
+	if len(affected) == 0 {
+		return pass("disallowedTransportModes", rule.Severity,
+			"No disallowed transport modes found", "The itinerary avoids disallowed transport modes.")
+	}
+	item := violation("disallowedTransportModes", rule.Severity,
+		"Disallowed transport mode is used",
+		fmt.Sprintf("%d transport item(s) use a disallowed mode.", len(affected)),
+		map[string]any{"items": affected}, map[string]any{"modes": rule.Modes},
+		action("replace_transport", "Replace transport", affected[0].DayNumber, affected[0].ItemIndex),
+		action("repair_with_ai", "Repair with AI", affected[0].DayNumber, nil))
 	item.AffectedItems = affected
 	return item
 }
@@ -721,6 +820,26 @@ func itemCategory(item aggregate.ItineraryItem) string {
 		}
 	}
 	return normalizeToken(item.Type)
+}
+
+func isTransferItem(item aggregate.ItineraryItem) bool {
+	return normalizeToken(item.Type) == "transfer" || item.Transfer != nil
+}
+
+func transportModeForItem(item aggregate.ItineraryItem) string {
+	if item.Transfer != nil {
+		if mode := normalizeToken(item.Transfer.Mode); mode != "" {
+			return mode
+		}
+	}
+	if mode := normalizeToken(item.TransportMode); mode != "" {
+		return mode
+	}
+	itemType := normalizeToken(item.Type)
+	if _, ok := transportTypes[itemType]; ok {
+		return itemType
+	}
+	return ""
 }
 
 func itemDurationMinutes(item aggregate.ItineraryItem) (int, bool) {

@@ -61,6 +61,7 @@ const (
 	SourceWalkingDistance   FactorSource = "walking_distance"
 	SourceSchedule          FactorSource = "schedule"
 	SourceAccommodation     FactorSource = "accommodation"
+	SourceRoute             FactorSource = "route"
 )
 
 type SuggestedActionPriority string
@@ -166,6 +167,7 @@ type TripContext struct {
 	BudgetCurrency string
 	Days           int
 	Accommodation  *aggregate.Accommodation
+	Route          *aggregate.TripRoute
 }
 
 type Input struct {

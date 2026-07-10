@@ -4,13 +4,14 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
+from app.schemas.itinerary import TRANSPORT_MODES
 
 _ITEMS_PER_DAY_BY_PACE = {
     "relaxed": 3,
     "balanced": 4,
     "intensive": 5,
 }
-_VALID_ITEM_TYPES = {"place", "food", "activity", "transport", "rest"}
+_VALID_ITEM_TYPES = {"place", "food", "activity", "transport", "transfer", "rest"}
 _TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _BUDGET_OVERRUN_MULTIPLIER = Decimal("1.30")
 _LONG_WALK_PATTERN = re.compile(r"\b(long|extended|lengthy|walking-heavy|full-day)\s+walk", re.I)
@@ -95,6 +96,11 @@ class ItineraryValidator:
                         f"Day {day.day} item {item_index} has invalid time {item.time!r}",
                         code="invalid_time_format",
                     )
+                if item.end_time is not None and not _TIME_PATTERN.match(item.end_time):
+                    raise ItineraryValidationError(
+                        f"Day {day.day} item {item_index} has invalid endTime {item.end_time!r}",
+                        code="invalid_time_format",
+                    )
 
                 if item.time in seen_times:
                     raise ItineraryValidationError(
@@ -129,6 +135,8 @@ class ItineraryValidator:
                         f"Day {day.day} item {item_index} note cannot be empty",
                         code="empty_item_note",
                     )
+                if item.type == "transfer":
+                    self._validate_transfer_item(day.day, item_index, item)
 
                 cost_amount = (
                     item.estimated_cost.amount if item.estimated_cost is not None else None
@@ -178,6 +186,30 @@ class ItineraryValidator:
                 },
             )
         return result
+
+    def _validate_transfer_item(self, day_number: int, item_index: int, item) -> None:
+        transfer = item.transfer
+        if transfer is None:
+            raise ItineraryValidationError(
+                f"Day {day_number} item {item_index} transfer details are required",
+                code="missing_transfer_details",
+            )
+        if transfer.mode not in TRANSPORT_MODES:
+            raise ItineraryValidationError(
+                f"Day {day_number} item {item_index} has unsupported transfer mode",
+                code="invalid_transfer_mode",
+            )
+        if item.transport_mode is not None and item.transport_mode not in TRANSPORT_MODES:
+            raise ItineraryValidationError(
+                f"Day {day_number} item {item_index} has unsupported transportMode",
+                code="invalid_transfer_mode",
+            )
+        cost = item.estimated_cost or transfer.estimated_cost
+        if cost is not None and cost.category not in {None, "transport"}:
+            raise ItineraryValidationError(
+                f"Day {day_number} item {item_index} transfer estimatedCost must use transport category",
+                code="invalid_transfer_cost_category",
+            )
 
 
 def _avoidance_warnings(

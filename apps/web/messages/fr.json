@@ -119,6 +119,50 @@
       "notThisVibe": "Cette suggestion ne convient pas. Remplace-la par une option vraiment différente."
     }
   },
+  "routes": {
+    "multiDestinationRoute": "Itinéraire multi-destinations",
+    "addStop": "Ajouter une étape",
+    "removeStop": "Supprimer l’étape",
+    "reorder": "Réordonner",
+    "origin": "Origine",
+    "stop": "Étape",
+    "transfer": "Transfert",
+    "transportMode": "Mode de transport",
+    "estimatedDuration": "Durée estimée",
+    "estimatedCost": "Coût estimé",
+    "verifySchedules": "Vérifiez les horaires avant le voyage",
+    "routeMayBeUnrealistic": "L’itinéraire peut être irréaliste"
+  },
+  "transportModes": {
+    "walk": "Marche",
+    "car": "Voiture",
+    "rental_car": "Voiture de location",
+    "train": "Train",
+    "bus": "Bus",
+    "flight": "Vol",
+    "ferry": "Ferry/bateau",
+    "boat": "Ferry/bateau",
+    "bike": "Vélo",
+    "hiking": "Randonnée",
+    "public_transport": "Transports publics",
+    "other": "Autre"
+  },
+  "tripStyles": {
+    "road_trip": "Road trip",
+    "train_trip": "Voyage en train",
+    "camping": "Camping",
+    "hiking": "Randonnée",
+    "island_hopping": "D’île en île",
+    "nature": "Nature",
+    "beach": "Plage",
+    "food": "Cuisine",
+    "culture": "Culture",
+    "adventure": "Aventure",
+    "family": "Famille",
+    "romantic": "Romantique",
+    "low_budget": "Petit budget",
+    "hidden_gem": "Pépite cachée"
+  },
   "errors": {
     "generic": "Une erreur est survenue. Réessayez.", "unauthorized": "Connectez-vous pour continuer.",
     "forbidden": "Vous n’avez pas l’autorisation.", "notFound": "L’élément demandé est introuvable.",

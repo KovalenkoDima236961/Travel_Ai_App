@@ -1,4 +1,5 @@
 import type { GenerationJob } from "@/entities/generation-job/model";
+import type { TripRoute } from "@/entities/route/model";
 import type { Trip } from "@/entities/trip/model";
 
 export type TripDiscoveryMode = "prompt" | "surprise" | "refine";
@@ -12,6 +13,7 @@ export type TripDiscoveryBudget = {
 
 export type TripDiscoverySuggestion = {
   id: string;
+  suggestionType?: "single_destination" | "route";
   destination: string;
   city: string;
   country: string;
@@ -32,6 +34,7 @@ export type TripDiscoverySuggestion = {
   };
   tags: string[];
   suggestedPromptForItinerary: string;
+  route?: TripRoute | null;
   concerns: Array<{ type: string; message: string }>;
 };
 
@@ -90,6 +93,8 @@ export type CreateTripFromSuggestionRequest = {
   budget?: TripDiscoveryBudget;
   travelers: number;
   workspaceId?: string | null;
+  tripType?: "single_destination" | "multi_destination";
+  route?: TripRoute | null;
   autoGenerateItinerary: boolean;
 };
 

@@ -1,12 +1,15 @@
 import type { TripAccommodation } from "@/entities/accommodation/model";
 import type { Budget, EstimatedCost } from "@/entities/budget/model";
 import type { Place } from "@/entities/place/model";
+import type { TransportMode, TripRoute } from "@/entities/route/model";
 
 export type TripStatus = "DRAFT" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export type Pace = "relaxed" | "balanced" | "packed" | "intensive" | string;
 
 export type TripScope = "personal" | "workspace";
+
+export type TripType = "single_destination" | "multi_destination";
 
 export type PlaceEnrichmentReviewStatus = "pending" | "accepted" | "changed" | "removed";
 
@@ -52,13 +55,26 @@ export type AvailabilityCheckMeta = {
 export type ItineraryItem = {
   time: string;
   endTime?: string | null;
-  type: "place" | "food" | "activity" | "transport" | "rest" | string;
+  type: "place" | "food" | "activity" | "transport" | "transfer" | "rest" | string;
   category?: string | null;
-  transportMode?: string | null;
+  transportMode?: TransportMode | string | null;
   durationMinutes?: number | null;
   walkingDistanceKm?: number | null;
   name: string;
+  description?: string | null;
   note?: string | null;
+  transfer?: {
+    legId?: string | null;
+    from: string;
+    to: string;
+    mode: TransportMode | string;
+    estimatedDurationMinutes?: number | null;
+    estimatedDistanceKm?: number | null;
+    estimatedCost?: EstimatedCost | null;
+    bookingRequired?: boolean;
+    notes?: string | null;
+    warnings?: string[];
+  } | null;
   estimatedCost?: EstimatedCost | null;
   place?: Place | null;
   placeEnrichment?: PlaceEnrichment | null;
@@ -68,7 +84,11 @@ export type ItineraryItem = {
 
 export type ItineraryDay = {
   day: number;
+  date?: string | null;
   title: string;
+  primaryStopId?: string | null;
+  locationName?: string | null;
+  transferDay?: boolean;
   items: ItineraryItem[];
 };
 
@@ -89,6 +109,8 @@ export type Trip = {
   userId?: string | null;
   workspaceId?: string | null;
   scope?: TripScope;
+  tripType?: TripType;
+  route?: TripRoute | null;
   destination: string;
   startDate?: string | null;
   days: number;
@@ -126,6 +148,8 @@ export type TripsListResponse = {
 
 export type CreateTripInput = {
   destination: string;
+  tripType?: TripType;
+  route?: TripRoute | null;
   workspaceId?: string | null;
   startDate?: string;
   days: number;

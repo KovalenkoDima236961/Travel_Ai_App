@@ -246,6 +246,50 @@
       "notThisVibe": "This suggestion is not the right vibe. Replace it with something meaningfully different."
     }
   },
+  "routes": {
+    "multiDestinationRoute": "Multi-destination route",
+    "addStop": "Add stop",
+    "removeStop": "Remove stop",
+    "reorder": "Reorder",
+    "origin": "Origin",
+    "stop": "Stop",
+    "transfer": "Transfer",
+    "transportMode": "Transport mode",
+    "estimatedDuration": "Estimated duration",
+    "estimatedCost": "Estimated cost",
+    "verifySchedules": "Verify schedules before travel",
+    "routeMayBeUnrealistic": "Route may be unrealistic"
+  },
+  "transportModes": {
+    "walk": "Walking",
+    "car": "Car",
+    "rental_car": "Rental car",
+    "train": "Train",
+    "bus": "Bus",
+    "flight": "Flight",
+    "ferry": "Ferry/boat",
+    "boat": "Ferry/boat",
+    "bike": "Bike",
+    "hiking": "Hiking",
+    "public_transport": "Public transport",
+    "other": "Other"
+  },
+  "tripStyles": {
+    "road_trip": "Road trip",
+    "train_trip": "Train trip",
+    "camping": "Camping",
+    "hiking": "Hiking",
+    "island_hopping": "Island hopping",
+    "nature": "Nature",
+    "beach": "Beach",
+    "food": "Food",
+    "culture": "Culture",
+    "adventure": "Adventure",
+    "family": "Family",
+    "romantic": "Romantic",
+    "low_budget": "Low budget",
+    "hidden_gem": "Hidden gem"
+  },
   "errors": {
     "generic": "Something went wrong. Please try again.",
     "unauthorized": "Please log in to continue.",

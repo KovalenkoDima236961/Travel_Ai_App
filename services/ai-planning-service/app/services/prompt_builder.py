@@ -25,6 +25,7 @@ Return strict JSON only, matching this shape:
   "sessionTitle": "string",
   "suggestions": [{{
     "id": "stable-slug",
+    "suggestionType": "single_destination|route",
     "destination": "City, Country",
     "city": "string",
     "country": "string",
@@ -39,6 +40,12 @@ Return strict JSON only, matching this shape:
     "tripPreview": {{"title": "string", "summary": "string", "sampleDay": ["string"]}},
     "tags": ["string"],
     "suggestedPromptForItinerary": "string",
+    "route": {{
+      "origin": {{"name": "string", "country": "string"}},
+      "stops": [],
+      "legs": [],
+      "preferences": {{"preferredModes": ["train"], "tripStyles": ["train_trip"]}}
+    }},
     "concerns": [{{"type": "string", "message": "string"}}]
   }}],
   "followUpQuestions": ["string"],
@@ -47,6 +54,10 @@ Return strict JSON only, matching this shape:
 
 Rules:
 - Return 3 to {request.constraints.suggestion_count} plausible, distinct suggestions.
+- You may return route suggestions when the user asks for multi-city, road trip,
+  train trip, backpacking, hiking, camping, island hopping, or route-style travel.
+- For route suggestions, set suggestionType="route", include route stops and transfer
+  legs with approximate modes, durations, and costs, and never claim bookings or live schedules.
 - Treat matchScore as an estimate and clamp it to 0-100.
 - Never claim live prices, availability, booking, visa, legal, health, or safety guarantees.
 - Budget values are rough estimates only.
@@ -112,6 +123,7 @@ def build_itinerary_prompt(
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
     workspace_policy_section = _workspace_policy_section(request)
+    route_context_section = _route_context_section(request)
     instruction = request.instruction or "No extra user instruction provided."
 
     return f"""
@@ -123,13 +135,21 @@ The JSON must exactly match this schema and must not include any other fields:
   "days": [
     {{
       "day": 1,
+      "date": "2026-09-10",
       "title": "string",
+      "primaryStopId": "stop_1",
+      "locationName": "City",
+      "transferDay": false,
       "items": [
         {{
           "time": "09:00",
+          "endTime": "10:30",
           "type": "place",
           "name": "string",
           "note": "string",
+          "transportMode": "train",
+          "durationMinutes": 90,
+          "transfer": null,
           "estimatedCost": {{
             "amount": 18,
             "currency": "EUR",
@@ -157,6 +177,7 @@ Trip request:
 {weather_context_section}
 {accommodation_context_section}
 {workspace_policy_section}
+{route_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -167,7 +188,18 @@ Rules:
 - Sort items inside each day by time ascending.
 - Do not repeat the same time within a day.
 - Do not repeat the same item name within a day.
-- Use only these item types: place, food, activity, transport, rest.
+- Use only these item types: place, food, activity, transport, transfer, rest.
+- For multi-destination route trips, plan across all route stops, set primaryStopId,
+  locationName and transferDay where relevant, and include one transfer item for each
+  transfer day. Do not schedule dense sightseeing before or after long transfers.
+- Transfer items must include transfer {{legId, from, to, mode, estimatedDurationMinutes,
+  estimatedDistanceKm, estimatedCost, bookingRequired, notes, warnings}}.
+- Respect route arrival/departure dates, nights per stop, preferredModes, avoidModes,
+  maxTransferHoursPerDay, and tripStyles where possible.
+- For camping trips, include campsite/accommodation-style notes without claiming
+  reservations. For hiking trips, keep planning conservative and do not generate
+  technical GPS routes. For ferry/boat/island hopping, say schedules are approximate
+  and must be verified.
 - Include practical notes tailored to {request.destination}; avoid generic filler.
 - For each paid activity, museum/ticket, restaurant, cafe, transport, shopping, and
   accommodation item, include estimatedCost as an object with fields amount
@@ -191,6 +223,8 @@ Rules:
   and schedule parks/viewpoints/walking-heavy activities on better weather days.
 - Add indoor backup suggestions when rain chance is high.
 - Do not mention weather excessively unless relevant.
+- Do not claim tickets, transport, accommodation, campsite, ferry, train, bus, or flight
+  bookings are confirmed.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
 """.strip()
@@ -217,6 +251,7 @@ def build_repair_prompt(
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
     workspace_policy_section = _workspace_policy_section(request)
+    route_context_section = _route_context_section(request)
 
     return f"""
 You previously generated an itinerary JSON response, but it was invalid.
@@ -237,6 +272,7 @@ Original trip request:
 {weather_context_section}
 {accommodation_context_section}
 {workspace_policy_section}
+{route_context_section}
 {destination_context_section}
 {rag_context_section}
 
@@ -249,13 +285,21 @@ The corrected JSON must exactly match this schema and must not include any other
   "days": [
     {{
       "day": 1,
+      "date": "2026-09-10",
       "title": "string",
+      "primaryStopId": "stop_1",
+      "locationName": "City",
+      "transferDay": false,
       "items": [
         {{
           "time": "09:00",
+          "endTime": "10:30",
           "type": "place",
           "name": "string",
           "note": "string",
+          "transportMode": "train",
+          "durationMinutes": 90,
+          "transfer": null,
           "estimatedCost": {{
             "amount": 18,
             "currency": "EUR",
@@ -273,7 +317,9 @@ Repair rules:
 - Generate exactly {request.days} day objects.
 - Day numbers must be 1 through {request.days} in order.
 - Each day must have exactly {items_per_day} items.
-- Use only these item types: place, food, activity, transport, rest.
+- Use only these item types: place, food, activity, transport, transfer, rest.
+- Preserve route stop assignment, transferDay metadata, and transfer items for
+  multi-destination route trips. Transfer items must not claim confirmed bookings.
 - Use HH:MM 24-hour times.
 - Sort items inside each day by time ascending.
 - Do not repeat the same time within a day.
@@ -1118,6 +1164,33 @@ def _workspace_policy_section(request: object) -> str:
         "- Do not claim policy compliance in the output.\n"
         "- Do not omit required JSON fields to satisfy a policy.\n"
     )
+
+
+def _route_context_section(request: GenerateItineraryRequest) -> str:
+    route = getattr(request, "route", None)
+    if route is None or not getattr(route, "stops", None):
+        return ""
+
+    route_json = route.model_dump(by_alias=True, exclude_none=True, mode="json")
+    transport_preferences = getattr(request, "transport_preferences", None)
+    trip_styles = getattr(request, "trip_styles", [])
+    lines = [
+        "\nROUTE CONTEXT:",
+        json.dumps(route_json, ensure_ascii=False, indent=2),
+        "Route planning instructions:",
+        "- Treat this as a multi-destination route when it has more than one stop.",
+        "- Use route legs for transfer items and keep costs/durations approximate.",
+        "- Respect avoidModes and do not use disallowed modes unless the route explicitly requires it.",
+        "- Do not claim live schedules, ticket purchase, accommodation booking, permits, or reservations.",
+    ]
+    if transport_preferences is not None:
+        lines.append(
+            "Transport preferences: "
+            + transport_preferences.model_dump_json(by_alias=True, exclude_none=True)
+        )
+    if trip_styles:
+        lines.append("Trip styles: " + ", ".join(trip_styles))
+    return "\n".join(lines) + "\n"
 
 
 def _items_per_day_for_pace(pace: str) -> int:

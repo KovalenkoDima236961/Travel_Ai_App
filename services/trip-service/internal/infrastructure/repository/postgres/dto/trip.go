@@ -23,7 +23,7 @@ import (
 // Columns is the canonical column order used by all SELECT/RETURNING statements
 // and the Scan helper.
 const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
-	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, workspace_id, creation_metadata, created_at, updated_at"
+	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, workspace_id, creation_metadata, trip_type, route_json, created_at, updated_at"
 
 // InsertColumns returns the columns set on INSERT (DB-defaulted columns omitted),
 // in the same order as InsertValues.
@@ -31,6 +31,7 @@ func InsertColumns() []string {
 	return []string{
 		"user_id", "workspace_id", "destination", "start_date", "days", "budget_amount",
 		"budget_currency", "travelers", "interests", "pace", "status", "approval_status",
+		"trip_type", "route_json",
 	}
 }
 
@@ -41,10 +42,15 @@ func InsertValues(t *entity.Trip) ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	routeRaw, err := marshalRoute(t.Route)
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		toPgUUIDPtr(t.UserID), toPgUUIDPtr(t.WorkspaceID), t.Destination, toPgDate(t.StartDate), t.Days,
 		toPgNumeric(t.BudgetAmount), toPgText(t.BudgetCurrency), t.Travelers,
 		interests, t.Pace, string(t.Status), initialApprovalStatus(t.WorkspaceID),
+		tripTypeOrDefault(t.TripType), routeRaw,
 	}, nil
 }
 
@@ -90,6 +96,8 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 		itineraryRaw            []byte
 		accommodationRaw        []byte
 		creationMetadataRaw     []byte
+		tripType                string
+		routeRaw                []byte
 		itineraryRevision       int32
 		createdAt, updatedAt    pgtype.Timestamp
 	)
@@ -98,6 +106,7 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 		&id, &userID, &destination, &startDate, &days, &budgetAmount,
 		&budgetCurrency, &travelers, &interestsRaw, &pace, &status,
 		&itineraryRaw, &itineraryRevision, &accommodationRaw, &workspaceID, &creationMetadataRaw,
+		&tripType, &routeRaw,
 		&createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -116,6 +125,7 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 		ID:                uuid.UUID(id.Bytes),
 		UserID:            fromPgUUID(userID),
 		WorkspaceID:       fromPgUUID(workspaceID),
+		TripType:          tripTypeOrDefault(tripType),
 		Destination:       destination,
 		StartDate:         fromPgDate(startDate),
 		Days:              days,
@@ -138,6 +148,13 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 			return nil, err
 		}
 		t.Accommodation = accommodation
+	}
+	if len(routeRaw) > 0 {
+		route, err := unmarshalRoute(routeRaw)
+		if err != nil {
+			return nil, err
+		}
+		t.Route = route
 	}
 	if len(creationMetadataRaw) > 0 {
 		if err := json.Unmarshal(creationMetadataRaw, &t.CreationMetadata); err != nil {
@@ -181,6 +198,34 @@ func unmarshalAccommodation(raw []byte) (*aggregate.Accommodation, error) {
 		return nil, fmt.Errorf("unmarshal accommodation: %w", err)
 	}
 	return &accommodation, nil
+}
+
+func marshalRoute(route *aggregate.TripRoute) ([]byte, error) {
+	if route == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(route)
+	if err != nil {
+		return nil, fmt.Errorf("marshal route: %w", err)
+	}
+	return b, nil
+}
+
+func unmarshalRoute(raw []byte) (*aggregate.TripRoute, error) {
+	var route aggregate.TripRoute
+	if err := json.Unmarshal(raw, &route); err != nil {
+		return nil, fmt.Errorf("unmarshal route: %w", err)
+	}
+	return &route, nil
+}
+
+func tripTypeOrDefault(value string) string {
+	switch value {
+	case entity.TripTypeMultiDestination:
+		return entity.TripTypeMultiDestination
+	default:
+		return entity.TripTypeSingleDestination
+	}
 }
 
 func toPgUUID(id uuid.UUID) pgtype.UUID {

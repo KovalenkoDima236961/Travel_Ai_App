@@ -3,7 +3,7 @@ import type { TripAccommodation } from "@/entities/accommodation/model";
 import type { BudgetSummary } from "@/entities/budget/model";
 import type { Place } from "@/entities/place/model";
 import type { PublicTrip } from "@/entities/share/model";
-import type { RouteEstimate } from "@/entities/route/model";
+import type { RouteEstimate, TripRoute, TripRouteLeg, TripRouteStop } from "@/entities/route/model";
 import type { Itinerary, ItineraryDay, ItineraryItem, Trip } from "@/entities/trip/model";
 import type { WeatherForecast } from "@/entities/weather/model";
 
@@ -17,6 +17,7 @@ export type ExportTrip = {
   interests?: string[];
   pace?: string | null;
   accommodation?: TripAccommodation | null;
+  route?: TripRoute | null;
   itinerary?: Itinerary | null;
   weatherSummary?: ExportWeatherDay[] | null;
   distanceSummary?: ExportDistanceDay[] | null;
@@ -59,6 +60,7 @@ export function toExportTripFromPrivateTrip(
     interests: cloneStringArray(trip.interests),
     pace: trip.pace ?? null,
     accommodation: sanitizeAccommodation(trip.accommodation),
+    route: sanitizeRoute(trip.route),
     itinerary: sanitizeItinerary(trip.itinerary),
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
@@ -84,6 +86,7 @@ export function toExportTripFromPublicTrip(
     interests: cloneStringArray(trip.interests),
     pace: trip.pace ?? null,
     accommodation: null,
+    route: sanitizeRoute(trip.route),
     itinerary: sanitizeItinerary(trip.itinerary),
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
@@ -154,7 +157,11 @@ function sanitizeItinerary(itinerary: Itinerary | null | undefined): Itinerary |
 function sanitizeDay(day: ItineraryDay, index: number): ItineraryDay {
   return {
     day: day.day || index + 1,
+    date: day.date ?? null,
     title: day.title ?? "",
+    primaryStopId: day.primaryStopId ?? null,
+    locationName: day.locationName ?? null,
+    transferDay: Boolean(day.transferDay),
     items: (day.items ?? []).map(sanitizeItem)
   };
 }
@@ -162,11 +169,90 @@ function sanitizeDay(day: ItineraryDay, index: number): ItineraryDay {
 function sanitizeItem(item: ItineraryItem): ItineraryItem {
   return {
     time: item.time ?? "",
+    endTime: item.endTime ?? null,
     type: item.type ?? "activity",
+    category: item.category ?? null,
+    transportMode: item.transportMode ?? null,
+    durationMinutes: item.durationMinutes ?? null,
     name: item.name ?? "",
+    description: item.description ?? null,
     note: item.note ?? null,
+    transfer: item.transfer
+      ? {
+          legId: item.transfer.legId ?? null,
+          from: item.transfer.from,
+          to: item.transfer.to,
+          mode: item.transfer.mode,
+          estimatedDurationMinutes: item.transfer.estimatedDurationMinutes ?? null,
+          estimatedDistanceKm: item.transfer.estimatedDistanceKm ?? null,
+          estimatedCost: item.transfer.estimatedCost ?? null,
+          bookingRequired: Boolean(item.transfer.bookingRequired),
+          notes: item.transfer.notes ?? null,
+          warnings: item.transfer.warnings ?? []
+        }
+      : null,
     estimatedCost: item.estimatedCost ?? null,
     place: sanitizePlace(item.place)
+  };
+}
+
+function sanitizeRoute(route: TripRoute | null | undefined): TripRoute | null {
+  if (!route?.stops?.length) {
+    return null;
+  }
+
+  return {
+    origin: route.origin
+      ? {
+          name: route.origin.name ?? null,
+          country: route.origin.country ?? null,
+          coordinates: route.origin.coordinates ?? null
+        }
+      : null,
+    returnToOrigin: Boolean(route.returnToOrigin),
+    stops: route.stops.map(sanitizeRouteStop),
+    legs: (route.legs ?? []).map(sanitizeRouteLeg),
+    preferences: route.preferences
+      ? {
+          preferredModes: route.preferences.preferredModes ?? [],
+          avoidModes: route.preferences.avoidModes ?? [],
+          carAvailable: Boolean(route.preferences.carAvailable),
+          maxTransferHoursPerDay: route.preferences.maxTransferHoursPerDay ?? null,
+          tripStyles: route.preferences.tripStyles ?? []
+        }
+      : undefined
+  };
+}
+
+function sanitizeRouteStop(stop: TripRouteStop): TripRouteStop {
+  return {
+    id: stop.id,
+    destination: stop.destination,
+    city: stop.city ?? null,
+    country: stop.country ?? null,
+    arrivalDate: stop.arrivalDate ?? null,
+    departureDate: stop.departureDate ?? null,
+    nights: stop.nights ?? null,
+    coordinates: stop.coordinates ?? null,
+    accommodationHint: stop.accommodationHint ?? null,
+    notes: null
+  };
+}
+
+function sanitizeRouteLeg(leg: TripRouteLeg): TripRouteLeg {
+  return {
+    id: leg.id,
+    fromStopId: leg.fromStopId,
+    toStopId: leg.toStopId,
+    fromName: leg.fromName ?? null,
+    toName: leg.toName ?? null,
+    mode: leg.mode,
+    departureDate: leg.departureDate ?? null,
+    estimatedDurationMinutes: leg.estimatedDurationMinutes ?? null,
+    estimatedDistanceKm: leg.estimatedDistanceKm ?? null,
+    estimatedCost: leg.estimatedCost ?? null,
+    notes: null,
+    providerMetadata: null
   };
 }
 

@@ -305,8 +305,21 @@ func (s *Service) CreateTrip(
 	if startDate == "" && session.Request.TripContext.StartDate != nil {
 		startDate = *session.Request.TripContext.StartDate
 	}
+	route := input.Route
+	if route == nil {
+		route = suggestion.Route
+	}
+	tripType := strings.TrimSpace(input.TripType)
+	if tripType == "" && route != nil {
+		tripType = entity.TripTypeMultiDestination
+	}
+	destination := strings.TrimSpace(input.Title)
+	if destination == "" {
+		destination = suggestion.Destination
+	}
 	trip, err := s.trips.Create(ctx, appdto.CreateTripInput{
-		Destination:    suggestion.Destination,
+		TripType:       tripType,
+		Destination:    destination,
 		WorkspaceID:    input.WorkspaceID,
 		StartDate:      startDate,
 		Days:           int32(duration),
@@ -315,6 +328,7 @@ func (s *Service) CreateTrip(
 		Travelers:      travelers,
 		Interests:      append([]string(nil), suggestion.Tags...),
 		Pace:           paceFromSession(session),
+		Route:          route,
 	})
 	if err != nil {
 		return nil, err
@@ -324,6 +338,7 @@ func (s *Service) CreateTrip(
 		"discoverySessionId":          session.ID.String(),
 		"discoverySuggestionId":       suggestion.ID,
 		"discoveryMatchScore":         suggestion.MatchScore,
+		"discoverySuggestionType":     suggestion.SuggestionType,
 		"discoveryPrompt":             truncate(session.Prompt, maxPromptLength),
 		"suggestedPromptForItinerary": suggestion.SuggestedPromptForItinerary,
 		"outputLanguage":              session.OutputLanguage,
@@ -550,6 +565,14 @@ func normalizeSuggestions(response *SuggestionResponse, limit int) {
 			continue
 		}
 		seen[suggestion.ID] = struct{}{}
+		suggestion.SuggestionType = strings.TrimSpace(suggestion.SuggestionType)
+		if suggestion.SuggestionType == "" {
+			suggestion.SuggestionType = "single_destination"
+		}
+		if suggestion.SuggestionType != "route" {
+			suggestion.SuggestionType = "single_destination"
+			suggestion.Route = nil
+		}
 		suggestion.MatchScore = min(max(suggestion.MatchScore, 0), 100)
 		if suggestion.RecommendedDurationDays < 1 {
 			suggestion.RecommendedDurationDays = 1

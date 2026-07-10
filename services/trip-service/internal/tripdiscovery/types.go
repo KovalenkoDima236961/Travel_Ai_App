@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
@@ -40,22 +41,24 @@ type Concern struct {
 }
 
 type Suggestion struct {
-	ID                          string         `json:"id"`
-	Destination                 string         `json:"destination"`
-	City                        string         `json:"city"`
-	Country                     string         `json:"country"`
-	Region                      *string        `json:"region,omitempty"`
-	MatchScore                  int            `json:"matchScore"`
-	RecommendedDurationDays     int            `json:"recommendedDurationDays"`
-	BestFor                     []string       `json:"bestFor"`
-	EstimatedBudget             BudgetEstimate `json:"estimatedBudget"`
-	BestTimeToGo                string         `json:"bestTimeToGo"`
-	WhyItFits                   string         `json:"whyItFits"`
-	PossibleDownsides           []string       `json:"possibleDownsides"`
-	TripPreview                 TripPreview    `json:"tripPreview"`
-	Tags                        []string       `json:"tags"`
-	SuggestedPromptForItinerary string         `json:"suggestedPromptForItinerary"`
-	Concerns                    []Concern      `json:"concerns"`
+	ID                          string               `json:"id"`
+	SuggestionType              string               `json:"suggestionType,omitempty"`
+	Destination                 string               `json:"destination"`
+	City                        string               `json:"city"`
+	Country                     string               `json:"country"`
+	Region                      *string              `json:"region,omitempty"`
+	MatchScore                  int                  `json:"matchScore"`
+	RecommendedDurationDays     int                  `json:"recommendedDurationDays"`
+	BestFor                     []string             `json:"bestFor"`
+	EstimatedBudget             BudgetEstimate       `json:"estimatedBudget"`
+	BestTimeToGo                string               `json:"bestTimeToGo"`
+	WhyItFits                   string               `json:"whyItFits"`
+	PossibleDownsides           []string             `json:"possibleDownsides"`
+	TripPreview                 TripPreview          `json:"tripPreview"`
+	Tags                        []string             `json:"tags"`
+	SuggestedPromptForItinerary string               `json:"suggestedPromptForItinerary"`
+	Route                       *aggregate.TripRoute `json:"route,omitempty"`
+	Concerns                    []Concern            `json:"concerns"`
 }
 
 type SuggestionResponse struct {
@@ -181,13 +184,15 @@ type RefineInput struct {
 }
 
 type CreateTripInput struct {
-	Title                 string     `json:"title,omitempty"`
-	StartDate             string     `json:"startDate,omitempty"`
-	DurationDays          int        `json:"durationDays"`
-	Budget                *Budget    `json:"budget,omitempty"`
-	Travelers             int32      `json:"travelers"`
-	WorkspaceID           *uuid.UUID `json:"workspaceId,omitempty"`
-	AutoGenerateItinerary bool       `json:"autoGenerateItinerary"`
+	Title                 string               `json:"title,omitempty"`
+	TripType              string               `json:"tripType,omitempty"`
+	Route                 *aggregate.TripRoute `json:"route,omitempty"`
+	StartDate             string               `json:"startDate,omitempty"`
+	DurationDays          int                  `json:"durationDays"`
+	Budget                *Budget              `json:"budget,omitempty"`
+	Travelers             int32                `json:"travelers"`
+	WorkspaceID           *uuid.UUID           `json:"workspaceId,omitempty"`
+	AutoGenerateItinerary bool                 `json:"autoGenerateItinerary"`
 }
 
 type CreateTripResult struct {

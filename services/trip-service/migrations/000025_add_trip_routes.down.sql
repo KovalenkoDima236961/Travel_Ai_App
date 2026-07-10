@@ -1,0 +1,3 @@
+ALTER TABLE trips DROP CONSTRAINT IF EXISTS trips_trip_type_check;
+ALTER TABLE trips DROP COLUMN IF EXISTS trip_type;
+ALTER TABLE trips DROP COLUMN IF EXISTS route_json;

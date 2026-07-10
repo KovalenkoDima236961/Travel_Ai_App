@@ -75,7 +75,25 @@ Use local Grafana credentials `admin` / `admin`.
 18. Switch to Ukrainian and repeat discovery; confirm both UI labels and AI
     user-facing suggestion text are Ukrainian.
 19. Return to the known-destination mode for the baseline flow below.
-20. Create a trip with:
+20. Select `Multi-destination route`.
+21. Enter origin `Bratislava`.
+22. Add three stops: `Vienna`, `Salzburg`, and `Hallstatt`.
+23. Set nights per stop and choose train/car transport modes between stops.
+24. Select trip styles `Train trip` and `Hiking`.
+25. Confirm route validation warnings appear for any rushed stops, long transfers,
+    avoided modes, or hiking/camping verification notes.
+26. Create the route trip with itinerary generation enabled.
+27. Confirm the trip detail page shows a route overview with stops, dates/nights,
+    transport modes, estimated duration/cost, and an editor-only route edit action.
+28. Confirm the itinerary includes a transfer day/card with from → to, mode,
+    estimated duration, estimated cost, and a schedule-verification warning.
+29. Confirm the map shows numbered route stop markers and dashed approximate
+    transfer lines in addition to activity markers.
+30. Confirm the budget summary includes a `transport` category cost for transfers.
+31. Edit the route and confirm the UI warns that changing the route can make the
+    current itinerary outdated.
+32. Return to the known-destination mode for the baseline flow below.
+33. Create a trip with:
    - destination: `Rome`
    - startDate: `2026-08-10`
    - days: `2`

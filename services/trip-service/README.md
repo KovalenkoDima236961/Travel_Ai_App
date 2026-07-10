@@ -45,6 +45,69 @@ Budgets are estimates, no booking is performed, and changing a discovery
 session between personal and workspace scope is rejected so policy context
 cannot be bypassed.
 
+Route-style discovery suggestions set `suggestionType: "route"` and may carry a
+sanitized `route` object. Creating a trip from such a suggestion stores the route
+as a `multi_destination` trip and can queue normal itinerary generation.
+
+## Multi-Destination Routes
+
+Trips are backward-compatible: existing rows remain `trip_type =
+single_destination` with `route_json = null`, while route trips store a nullable
+`route_json` JSONB document and set `trip_type = multi_destination`.
+
+`route_json` contains:
+
+- `origin`: optional `{ name, country, coordinates }`.
+- `stops`: 1-20 ordered stops with `id`, `destination`, optional city/country,
+  arrival/departure dates, nights, coordinates, accommodation hint, and notes.
+- `legs`: optional transfer legs joining `origin` or stop IDs with a transport
+  mode, date, duration/distance estimates, and an estimated transport cost.
+- `preferences`: preferred/avoided modes, car availability, max transfer hours
+  per day, and trip styles.
+
+Supported transport modes: `walk`, `car`, `rental_car`, `train`, `bus`,
+`flight`, `boat`, `ferry`, `bike`, `public_transport`, `hiking`, `other`.
+Supported trip styles include `city_break`, `road_trip`, `train_trip`,
+`backpacking`, `camping`, `hiking`, `island_hopping`, `nature`, `beach`, `food`,
+`culture`, `adventure`, `family`, `romantic`, `low_budget`, `luxury`, and
+`hidden_gem`. Accommodation hints are `hotel`, `hostel`, `apartment`,
+`guesthouse`, `campsite`, `cabin`, `campervan`, `home`, `other`, and `unknown`.
+
+Create accepts either a normal `destination` or `{ tripType:
+"multi_destination", route: ... }`. Route endpoints:
+
+- `GET /trips/{id}/route`
+- `PUT /trips/{id}/route` with `{ expectedItineraryRevision, route }`
+
+Viewers can read the route; owners/editors can update it. Updating a route after
+an itinerary exists requires the current itinerary revision, records
+`route_updated`, and resets an approved workspace trip back to draft. Route
+updates do not rewrite the itinerary automatically; editors should regenerate
+affected days or a full itinerary when needed.
+
+Itinerary JSON now accepts transfer days/items. Days may include
+`primaryStopId`, `locationName`, and `transferDay`. A transfer item uses
+`type: "transfer"` plus `transfer: { legId, from, to, mode,
+estimatedDurationMinutes, estimatedDistanceKm, estimatedCost, bookingRequired,
+notes, warnings }`; `estimatedCost.category = "transport"` is accepted.
+
+Budget summaries, cost analytics, and cost splitting count transfer item costs
+from the itinerary. Route-leg costs are route-display/prefill data and are not
+counted separately, avoiding double counting when the transfer item mirrors a
+leg. Workspace policies can evaluate `maxTransferHoursPerDay` and
+`disallowedTransportModes`; approval risk scoring adds route factors such as
+too many stops, long transfers, missing estimates, high transport cost,
+hiking-day density, and missing camping accommodation hints.
+
+Public shares include a sanitized route snapshot: origin/stops/legs, modes,
+durations, and costs, but no private stop notes, provider metadata, user IDs, or
+workspace policy internals.
+
+Limitations: route durations/costs are planning estimates; no live train, bus,
+flight, ferry, car-rental, campsite, permit, or ticket booking is performed.
+Hiking/camping guidance is conservative planning text, not technical GPS
+navigation or a safety guarantee. Map lines may be approximate.
+
 ## Architecture
 
 ```mermaid
@@ -162,7 +225,7 @@ or itinerary JSON.
 | Group | Routes |
 | ----- | ------ |
 | Health | `GET /health`, `GET /ready`, `GET /metrics` |
-| Trips | `POST /trips`, `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}`, `GET /trips/{id}/approval-risk` |
+| Trips | `POST /trips`, `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}`, `GET/PUT /trips/{id}/route`, `GET /trips/{id}/approval-risk` |
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Sync generation compatibility | `POST /trips/{id}/generate`, day regeneration, item regeneration |
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |

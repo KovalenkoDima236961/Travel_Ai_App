@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from app.schemas.itinerary import APIModel, OutputLanguage, UserPreferences
+from app.schemas.itinerary import APIModel, OutputLanguage, TripRoute, UserPreferences
 
 
 class DestinationSuggestionMode(StrEnum):
@@ -151,6 +151,9 @@ class DestinationConcern(APIModel):
 
 class DestinationSuggestion(APIModel):
     id: str = Field(min_length=1, max_length=200)
+    suggestion_type: Literal["single_destination", "route"] = Field(
+        default="single_destination", alias="suggestionType"
+    )
     destination: str = Field(min_length=1, max_length=200)
     city: str = Field(min_length=1, max_length=200)
     country: str = Field(min_length=1, max_length=200)
@@ -173,6 +176,7 @@ class DestinationSuggestion(APIModel):
         min_length=1,
         max_length=1000,
     )
+    route: TripRoute | None = None
     concerns: list[DestinationConcern] = Field(default_factory=list, max_length=8)
 
 

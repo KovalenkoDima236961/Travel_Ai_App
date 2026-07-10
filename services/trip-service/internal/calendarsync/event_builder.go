@@ -70,6 +70,11 @@ func BuildEvents(input BuildInput) (*BuildResult, error) {
 				result.Skipped++
 				continue
 			}
+			if endClock == nil && strings.TrimSpace(item.EndTime) != "" {
+				if parsedEnd, _, ok := parseTimeRange(item.EndTime); ok {
+					endClock = &parsedEnd
+				}
+			}
 			start := time.Date(date.Year(), date.Month(), date.Day(), startClock.hour, startClock.minute, 0, 0, loc)
 			var end time.Time
 			if endClock != nil {
@@ -84,7 +89,7 @@ func BuildEvents(input BuildInput) (*BuildResult, error) {
 				SyncKey:     fmt.Sprintf("day-%d-item-%d", dayNumber, itemIndex),
 				DayNumber:   dayNumber,
 				ItemIndex:   itemIndex,
-				Title:       strings.TrimSpace(item.Name),
+				Title:       itemTitle(item),
 				Description: buildDescription(item, input.TripURL, input.Trip.BudgetCurrency),
 				Location:    itemLocation(item, input.Trip.Destination),
 				MapURL:      itemMapURL(item),
@@ -166,12 +171,40 @@ func defaultDuration(itemType string) time.Duration {
 		return 30 * time.Minute
 	case "rest", "break", "free_time":
 		return time.Hour
+	case "transfer":
+		return 2 * time.Hour
 	default:
 		return time.Hour
 	}
 }
 
+func itemTitle(item aggregate.ItineraryItem) string {
+	if item.Transfer != nil {
+		from := strings.TrimSpace(item.Transfer.From)
+		to := strings.TrimSpace(item.Transfer.To)
+		if from != "" && to != "" {
+			return fmt.Sprintf("Transfer: %s -> %s", from, to)
+		}
+	}
+	if strings.TrimSpace(item.Type) == "transfer" && strings.TrimSpace(item.Name) != "" {
+		return "Transfer: " + strings.TrimSpace(item.Name)
+	}
+	return strings.TrimSpace(item.Name)
+}
+
 func itemLocation(item aggregate.ItineraryItem, fallback string) string {
+	if item.Transfer != nil {
+		from := strings.TrimSpace(item.Transfer.From)
+		to := strings.TrimSpace(item.Transfer.To)
+		switch {
+		case from != "" && to != "":
+			return from + " -> " + to
+		case to != "":
+			return to
+		case from != "":
+			return from
+		}
+	}
 	if item.Place != nil {
 		if strings.TrimSpace(item.Place.Address) != "" {
 			return strings.TrimSpace(item.Place.Address)
@@ -191,7 +224,24 @@ func itemMapURL(item aggregate.ItineraryItem) string {
 }
 
 func buildDescription(item aggregate.ItineraryItem, tripURL, currency string) string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, 8)
+	if item.Transfer != nil {
+		transfer := item.Transfer
+		mode := strings.TrimSpace(transfer.Mode)
+		if mode != "" {
+			parts = append(parts, "Transport mode: "+mode)
+		}
+		if transfer.EstimatedDurationMinutes != nil {
+			parts = append(parts, fmt.Sprintf("Estimated duration: %d minutes", *transfer.EstimatedDurationMinutes))
+		}
+		if transfer.EstimatedDistanceKm != nil {
+			parts = append(parts, fmt.Sprintf("Estimated distance: %.1f km", *transfer.EstimatedDistanceKm))
+		}
+		if len(transfer.Warnings) > 0 {
+			parts = append(parts, "Warnings: "+strings.Join(transfer.Warnings, "; "))
+		}
+		parts = append(parts, "Verify schedules before travel.")
+	}
 	if note := strings.TrimSpace(item.Note); note != "" {
 		parts = append(parts, note)
 	}

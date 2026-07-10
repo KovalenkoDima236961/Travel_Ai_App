@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
@@ -25,6 +26,12 @@ from app.schemas.repair import (
     RepairSummary,
 )
 
+_ITEMS_PER_DAY_BY_PACE = {
+    "relaxed": 3,
+    "balanced": 4,
+    "intensive": 5,
+}
+
 
 class ItineraryGenerator(Protocol):
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse: ...
@@ -42,6 +49,9 @@ class ItineraryGenerator(Protocol):
 
 class MockItineraryGenerator:
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse:
+        if request.route is not None and len(request.route.stops) > 1:
+            return self._generate_route_itinerary(request)
+
         currency = request.budget_currency
         days: list[ItineraryDay] = []
         for day_number in range(1, request.days + 1):
@@ -55,6 +65,75 @@ class MockItineraryGenerator:
                     items=items,
                 )
             )
+        return ItineraryResponse(days=days)
+
+    def _generate_route_itinerary(self, request: GenerateItineraryRequest) -> ItineraryResponse:
+        if request.route is None or not request.route.stops:
+            return ItineraryResponse(days=[])
+
+        currency = request.budget_currency
+        items_per_day = _ITEMS_PER_DAY_BY_PACE.get(request.pace, 4)
+        stop_days = _route_stop_day_counts(request)
+        days: list[ItineraryDay] = []
+
+        for stop_index, stop in enumerate(request.route.stops):
+            for day_at_stop in range(stop_days[stop_index]):
+                if len(days) >= request.days:
+                    break
+                day_number = len(days) + 1
+                transfer_day = day_at_stop == 0
+                leg = _route_leg_for_stop(request, stop_index) if transfer_day else None
+                items = _route_items_for_day(request, stop_index, stop, leg, transfer_day)
+                _pad_route_items(items, stop.destination, currency, items_per_day)
+                _localize_mock_items(items, request.output_language, stop.destination)
+                _finalize_item_costs(items, currency)
+                day_date = request.start_date + timedelta(days=day_number - 1) if request.start_date else None
+                days.append(
+                    ItineraryDay(
+                        day=day_number,
+                        date=day_date,
+                        title=(
+                            f"Transfer to {_route_stop_name(stop)}"
+                            if transfer_day
+                            else f"Explore {_route_stop_name(stop)}"
+                        ),
+                        primaryStopId=stop.id,
+                        locationName=_route_stop_name(stop),
+                        transferDay=transfer_day,
+                        items=items[:items_per_day],
+                    )
+                )
+            if len(days) >= request.days:
+                break
+
+        while len(days) < request.days:
+            stop = request.route.stops[-1]
+            day_number = len(days) + 1
+            items = [
+                ItineraryItem(
+                    time="10:00",
+                    type="activity",
+                    name=f"Flexible morning in {_route_stop_name(stop)}",
+                    note="Use this as buffer time if previous transfers run late.",
+                    estimated_cost={"amount": 0, "currency": currency, "category": "activity"},
+                ),
+            ]
+            _pad_route_items(items, stop.destination, currency, items_per_day)
+            _localize_mock_items(items, request.output_language, stop.destination)
+            _finalize_item_costs(items, currency)
+            day_date = request.start_date + timedelta(days=day_number - 1) if request.start_date else None
+            days.append(
+                ItineraryDay(
+                    day=day_number,
+                    date=day_date,
+                    title=f"Flexible final day in {_route_stop_name(stop)}",
+                    primaryStopId=stop.id,
+                    locationName=_route_stop_name(stop),
+                    transferDay=False,
+                    items=items[:items_per_day],
+                )
+            )
+
         return ItineraryResponse(days=days)
 
     def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse:
@@ -658,9 +737,229 @@ def _localize_mock_items(items: list[ItineraryItem], language: str, destination:
         item.note = localized["note"]
 
 
+def _route_stop_day_counts(request: GenerateItineraryRequest) -> list[int]:
+    assert request.route is not None
+    stop_count = len(request.route.stops)
+    remaining_days = max(1, request.days)
+    counts: list[int] = []
+    for index, stop in enumerate(request.route.stops):
+        remaining_stops = stop_count - index
+        if remaining_stops <= 1:
+            count = max(1, remaining_days)
+        elif stop.nights and stop.nights > 0:
+            count = min(max(1, stop.nights), max(1, remaining_days - remaining_stops + 1))
+        else:
+            count = max(1, remaining_days // remaining_stops)
+        counts.append(count)
+        remaining_days -= count
+    if sum(counts) < request.days:
+        counts[-1] += request.days - sum(counts)
+    return counts
+
+
+def _route_leg_for_stop(request: GenerateItineraryRequest, stop_index: int):
+    if request.route is None:
+        return None
+    to_id = request.route.stops[stop_index].id
+    from_id = "origin" if stop_index == 0 else request.route.stops[stop_index - 1].id
+    for leg in request.route.legs:
+        if leg.from_stop_id == from_id and leg.to_stop_id == to_id:
+            return leg
+    return None
+
+
+def _route_stop_name(stop) -> str:
+    return stop.city or stop.destination
+
+
+def _route_items_for_day(
+    request: GenerateItineraryRequest,
+    stop_index: int,
+    stop,
+    leg,
+    transfer_day: bool,
+) -> list[ItineraryItem]:
+    currency = request.budget_currency
+    items: list[ItineraryItem] = []
+    if transfer_day:
+        items.append(_transfer_item_for_leg(request, stop_index, stop, leg, currency))
+
+    first_time = "13:00" if transfer_day else "09:30"
+    second_time = "15:30" if transfer_day else "12:30"
+    third_time = "19:00" if transfer_day else "16:00"
+    items.extend(
+        [
+            ItineraryItem(
+                time=first_time,
+                type="food",
+                name=f"Local meal in {_route_stop_name(stop)}",
+                note="Keep this flexible around arrival, check-in, and local opening hours.",
+                estimated_cost={"amount": 16, "currency": currency, "category": "food"},
+            ),
+            ItineraryItem(
+                time=second_time,
+                type="activity",
+                name=f"{_route_stop_name(stop)} orientation walk",
+                note=_route_style_note(request),
+                estimated_cost={"amount": 0, "currency": currency, "category": "activity"},
+            ),
+            ItineraryItem(
+                time=third_time,
+                type="food",
+                name=f"Dinner near {_route_stop_name(stop)} center",
+                note="A simple local dinner recommendation; verify hours before going.",
+                estimated_cost={"amount": 24, "currency": currency, "category": "food"},
+            ),
+        ]
+    )
+    return items
+
+
+def _transfer_item_for_leg(
+    request: GenerateItineraryRequest,
+    stop_index: int,
+    stop,
+    leg,
+    currency: str,
+) -> ItineraryItem:
+    mode = leg.mode if leg is not None else _preferred_route_mode(request)
+    from_name = "Origin"
+    if request.route and request.route.origin and request.route.origin.name:
+        from_name = request.route.origin.name
+    if leg is not None and leg.from_name:
+        from_name = leg.from_name
+    elif request.route is not None and stop_index > 0:
+        from_name = _route_stop_name(request.route.stops[stop_index - 1])
+    to_name = leg.to_name if leg is not None and leg.to_name else _route_stop_name(stop)
+    duration = leg.estimated_duration_minutes if leg is not None else None
+    distance = leg.estimated_distance_km if leg is not None else None
+    cost = _route_transfer_cost(leg, mode, distance, currency)
+    duration_text = duration or 90
+    end_hour = 9 + duration_text // 60
+    end_minute = duration_text % 60
+    end_time = f"{min(end_hour, 23):02d}:{end_minute:02d}"
+    note = "Verify schedules before travel. This is not a booking or live ticket price."
+    if leg is not None and leg.notes:
+        note = f"{leg.notes} Verify schedules before travel."
+    transfer_payload = {
+        "legId": leg.id if leg is not None else None,
+        "from": from_name,
+        "to": to_name,
+        "mode": mode,
+        "estimatedDurationMinutes": duration,
+        "estimatedDistanceKm": distance,
+        "estimatedCost": cost,
+        "bookingRequired": False,
+        "notes": note,
+        "warnings": ["Verify schedules before travel."],
+    }
+    return ItineraryItem(
+        time="09:00",
+        endTime=end_time,
+        type="transfer",
+        name=f"{mode.replace('_', ' ').title()} from {from_name} to {to_name}",
+        note=note,
+        transportMode=mode,
+        durationMinutes=duration,
+        transfer=transfer_payload,
+        estimated_cost=cost,
+    )
+
+
+def _preferred_route_mode(request: GenerateItineraryRequest) -> str:
+    prefs = request.transport_preferences or (request.route.preferences if request.route else None)
+    if prefs and prefs.preferred_modes:
+        return prefs.preferred_modes[0]
+    return "train"
+
+
+def _route_transfer_cost(leg, mode: str, distance: float | None, currency: str) -> dict[str, object]:
+    if leg is not None and leg.estimated_cost is not None:
+        return leg.estimated_cost.model_dump(by_alias=True, exclude_none=True, mode="json")
+    km = Decimal(str(distance if distance and distance > 0 else 100))
+    multipliers = {
+        "bus": Decimal("0.08"),
+        "train": Decimal("0.12"),
+        "flight": Decimal("0.15"),
+        "boat": Decimal("0.20"),
+        "ferry": Decimal("0.20"),
+        "car": Decimal("0.18"),
+        "rental_car": Decimal("0.18"),
+        "public_transport": Decimal("0.10"),
+    }
+    amount = km * multipliers.get(mode, Decimal("0"))
+    if mode == "flight":
+        amount = max(Decimal("50"), amount)
+    return {
+        "amount": amount.quantize(Decimal("0.01")),
+        "currency": currency,
+        "category": "transport",
+        "confidence": "medium",
+        "source": "ai",
+        "note": "Approximate transfer estimate.",
+    }
+
+
+def _route_style_note(request: GenerateItineraryRequest) -> str:
+    styles = list(request.trip_styles)
+    if request.route is not None:
+        styles.extend(request.route.preferences.trip_styles)
+    if "hiking" in styles:
+        return "Keep hiking plans conservative and verify local maps; this is not GPS navigation."
+    if "camping" in styles:
+        return "Check campsite availability separately; no reservation is confirmed."
+    if "island_hopping" in styles:
+        return "Ferry and boat times are approximate; verify schedules locally."
+    return "Keep the first local activity light so the route stays realistic after transfers."
+
+
+def _pad_route_items(
+    items: list[ItineraryItem],
+    destination: str,
+    currency: str,
+    target_count: int,
+) -> None:
+    while len(items) < target_count:
+        index = len(items)
+        next_time = _next_route_time(items)
+        if index % 2 == 0:
+            items.append(
+                ItineraryItem(
+                    time=next_time,
+                    type="rest",
+                    name=f"Buffer time in {destination}",
+                    note="Leave this block flexible for check-in, weather, or route delays.",
+                    estimated_cost={"amount": 0, "currency": currency, "category": "other"},
+                )
+            )
+        else:
+            items.append(
+                ItineraryItem(
+                    time=next_time,
+                    type="activity",
+                    name=f"Short local stop in {destination}",
+                    note="A low-pressure activity that can be skipped if travel runs late.",
+                    estimated_cost={"amount": 0, "currency": currency, "category": "activity"},
+                )
+            )
+
+
+def _next_route_time(items: list[ItineraryItem]) -> str:
+    if not items:
+        return "10:00"
+    raw = items[-1].end_time or items[-1].time
+    try:
+        minutes = int(raw[:2]) * 60 + int(raw[3:5])
+    except (ValueError, TypeError):
+        minutes = 10 * 60
+    minutes = min(23 * 60, minutes + 90)
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
 _TYPE_TO_COST_CATEGORY = {
     "food": "food",
     "transport": "transport",
+    "transfer": "transport",
     "activity": "activity",
     "place": "ticket",
     "rest": "other",

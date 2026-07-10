@@ -59,7 +59,8 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
-| Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, confirmation, and optional itinerary generation. |
+| Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
+| Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
 | Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, create new trips from templates, and adapt templates to a new destination with AI. |
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
@@ -88,6 +89,25 @@ The `tripDiscovery` namespace exists in all four message catalogs. API functions
 live in `src/lib/api/trip-discovery.ts`, shared request/response contracts in
 `src/types/trip-discovery.ts`, and React Query mutations in
 `src/hooks/useTripDiscovery.ts`.
+
+## Multi-Destination Route Builder
+
+`/trips/new` supports `Single destination`, `Multi-destination route`, and
+`Help me choose`. The route builder lives in `src/components/routes` and lets
+users set an origin, add/remove/reorder stops, enter dates or nights, select
+transport modes per leg, choose trip styles, and review validation warnings such
+as rushed routes, long transfers, avoided modes, camping without campsite-style
+stops, and hiking verification notes.
+
+Created route trips send `tripType: "multi_destination"` and `route` through
+the normal `POST /trips` API. Trip detail shows a route overview, transfer cards
+inside the itinerary, and numbered map stop markers with dashed approximate
+lines when provider geometry is not available. Editors can update the route via
+`GET/PUT /trips/{id}/route`; the UI warns that existing itineraries may become
+outdated and should be regenerated.
+
+Route labels are localized through the `routes`, `transportModes`, and
+`tripStyles` namespaces in `en`, `es`, `uk`, and `fr`.
 
 ## Source Layout
 
@@ -242,6 +262,7 @@ traveler management and split-rule writes require the online private API.
 | ------- | ------------- |
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
 | Trip list/detail | `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}` |
+| Trip routes | `GET /trips/{id}/route`, `PUT /trips/{id}/route`, `tripType`/`route` on `POST /trips` |
 | Templates | `GET /trip-templates`, `POST /trips/{id}/templates`, `GET/PATCH /trip-templates/{id}`, archive/duplicate/create-trip routes, `POST /trip-templates/{id}/adaptation-jobs`, `GET /workspaces/{workspaceId}/templates` |
 | Workspaces | `/workspaces`, `/workspaces/{id}`, `/workspaces/{id}/members*`, `/workspace-invitations*` through `/api/user-service` |
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
@@ -354,6 +375,17 @@ sequenceDiagram
         UI->>T: PUT /trips/{id}/itinerary expectedItineraryRevision=latest
     end
 ```
+
+## Route Planning Limitations
+
+- Transfer durations and costs are estimates, not live schedules or prices.
+- The app does not book train, bus, flight, ferry, rental-car, campsite, permit,
+  hotel, or activity inventory.
+- Hiking/camping guidance requires local verification and is not GPS navigation
+  or a safety guarantee.
+- Route lines on maps may be straight-line approximations.
+- Changing a route does not automatically rewrite the full itinerary; regenerate
+  affected days or the trip when needed.
 
 Manual itinerary edits, version restores, budget proposal applies, and direct
 regeneration compatibility routes all rely on backend revision checks. Presence

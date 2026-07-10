@@ -145,6 +145,13 @@ Key product capabilities:
   smart Surprise Me, preference/past-trip/workspace-policy personalization,
   iterative refinements, and confirmation-only trip creation with optional
   itinerary generation. Suggestions use rough budgets and never book travel.
+- Multi-Destination & Multi-Modal Travel Planning v1: trips can remain classic
+  single-destination plans or carry a structured route with origin, ordered
+  stops, transfer legs, transport modes, trip styles, and estimated transfer
+  costs. The create flow includes a route builder, AI generation creates
+  transfer days/items in mock and Ollama modes, trip detail shows route overview
+  and approximate map lines, and budget/policy/risk/public-share paths consume
+  route data where practical. Estimates are not live schedules or bookings.
 - Workspace Approval Workflow v1: workspace trips carry a lightweight approval
   status (draft → pending → approved / changes requested / cancelled). Editors
   submit trips for review against a readiness checklist, owners/admins approve or

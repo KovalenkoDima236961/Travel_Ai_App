@@ -1,4 +1,5 @@
-import type { Itinerary, TripStatus } from "@/entities/trip/model";
+import type { TripRoute } from "@/entities/route/model";
+import type { Itinerary, TripStatus, TripType } from "@/entities/trip/model";
 
 export type TripShareInfo = {
   shareToken?: string | null;
@@ -39,6 +40,8 @@ export type PublicTrip = {
   travelers?: number | null;
   interests?: string[];
   pace?: string | null;
+  tripType?: TripType;
+  route?: TripRoute | null;
   status: TripStatus;
   itinerary?: Itinerary | null;
   createdAt?: string | null;

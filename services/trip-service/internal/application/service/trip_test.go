@@ -41,6 +41,12 @@ type mockRepo struct {
 	budgetUpdateCalled   bool
 	budgetUpdateErr      error
 
+	routeUpdateCalled bool
+	routeUpdateTripID uuid.UUID
+	routeUpdateUserID uuid.UUID
+	routeUpdateRoute  *aggregate.TripRoute
+	routeUpdateType   string
+
 	getByIDResult *entity.Trip
 	getByIDErr    error
 	getByIDUserID uuid.UUID
@@ -191,6 +197,24 @@ func (m *mockRepo) UpdateTripBudget(_ context.Context, id, userID uuid.UUID, amo
 	}
 	out.BudgetAmount = amount
 	out.BudgetCurrency = currency
+	return &out, nil
+}
+
+func (m *mockRepo) UpdateTripRoute(_ context.Context, id, userID uuid.UUID, route *aggregate.TripRoute, tripType string) (*entity.Trip, error) {
+	m.routeUpdateCalled = true
+	m.routeUpdateTripID = id
+	m.routeUpdateUserID = userID
+	m.routeUpdateRoute = route
+	m.routeUpdateType = tripType
+
+	out := entity.Trip{ID: id, UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}
+	if m.getByIDResult != nil {
+		out = *m.getByIDResult
+	}
+	out.Route = route
+	out.TripType = tripType
+	out.UpdatedAt = time.Now()
+	m.getByIDResult = &out
 	return &out, nil
 }
 

@@ -34,6 +34,9 @@ class MockDestinationSuggestionGenerator:
             self._suggestion(name, request, index)
             for index, name in enumerate(destinations[:count])
         ]
+        if _wants_route(request):
+            suggestions = [self._route_suggestion(request)] + suggestions
+            suggestions = suggestions[:count]
         language = request.output_language
         return DestinationSuggestionResponse(
             sessionTitle=_text(language, "title"),
@@ -153,6 +156,122 @@ class MockDestinationSuggestionGenerator:
             ],
         )
 
+    def _route_suggestion(self, request: DestinationSuggestionRequest) -> DestinationSuggestion:
+        language = request.output_language
+        duration = request.trip_context.duration_days if request.trip_context else None
+        duration = duration or 5
+        currency = "EUR"
+        if request.trip_context and request.trip_context.budget:
+            currency = request.trip_context.budget.currency
+        route = {
+            "origin": {
+                "name": request.trip_context.origin if request.trip_context else "Bratislava",
+                "country": "Slovakia",
+                "coordinates": {"lat": 48.1486, "lng": 17.1077},
+            },
+            "returnToOrigin": False,
+            "stops": [
+                {
+                    "id": "stop_1",
+                    "destination": "Vienna",
+                    "city": "Vienna",
+                    "country": "Austria",
+                    "nights": 2,
+                    "coordinates": {"lat": 48.2082, "lng": 16.3738},
+                    "accommodationHint": "hotel",
+                },
+                {
+                    "id": "stop_2",
+                    "destination": "Salzburg",
+                    "city": "Salzburg",
+                    "country": "Austria",
+                    "nights": max(1, duration - 2),
+                    "coordinates": {"lat": 47.8095, "lng": 13.0550},
+                    "accommodationHint": "guesthouse",
+                },
+            ],
+            "legs": [
+                {
+                    "id": "leg_1",
+                    "fromStopId": "origin",
+                    "toStopId": "stop_1",
+                    "fromName": "Bratislava",
+                    "toName": "Vienna",
+                    "mode": "train",
+                    "estimatedDurationMinutes": 70,
+                    "estimatedDistanceKm": 80,
+                    "estimatedCost": {
+                        "amount": 18,
+                        "currency": currency,
+                        "category": "transport",
+                        "confidence": "medium",
+                        "source": "ai",
+                    },
+                    "notes": "Regional train estimate; verify schedules before travel.",
+                },
+                {
+                    "id": "leg_2",
+                    "fromStopId": "stop_1",
+                    "toStopId": "stop_2",
+                    "fromName": "Vienna",
+                    "toName": "Salzburg",
+                    "mode": "train",
+                    "estimatedDurationMinutes": 150,
+                    "estimatedDistanceKm": 295,
+                    "estimatedCost": {
+                        "amount": 35,
+                        "currency": currency,
+                        "category": "transport",
+                        "confidence": "medium",
+                        "source": "ai",
+                    },
+                    "notes": "Intercity train estimate; verify schedules before travel.",
+                },
+            ],
+            "preferences": {
+                "preferredModes": ["train", "public_transport"],
+                "avoidModes": ["flight"],
+                "carAvailable": False,
+                "maxTransferHoursPerDay": 4,
+                "tripStyles": ["train_trip", "city_break"],
+            },
+        }
+        return DestinationSuggestion(
+            id="austria-train-route",
+            suggestionType="route",
+            destination="Austria train route",
+            city="Vienna to Salzburg",
+            country="Austria",
+            region="Central Europe",
+            matchScore=94,
+            recommendedDurationDays=duration,
+            bestFor=["train_trip", "culture", "city_break"],
+            estimatedBudget=DestinationBudgetEstimate(
+                amount=round(620 if duration <= 5 else 740, 2),
+                currency=currency,
+                confidence="medium",
+            ),
+            bestTimeToGo=_text(language, "best_time"),
+            whyItFits=_format_text(language, "why", destination="Austria train route"),
+            possibleDownsides=["Train times and transfer costs are estimates only."],
+            tripPreview=DestinationTripPreview(
+                title="Austria train route",
+                summary="A compact Bratislava, Vienna, and Salzburg route with realistic train transfer days.",
+                sampleDay=["Bratislava to Vienna by train", "Vienna culture day", "Train to Salzburg"],
+            ),
+            tags=["route", "train_trip", "culture", "city_break"],
+            suggestedPromptForItinerary=(
+                f"Plan a {duration}-day Austria train route from Bratislava to Vienna and Salzburg."
+            ),
+            route=route,
+            concerns=[
+                DestinationConcern(
+                    type="schedule_uncertainty",
+                    message="Transport times are estimates and should be verified before travel.",
+                )
+            ],
+        )
+
 
 class OllamaDestinationSuggestionGenerator:
     def __init__(
@@ -229,6 +348,26 @@ def _parse_json_object(value: str) -> dict[str, object]:
 
 def _mentions(text: str, *values: str) -> bool:
     return any(value in text for value in values)
+
+
+def _wants_route(request: DestinationSuggestionRequest) -> bool:
+    text = request.prompt.casefold()
+    if request.refinement is not None:
+        text += " " + request.refinement.instruction.casefold()
+    return _mentions(
+        text,
+        "route",
+        "multi-city",
+        "multicity",
+        "multi destination",
+        "multi-destination",
+        "train trip",
+        "road trip",
+        "backpacking",
+        "camping",
+        "hiking",
+        "island hopping",
+    )
 
 
 def _unique(values: list[str]) -> list[str]:

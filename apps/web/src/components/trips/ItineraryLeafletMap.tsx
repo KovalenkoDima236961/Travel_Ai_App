@@ -2,10 +2,10 @@
 
 import { useEffect } from "react";
 import L from "leaflet";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { formatInterestLabel } from "@/lib/utils";
 import { costBadgeLabel } from "@/entities/budget/model";
-import type { MapItineraryMarker } from "@/entities/itinerary/model/map-utils";
+import type { MapItineraryMarker, MapRouteLine } from "@/entities/itinerary/model/map-utils";
 import {
   formatOpeningHoursForDay,
   getDayOfWeekMondayBased,
@@ -15,6 +15,7 @@ import {
 
 type ItineraryLeafletMapProps = {
   markers: MapItineraryMarker[];
+  routeLines?: MapRouteLine[];
   center: [number, number];
   currency: string;
   startDate?: string | null;
@@ -22,6 +23,7 @@ type ItineraryLeafletMapProps = {
 
 export function ItineraryLeafletMap({
   markers,
+  routeLines = [],
   center,
   currency,
   startDate
@@ -38,10 +40,28 @@ export function ItineraryLeafletMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      {routeLines.map((line) => (
+        <Polyline
+          key={line.id}
+          positions={[line.from, line.to]}
+          pathOptions={{ color: "#C05B3B", dashArray: "8 8", weight: 3, opacity: 0.75 }}
+        >
+          <Popup>
+            <div className="text-sm text-slate-700">
+              <p className="font-semibold text-slate-950">{line.label}</p>
+              <p className="mt-1 text-xs text-slate-500">Approximate transfer line</p>
+            </div>
+          </Popup>
+        </Polyline>
+      ))}
       {markers.map((marker) => (
         <Marker
           icon={createMarkerIcon(
-            marker.kind === "accommodation" ? "A" : `${marker.dayNumber}.${marker.itemIndex + 1}`
+            marker.kind === "accommodation"
+              ? "A"
+              : marker.kind === "route_stop"
+                ? `${marker.routeOrder ?? marker.itemIndex + 1}`
+                : `${marker.dayNumber}.${marker.itemIndex + 1}`
           )}
           key={marker.id}
           position={[marker.latitude, marker.longitude]}
@@ -51,6 +71,8 @@ export function ItineraryLeafletMap({
               <p className="text-xs font-semibold uppercase text-slate-500">
                 {marker.kind === "accommodation"
                   ? "Accommodation"
+                  : marker.kind === "route_stop"
+                    ? "Route stop"
                   : `Day ${marker.dayNumber} - ${marker.time}`}
               </p>
               <h3 className="mt-1 text-base font-semibold text-slate-950">

@@ -89,6 +89,36 @@ JSON and falls back to mock when configured. Estimates are not live prices or
 availability; the endpoint performs no booking and gives no visa, legal,
 health, or safety guarantees.
 
+Discovery suggestions may be `suggestionType: "single_destination"` or
+`"route"`. Route suggestions include a route snapshot with origin, stops, legs,
+transport preferences, trip styles, rough transfer costs, fit reasons, and
+downsides. They are planning proposals only; no ticket, accommodation, permit,
+or transport booking is made.
+
+## Multi-Destination Generation
+
+`POST /generate-itinerary` accepts optional route context:
+
+- `tripType: "multi_destination"`
+- `route`: origin, ordered stops, transfer legs, and route preferences
+- `transportPreferences`: preferred/avoided modes, car availability, max
+  transfer hours
+- `tripStyles`: route style hints such as `train_trip`, `road_trip`,
+  `camping`, `hiking`, or `island_hopping`
+
+Prompts instruct the model to plan across all stops, respect stop dates/nights,
+include `type: "transfer"` items on transfer days, avoid dense sightseeing
+around long transfers, respect avoided transport modes, keep costs as estimates,
+and never claim tickets/bookings/schedules are confirmed. Camping/hiking prompts
+stay conservative: campsite/accommodation notes require user verification,
+hiking suggestions are not technical GPS routes, and ferry/boat/island-hopping
+times are approximate.
+
+Mock mode is deterministic for multi-stop routes. It assigns days to stops,
+adds transfer items using route leg mode/duration/cost, fills
+`primaryStopId`, `locationName`, and `transferDay`, and preserves the old
+single-destination generator when no route is supplied.
+
 ## Context Inputs
 
 ```mermaid
@@ -332,7 +362,20 @@ curl -X POST http://localhost:8000/generate-itinerary \
     "budgetCurrency": "EUR",
     "travelers": 2,
     "interests": ["food", "history", "hidden_gems"],
-    "pace": "balanced"
+    "pace": "balanced",
+    "tripType": "multi_destination",
+    "route": {
+      "origin": {"name": "Bratislava", "country": "Slovakia"},
+      "stops": [
+        {"id": "stop_1", "destination": "Vienna", "nights": 2},
+        {"id": "stop_2", "destination": "Salzburg", "nights": 2}
+      ],
+      "legs": [
+        {"id": "leg_1", "fromStopId": "origin", "toStopId": "stop_1", "mode": "train"},
+        {"id": "leg_2", "fromStopId": "stop_1", "toStopId": "stop_2", "mode": "train"}
+      ],
+      "preferences": {"preferredModes": ["train"], "tripStyles": ["train_trip"]}
+    }
   }'
 ```
 
