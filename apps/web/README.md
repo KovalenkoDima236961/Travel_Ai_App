@@ -61,6 +61,7 @@ notification streams, and calendar OAuth calls.
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
 | Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
 | Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
+| Decisions | Trip detail has a Decisions section for polls, editable votes, item reactions, group preference summaries, and trip-linked discovery suggestion voting. |
 | Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, create new trips from templates, and adapt templates to a new destination with AI. |
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
@@ -89,6 +90,46 @@ The `tripDiscovery` namespace exists in all four message catalogs. API functions
 live in `src/lib/api/trip-discovery.ts`, shared request/response contracts in
 `src/types/trip-discovery.ts`, and React Query mutations in
 `src/hooks/useTripDiscovery.ts`.
+
+Trip-linked discovery sessions can show group vote controls on suggestion cards:
+Favorite, Like, Dislike, and Not interested. Personal unlinked discovery hides
+those controls. Counts come from Trip Service suggestion-vote endpoints and are
+not used to create a trip automatically.
+
+## Trip Decisions
+
+Trip detail pages include a Decisions section before the itinerary. It shows open
+polls first, closed polls below, and a group preferences panel with top choices,
+must-have items, skip candidates, preferred transport/destinations/dates, and the
+AI constraint summary used by backend planning flows.
+
+Owners and editors see `Create poll` and can close/archive polls. Accepted
+viewers can vote but cannot create or manage polls. Voting and itinerary
+reactions require the online private Trip Service API; offline pages can show
+cached results read-only and disable writes.
+
+Frontend contracts live in:
+
+- `src/types/trip-decisions.ts`
+- `src/lib/api/trip-decisions.ts`
+- `src/hooks/useTripPolls.ts`
+- `src/hooks/useCreateTripPoll.ts`
+- `src/hooks/useVoteTripPoll.ts`
+- `src/hooks/useCloseTripPoll.ts`
+- `src/hooks/useArchiveTripPoll.ts`
+- `src/hooks/useItineraryReactions.ts`
+- `src/hooks/useSetItineraryReaction.ts`
+- `src/hooks/useGroupPreferences.ts`
+- `src/hooks/useVoteDiscoverySuggestion.ts`
+- `src/components/trip-decisions/*`
+
+Supported poll templates are destination, transport, date, activities,
+accommodation, and budget. Item cards expose compact Must-have, Want, Neutral,
+and Skip reactions with counts and selected state.
+
+Limitations: decisions are advisory; public share visitors cannot vote; AI does
+not automatically apply winning choices; there is no anonymous voting,
+ranked-choice survey builder, booking, payment, or approval replacement.
 
 ## Multi-Destination Route Builder
 
@@ -299,6 +340,7 @@ traveler management and split-rule writes require the online private API.
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Itinerary writes | `PUT /trips/{id}/itinerary`, version restore, day/item regeneration compatibility routes |
 | Collaboration | `/trips/{id}/collaborators`, `/collaboration/invitations` |
+| Decisions | `/trips/{id}/polls*`, `/trips/{id}/itinerary/reactions*`, `GET /trips/{id}/group-preferences`, `/trip-discovery/sessions/{sessionId}/votes` |
 | Presence and locks | `/trips/{id}/presence/*`, `/trips/{id}/edit-lock` |
 | Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |

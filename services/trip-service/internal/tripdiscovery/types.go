@@ -201,3 +201,20 @@ type CreateTripResult struct {
 	Trip          *entity.Trip
 	GenerationJob *entity.GenerationJob
 }
+
+type VoteSuggestionInput struct {
+	Vote     entity.DiscoverySuggestionVoteValue `json:"vote"`
+	Metadata map[string]any                      `json:"metadata,omitempty"`
+}
+
+type SuggestionVoteSummary struct {
+	SuggestionID string         `json:"suggestionId"`
+	Counts       map[string]int `json:"counts"`
+	Score        int            `json:"score"`
+	CurrentUser  string         `json:"currentUserVote,omitempty"`
+}
+
+type SuggestionVotesResponse struct {
+	SessionID uuid.UUID               `json:"sessionId"`
+	Items     []SuggestionVoteSummary `json:"items"`
+}

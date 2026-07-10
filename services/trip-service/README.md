@@ -86,6 +86,8 @@ Trip Service persists private discovery sessions and exposes:
 - `POST /trip-discovery/{sessionId}/suggestions/{suggestionId}/create-trip`
 - `GET /trip-discovery/sessions`
 - `GET /trip-discovery/sessions/{sessionId}`
+- `POST /trip-discovery/sessions/{sessionId}/suggestions/{suggestionId}/vote`
+- `GET /trip-discovery/sessions/{sessionId}/votes`
 
 The service builds AI context from the trusted user profile/preferences, at
 most 15 compact previous-trip summaries, requested budget/dates/origin, output
@@ -104,6 +106,73 @@ cannot be bypassed.
 Route-style discovery suggestions set `suggestionType: "route"` and may carry a
 sanitized `route` object. Creating a trip from such a suggestion stores the route
 as a `multi_destination` trip and can queue normal itinerary generation.
+
+Trip-linked discovery sessions can collect `favorite`, `like`, `dislike`, or
+`not_interested` votes. Personal unlinked sessions remain owner-only; when a
+session has `createdTripId`, collaborators who can view that trip can read and
+update suggestion votes. Vote metadata is limited to safe suggestion fields used
+for aggregate group preference scoring.
+
+## Collaborative Trip Decisions
+
+Collaborative Trip Decision & Voting v1 lives in Trip Service and uses migration
+`000026_add_trip_decisions`:
+
+- `trip_polls`: poll title/type/status, creator, close metadata, and optional
+  JSON metadata.
+- `trip_poll_options`: ordered option labels with stable option keys and
+  metadata.
+- `trip_poll_votes`: editable user votes or ratings. Service logic enforces
+  single-choice/date/yes-no replacement, multiple-choice selected sets, and
+  rating range validation.
+- `itinerary_item_reactions`: one reaction per user per trip/day/item
+  (`must_have`, `want_to_do`, `neutral`, `skip`).
+- `trip_discovery_suggestion_votes`: one vote per user per discovery
+  session/suggestion, optionally linked to a created trip.
+
+Routes:
+
+- `POST /trips/{id}/polls`
+- `GET /trips/{id}/polls`
+- `GET /trips/{id}/polls/{pollId}`
+- `POST /trips/{id}/polls/{pollId}/vote`
+- `POST /trips/{id}/polls/{pollId}/close`
+- `POST /trips/{id}/polls/{pollId}/archive`
+- `POST /trips/{id}/itinerary/reactions`
+- `GET /trips/{id}/itinerary/reactions`
+- `GET /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/reactions`
+- `DELETE /trips/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/reactions/me`
+- `GET /trips/{id}/group-preferences`
+
+Permissions follow normal private trip access. Owners and editors can create and
+archive polls. Poll creators and users with edit access can close their polls.
+Owners, editors, and accepted viewers can vote and react. Pending/removed
+collaborators and public share viewers cannot vote, react, or access private
+decision data in v1.
+
+The group preference summary is computed live from poll winners, item reaction
+scores, and trip-linked discovery votes. It returns top poll choices,
+must-have/skip/controversial itinerary items, preferred destination/transport/date
+signals when poll metadata provides them, and a concise `aiConstraintSummary`.
+Raw comments, private collaborator details, share tokens, and full vote lists are
+not exposed.
+
+Planning constraints include `groupPreferences` for generation, day/item
+regeneration, budget optimization, policy repair, route planning, template
+adaptation when a target trip exists, and trip-linked discovery. These are soft
+AI preferences: preserve must-have items where possible, avoid or replace
+high-skip items, prefer voted destinations/transport/dates, and let workspace
+policy win conflicts. Votes and reactions do not increment
+`itineraryRevision`, reset approval, or automatically apply winning options.
+
+Activity and notifications are intentionally sparse: `trip_poll_created`,
+`trip_poll_closed`, and `trip_poll_archived` are recorded as activity; new and
+closed polls can notify collaborators. Individual votes and reactions do not
+create activity or notification spam.
+
+Limitations: voting is advisory, not legal approval; no anonymous or public-share
+voting; no ranked-choice surveys; no automatic itinerary mutation; no payment,
+booking, or expense-settlement decision workflow.
 
 ## Multi-Destination Routes
 
@@ -294,6 +363,7 @@ or itinerary JSON.
 | Collaboration | collaborator CRUD/accept/decline, `GET /collaboration/invitations` |
 | Presence and locks | `/trips/{id}/presence*`, `/trips/{id}/edit-lock` |
 | Comments | `/trips/{id}/comments`, `/trips/{id}/comments/counts`, comment update/delete |
+| Decisions | `/trips/{id}/polls*`, `/trips/{id}/itinerary/reactions*`, `GET /trips/{id}/group-preferences`, trip-linked discovery suggestion vote routes |
 | Activity | `GET /trips/{id}/activity`, `GET /trips/{id}/activity/stream` |
 | Sharing | `GET/POST/PATCH/DELETE /trips/{id}/share`, public share status/unlock/read routes |
 | Calendar | `GET/POST/DELETE /trips/{id}/calendar-sync/google*` |

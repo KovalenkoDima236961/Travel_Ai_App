@@ -42,6 +42,7 @@ import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
+import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
 import { Button } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { activityKeys } from "@/lib/api/activity";
@@ -92,6 +93,7 @@ import { useBudgetOptimizationProposals } from "@/features/budget-optimization";
 import { useTripRepairProposals } from "@/features/trip-repair";
 import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useItineraryReactions } from "@/hooks/useItineraryReactions";
 import { useCostSplittingSummary } from "@/features/cost-splitting";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useTripTravelers } from "@/features/cost-splitting";
@@ -494,6 +496,8 @@ export function TripDetailPageContent() {
     tripAccess.role === "editor" ||
     tripAccess.role === "viewer";
   const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
+  const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
+  const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
   const commentsEnabled =
     onlineActionsEnabled &&
     Boolean(tripId) &&
@@ -505,6 +509,10 @@ export function TripDetailPageContent() {
     queryFn: () => listTripCommentCounts(tripId),
     enabled: commentsEnabled
   });
+  const reactionSummariesQuery = useItineraryReactions(
+    tripId,
+    decisionsEnabled && displayedTrip?.status === "COMPLETED" && Boolean(displayedTrip?.itinerary)
+  );
   const presenceEnabled =
     onlineActionsEnabled &&
     Boolean(tripId) &&
@@ -594,6 +602,12 @@ export function TripDetailPageContent() {
     () => buildCommentCountMap(commentCounts),
     [commentCounts]
   );
+  const reactionSummaryMap = useMemo(() => {
+    const entries = reactionSummariesQuery.data ?? [];
+    return Object.fromEntries(
+      entries.map((summary) => [`${summary.dayNumber}:${summary.itemIndex}`, summary])
+    );
+  }, [reactionSummariesQuery.data]);
   const exportTrip = useMemo(
     () =>
       displayedTrip
@@ -1966,6 +1980,20 @@ export function TripDetailPageContent() {
               </div>
             ) : null}
 
+            {canUsePrivateCollaboration ? (
+              <>
+                <PollsPanel
+                  canCreate={canCreatePoll}
+                  online={onlineActionsEnabled}
+                  tripId={trip.id}
+                />
+                <GroupPreferencesPanel
+                  enabled={decisionsEnabled}
+                  tripId={trip.id}
+                />
+              </>
+            ) : null}
+
             {trip.status === "PROCESSING" ? (
               <div className="rounded-[14px] border border-[#EAD9B8] bg-[#FDF0E3] p-6 text-[14px] text-[#96682A]">
                 The itinerary is being generated. This page will refresh while processing.
@@ -2162,6 +2190,7 @@ export function TripDetailPageContent() {
                     }
                     onRegenerateDay={canMutateTrip ? regenerateDay : undefined}
                     onRegenerateItem={canMutateTrip ? regenerateItem : undefined}
+                    reactionSummaries={reactionSummaryMap}
                     regeneratingTarget={activeRegeneratingTarget}
                     startDate={trip.startDate}
                     trip={trip}

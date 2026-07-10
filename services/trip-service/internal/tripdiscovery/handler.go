@@ -30,6 +30,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/trip-discovery/surprise-me", h.Surprise)
 	r.Get("/trip-discovery/sessions", h.List)
 	r.Get("/trip-discovery/sessions/{sessionId}", h.Get)
+	r.Get("/trip-discovery/sessions/{sessionId}/votes", h.GetSuggestionVotes)
+	r.Post("/trip-discovery/sessions/{sessionId}/suggestions/{suggestionId}/vote", h.VoteSuggestion)
 	r.Post("/trip-discovery/{sessionId}/refine", h.Refine)
 	r.Post(
 		"/trip-discovery/{sessionId}/suggestions/{suggestionId}/create-trip",
@@ -107,6 +109,41 @@ func (h *Handler) CreateTrip(w http.ResponseWriter, r *http.Request) {
 		body["generationJob"] = generationjobs.NewJobResponse(result.GenerationJob)
 	}
 	writeJSON(w, http.StatusCreated, body)
+}
+
+func (h *Handler) VoteSuggestion(w http.ResponseWriter, r *http.Request) {
+	sessionID, ok := parseID(w, r, "sessionId")
+	if !ok {
+		return
+	}
+	var input VoteSuggestionInput
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	result, err := h.service.VoteSuggestion(
+		r.Context(),
+		sessionID,
+		chi.URLParam(r, "suggestionId"),
+		input,
+	)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) GetSuggestionVotes(w http.ResponseWriter, r *http.Request) {
+	sessionID, ok := parseID(w, r, "sessionId")
+	if !ok {
+		return
+	}
+	result, err := h.service.SuggestionVotes(r.Context(), sessionID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {

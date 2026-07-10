@@ -37,6 +37,8 @@ const VISUALS: Record<NotificationType, NotificationVisual> = {
 
   // Conversation.
   comment_created: { Icon: ChatBubbleIcon, tileClassName: GREEN },
+  trip_poll_created: { Icon: ChatBubbleIcon, tileClassName: GREEN },
+  trip_poll_closed: { Icon: ChatBubbleIcon, tileClassName: GREEN },
 
   // Personal / trip collaboration.
   collaboration_invited: { Icon: UserGroupIcon, tileClassName: GREEN },

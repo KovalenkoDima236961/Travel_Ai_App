@@ -2636,6 +2636,85 @@ if [[ "${VIEWER_ACCESS_ROLE}" != "viewer" || "${VIEWER_CAN_EDIT}" != "false" ]];
   exit 1
 fi
 
+echo "Checking collaborative trip decisions and reactions..."
+VIEWER_POLL_CREATE_PAYLOAD='{"title":"Viewer should not create","pollType":"single_choice","options":[{"optionKey":"yes","label":"Yes"},{"optionKey":"no","label":"No"}]}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_POLL_CREATE_PAYLOAD}"
+assert_status "Viewer create poll" "403"
+
+DECISION_POLL_PAYLOAD='{"title":"Which destination?","description":"Smoke decision poll.","pollType":"single_choice","options":[{"optionKey":"rome","label":"Rome"},{"optionKey":"florence","label":"Florence"},{"optionKey":"naples","label":"Naples"}]}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls" "${ACCESS_TOKEN}" "${DECISION_POLL_PAYLOAD}"
+assert_status "Owner create decision poll" "201"
+DECISION_POLL_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+DECISION_OPTION_OWNER="$(jq -r '.options[0].id // empty' <<<"${LAST_BODY}")"
+DECISION_OPTION_COLLAB="$(jq -r '.options[1].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${DECISION_POLL_ID}" || -z "${DECISION_OPTION_OWNER}" || -z "${DECISION_OPTION_COLLAB}" ]]; then
+  echo "Decision poll response did not include expected ids." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+COLLAB_POLL_VOTE_PAYLOAD="$(jq -nc --arg optionId "${DECISION_OPTION_COLLAB}" '{optionIds:[$optionId]}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls/${DECISION_POLL_ID}/vote" "${COLLAB_ACCESS_TOKEN}" "${COLLAB_POLL_VOTE_PAYLOAD}"
+assert_2xx "Viewer collaborator vote poll"
+OWNER_POLL_VOTE_PAYLOAD="$(jq -nc --arg optionId "${DECISION_OPTION_OWNER}" '{optionIds:[$optionId]}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls/${DECISION_POLL_ID}/vote" "${ACCESS_TOKEN}" "${OWNER_POLL_VOTE_PAYLOAD}"
+assert_2xx "Owner vote poll"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls" "${ACCESS_TOKEN}"
+assert_2xx "List decision polls"
+if ! jq -e --arg id "${DECISION_POLL_ID}" '
+  .items
+  | any(.id == $id and .results.totalVoters == 2 and .results.totalVotes == 2 and (.results.winningOptionIds | length) == 2)
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Decision poll results did not include expected tied owner/collaborator votes." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/reactions" "${COLLAB_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"reaction":"must_have"}'
+assert_2xx "Viewer collaborator set itinerary reaction"
+if ! jq -e '.counts.must_have >= 1 and .currentUserReaction == "must_have"' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Itinerary reaction summary did not include the collaborator must-have reaction." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-preferences" "${ACCESS_TOKEN}"
+assert_2xx "Group preferences"
+if ! jq -e '
+  .summary.pollCount >= 1
+  and .summary.reactionCount >= 1
+  and .summary.mustHaveItemCount >= 1
+  and (.topPollChoices | length) >= 1
+  and (.aiConstraintSummary | length) > 0
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Group preferences did not include expected poll and reaction signals." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+DECISION_CONSTRAINTS_PREVIEW_PAYLOAD="$(jq -nc --arg tripId "${TRIP_ID}" '{source:"trip_generation",tripId:$tripId,includePreviousTripSignals:false}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/planning-constraints/preview" "${ACCESS_TOKEN}" "${DECISION_CONSTRAINTS_PREVIEW_PAYLOAD}"
+assert_2xx "Planning constraints include group preferences"
+if ! jq -e '
+  .constraints.groupPreferences != null
+  and (.constraints.groupPreferences.mustHaveItems | length) >= 1
+  and (.constraints.groupPreferences.summary | length) > 0
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Planning constraints preview did not include group preferences." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls/${DECISION_POLL_ID}/close" "${ACCESS_TOKEN}"
+assert_2xx "Close decision poll"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls/${DECISION_POLL_ID}/vote" "${COLLAB_ACCESS_TOKEN}" "${COLLAB_POLL_VOTE_PAYLOAD}"
+assert_status "Vote closed decision poll" "409"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=100" "${ACCESS_TOKEN}"
+assert_2xx "Decision activity"
+assert_activity_has "Decision activity" "trip_poll_created"
+assert_activity_has "Decision activity" "trip_poll_closed"
+
 VIEWER_EDIT_PAYLOAD='{"itinerary":{"days":[{"day":1,"title":"Viewer blocked day","items":[{"time":"10:00","type":"activity","name":"Should fail"}]}]}}'
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_EDIT_PAYLOAD}"
 assert_status "Viewer itinerary edit" "403"
@@ -3013,6 +3092,12 @@ assert_status "Public share activity stream access" "401"
 echo "Confirming public share token cannot access budget optimization proposals..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-optimization-proposals" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_status "Public share budget optimization proposal access" "401"
+
+echo "Confirming public share token cannot access private decision surfaces..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share polls access" "401"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/reactions" "${PUBLIC_SHARE_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"reaction":"skip"}'
+assert_status "Public share reaction access" "401"
 
 PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${PUBLIC_TRIP_BODY}")"
 PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${PUBLIC_TRIP_BODY}")"

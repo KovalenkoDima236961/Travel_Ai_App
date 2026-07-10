@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -64,6 +65,10 @@ func (s *Service) PreviewPlanningConstraints(
 	if err != nil {
 		return nil, err
 	}
+	groupPreferences, err := s.groupPreferencesForPlanning(ctx, trip)
+	if err != nil {
+		return nil, err
+	}
 
 	constraints := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:                     user.ID,
@@ -73,6 +78,7 @@ func (s *Service) PreviewPlanningConstraints(
 		Request:                    req.Request,
 		UserContext:                userCtx,
 		WorkspacePolicy:            policy,
+		GroupPreferences:           groupPreferences,
 		PreviousTrips:              previousTrips,
 		IncludePreviousTripSignals: planningconstraints.IncludePreviousSignals(req.Source, req.IncludePreviousTripSignals),
 		IncludeRoute:               planningconstraints.IncludeRoute(req.IncludeRoute),
@@ -106,6 +112,10 @@ func (s *Service) buildPlanningConstraints(
 	if err != nil {
 		return nil, err
 	}
+	groupPreferences, err := s.groupPreferencesForPlanning(ctx, trip)
+	if err != nil {
+		return nil, err
+	}
 	constraints := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:                     user.ID,
 		Trip:                       trip,
@@ -114,12 +124,61 @@ func (s *Service) buildPlanningConstraints(
 		Request:                    request,
 		UserContext:                userCtx,
 		WorkspacePolicy:            policy,
+		GroupPreferences:           groupPreferences,
 		PreviousTrips:              previousTrips,
 		IncludePreviousTripSignals: includePrevious,
 		IncludeRoute:               true,
 	})
 	s.logPlanningConstraintsSummary(trip, constraints)
 	return &constraints, nil
+}
+
+func (s *Service) groupPreferencesForPlanning(
+	ctx context.Context,
+	trip *entity.Trip,
+) (*planningconstraints.GroupPreferences, error) {
+	if trip == nil {
+		return nil, nil
+	}
+	summary, err := s.buildGroupPreferences(ctx, trip)
+	if err != nil {
+		return nil, err
+	}
+	if summary.AIConstraintSummary == "" {
+		return nil, nil
+	}
+	return groupPreferencesToPlanning(summary.AIConstraints), nil
+}
+
+func groupPreferencesToPlanning(
+	in appdto.GroupPreferencesAIConstraints,
+) *planningconstraints.GroupPreferences {
+	return &planningconstraints.GroupPreferences{
+		Summary:                 in.Summary,
+		MustHaveItems:           groupPreferenceItemsToPlanning(in.MustHaveItems),
+		SkipCandidates:          groupPreferenceItemsToPlanning(in.SkipCandidates),
+		PreferredDestinations:   append([]string(nil), in.PreferredDestinations...),
+		PreferredTransportModes: append([]string(nil), in.PreferredTransportModes...),
+		PreferredDates:          append([]string(nil), in.PreferredDates...),
+		OpenDecisionCount:       in.OpenDecisionCount,
+	}
+}
+
+func groupPreferenceItemsToPlanning(
+	items []appdto.GroupPreferenceItineraryItem,
+) []planningconstraints.GroupPreferenceItem {
+	out := make([]planningconstraints.GroupPreferenceItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, planningconstraints.GroupPreferenceItem{
+			DayNumber: item.DayNumber,
+			ItemIndex: item.ItemIndex,
+			ItemID:    item.ItemID,
+			Name:      item.Name,
+			Count:     item.Count,
+			Score:     item.Score,
+		})
+	}
+	return out
 }
 
 func (s *Service) requireNoPlanningBlockers(

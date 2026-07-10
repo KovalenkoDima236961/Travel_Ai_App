@@ -78,6 +78,12 @@ function titleFor(
       return { title: `${actor} edited a comment on ${itemTarget(metadata)}` };
     case "comment_deleted":
       return { title: `${actor} deleted a comment on ${itemTarget(metadata)}` };
+    case "trip_poll_created":
+      return { title: `${actor} created a poll`, description: asString(metadata.pollTitle) };
+    case "trip_poll_closed":
+      return { title: `${actor} closed a poll`, description: asString(metadata.pollTitle) };
+    case "trip_poll_archived":
+      return { title: `${actor} archived a poll`, description: asString(metadata.pollTitle) };
     case "collaborator_invited": {
       const email = asString(metadata.collaboratorEmail);
       const role = asString(metadata.role);

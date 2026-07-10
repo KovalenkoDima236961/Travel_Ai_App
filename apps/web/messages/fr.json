@@ -63,6 +63,19 @@
     "repairProposalReady": "Proposition de correction prête", "budgetExceeded": "Budget dépassé",
     "roleChanged": "Votre rôle a changé", "collaboratorInvited": "Un collaborateur a été invité"
   },
+  "tripDecisions": {
+    "decisions": "Décisions", "createPoll": "Créer un sondage", "vote": "Voter",
+    "changeVote": "Changer le vote", "closePoll": "Fermer le sondage", "pollClosed": "Sondage fermé",
+    "singleChoice": "Choix unique", "multipleChoice": "Choix multiple", "rating": "Note",
+    "yesNo": "Oui/Non", "dateChoice": "Choix de date", "mustHave": "Indispensable",
+    "wantToDo": "À faire", "neutral": "Neutre", "skip": "Ignorer",
+    "groupPreferences": "Préférences du groupe", "topChoice": "Premier choix",
+    "noVotesYet": "Aucun vote pour l’instant", "useGroupPreferences": "Utiliser les préférences du groupe",
+    "publicViewersCannotVote": "Les visiteurs publics ne peuvent pas voter",
+    "onlineRequired": "Vous devez être en ligne pour voter",
+    "favorite": "Favori", "like": "J’aime", "dislike": "Je n’aime pas",
+    "notInterested": "Pas intéressé"
+  },
   "exports": {
     "day": "Jour", "time": "Heure", "item": "Élément", "cost": "Coût",
     "generatedAt": "Généré le", "total": "Total",

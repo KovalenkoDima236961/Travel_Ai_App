@@ -12,6 +12,10 @@ import {
   useTripDiscoverySessions,
   useTripDiscoverySuggestions
 } from "@/hooks/useTripDiscovery";
+import {
+  useDiscoverySuggestionVotes,
+  useVoteDiscoverySuggestion
+} from "@/hooks/useVoteDiscoverySuggestion";
 import { getErrorMessage } from "@/lib/utils";
 import type { TripDiscoverySession, TripDiscoverySuggestion } from "@/types/trip-discovery";
 import { CreateTripFromSuggestionDialog } from "./CreateTripFromSuggestionDialog";
@@ -45,6 +49,9 @@ export function TripDiscoveryExperience() {
   const refineMutation = useRefineTripDiscovery(session?.id);
   const createMutation = useCreateTripFromSuggestion(session?.id, selected?.id);
   const history = useTripDiscoverySessions();
+  const groupVotingEnabled = Boolean(session?.createdTripId);
+  const votesQuery = useDiscoverySuggestionVotes(session?.id, groupVotingEnabled);
+  const voteMutation = useVoteDiscoverySuggestion(session?.id ?? "");
 
   useEffect(() => {
     if (
@@ -155,9 +162,23 @@ export function TripDiscoveryExperience() {
           </div>
           <DestinationSuggestionsGrid
             suggestions={session.response.suggestions}
+            sessionId={session.id}
+            voteSummaries={votesQuery.data?.items}
+            groupVotingEnabled={groupVotingEnabled}
+            isVoting={voteMutation.isPending}
             onSelect={setSelected}
             onSimilar={(suggestion) => refine(t("refineInstructions.similarPlaces"), suggestion, "similar")}
             onReject={(suggestion) => refine(t("refineInstructions.notThisVibe"), suggestion, "not_for_me")}
+            onVote={(suggestion, vote) =>
+              voteMutation.mutate({
+                suggestionId: suggestion.id,
+                vote,
+                metadata: {
+                  destination: suggestion.destination,
+                  suggestionType: suggestion.suggestionType
+                }
+              })
+            }
           />
           <TripDiscoveryRefineBar
             isPending={refineMutation.isPending}

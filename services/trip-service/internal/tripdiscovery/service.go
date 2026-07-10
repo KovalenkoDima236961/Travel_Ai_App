@@ -30,6 +30,7 @@ const (
 
 type Repository interface {
 	CreateTripDiscoverySession(context.Context, *Session) (*Session, error)
+	GetTripDiscoverySessionByID(context.Context, uuid.UUID) (*Session, error)
 	GetTripDiscoverySessionByIDAndUser(context.Context, uuid.UUID, uuid.UUID) (*Session, error)
 	ListTripDiscoverySessionsByUser(context.Context, uuid.UUID, int) ([]Session, error)
 	MarkTripDiscoverySessionCreatedTrip(
@@ -45,10 +46,13 @@ type Repository interface {
 		uuid.UUID,
 		map[string]any,
 	) (*entity.Trip, error)
+	UpsertDiscoverySuggestionVote(context.Context, *entity.DiscoverySuggestionVote) (*entity.DiscoverySuggestionVote, error)
+	ListDiscoverySuggestionVotesBySession(context.Context, uuid.UUID) ([]entity.DiscoverySuggestionVote, error)
 }
 
 type TripCreator interface {
 	Create(context.Context, appdto.CreateTripInput) (*entity.Trip, error)
+	Get(context.Context, uuid.UUID) (*entity.Trip, error)
 }
 
 type GenerationJobCreator interface {
@@ -238,7 +242,7 @@ func (s *Service) Get(ctx context.Context, sessionID uuid.UUID) (*Session, error
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetTripDiscoverySessionByIDAndUser(ctx, sessionID, user.ID)
+	return s.accessibleSession(ctx, sessionID, user.ID)
 }
 
 func (s *Service) List(ctx context.Context, limit int) ([]Session, error) {
@@ -253,6 +257,123 @@ func (s *Service) List(ctx context.Context, limit int) ([]Session, error) {
 		limit = 100
 	}
 	return s.repo.ListTripDiscoverySessionsByUser(ctx, user.ID, limit)
+}
+
+func (s *Service) VoteSuggestion(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	suggestionID string,
+	input VoteSuggestionInput,
+) (*SuggestionVotesResponse, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, err := s.accessibleSession(ctx, sessionID, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	suggestion, ok := findSuggestion(session.Response.Suggestions, suggestionID)
+	if !ok {
+		return nil, domainerrs.ErrNotFound
+	}
+	if !input.Vote.Valid() {
+		return nil, apperrs.NewInvalidInput("vote is invalid")
+	}
+	metadata := map[string]any{}
+	for key, value := range input.Metadata {
+		metadata[key] = value
+	}
+	metadata["destination"] = suggestion.Destination
+	if suggestion.SuggestionType != "" {
+		metadata["suggestionType"] = suggestion.SuggestionType
+	}
+	if _, err := s.repo.UpsertDiscoverySuggestionVote(ctx, &entity.DiscoverySuggestionVote{
+		ID:           uuid.New(),
+		SessionID:    session.ID,
+		SuggestionID: suggestion.ID,
+		TripID:       session.CreatedTripID,
+		UserID:       user.ID,
+		Vote:         input.Vote,
+		Metadata:     metadata,
+	}); err != nil {
+		return nil, err
+	}
+	return s.SuggestionVotes(ctx, sessionID)
+}
+
+func (s *Service) SuggestionVotes(ctx context.Context, sessionID uuid.UUID) (*SuggestionVotesResponse, error) {
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, err := s.accessibleSession(ctx, sessionID, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	votes, err := s.repo.ListDiscoverySuggestionVotesBySession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	bySuggestion := map[string]*SuggestionVoteSummary{}
+	for _, suggestion := range session.Response.Suggestions {
+		bySuggestion[suggestion.ID] = &SuggestionVoteSummary{
+			SuggestionID: suggestion.ID,
+			Counts: map[string]int{
+				string(entity.DiscoverySuggestionVoteLike):          0,
+				string(entity.DiscoverySuggestionVoteDislike):       0,
+				string(entity.DiscoverySuggestionVoteFavorite):      0,
+				string(entity.DiscoverySuggestionVoteNotInterested): 0,
+			},
+		}
+	}
+	for _, vote := range votes {
+		summary := bySuggestion[vote.SuggestionID]
+		if summary == nil {
+			summary = &SuggestionVoteSummary{
+				SuggestionID: vote.SuggestionID,
+				Counts:       map[string]int{},
+			}
+			bySuggestion[vote.SuggestionID] = summary
+		}
+		summary.Counts[string(vote.Vote)]++
+		summary.Score += suggestionVoteScore(vote.Vote)
+		if vote.UserID == user.ID {
+			summary.CurrentUser = string(vote.Vote)
+		}
+	}
+	items := make([]SuggestionVoteSummary, 0, len(bySuggestion))
+	for _, summary := range bySuggestion {
+		items = append(items, *summary)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].SuggestionID < items[j].SuggestionID
+	})
+	return &SuggestionVotesResponse{SessionID: sessionID, Items: items}, nil
+}
+
+func (s *Service) accessibleSession(ctx context.Context, sessionID, userID uuid.UUID) (*Session, error) {
+	session, err := s.repo.GetTripDiscoverySessionByIDAndUser(ctx, sessionID, userID)
+	if err == nil {
+		return session, nil
+	}
+	if !errors.Is(err, domainerrs.ErrNotFound) {
+		return nil, err
+	}
+	session, err = s.repo.GetTripDiscoverySessionByID(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if session.CreatedTripID == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	if s.trips == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	if _, err := s.trips.Get(ctx, *session.CreatedTripID); err != nil {
+		return nil, err
+	}
+	return session, nil
 }
 
 func (s *Service) CreateTrip(
@@ -769,4 +890,19 @@ func discoveryTravelersOverride(value int) *planningconstraints.TravelerOverride
 	}
 	count := int32(value)
 	return &planningconstraints.TravelerOverride{Count: &count}
+}
+
+func suggestionVoteScore(vote entity.DiscoverySuggestionVoteValue) int {
+	switch vote {
+	case entity.DiscoverySuggestionVoteFavorite:
+		return 3
+	case entity.DiscoverySuggestionVoteLike:
+		return 1
+	case entity.DiscoverySuggestionVoteDislike:
+		return -1
+	case entity.DiscoverySuggestionVoteNotInterested:
+		return -2
+	default:
+		return 0
+	}
 }

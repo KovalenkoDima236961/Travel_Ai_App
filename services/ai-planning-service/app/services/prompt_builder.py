@@ -1134,6 +1134,8 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
         "PLANNING CONSTRAINTS:",
         "- Respect these normalized constraints consistently across the response.",
         "- If constraints conflict, prioritize workspace policy and explicit trip/request fields.",
+        "- Treat group preferences as soft constraints unless they also appear in explicit request fields.",
+        "- Do not claim group consensus when the group preference summary says decisions are still open or unclear.",
         "- Keep JSON keys and enum values in English; localize only user-facing text.",
         "- Do not claim live booking, live availability, legal compliance, medical/accessibility guarantees, or exact prices.",
     ]
@@ -1208,6 +1210,44 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
         lines.append("- Workspace policy summary:")
         lines.extend(f"  - {line}" for line in str(workspace_policy.summary).splitlines() if line.strip())
 
+    group_preferences = getattr(constraints, "group_preferences", None)
+    if group_preferences is not None:
+        summary = getattr(group_preferences, "summary", "")
+        if summary:
+            lines.append("- Group preference summary:")
+            lines.extend(f"  - {line}" for line in str(summary).splitlines() if line.strip())
+        _append_optional_line(
+            lines,
+            "Group preferred destinations",
+            _display_list(getattr(group_preferences, "preferred_destinations", [])),
+        )
+        _append_optional_line(
+            lines,
+            "Group preferred transport",
+            _display_list(getattr(group_preferences, "preferred_transport_modes", [])),
+        )
+        _append_optional_line(
+            lines,
+            "Group preferred dates",
+            _display_list(getattr(group_preferences, "preferred_dates", [])),
+        )
+        must_have_names = _group_preference_item_names(
+            getattr(group_preferences, "must_have_items", []),
+        )
+        skip_names = _group_preference_item_names(
+            getattr(group_preferences, "skip_candidates", []),
+        )
+        _append_optional_line(lines, "Group must-have activities", _display_list(must_have_names))
+        _append_optional_line(lines, "Group skip candidates", _display_list(skip_names))
+        open_count = getattr(group_preferences, "open_decision_count", 0)
+        if open_count:
+            lines.append(f"- {open_count} group decision(s) remain open; avoid overstating consensus.")
+        if must_have_names:
+            lines.append("- Preserve group must-have activities where possible.")
+        if skip_names:
+            lines.append("- Prefer replacing high-skip activities before removing must-have items.")
+        lines.append("- Workspace policy overrides group preferences.")
+
     route = getattr(constraints, "route", None)
     if route:
         route_payload = route if isinstance(route, dict) else {}
@@ -1236,6 +1276,15 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
                 lines.append(f"- {message}")
 
     return "\n" + "\n".join(lines) + "\n"
+
+
+def _group_preference_item_names(items: list[object]) -> list[str]:
+    names: list[str] = []
+    for item in items[:6]:
+        name = getattr(item, "name", "")
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip())
+    return names
 
 
 def _accommodation_context_section(accommodation: object | None) -> str:

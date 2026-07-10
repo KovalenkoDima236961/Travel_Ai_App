@@ -27,6 +27,10 @@ AI Planning Service accepts optional `planningConstraints` on
 language, scope, profile, budget, dates, travelers, pace/walking, transport,
 trip styles, accommodation, interests/avoid/must-have, accessibility, food,
 route, workspace policy, previous-trip signals, prompt, warnings, and blockers.
+It also accepts `groupPreferences`, populated by Trip Service from private trip
+polls, itinerary item reactions, and trip-linked discovery suggestion votes:
+`summary`, `mustHaveItems`, `skipCandidates`, `preferredDestinations`,
+`preferredTransportModes`, `preferredDates`, and `openDecisionCount`.
 
 Prompt builders use one shared planning-constraints section. It tells the model
 to respect the normalized context, treat blockers as hard constraints outside
@@ -34,6 +38,12 @@ repair, prefer workspace policy when constraints conflict, keep JSON keys/enums
 in English, localize user-facing text to `outputLanguage`, avoid claims of live
 booking/availability, and keep prices/times clearly approximate. Repair prompts
 describe blockers as targets to fix rather than reasons to reject the request.
+Group preferences are advisory unless an explicit request or workspace policy
+makes a constraint hard. Prompts ask the model to preserve must-have activities
+where possible, replace high-skip items before removing must-have items, prefer
+voted destinations/transport/dates, avoid overstating consensus when decisions
+are still open or votes are sparse, and let workspace policy override any group
+preference conflict.
 
 Mock mode reads the same context for deterministic behavior: preferred transport
 influences transfer items, avoided/disallowed modes are skipped, trip styles

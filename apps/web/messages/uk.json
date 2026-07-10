@@ -63,6 +63,19 @@
     "repairProposalReady": "Пропозиція виправлення готова", "budgetExceeded": "Бюджет перевищено",
     "roleChanged": "Вашу роль змінено", "collaboratorInvited": "Запрошено учасника"
   },
+  "tripDecisions": {
+    "decisions": "Рішення", "createPoll": "Створити опитування", "vote": "Голосувати",
+    "changeVote": "Змінити голос", "closePoll": "Закрити опитування", "pollClosed": "Опитування закрито",
+    "singleChoice": "Один варіант", "multipleChoice": "Кілька варіантів", "rating": "Оцінка",
+    "yesNo": "Так/Ні", "dateChoice": "Вибір дати", "mustHave": "Обов’язково",
+    "wantToDo": "Хочу", "neutral": "Нейтрально", "skip": "Пропустити",
+    "groupPreferences": "Переваги групи", "topChoice": "Найкращий вибір",
+    "noVotesYet": "Голосів ще немає", "useGroupPreferences": "Використати переваги групи",
+    "publicViewersCannotVote": "Публічні переглядачі не можуть голосувати",
+    "onlineRequired": "Щоб голосувати, потрібен інтернет",
+    "favorite": "Улюблене", "like": "Подобається", "dislike": "Не подобається",
+    "notInterested": "Не цікавить"
+  },
   "exports": {
     "day": "День", "time": "Час", "item": "Елемент", "cost": "Вартість",
     "generatedAt": "Створено", "total": "Разом",

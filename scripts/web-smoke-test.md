@@ -124,6 +124,25 @@ Use local Grafana credentials `admin` / `admin`.
     message.
 15. Wait for the card to show completion.
 16. Confirm the itinerary appears.
+17. Open the `Decisions` section.
+18. As an owner/editor, create a poll named `Which destination?` with three
+    options and confirm it appears at the top of the section.
+19. Vote for one option, then change the vote and confirm the selected state and
+    result counts update.
+20. Close the poll and confirm voting controls are disabled while final results
+    remain visible.
+21. On two itinerary items, set one reaction to `Must-have` and another to
+    `Skip`; confirm counts appear on the item controls.
+22. Open the group preferences panel and confirm top poll choices, must-have or
+    skip items, and the AI constraint summary are populated.
+23. Invite or use an accepted collaborator account with viewer access. Confirm
+    the collaborator can vote/react but cannot see `Create poll`, `Close`, or
+    `Archive` controls.
+24. Open the public share link for the same trip and confirm decision voting and
+    reaction controls are unavailable.
+25. If a trip-linked discovery session is available in recent discovery history,
+    open it and confirm suggestion cards show Favorite/Like/Dislike/Not
+    interested counts; vote once and confirm the count updates.
 17. If any generated items show `Auto-matched place`, confirm they also show a
     place address/provider and, when confidence is present, a percentage.
 18. If at least two generated auto-matched places have coordinates, confirm map

@@ -47,6 +47,11 @@ const (
 	EventCommentUpdated = "comment_updated"
 	EventCommentDeleted = "comment_deleted"
 
+	// Decisions.
+	EventTripPollCreated  = "trip_poll_created"
+	EventTripPollClosed   = "trip_poll_closed"
+	EventTripPollArchived = "trip_poll_archived"
+
 	// Collaboration.
 	EventCollaboratorInvited     = "collaborator_invited"
 	EventCollaboratorAccepted    = "collaborator_accepted"
@@ -85,6 +90,7 @@ const (
 	EntityItineraryItem    = "itinerary_item"
 	EntityItineraryVersion = "itinerary_version"
 	EntityComment          = "comment"
+	EntityTripPoll         = "trip_poll"
 	EntityCollaborator     = "collaborator"
 	EntityShare            = "share"
 	EntityCalendarSync     = "calendar_sync"
@@ -127,6 +133,9 @@ var knownEventTypes = map[string]struct{}{
 	EventCommentCreated:                      {},
 	EventCommentUpdated:                      {},
 	EventCommentDeleted:                      {},
+	EventTripPollCreated:                     {},
+	EventTripPollClosed:                      {},
+	EventTripPollArchived:                    {},
 	EventCollaboratorInvited:                 {},
 	EventCollaboratorAccepted:                {},
 	EventCollaboratorDeclined:                {},

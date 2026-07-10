@@ -8,6 +8,8 @@ export type NotificationType =
   | "collaborator_role_changed"
   | "collaborator_removed"
   | "comment_created"
+  | "trip_poll_created"
+  | "trip_poll_closed"
   | "itinerary_updated"
   | "itinerary_generated"
   | "day_regenerated"

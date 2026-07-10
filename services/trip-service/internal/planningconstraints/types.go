@@ -71,6 +71,7 @@ type PlanningConstraints struct {
 	Food                Food                 `json:"food"`
 	Route               *Route               `json:"route,omitempty"`
 	WorkspacePolicy     *WorkspacePolicy     `json:"workspacePolicy,omitempty"`
+	GroupPreferences    *GroupPreferences    `json:"groupPreferences,omitempty"`
 	PreviousTripSignals *PreviousTripSignals `json:"previousTripSignals,omitempty"`
 	Prompt              *Prompt              `json:"prompt,omitempty"`
 	Warnings            []Issue              `json:"warnings"`
@@ -147,6 +148,25 @@ type WorkspacePolicy struct {
 	BlockingRules []string        `json:"blockingRules"`
 	WarningRules  []string        `json:"warningRules"`
 	Rules         json.RawMessage `json:"rules,omitempty"`
+}
+
+type GroupPreferences struct {
+	Summary                 string                    `json:"summary"`
+	MustHaveItems           []GroupPreferenceItem     `json:"mustHaveItems"`
+	SkipCandidates          []GroupPreferenceItem     `json:"skipCandidates"`
+	PreferredDestinations   []string                  `json:"preferredDestinations"`
+	PreferredTransportModes []string                  `json:"preferredTransportModes"`
+	PreferredDates          []string                  `json:"preferredDates"`
+	OpenDecisionCount       int                       `json:"openDecisionCount"`
+}
+
+type GroupPreferenceItem struct {
+	DayNumber int    `json:"dayNumber"`
+	ItemIndex int    `json:"itemIndex"`
+	ItemID    string `json:"itemId,omitempty"`
+	Name      string `json:"name"`
+	Count     int    `json:"count"`
+	Score     int    `json:"score"`
 }
 
 type PreviousTripSignals struct {

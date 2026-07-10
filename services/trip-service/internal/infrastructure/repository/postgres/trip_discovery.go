@@ -73,6 +73,21 @@ func (r *Repository) GetTripDiscoverySessionByIDAndUser(
 	return scanTripDiscoverySession(r.db.QueryRow(ctx, query, args...))
 }
 
+func (r *Repository) GetTripDiscoverySessionByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (*tripdiscovery.Session, error) {
+	query, args, err := r.db.Builder.
+		Select(discoverySessionColumns).
+		From("trip_discovery_sessions").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build get discovery session by id: %w", err)
+	}
+	return scanTripDiscoverySession(r.db.QueryRow(ctx, query, args...))
+}
+
 func (r *Repository) ListTripDiscoverySessionsByUser(
 	ctx context.Context,
 	userID uuid.UUID,

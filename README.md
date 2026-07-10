@@ -19,6 +19,12 @@ endpoint, sends the same context to AI Planning Service for discovery,
 generation, regeneration, template adaptation, repair, and budget optimization,
 and keeps deterministic backend validation authoritative after AI returns.
 
+Collaborative Trip Decision & Voting v1 adds private trip polls, editable
+collaborator votes, itinerary item reactions, trip-linked discovery suggestion
+votes, and a live group preference summary. Trip Service folds that summary into
+AI planning constraints as advisory guidance while workspace policy, revision
+checks, and deterministic validation remain authoritative.
+
 ## System Map
 
 ```mermaid
@@ -116,6 +122,10 @@ Key product capabilities:
 - Smart Trip Constraints & Preference Engine v1: preview the AI planning
   context, detect warnings/blockers such as disallowed flights or unrealistic
   route density, and pass one normalized constraints object through AI flows.
+- Collaborative Trip Decision & Voting v1: owners/editors can create and manage
+  trip polls; owners, editors, and accepted viewers can vote/react; group
+  preferences guide regeneration, repair, budget optimization, discovery, and
+  route planning without automatically applying winning choices.
 - Optimistic concurrency through `itineraryRevision` and explicit
   `expectedItineraryRevision` writes, plus Advanced Collaborative Diff/Merge v1
   for safe day/item-level recovery of stale itinerary drafts.

@@ -83,6 +83,14 @@ type mockRepo struct {
 	comments         []entity.ItineraryComment
 	createCommentErr error
 
+	polls               []entity.TripPoll
+	pollOptions         []entity.TripPollOption
+	pollVotes           []entity.TripPollVote
+	itemReactions       []entity.ItineraryItemReaction
+	discoveryVotes      []entity.DiscoverySuggestionVote
+	createTripPollErr   error
+	replacePollVotesErr error
+
 	collaboratorByUser    *entity.TripCollaborator
 	collaboratorByUserErr error
 
@@ -704,6 +712,221 @@ func (m *mockRepo) CountItineraryCommentsByTripGrouped(_ context.Context, tripID
 	out := make([]entity.ItineraryCommentCount, 0, len(order))
 	for _, k := range order {
 		out = append(out, entity.ItineraryCommentCount{DayNumber: k.day, ItemIndex: k.item, Count: counts[k]})
+	}
+	return out, nil
+}
+
+func (m *mockRepo) CreateTripPollWithOptions(_ context.Context, poll *entity.TripPoll, options []entity.TripPollOption) (*entity.TripPoll, []entity.TripPollOption, error) {
+	if m.createTripPollErr != nil {
+		return nil, nil, m.createTripPollErr
+	}
+	now := time.Now()
+	created := *poll
+	if created.ID == uuid.Nil {
+		created.ID = uuid.New()
+	}
+	if created.CreatedAt.IsZero() {
+		created.CreatedAt = now
+	}
+	if created.UpdatedAt.IsZero() {
+		created.UpdatedAt = created.CreatedAt
+	}
+	m.polls = append(m.polls, created)
+
+	createdOptions := make([]entity.TripPollOption, 0, len(options))
+	for i, option := range options {
+		out := option
+		if out.ID == uuid.Nil {
+			out.ID = uuid.New()
+		}
+		out.PollID = created.ID
+		if out.SortOrder == 0 && i > 0 {
+			out.SortOrder = i
+		}
+		if out.CreatedAt.IsZero() {
+			out.CreatedAt = now
+		}
+		m.pollOptions = append(m.pollOptions, out)
+		createdOptions = append(createdOptions, out)
+	}
+	return &created, createdOptions, nil
+}
+
+func (m *mockRepo) GetTripPollByID(_ context.Context, tripID, pollID uuid.UUID) (*entity.TripPoll, error) {
+	for i := range m.polls {
+		poll := m.polls[i]
+		if poll.ID == pollID && poll.TripID == tripID {
+			return &poll, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripPollsByTrip(_ context.Context, tripID uuid.UUID, includeArchived bool) ([]entity.TripPoll, error) {
+	out := make([]entity.TripPoll, 0)
+	for _, poll := range m.polls {
+		if poll.TripID != tripID {
+			continue
+		}
+		if !includeArchived && poll.Status == entity.PollStatusArchived {
+			continue
+		}
+		out = append(out, poll)
+	}
+	return out, nil
+}
+
+func (m *mockRepo) ListPollOptions(_ context.Context, pollID uuid.UUID) ([]entity.TripPollOption, error) {
+	out := make([]entity.TripPollOption, 0)
+	for _, option := range m.pollOptions {
+		if option.PollID == pollID {
+			out = append(out, option)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) ListPollVotesByPoll(_ context.Context, pollID uuid.UUID) ([]entity.TripPollVote, error) {
+	out := make([]entity.TripPollVote, 0)
+	for _, vote := range m.pollVotes {
+		if vote.PollID == pollID {
+			out = append(out, vote)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) ReplaceUserPollVotes(_ context.Context, pollID, userID uuid.UUID, votes []entity.TripPollVote) ([]entity.TripPollVote, error) {
+	if m.replacePollVotesErr != nil {
+		return nil, m.replacePollVotesErr
+	}
+	kept := m.pollVotes[:0]
+	for _, vote := range m.pollVotes {
+		if vote.PollID == pollID && vote.UserID == userID {
+			continue
+		}
+		kept = append(kept, vote)
+	}
+	m.pollVotes = kept
+
+	now := time.Now()
+	out := make([]entity.TripPollVote, 0, len(votes))
+	for _, vote := range votes {
+		next := vote
+		if next.ID == uuid.Nil {
+			next.ID = uuid.New()
+		}
+		next.PollID = pollID
+		next.UserID = userID
+		if next.CreatedAt.IsZero() {
+			next.CreatedAt = now
+		}
+		if next.UpdatedAt.IsZero() {
+			next.UpdatedAt = next.CreatedAt
+		}
+		m.pollVotes = append(m.pollVotes, next)
+		out = append(out, next)
+	}
+	return out, nil
+}
+
+func (m *mockRepo) CloseTripPoll(_ context.Context, tripID, pollID, actorUserID uuid.UUID) (*entity.TripPoll, error) {
+	now := time.Now()
+	for i := range m.polls {
+		poll := &m.polls[i]
+		if poll.ID == pollID && poll.TripID == tripID {
+			poll.Status = entity.PollStatusClosed
+			poll.ClosedAt = &now
+			poll.ClosedByUserID = &actorUserID
+			poll.UpdatedAt = now
+			out := *poll
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ArchiveTripPoll(_ context.Context, tripID, pollID uuid.UUID) (*entity.TripPoll, error) {
+	for i := range m.polls {
+		poll := &m.polls[i]
+		if poll.ID == pollID && poll.TripID == tripID {
+			poll.Status = entity.PollStatusArchived
+			poll.UpdatedAt = time.Now()
+			out := *poll
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) UpsertItineraryItemReaction(_ context.Context, reaction *entity.ItineraryItemReaction) (*entity.ItineraryItemReaction, error) {
+	out := *reaction
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now()
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = now
+	}
+	out.UpdatedAt = now
+	for i := range m.itemReactions {
+		existing := &m.itemReactions[i]
+		if existing.TripID == out.TripID &&
+			existing.DayNumber == out.DayNumber &&
+			existing.ItemIndex == out.ItemIndex &&
+			existing.UserID == out.UserID {
+			out.CreatedAt = existing.CreatedAt
+			m.itemReactions[i] = out
+			return &out, nil
+		}
+	}
+	m.itemReactions = append(m.itemReactions, out)
+	return &out, nil
+}
+
+func (m *mockRepo) DeleteItineraryItemReaction(_ context.Context, tripID uuid.UUID, dayNumber int, itemIndex int, userID uuid.UUID) error {
+	kept := m.itemReactions[:0]
+	for _, reaction := range m.itemReactions {
+		if reaction.TripID == tripID &&
+			reaction.DayNumber == dayNumber &&
+			reaction.ItemIndex == itemIndex &&
+			reaction.UserID == userID {
+			continue
+		}
+		kept = append(kept, reaction)
+	}
+	m.itemReactions = kept
+	return nil
+}
+
+func (m *mockRepo) ListItineraryItemReactionsByTrip(_ context.Context, tripID uuid.UUID) ([]entity.ItineraryItemReaction, error) {
+	out := make([]entity.ItineraryItemReaction, 0)
+	for _, reaction := range m.itemReactions {
+		if reaction.TripID == tripID {
+			out = append(out, reaction)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) ListItineraryItemReactionsByItem(_ context.Context, tripID uuid.UUID, dayNumber int, itemIndex int) ([]entity.ItineraryItemReaction, error) {
+	out := make([]entity.ItineraryItemReaction, 0)
+	for _, reaction := range m.itemReactions {
+		if reaction.TripID == tripID &&
+			reaction.DayNumber == dayNumber &&
+			reaction.ItemIndex == itemIndex {
+			out = append(out, reaction)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) ListDiscoverySuggestionVotesByTrip(_ context.Context, tripID uuid.UUID) ([]entity.DiscoverySuggestionVote, error) {
+	out := make([]entity.DiscoverySuggestionVote, 0)
+	for _, vote := range m.discoveryVotes {
+		if vote.TripID != nil && *vote.TripID == tripID {
+			out = append(out, vote)
+		}
 	}
 	return out, nil
 }

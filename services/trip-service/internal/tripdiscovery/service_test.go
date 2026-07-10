@@ -170,6 +170,7 @@ func testSuggestion() Suggestion {
 type fakeRepository struct {
 	session      *Session
 	markedTripID uuid.UUID
+	votes        []entity.DiscoverySuggestionVote
 }
 
 func (r *fakeRepository) CreateTripDiscoverySession(
@@ -185,6 +186,13 @@ func (r *fakeRepository) CreateTripDiscoverySession(
 func (r *fakeRepository) GetTripDiscoverySessionByIDAndUser(
 	context.Context,
 	uuid.UUID,
+	uuid.UUID,
+) (*Session, error) {
+	return r.session, nil
+}
+
+func (r *fakeRepository) GetTripDiscoverySessionByID(
+	context.Context,
 	uuid.UUID,
 ) (*Session, error) {
 	return r.session, nil
@@ -238,6 +246,40 @@ func (r *fakeRepository) UpdateTripCreationMetadata(
 	}, nil
 }
 
+func (r *fakeRepository) UpsertDiscoverySuggestionVote(_ context.Context, vote *entity.DiscoverySuggestionVote) (*entity.DiscoverySuggestionVote, error) {
+	out := *vote
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now()
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = now
+	}
+	out.UpdatedAt = now
+	for i := range r.votes {
+		existing := &r.votes[i]
+		if existing.SessionID == out.SessionID &&
+			existing.SuggestionID == out.SuggestionID &&
+			existing.UserID == out.UserID {
+			out.CreatedAt = existing.CreatedAt
+			r.votes[i] = out
+			return &out, nil
+		}
+	}
+	r.votes = append(r.votes, out)
+	return &out, nil
+}
+
+func (r *fakeRepository) ListDiscoverySuggestionVotesBySession(_ context.Context, sessionID uuid.UUID) ([]entity.DiscoverySuggestionVote, error) {
+	out := make([]entity.DiscoverySuggestionVote, 0)
+	for _, vote := range r.votes {
+		if vote.SessionID == sessionID {
+			out = append(out, vote)
+		}
+	}
+	return out, nil
+}
+
 type fakeTripCreator struct {
 	createCalls int
 }
@@ -255,6 +297,10 @@ func (f *fakeTripCreator) Create(
 		Status:            entity.StatusDraft,
 		ItineraryRevision: 0,
 	}, nil
+}
+
+func (f *fakeTripCreator) Get(context.Context, uuid.UUID) (*entity.Trip, error) {
+	return &entity.Trip{ID: uuid.New(), Destination: "Valencia, Spain"}, nil
 }
 
 type fakeJobCreator struct {

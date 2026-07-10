@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { AvailabilityCard } from "@/features/availability-search";
+import { ItineraryItemReactions } from "@/components/trip-decisions";
 import { formatMoney, getCostAmount } from "@/entities/budget/model";
 import { transportModeLabel } from "@/components/routes/route-options";
 import { getOpeningStatus } from "@/entities/itinerary/model/opening-hours-utils";
@@ -9,6 +10,7 @@ import type {
 } from "@/entities/availability/model";
 import type { Itinerary, ItineraryItem, Trip } from "@/entities/trip/model";
 import type { CommentControls, RegeneratingTarget } from "@/components/trips/ItineraryView";
+import type { ItineraryItemReactionSummary } from "@/types/trip-decisions";
 import { formatDayDate } from "./tripDetailFormat";
 import {
   ArrowPathIcon,
@@ -45,6 +47,7 @@ type ItineraryTimelineProps = {
   ) => Promise<void>;
   onOpenCostSplit?: (dayNumber: number, itemIndex: number) => void;
   comments?: CommentControls;
+  reactionSummaries?: Record<string, ItineraryItemReactionSummary>;
 };
 
 /**
@@ -65,7 +68,8 @@ export function ItineraryTimeline({
   onAvailabilityResult,
   onApplyAvailabilityPrice,
   onOpenCostSplit,
-  comments
+  comments,
+  reactionSummaries
 }: ItineraryTimelineProps) {
   if (!itinerary.days || itinerary.days.length === 0) {
     return (
@@ -156,6 +160,7 @@ export function ItineraryTimeline({
                   onAvailabilityResult={onAvailabilityResult}
                   onApplyAvailabilityPrice={onApplyAvailabilityPrice}
                   comments={comments}
+                  reactionSummary={reactionSummaries?.[`${dayNumber}:${index}`]}
                 />
               ))}
             </div>
@@ -190,6 +195,7 @@ type TimelineItemProps = {
     result: AvailabilitySearchResponse
   ) => Promise<void>;
   comments?: CommentControls;
+  reactionSummary?: ItineraryItemReactionSummary;
 };
 
 function TimelineItem({
@@ -206,7 +212,8 @@ function TimelineItem({
   onOpenCostSplit,
   onAvailabilityResult,
   onApplyAvailabilityPrice,
-  comments
+  comments,
+  reactionSummary
 }: TimelineItemProps) {
   const visual = getItemVisual(item.type);
   const IconComponent = visual.icon;
@@ -326,6 +333,15 @@ function TimelineItem({
                 />
               ) : null}
             </div>
+            {trip?.id ? (
+              <ItineraryItemReactions
+                dayNumber={dayNumber}
+                disabled={disabled}
+                itemIndex={itemIndex}
+                summary={reactionSummary}
+                tripId={trip.id}
+              />
+            ) : null}
           </div>
         </div>
       </div>

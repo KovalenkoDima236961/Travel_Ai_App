@@ -28,6 +28,7 @@ type BuildInput struct {
 	Request                    RequestOverride
 	UserContext                usercontext.UserContext
 	WorkspacePolicy            *workspacepolicies.Policy
+	GroupPreferences           *GroupPreferences
 	PreviousTrips              []entity.Trip
 	IncludePreviousTripSignals bool
 	IncludeRoute               bool
@@ -74,6 +75,9 @@ func Build(input BuildInput) PlanningConstraints {
 	}
 	if policy := workspacePolicy(input.WorkspacePolicy); policy != nil {
 		constraints.WorkspacePolicy = policy
+	}
+	if input.GroupPreferences != nil && strings.TrimSpace(input.GroupPreferences.Summary) != "" {
+		constraints.GroupPreferences = input.GroupPreferences
 	}
 	if input.IncludePreviousTripSignals {
 		constraints.PreviousTripSignals = previousTripSignals(input.PreviousTrips)
@@ -136,6 +140,9 @@ func ToAIContext(c *PlanningConstraints) *AIContext {
 	}
 	if c.WorkspacePolicy != nil && strings.TrimSpace(c.WorkspacePolicy.Summary) != "" {
 		parts = append(parts, "Workspace policy: "+strings.TrimSpace(c.WorkspacePolicy.Summary))
+	}
+	if c.GroupPreferences != nil && strings.TrimSpace(c.GroupPreferences.Summary) != "" {
+		parts = append(parts, "Group preferences: "+strings.TrimSpace(c.GroupPreferences.Summary))
 	}
 	return &AIContext{
 		PlanningConstraints: c,

@@ -109,6 +109,37 @@ class PlanningConstraintWorkspacePolicy(APIModel):
     rules: dict[str, Any] | None = None
 
 
+class GroupPreferenceItem(APIModel):
+    day_number: int = Field(alias="dayNumber")
+    item_index: int = Field(alias="itemIndex")
+    item_id: str | None = Field(default=None, alias="itemId")
+    name: str = ""
+    count: int = 0
+    score: int = 0
+
+
+class PlanningConstraintGroupPreferences(APIModel):
+    summary: str = ""
+    must_have_items: list[GroupPreferenceItem] = Field(
+        default_factory=list,
+        alias="mustHaveItems",
+    )
+    skip_candidates: list[GroupPreferenceItem] = Field(
+        default_factory=list,
+        alias="skipCandidates",
+    )
+    preferred_destinations: list[str] = Field(
+        default_factory=list,
+        alias="preferredDestinations",
+    )
+    preferred_transport_modes: list[str] = Field(
+        default_factory=list,
+        alias="preferredTransportModes",
+    )
+    preferred_dates: list[str] = Field(default_factory=list, alias="preferredDates")
+    open_decision_count: int = Field(default=0, alias="openDecisionCount")
+
+
 class PreviousTripSignals(APIModel):
     visited_destinations: list[str] = Field(default_factory=list, alias="visitedDestinations")
     liked_styles: list[str] = Field(default_factory=list, alias="likedStyles")
@@ -151,6 +182,10 @@ class PlanningConstraints(APIModel):
         default=None,
         alias="workspacePolicy",
     )
+    group_preferences: PlanningConstraintGroupPreferences | None = Field(
+        default=None,
+        alias="groupPreferences",
+    )
     previous_trip_signals: PreviousTripSignals | None = Field(
         default=None,
         alias="previousTripSignals",
@@ -158,4 +193,3 @@ class PlanningConstraints(APIModel):
     prompt: PlanningConstraintPrompt | None = None
     warnings: list[PlanningConstraintIssue] = Field(default_factory=list)
     blockers: list[PlanningConstraintIssue] = Field(default_factory=list)
-

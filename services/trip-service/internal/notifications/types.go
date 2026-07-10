@@ -9,6 +9,8 @@ const (
 	TypeCollaboratorRoleChange   = "collaborator_role_changed"
 	TypeCollaboratorRemoved      = "collaborator_removed"
 	TypeCommentCreated           = "comment_created"
+	TypeTripPollCreated          = "trip_poll_created"
+	TypeTripPollClosed           = "trip_poll_closed"
 	TypeItineraryUpdated         = "itinerary_updated"
 	TypeItineraryGenerated       = "itinerary_generated"
 	TypeDayRegenerated           = "day_regenerated"
@@ -35,6 +37,7 @@ const (
 const (
 	EntityTrip             = "trip"
 	EntityComment          = "comment"
+	EntityTripPoll         = "trip_poll"
 	EntityCollaborator     = "collaborator"
 	EntityItinerary        = "itinerary"
 	EntityItineraryDay     = "itinerary_day"

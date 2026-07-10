@@ -3,19 +3,43 @@
 import { useTranslations } from "next-intl";
 import { transportModeLabel } from "@/components/routes/route-options";
 import type { TripDiscoverySuggestion } from "@/types/trip-discovery";
+import type {
+  DiscoverySuggestionVoteSummary,
+  DiscoverySuggestionVoteValue
+} from "@/types/trip-decisions";
+
+const VOTE_OPTIONS: Array<{ value: DiscoverySuggestionVoteValue; labelKey: string }> = [
+  { value: "favorite", labelKey: "favorite" },
+  { value: "like", labelKey: "like" },
+  { value: "dislike", labelKey: "dislike" },
+  { value: "not_interested", labelKey: "notInterested" }
+];
 
 export function DestinationSuggestionCard({
   suggestion,
+  sessionId,
+  voteSummary,
+  groupVotingEnabled = false,
+  isVoting = false,
   onSelect,
   onSimilar,
-  onReject
+  onReject,
+  onVote
 }: {
   suggestion: TripDiscoverySuggestion;
+  sessionId?: string;
+  voteSummary?: DiscoverySuggestionVoteSummary;
+  groupVotingEnabled?: boolean;
+  isVoting?: boolean;
   onSelect: () => void;
   onSimilar: () => void;
   onReject: () => void;
+  onVote?: (vote: DiscoverySuggestionVoteValue) => void;
 }) {
   const t = useTranslations("tripDiscovery");
+  const decisions = useTranslations("tripDecisions");
+  const canVote = groupVotingEnabled && Boolean(sessionId) && Boolean(onVote);
+
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[22px] border border-sand-300 bg-white shadow-[0_10px_28px_rgba(34,26,20,0.07)]">
       <div className="relative bg-gradient-to-br from-[#E9D6C8] via-[#F3E8DC] to-[#D8DFCF] px-6 py-6">
@@ -104,6 +128,32 @@ export function DestinationSuggestionCard({
               {suggestion.possibleDownsides.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </details>
+        ) : null}
+
+        {canVote ? (
+          <div className="mt-5 flex flex-wrap gap-1.5 border-t border-sand-200 pt-4">
+            {VOTE_OPTIONS.map((option) => {
+              const selected = voteSummary?.currentUserVote === option.value;
+              const count = voteSummary?.counts?.[option.value] ?? 0;
+              return (
+                <button
+                  key={option.value}
+                  aria-pressed={selected}
+                  className={`rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
+                    selected
+                      ? "border-clay bg-[#FBF0EB] text-clay-deep"
+                      : "border-sand-300 bg-white text-cocoa-500 hover:border-sand-500 hover:text-cocoa-900"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                  disabled={isVoting}
+                  onClick={() => onVote?.(option.value)}
+                  type="button"
+                >
+                  {decisions(option.labelKey)}
+                  <span className="ml-1 text-[11px] text-cocoa-400">{count}</span>
+                </button>
+              );
+            })}
+          </div>
         ) : null}
 
         <div className="mt-auto flex flex-wrap gap-2 pt-6">
