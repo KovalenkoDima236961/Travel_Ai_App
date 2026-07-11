@@ -24,6 +24,8 @@ const (
 	TypeWorkspaceBudgetArchived  = "workspace_budget_archived"
 	TypeWorkspaceBudgetExceeded  = "workspace_budget_exceeded"
 	TypeWorkspaceBudgetNearLimit = "workspace_budget_nearing_limit"
+	TypeChecklistItemAssigned    = "checklist_item_assigned"
+	TypeChecklistGenerated       = "checklist_generated"
 
 	// Approval workflow.
 	TypeTripSubmittedForApproval = "trip_submitted_for_approval"
@@ -44,4 +46,6 @@ const (
 	EntityItineraryItem    = "itinerary_item"
 	EntityItineraryVersion = "itinerary_version"
 	EntityWorkspaceBudget  = "workspace_budget"
+	EntityChecklist        = "checklist"
+	EntityChecklistItem    = "checklist_item"
 )

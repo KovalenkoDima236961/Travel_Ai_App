@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.schemas.checklist import GeneratedChecklistResponse
 from app.schemas.itinerary import (
     BudgetOptimizationProposalResponse,
     ItineraryItem,
@@ -33,6 +34,7 @@ _BUDGET_OPTIMIZATION_KEYS = {
     "proposedDay",
 }
 _REPAIR_KEYS = {"repairedItinerary", "repairSummary", "changes"}
+_CHECKLIST_KEYS = {"title", "summary", "items", "warnings"}
 _DAY_KEYS = {"day", "title", "items"}
 _ITEM_KEYS = {"time", "type", "name", "note", "estimatedCost"}
 _ITEM_TYPES = {"place", "food", "activity", "transport", "rest"}
@@ -156,6 +158,20 @@ def parse_repair_itinerary_response(
         response.repair_summary.warnings.append(
             "Availability and prices should be checked again after repair."
         )
+    return response
+
+
+def parse_checklist_response(response_text: str) -> GeneratedChecklistResponse:
+    parsed = _parse_json(response_text)
+    _ensure_checklist_response_shape(parsed)
+
+    try:
+        response = GeneratedChecklistResponse.model_validate(parsed)
+    except ValidationError as exc:
+        raise LLMResponseParseError("LLM response did not match checklist schema") from exc
+
+    if not response.items:
+        raise LLMResponseParseError("Checklist response must include at least one item")
     return response
 
 
@@ -382,6 +398,25 @@ def _ensure_repair_response_shape(parsed: Any) -> None:
                     raise LLMResponseParseError(
                         f"Repair day {day_index} item {item_index} field {field} is required"
                     )
+
+
+def _ensure_checklist_response_shape(parsed: Any) -> None:
+    if not isinstance(parsed, dict):
+        raise LLMResponseParseError("LLM response must be a JSON object")
+    if set(parsed.keys()) != _CHECKLIST_KEYS:
+        raise LLMResponseParseError(
+            "LLM checklist response must contain exactly title, summary, items, and warnings"
+        )
+    if not isinstance(parsed["items"], list) or not parsed["items"]:
+        raise LLMResponseParseError("Checklist items must be a non-empty list")
+    if not isinstance(parsed["warnings"], list):
+        raise LLMResponseParseError("Checklist warnings must be a list")
+    for index, item in enumerate(parsed["items"], start=1):
+        if not isinstance(item, dict):
+            raise LLMResponseParseError(f"Checklist item {index} must be a JSON object")
+        for field in ("title", "category", "itemType", "priority"):
+            if not str(item.get(field) or "").strip():
+                raise LLMResponseParseError(f"Checklist item {index} missing {field}")
 
 
 def _day_number(value: Any) -> int | None:

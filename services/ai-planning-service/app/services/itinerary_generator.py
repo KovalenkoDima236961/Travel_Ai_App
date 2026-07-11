@@ -3,6 +3,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
+from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
 from app.schemas.itinerary import (
     BudgetOptimizationChange,
     BudgetOptimizationPreservedItem,
@@ -25,6 +26,7 @@ from app.schemas.repair import (
     RepairMoney,
     RepairSummary,
 )
+from app.services.checklist_generator import generate_mock_checklist
 
 _ITEMS_PER_DAY_BY_PACE = {
     "relaxed": 3,
@@ -35,6 +37,10 @@ _ITEMS_PER_DAY_BY_PACE = {
 
 class ItineraryGenerator(Protocol):
     def generate(self, request: GenerateItineraryRequest) -> ItineraryResponse: ...
+
+    def generate_checklist(
+        self, request: GenerateChecklistRequest
+    ) -> GeneratedChecklistResponse: ...
 
     def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse: ...
 
@@ -67,6 +73,9 @@ class MockItineraryGenerator:
             )
         return ItineraryResponse(days=days)
 
+    def generate_checklist(self, request: GenerateChecklistRequest) -> GeneratedChecklistResponse:
+        return generate_mock_checklist(request)
+
     def _generate_route_itinerary(self, request: GenerateItineraryRequest) -> ItineraryResponse:
         if request.route is None or not request.route.stops:
             return ItineraryResponse(days=[])
@@ -87,7 +96,11 @@ class MockItineraryGenerator:
                 _pad_route_items(items, stop.destination, currency, items_per_day)
                 _localize_mock_items(items, request.output_language, stop.destination)
                 _finalize_item_costs(items, currency)
-                day_date = request.start_date + timedelta(days=day_number - 1) if request.start_date else None
+                day_date = (
+                    request.start_date + timedelta(days=day_number - 1)
+                    if request.start_date
+                    else None
+                )
                 days.append(
                     ItineraryDay(
                         day=day_number,
@@ -121,7 +134,9 @@ class MockItineraryGenerator:
             _pad_route_items(items, stop.destination, currency, items_per_day)
             _localize_mock_items(items, request.output_language, stop.destination)
             _finalize_item_costs(items, currency)
-            day_date = request.start_date + timedelta(days=day_number - 1) if request.start_date else None
+            day_date = (
+                request.start_date + timedelta(days=day_number - 1) if request.start_date else None
+            )
             days.append(
                 ItineraryDay(
                     day=day_number,
@@ -885,7 +900,9 @@ def _preferred_route_mode(request: GenerateItineraryRequest) -> str:
     return "train"
 
 
-def _route_transfer_cost(leg, mode: str, distance: float | None, currency: str) -> dict[str, object]:
+def _route_transfer_cost(
+    leg, mode: str, distance: float | None, currency: str
+) -> dict[str, object]:
     if leg is not None and leg.estimated_cost is not None:
         return leg.estimated_cost.model_dump(by_alias=True, exclude_none=True, mode="json")
     km = Decimal(str(distance if distance and distance > 0 else 100))

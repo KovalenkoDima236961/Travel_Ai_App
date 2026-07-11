@@ -40,6 +40,7 @@ import { OptimizeDayOrderDialog } from "@/features/itinerary-optimization";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
+import { TripChecklistPanel } from "@/components/checklists";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
 import { RouteAlternativesPanel } from "@/components/route-alternatives";
@@ -94,6 +95,7 @@ import { useBudgetOptimizationProposals } from "@/features/budget-optimization";
 import { useTripRepairProposals } from "@/features/trip-repair";
 import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useTripChecklist } from "@/hooks/useTripChecklist";
 import { useItineraryReactions } from "@/hooks/useItineraryReactions";
 import { useCostSplittingSummary } from "@/features/cost-splitting";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -497,6 +499,13 @@ export function TripDetailPageContent() {
     tripAccess.role === "owner" ||
     tripAccess.role === "editor" ||
     tripAccess.role === "viewer";
+  const checklistQuery = useTripChecklist(tripId, {
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      canUsePrivateCollaboration &&
+      displayedTrip?.status === "COMPLETED"
+  });
   const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
   const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
   const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
@@ -619,12 +628,14 @@ export function TripDetailPageContent() {
               fallbackDistanceSummaries,
               routeEstimatesByDay
             ),
-            budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null
+            budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null,
+            checklist: checklistQuery.data?.checklist ?? null
           })
         : null,
     [
       cachedBudgetSummary,
       budgetSummaryQuery.data,
+      checklistQuery.data?.checklist,
       displayedTrip,
       fallbackDistanceSummaries,
       routeEstimatesByDay,
@@ -2049,6 +2060,14 @@ export function TripDetailPageContent() {
                 routeEstimatesByDay={routeEstimatesByDay}
                 trip={trip}
                 weatherForecast={weatherForecastQuery.data ?? null}
+              />
+
+              <TripChecklistPanel
+                canCheck={onlineActionsEnabled && canUsePrivateCollaboration}
+                canEdit={canMutateTrip}
+                currentUserId={currentUserId}
+                enabled={onlineActionsEnabled && canUsePrivateCollaboration}
+                tripId={trip.id}
               />
 
               <BudgetOptimizationProposalsPanel

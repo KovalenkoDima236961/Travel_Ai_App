@@ -185,6 +185,22 @@ type tripRepository interface {
 	MarkRouteAlternativeSessionCreatedTrip(ctx context.Context, id uuid.UUID, alternativeID string, createdTripID uuid.UUID) (*routealternatives.Session, error)
 	MarkRouteAlternativeSessionApplied(ctx context.Context, id uuid.UUID, alternativeID string, appliedToTripID uuid.UUID) (*routealternatives.Session, error)
 	ArchiveRouteAlternativeSession(ctx context.Context, id uuid.UUID) (*routealternatives.Session, error)
+	GetActiveChecklistByTripID(ctx context.Context, tripID uuid.UUID) (*entity.TripChecklist, error)
+	GetChecklistByID(ctx context.Context, checklistID uuid.UUID) (*entity.TripChecklist, error)
+	CreateChecklist(ctx context.Context, checklist *entity.TripChecklist) (*entity.TripChecklist, error)
+	UpdateChecklist(ctx context.Context, checklist *entity.TripChecklist) (*entity.TripChecklist, error)
+	ArchiveActiveChecklistForTrip(ctx context.Context, tripID, actorUserID uuid.UUID) (*entity.TripChecklist, error)
+	CreateChecklistItem(ctx context.Context, item *entity.TripChecklistItem) (*entity.TripChecklistItem, error)
+	BatchCreateChecklistItems(ctx context.Context, items []entity.TripChecklistItem) ([]entity.TripChecklistItem, error)
+	ListChecklistItemsByChecklist(ctx context.Context, checklistID uuid.UUID) ([]entity.TripChecklistItem, error)
+	ListChecklistItemsByTrip(ctx context.Context, tripID uuid.UUID) ([]entity.TripChecklistItem, error)
+	ListAssignedChecklistItemsByUser(ctx context.Context, userID uuid.UUID) ([]entity.TripChecklistItem, error)
+	GetChecklistItemByID(ctx context.Context, tripID, itemID uuid.UUID) (*entity.TripChecklistItem, error)
+	UpdateChecklistItem(ctx context.Context, item *entity.TripChecklistItem) (*entity.TripChecklistItem, error)
+	SetChecklistItemChecked(ctx context.Context, tripID, itemID, actorUserID uuid.UUID, checked bool) (*entity.TripChecklistItem, error)
+	SoftDeleteChecklistItem(ctx context.Context, tripID, itemID, actorUserID uuid.UUID) (*entity.TripChecklistItem, error)
+	SoftDeleteGeneratedChecklistItems(ctx context.Context, checklistID, actorUserID uuid.UUID, categories []entity.ChecklistCategory, preserveChecked bool) (int64, error)
+	ReorderChecklistItems(ctx context.Context, tripID uuid.UUID, itemIDs []uuid.UUID, actorUserID uuid.UUID) error
 	approvalRepository
 }
 

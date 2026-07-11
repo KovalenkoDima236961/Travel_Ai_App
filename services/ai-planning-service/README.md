@@ -1,8 +1,9 @@
 # AI Planning Service
 
-FastAPI service for itinerary generation and budget optimization. It can run in
-deterministic `mock` mode for local development or `ollama` mode for local LLM
-generation, validation, and optional repair.
+FastAPI service for itinerary generation, packing checklist generation, and
+budget optimization. It can run in deterministic `mock` mode for local
+development or `ollama` mode for local LLM generation, validation, and optional
+repair.
 
 Trip Service is the normal caller. The AI service does not own trips, users,
 jobs, notifications, or budgets in storage; it receives context, returns a
@@ -10,19 +11,20 @@ validated JSON proposal/itinerary, and leaves persistence to Trip Service.
 
 ## Output language
 
-Generation, day/item regeneration, budget optimization, template adaptation,
-and itinerary repair accept `outputLanguage` (`en`, `es`, `uk`, or `fr`) with
-an English default. Prompts require user-facing string values in that language
-while JSON keys, enum values, and currency codes remain stable and English.
-Mock generation returns deterministic localized text for language propagation
-tests. Unsupported codes fail Pydantic validation.
+Generation, packing checklist generation, day/item regeneration, budget
+optimization, template adaptation, and itinerary repair accept `outputLanguage`
+(`en`, `es`, `uk`, or `fr`) with an English default. Prompts require
+user-facing string values in that language while JSON keys, enum values, and
+currency codes remain stable and English. Mock generation returns deterministic
+localized text for language propagation tests. Unsupported codes fail Pydantic
+validation.
 
 ## Planning Constraints
 
 AI Planning Service accepts optional `planningConstraints` on
-`/generate-itinerary`, `/regenerate-day`, `/regenerate-item`,
-`/optimize-budget/day`, `/adapt-template`, `/repair-itinerary`, and
-`/suggest-destinations`. The shared Pydantic model lives in
+`/generate-itinerary`, `/generate-checklist`, `/regenerate-day`,
+`/regenerate-item`, `/optimize-budget/day`, `/adapt-template`,
+`/repair-itinerary`, and `/suggest-destinations`. The shared Pydantic model lives in
 `app/schemas/planning_constraints.py` and mirrors Trip Service schema version 1:
 language, scope, profile, budget, dates, travelers, pace/walking, transport,
 trip styles, accommodation, interests/avoid/must-have, accessibility, food,
@@ -93,6 +95,7 @@ flowchart TD
 | `GET` | `/ready` | Readiness for configured dependencies such as Ollama/Chroma. |
 | `GET` | `/metrics` | Prometheus metrics. |
 | `POST` | `/generate-itinerary` | Full itinerary generation. |
+| `POST` | `/generate-checklist` | Packing and preparation checklist generation. |
 | `POST` | `/regenerate-day` | Replace one itinerary day. |
 | `POST` | `/regenerate-item` | Replace one itinerary item. |
 | `POST` | `/optimize-budget/day` | Return a reviewable cheaper-day proposal. |
@@ -107,6 +110,23 @@ flowchart TD
 
 Destination context and knowledge routes are development/internal routes in v1.
 Protect them before exposing the service outside a private network.
+
+## Packing Checklist Generation
+
+`POST /generate-checklist` accepts sanitized trip context, optional itinerary,
+route, weather forecast, existing checklist items, profile/preferences, planning
+constraints, generation mode (`full`, `add_missing`, or `category`), selected
+categories, free-form instructions, and `outputLanguage`. It returns a title,
+summary, warnings, and normalized checklist items with stable English enum
+values for category, item type, and priority.
+
+Mock mode is deterministic and context-aware: it always includes core documents,
+electronics, money, and pre-departure checks, then adds transport, hiking,
+camping, rain, warm-weather, and category-filtered items when the request
+context calls for them. Ollama mode uses a strict JSON prompt and parser, then
+falls back to mock when configured. Checklist output is a planning aid only and
+must not claim official document, visa, medical, safety, live weather, ticket,
+or booking verification.
 
 ## AI Trip Discovery
 
@@ -445,6 +465,26 @@ curl -X POST http://localhost:8000/generate-itinerary \
       ],
       "preferences": {"preferredModes": ["train"], "tripStyles": ["train_trip"]}
     }
+  }'
+```
+
+## Example Checklist Call
+
+```bash
+curl -X POST http://localhost:8000/generate-checklist \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tripId": "550e8400-e29b-41d4-a716-446655440000",
+    "destination": "Rome",
+    "startDate": "2026-08-10",
+    "days": 4,
+    "budgetAmount": 600,
+    "budgetCurrency": "EUR",
+    "travelers": 2,
+    "interests": ["food", "history"],
+    "mode": "full",
+    "outputLanguage": "en",
+    "instructions": "Include rainy-day preparation if relevant."
   }'
 ```
 

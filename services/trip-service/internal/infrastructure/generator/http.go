@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -224,6 +225,106 @@ type aiPlanningRepairContext struct {
 	UserProfile     *usercontext.UserProfile        `json:"userProfile,omitempty"`
 	UserPreferences *usercontext.UserPreferences    `json:"userPreferences,omitempty"`
 	WeatherContext  *weathercontext.WeatherForecast `json:"weatherContext,omitempty"`
+}
+
+type aiPlanningChecklistRequest struct {
+	Trip                       aiPlanningChecklistTrip                  `json:"trip"`
+	Itinerary                  *aggregate.Itinerary                     `json:"itinerary,omitempty"`
+	Route                      *aggregate.TripRoute                     `json:"route,omitempty"`
+	Weather                    *weathercontext.WeatherForecast          `json:"weather,omitempty"`
+	Accommodation              *aggregate.Accommodation                 `json:"accommodation,omitempty"`
+	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
+	GroupPreferences           any                                      `json:"groupPreferences,omitempty"`
+	ExistingChecklist          *appdto.TripChecklistDTO                 `json:"existingChecklist,omitempty"`
+	GenerationOptions          aiPlanningChecklistOptions               `json:"generationOptions"`
+	OutputLanguage             string                                   `json:"outputLanguage"`
+	UserProfile                *usercontext.UserProfile                 `json:"userProfile,omitempty"`
+	UserPreferences            *usercontext.UserPreferences             `json:"userPreferences,omitempty"`
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
+}
+
+type aiPlanningChecklistTrip struct {
+	ID           string                     `json:"id,omitempty"`
+	Title        string                     `json:"title,omitempty"`
+	Destination  string                     `json:"destination"`
+	StartDate    *string                    `json:"startDate,omitempty"`
+	DurationDays int                        `json:"durationDays"`
+	Travelers    int32                      `json:"travelers"`
+	Budget       *aiPlanningChecklistBudget `json:"budget,omitempty"`
+	Interests    []string                   `json:"interests,omitempty"`
+	Pace         string                     `json:"pace,omitempty"`
+	TripType     string                     `json:"tripType,omitempty"`
+}
+
+type aiPlanningChecklistBudget struct {
+	Amount   *float64 `json:"amount,omitempty"`
+	Currency string   `json:"currency"`
+}
+
+type aiPlanningChecklistOptions struct {
+	Mode                 appdto.GenerateChecklistMode `json:"mode"`
+	Categories           []entity.ChecklistCategory   `json:"categories"`
+	PreserveCheckedItems bool                         `json:"preserveCheckedItems"`
+	PreserveManualItems  bool                         `json:"preserveManualItems"`
+	ReplaceAIItems       bool                         `json:"replaceAiItems"`
+	Instructions         string                       `json:"instructions,omitempty"`
+}
+
+type aiPlanningChecklistResponse struct {
+	Title    string                    `json:"title"`
+	Summary  string                    `json:"summary"`
+	Items    []aiPlanningChecklistItem `json:"items"`
+	Warnings []string                  `json:"warnings"`
+}
+
+type aiPlanningChecklistItem struct {
+	Title            string                   `json:"title"`
+	Description      string                   `json:"description"`
+	Category         entity.ChecklistCategory `json:"category"`
+	ItemType         entity.ChecklistItemType `json:"itemType"`
+	Priority         entity.ChecklistPriority `json:"priority"`
+	Quantity         *int                     `json:"quantity,omitempty"`
+	Reason           string                   `json:"reason"`
+	RelatedDayNumber *int                     `json:"relatedDayNumber,omitempty"`
+	RelatedItemIndex *int                     `json:"relatedItemIndex,omitempty"`
+	RelatedItemID    *string                  `json:"relatedItemId,omitempty"`
+	Metadata         map[string]any           `json:"metadata,omitempty"`
+}
+
+// GenerateChecklist calls AI Planning Service /generate-checklist and returns a
+// normalized checklist proposal for Trip Service to merge into persisted state.
+func (g *AIPlanningHTTPGenerator) GenerateChecklist(ctx context.Context, input application.GenerateChecklistInput) (*appdto.GeneratedChecklist, error) {
+	trip := input.Trip
+	payload := newAIPlanningChecklistRequest(input)
+
+	var result aiPlanningChecklistResponse
+	if err := g.postJSON(ctx, trip.ID, "generate-checklist", payload, &result); err != nil {
+		return nil, err
+	}
+
+	items := make([]appdto.GeneratedChecklistItem, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, appdto.GeneratedChecklistItem{
+			Title:            item.Title,
+			Description:      item.Description,
+			Category:         item.Category,
+			ItemType:         item.ItemType,
+			Priority:         item.Priority,
+			Quantity:         item.Quantity,
+			Reason:           item.Reason,
+			RelatedDayNumber: item.RelatedDayNumber,
+			RelatedItemIndex: item.RelatedItemIndex,
+			RelatedItemID:    item.RelatedItemID,
+			Metadata:         item.Metadata,
+		})
+	}
+
+	return &appdto.GeneratedChecklist{
+		Title:    result.Title,
+		Summary:  result.Summary,
+		Items:    items,
+		Warnings: nonNilStrings(result.Warnings),
+	}, nil
 }
 
 // AdaptTemplate calls AI Planning Service /adapt-template and maps the adapted
@@ -607,6 +708,79 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 		PlanningConstraints:        input.PlanningConstraints,
 	}
+}
+
+func newAIPlanningChecklistRequest(input application.GenerateChecklistInput) aiPlanningChecklistRequest {
+	trip := input.Trip
+	var startDate *string
+	if trip.StartDate != nil {
+		formatted := trip.StartDate.Format("2006-01-02")
+		startDate = &formatted
+	}
+
+	currency := resolveRequestCurrency(trip.BudgetCurrency, input.UserProfile)
+	var budget *aiPlanningChecklistBudget
+	if trip.BudgetAmount != nil || strings.TrimSpace(currency) != "" {
+		budget = &aiPlanningChecklistBudget{
+			Amount:   trip.BudgetAmount,
+			Currency: currency,
+		}
+	}
+
+	pace := strings.TrimSpace(trip.Pace)
+	if pace == "" {
+		pace = defaultPace
+	}
+
+	var existingChecklist *appdto.TripChecklistDTO
+	if input.ExistingChecklist != nil {
+		existingChecklist = appdto.NewTripChecklistDTO(input.ExistingChecklist)
+	}
+
+	return aiPlanningChecklistRequest{
+		Trip: aiPlanningChecklistTrip{
+			ID:           trip.ID.String(),
+			Title:        trip.Destination,
+			Destination:  trip.Destination,
+			StartDate:    startDate,
+			DurationDays: int(trip.Days),
+			Travelers:    trip.Travelers,
+			Budget:       budget,
+			Interests:    nonNilStrings(trip.Interests),
+			Pace:         pace,
+			TripType:     tripTypeOrDefault(trip),
+		},
+		Itinerary:                  input.CurrentItinerary,
+		Route:                      trip.Route,
+		Weather:                    input.WeatherForecast,
+		Accommodation:              trip.Accommodation,
+		PlanningConstraints:        input.PlanningConstraints,
+		GroupPreferences:           checklistGroupPreferences(input.PlanningConstraints),
+		ExistingChecklist:          existingChecklist,
+		GenerationOptions:          newAIPlanningChecklistOptions(input.Options),
+		OutputLanguage:             normalizeOutputLanguage(input.OutputLanguage),
+		UserProfile:                input.UserProfile,
+		UserPreferences:            input.UserPreferences,
+		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
+	}
+}
+
+func newAIPlanningChecklistOptions(input appdto.GenerateChecklistInput) aiPlanningChecklistOptions {
+	return aiPlanningChecklistOptions{
+		Mode:                 input.Mode,
+		Categories:           input.Categories,
+		PreserveCheckedItems: input.PreserveCheckedItems,
+		PreserveManualItems:  input.PreserveManualItems,
+		ReplaceAIItems:       input.ReplaceAIItems,
+		Instructions:         strings.TrimSpace(input.Instructions),
+	}
+}
+
+func checklistGroupPreferences(constraints *planningconstraints.PlanningConstraints) any {
+	if constraints == nil || constraints.GroupPreferences == nil {
+		return nil
+	}
+	return constraints.GroupPreferences
 }
 
 // resolveRequestCurrency chooses the currency sent to AI Planning Service: the

@@ -1,6 +1,7 @@
 import type { DayDistanceSummary } from "@/entities/itinerary/model/distance-utils";
 import type { TripAccommodation } from "@/entities/accommodation/model";
 import type { BudgetSummary } from "@/entities/budget/model";
+import type { TripChecklist, TripChecklistItem } from "@/entities/checklist/model";
 import type { Place } from "@/entities/place/model";
 import type { PublicTrip } from "@/entities/share/model";
 import type { RouteEstimate, TripRoute, TripRouteLeg, TripRouteStop } from "@/entities/route/model";
@@ -22,6 +23,7 @@ export type ExportTrip = {
   weatherSummary?: ExportWeatherDay[] | null;
   distanceSummary?: ExportDistanceDay[] | null;
   budgetSummary?: BudgetSummary | null;
+  checklist?: TripChecklist | null;
   source: "private" | "public";
 };
 
@@ -44,6 +46,7 @@ export type ExportExtras = {
   weatherSummary?: ExportWeatherDay[] | null;
   distanceSummary?: ExportDistanceDay[] | null;
   budgetSummary?: BudgetSummary | null;
+  checklist?: TripChecklist | null;
 };
 
 export function toExportTripFromPrivateTrip(
@@ -65,6 +68,7 @@ export function toExportTripFromPrivateTrip(
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
     budgetSummary: extras.budgetSummary ?? null,
+    checklist: sanitizeChecklist(extras.checklist),
     source: "private"
   };
 }
@@ -91,6 +95,7 @@ export function toExportTripFromPublicTrip(
     weatherSummary: extras.weatherSummary ?? null,
     distanceSummary: extras.distanceSummary ?? null,
     budgetSummary: null,
+    checklist: null,
     source: "public"
   };
 }
@@ -272,6 +277,41 @@ function sanitizeAccommodation(
     checkOutDate: accommodation.checkOutDate ?? null,
     estimatedCost: accommodation.estimatedCost ?? null,
     notes: accommodation.notes ?? null
+  };
+}
+
+function sanitizeChecklist(checklist: TripChecklist | null | undefined): TripChecklist | null {
+  if (!checklist) {
+    return null;
+  }
+  return {
+    ...checklist,
+    summary: checklist.summary ?? null,
+    items: (checklist.items ?? []).map(sanitizeChecklistItem).sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) {
+        return a.sortOrder - b.sortOrder;
+      }
+      return a.title.localeCompare(b.title);
+    }),
+    metadata: checklist.metadata ?? {}
+  };
+}
+
+function sanitizeChecklistItem(item: TripChecklistItem): TripChecklistItem {
+  return {
+    ...item,
+    description: item.description ?? null,
+    quantity: item.quantity ?? null,
+    assignedToUserId: item.assignedToUserId ?? null,
+    assignedToDisplayName: item.assignedToDisplayName ?? null,
+    dueDate: item.dueDate ?? null,
+    checkedAt: item.checkedAt ?? null,
+    checkedByUserId: item.checkedByUserId ?? null,
+    reason: item.reason ?? null,
+    relatedDayNumber: item.relatedDayNumber ?? null,
+    relatedItemIndex: item.relatedItemIndex ?? null,
+    relatedItemId: item.relatedItemId ?? null,
+    metadata: item.metadata ?? {}
   };
 }
 

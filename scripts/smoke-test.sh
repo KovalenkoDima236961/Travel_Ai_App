@@ -2076,6 +2076,117 @@ if [[ "${DAYS_COUNT}" -le 0 ]]; then
 fi
 COMPLETED_TRIP_BODY="${LAST_BODY}"
 
+echo "Generating smart packing checklist..."
+CHECKLIST_GENERATE_PAYLOAD="$(jq -nc '{mode:"full",outputLanguage:"en",instructions:"Include hiking and rainy weather preparation.",replaceAiItems:true,preserveCheckedItems:true,preserveManualItems:true}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/generate" "${ACCESS_TOKEN}" "${CHECKLIST_GENERATE_PAYLOAD}"
+assert_2xx "Generate trip checklist"
+CHECKLIST_ID="$(jq -r '.checklist.id // empty' <<<"${LAST_BODY}")"
+CHECKLIST_ITEM_COUNT="$(jq '.checklist.items | length' <<<"${LAST_BODY}")"
+CHECKLIST_SUMMARY_TOTAL="$(jq -r '.summary.totalItems // 0' <<<"${LAST_BODY}")"
+if [[ -z "${CHECKLIST_ID}" || "${CHECKLIST_ITEM_COUNT}" -lt 4 || "${CHECKLIST_SUMMARY_TOTAL}" -ne "${CHECKLIST_ITEM_COUNT}" ]]; then
+  echo "Generated checklist response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '([.checklist.items[] | select(.category == "documents")] | length) >= 1 and ([.checklist.items[] | select(.category == "electronics")] | length) >= 1 and ([.checklist.items[] | select(.category == "money")] | length) >= 1' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Generated checklist did not include expected core categories." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+CHECKLIST_AI_ITEM_ID="$(jq -r '[.checklist.items[] | select(.source != "manual")][0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${CHECKLIST_AI_ITEM_ID}" ]]; then
+  echo "Generated checklist did not include an AI item to check." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Checking and unchecking a generated checklist item..."
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${CHECKLIST_AI_ITEM_ID}/check" "${ACCESS_TOKEN}"
+assert_2xx "Check generated checklist item"
+if ! jq -e '.checked == true and (.checkedByUserId // "") != ""' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Checklist item check response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${CHECKLIST_AI_ITEM_ID}/uncheck" "${ACCESS_TOKEN}"
+assert_2xx "Uncheck generated checklist item"
+if ! jq -e '.checked == false and .checkedAt == null and .checkedByUserId == null' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Checklist item uncheck response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Creating, editing, and checking a manual checklist item..."
+MANUAL_CHECKLIST_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" '{title:"Smoke checklist manual charger",description:"Keep with carry-on.",category:"electronics",itemType:"packing",priority:"high",quantity:1,assignedToUserId:$userId,dueDate:"2026-08-09",reason:"Manual smoke item",metadata:{smoke:true}}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items" "${ACCESS_TOKEN}" "${MANUAL_CHECKLIST_PAYLOAD}"
+assert_status "Create manual checklist item" "201"
+MANUAL_CHECKLIST_ITEM_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${MANUAL_CHECKLIST_ITEM_ID}" ]] || ! jq -e --arg userId "${OWNER_USER_ID}" '.source == "manual" and .assignedToUserId == $userId and .dueDate == "2026-08-09"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Manual checklist item response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${MANUAL_CHECKLIST_ITEM_ID}" "${ACCESS_TOKEN}" '{"title":"Smoke checklist manual charger updated","priority":"critical","clearDueDate":true}'
+assert_2xx "Update manual checklist item"
+if ! jq -e '.title == "Smoke checklist manual charger updated" and .priority == "critical" and .dueDate == null' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Manual checklist item update response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${MANUAL_CHECKLIST_ITEM_ID}/check" "${ACCESS_TOKEN}"
+assert_2xx "Check manual checklist item"
+if ! jq -e --arg userId "${OWNER_USER_ID}" '.checked == true and .checkedByUserId == $userId' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Manual checklist item check response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Reordering checklist items..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${ACCESS_TOKEN}"
+assert_2xx "Fetch checklist before reorder"
+CHECKLIST_ITEM_IDS="$(jq -c '[.checklist.items[].id]' <<<"${LAST_BODY}")"
+EXPECTED_FIRST_AFTER_REORDER="$(jq -r '.[-1]' <<<"${CHECKLIST_ITEM_IDS}")"
+CHECKLIST_REORDER_PAYLOAD="$(jq -nc --argjson itemIds "${CHECKLIST_ITEM_IDS}" '{itemIds:($itemIds | reverse)}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/reorder" "${ACCESS_TOKEN}" "${CHECKLIST_REORDER_PAYLOAD}"
+assert_2xx "Reorder checklist items"
+FIRST_AFTER_REORDER="$(jq -r '.checklist.items[0].id // empty' <<<"${LAST_BODY}")"
+if [[ "${FIRST_AFTER_REORDER}" != "${EXPECTED_FIRST_AFTER_REORDER}" ]]; then
+  echo "Checklist reorder did not move the expected item first." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Deleting a temporary checklist item..."
+TEMP_CHECKLIST_PAYLOAD='{"title":"Smoke checklist temporary item","category":"other","itemType":"reminder","priority":"low"}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items" "${ACCESS_TOKEN}" "${TEMP_CHECKLIST_PAYLOAD}"
+assert_status "Create temporary checklist item" "201"
+TEMP_CHECKLIST_ITEM_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${TEMP_CHECKLIST_ITEM_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Delete temporary checklist item"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${ACCESS_TOKEN}"
+assert_2xx "Fetch checklist after delete"
+if jq -e --arg id "${TEMP_CHECKLIST_ITEM_ID}" '.checklist.items | any(.id == $id)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Deleted checklist item was still returned." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Regenerating checklist while preserving manual and checked items..."
+CHECKLIST_REGEN_PAYLOAD="$(jq -nc '{mode:"add_missing",outputLanguage:"en",instructions:"Preserve smoke manual item.",replaceAiItems:false,preserveCheckedItems:true,preserveManualItems:true}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/generate" "${ACCESS_TOKEN}" "${CHECKLIST_REGEN_PAYLOAD}"
+assert_2xx "Regenerate trip checklist add missing"
+if ! jq -e --arg id "${MANUAL_CHECKLIST_ITEM_ID}" '.checklist.items | any(.id == $id and .source == "manual" and .checked == true)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Checklist regeneration did not preserve the checked manual item." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+CHECKLIST_AFTER_REGEN_COUNT="$(jq '.checklist.items | length' <<<"${LAST_BODY}")"
+if [[ "${CHECKLIST_AFTER_REGEN_COUNT}" -lt "${CHECKLIST_ITEM_COUNT}" ]]; then
+  echo "Checklist regeneration unexpectedly reduced the checklist size." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking private trip template flow..."
 PRIVATE_TEMPLATE_PAYLOAD="$(jq -nc '{
   title:"Smoke private template",
@@ -2738,6 +2849,28 @@ assert_status "Viewer update accommodation" "403"
 request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Viewer delete accommodation" "403"
 
+echo "Checking accepted viewer checklist permissions..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer get checklist"
+VIEWER_CHECKLIST_CAN_GENERATE="$(jq -r '.canGenerate // true' <<<"${LAST_BODY}")"
+VIEWER_CHECKLIST_UNASSIGNED_ID="$(jq -r '[.checklist.items[] | select(.assignedToUserId == null)][0].id // empty' <<<"${LAST_BODY}")"
+if [[ "${VIEWER_CHECKLIST_CAN_GENERATE}" != "false" || -z "${VIEWER_CHECKLIST_UNASSIGNED_ID}" ]]; then
+  echo "Viewer checklist read response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/generate" "${COLLAB_ACCESS_TOKEN}" '{"mode":"add_missing"}'
+assert_status "Viewer generate checklist" "403"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items" "${COLLAB_ACCESS_TOKEN}" "${TEMP_CHECKLIST_PAYLOAD}"
+assert_status "Viewer create checklist item" "403"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${VIEWER_CHECKLIST_UNASSIGNED_ID}/check" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer check unassigned checklist item"
+if ! jq -e --arg userId "${COLLAB_USER_ID}" '.checked == true and .checkedByUserId == $userId' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Viewer checklist check response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking viewer can view but cannot edit..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer collaborator fetch trip"
@@ -3212,6 +3345,12 @@ assert_status "Public share polls access" "401"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/reactions" "${PUBLIC_SHARE_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"reaction":"skip"}'
 assert_status "Public share reaction access" "401"
 
+echo "Confirming public share token cannot access private checklist surfaces..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share checklist access" "401"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${MANUAL_CHECKLIST_ITEM_ID}/check" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share checklist check access" "401"
+
 PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${PUBLIC_TRIP_BODY}")"
 PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${PUBLIC_TRIP_BODY}")"
 if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; then
@@ -3219,7 +3358,7 @@ if [[ "${PUBLIC_DESTINATION}" != "Rome" || "${PUBLIC_ITINERARY_DAYS}" -le 0 ]]; 
   echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
 fi
-if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments") or has("accommodation") or has("budget") or has("budgetAmount") or has("budgetCurrency")' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
+if jq -e 'has("userId") or has("email") or has("versionHistory") or has("comments") or has("checklist") or has("accommodation") or has("budget") or has("budgetAmount") or has("budgetCurrency")' >/dev/null <<<"${PUBLIC_TRIP_BODY}"; then
   echo "Public shared trip exposed private fields." >&2
   echo "${PUBLIC_TRIP_BODY}" >&2
   exit 1
@@ -3676,6 +3815,12 @@ assert_status "Second user list first user's comments" "404"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${OTHER_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"body":"Intruder"}'
 assert_status "Second user create comment on first user's trip" "404"
 
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user list first user's checklist" "404"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/${MANUAL_CHECKLIST_ITEM_ID}/check" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user check first user's checklist item" "404"
+
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's activity" "404"
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity/stream" "${OTHER_ACCESS_TOKEN}"
@@ -3704,6 +3849,10 @@ assert_activity_has "Owner activity feed" "share_created"
 assert_activity_has "Owner activity feed" "budget_optimization_proposed"
 assert_activity_has "Owner activity feed" "budget_optimization_applied"
 assert_activity_has "Owner activity feed" "budget_optimization_discarded"
+assert_activity_has "Owner activity feed" "checklist_generated"
+assert_activity_has "Owner activity feed" "checklist_regenerated"
+assert_activity_has "Owner activity feed" "checklist_item_added"
+assert_activity_has "Owner activity feed" "checklist_item_deleted"
 
 echo "Paging the activity feed one event at a time via the opaque cursor..."
 ACTIVITY_CURSOR=""

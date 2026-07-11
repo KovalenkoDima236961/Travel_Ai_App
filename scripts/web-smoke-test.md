@@ -142,55 +142,68 @@ Use local Grafana credentials `admin` / `admin`.
     message.
 15. Wait for the card to show completion.
 16. Confirm the itinerary appears.
-17. Open the `Decisions` section.
-18. As an owner/editor, create a poll named `Which destination?` with three
+17. Open the packing checklist panel and click `Generate checklist`.
+18. Confirm the checklist shows categorized items, progress counts, priority
+    labels, source labels, and a high-priority remaining count.
+19. Add a manual item, assign it to yourself, set a due date, check it, edit its
+    title/priority, move it with the reorder controls, and delete a separate
+    temporary item.
+20. Regenerate with `Add missing` and confirm the checked/manual item remains.
+21. Filter by category and unchecked status, then clear the filters.
+22. Export the private trip and confirm the export includes a compact checklist
+    summary; open the public share and confirm checklist controls/data are not
+    available.
+23. Open the `Decisions` section.
+24. As an owner/editor, create a poll named `Which destination?` with three
     options and confirm it appears at the top of the section.
-19. Vote for one option, then change the vote and confirm the selected state and
+25. Vote for one option, then change the vote and confirm the selected state and
     result counts update.
-20. Close the poll and confirm voting controls are disabled while final results
+26. Close the poll and confirm voting controls are disabled while final results
     remain visible.
-21. On two itinerary items, set one reaction to `Must-have` and another to
+27. On two itinerary items, set one reaction to `Must-have` and another to
     `Skip`; confirm counts appear on the item controls.
-22. Open the group preferences panel and confirm top poll choices, must-have or
+28. Open the group preferences panel and confirm top poll choices, must-have or
     skip items, and the AI constraint summary are populated.
-23. Invite or use an accepted collaborator account with viewer access. Confirm
+29. Invite or use an accepted collaborator account with viewer access. Confirm
     the collaborator can vote/react but cannot see `Create poll`, `Close`, or
     `Archive` controls.
-24. Open the public share link for the same trip and confirm decision voting and
+30. Open the public share link for the same trip and confirm decision voting and
     reaction controls are unavailable.
-25. If a trip-linked discovery session is available in recent discovery history,
+31. If a trip-linked discovery session is available in recent discovery history,
     open it and confirm suggestion cards show Favorite/Like/Dislike/Not
     interested counts; vote once and confirm the count updates.
-17. If any generated items show `Auto-matched place`, confirm they also show a
+32. If any generated items show `Auto-matched place`, confirm they also show a
     place address/provider and, when confidence is present, a percentage.
-18. If at least two generated auto-matched places have coordinates, confirm map
+33. If at least two generated auto-matched places have coordinates, confirm map
     markers and distance estimates appear before any manual place attachment.
-19. On a ticketed attraction/activity/event item, click `Check availability`.
-20. Confirm the card shows a provider **badge** (Ticketmaster, Mock, or
+34. On a ticketed attraction/activity/event item, click `Check availability`.
+35. Confirm the card shows a provider **badge** (Ticketmaster, Mock, or
     "Fallback estimate"), a top-level status, a "Checked N minutes ago" label, a
     High/Medium/Low confidence label, and — when available — an option with a
     price (note the `From`/`Est.` qualifier), venue, date/start times, and a
     `View on provider` link. Click that link and confirm it opens the provider
     site in a **new tab**; no in-app checkout appears.
-21. If the item already has an estimate, confirm the card shows the provider-vs-
+36. If the item already has an estimate, confirm the card shows the provider-vs-
     current price difference and warns when the provider price is notably higher.
-22. Click `Apply price estimate` on a confident option and confirm the budget
+37. Click `Apply price estimate` on a confident option and confirm the budget
     summary and cost analytics refresh after the item cost is saved. If the item
     had a cost-split rule, confirm the split is preserved.
-23. For a low-confidence / unmatched result, confirm the card shows a
+38. For a low-confidence / unmatched result, confirm the card shows a
     "Possible match" warning and a `Verify to apply` hint instead of the apply
     button (medium-confidence apply prompts for confirmation first).
-24. On a non-bookable item (rest/walk/note), confirm no availability card or a
+39. On a non-bookable item (rest/walk/note), confirm no availability card or a
     "not needed" state is shown — no error.
-25. Open the workspace trip approval panel after applying an availability price
+40. Open the workspace trip approval panel after applying an availability price
     and confirm the checklist reflects the checked item; if the applied match was
     low-confidence, the price changed, or fallback data was used, confirm the
     corresponding availability warning/info rows appear (they do not block
     submission).
-26. To test fallback: unset `TICKETMASTER_API_KEY` (or force a provider error)
+41. To test fallback: unset `TICKETMASTER_API_KEY` (or force a provider error)
     with `AVAILABILITY_FALLBACK_TO_MOCK=true` and confirm the card shows a
     "Fallback estimate" badge and a clear not-verified warning.
-27. Check the itinerary generally prefers local, budget-friendly, hidden-gem style suggestions and avoids nightclub-focused recommendations. Do not treat exact AI wording as part of the test.
+42. Check the itinerary generally prefers local, budget-friendly, hidden-gem
+    style suggestions and avoids nightclub-focused recommendations. Do not treat
+    exact AI wording as part of the test.
 
 ## Queue Worker Recovery
 

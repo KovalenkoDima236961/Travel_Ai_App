@@ -3,7 +3,8 @@
 Go service that owns trip planning state and the main domain workflow for the
 Travel AI App. It stores trips, itineraries, revision history, collaborators,
 comments, public shares, activity events, generation jobs, budget proposals,
-calendar sync mappings, accommodation data, and enrichment metadata.
+private packing checklists, calendar sync mappings, accommodation data, and
+enrichment metadata.
 
 Trip Service is the orchestration point between user-facing APIs, AI generation,
 external provider data, notifications, and background workers.
@@ -19,6 +20,47 @@ adaptation, and repair. Stored itinerary text is never translated in place.
 Trip language is not stored as separate trip metadata in this v1 slice, so
 background regeneration follows the current profile preference unless an
 explicit language is supplied.
+
+## Smart Packing Checklist
+
+Smart Packing & Preparation Checklist v1 uses migration
+`000028_create_trip_checklists`:
+
+- `trip_checklists`: one active private checklist per trip, generation source
+  revision metadata, summary text, and safe JSON metadata.
+- `trip_checklist_items`: ordered item rows with category, type, priority,
+  optional quantity, assignee, due date, related itinerary references, checked
+  state, source (`ai`/`manual`/`regenerated`), and soft-delete metadata.
+
+Routes:
+
+- `GET /trips/{id}/checklist`
+- `POST /trips/{id}/checklist/generate`
+- `POST /trips/{id}/checklist/items`
+- `PATCH /trips/{id}/checklist/items/{itemId}`
+- `DELETE /trips/{id}/checklist/items/{itemId}`
+- `POST /trips/{id}/checklist/items/{itemId}/check`
+- `POST /trips/{id}/checklist/items/{itemId}/uncheck`
+- `POST /trips/{id}/checklist/reorder`
+
+Owners and editors can generate/regenerate, create, update, delete, assign, and
+reorder checklist items. Accepted viewers can read the checklist and check or
+uncheck unassigned items or items assigned to them. Pending/removed
+collaborators and public share viewers cannot access checklist routes.
+
+Generation calls the configured itinerary generator port in mock or HTTP mode.
+Trip Service sends the current trip, itinerary, route, weather forecast,
+planning constraints, profile/preferences, workspace policy context, existing
+checklist, generation mode (`full`, `add_missing`, or `category`), selected
+categories, and output language. Regeneration can preserve manual items,
+preserve checked items, replace only AI-generated items, and deduplicate by
+normalized title plus category. Checklist output is a planning aid only; users
+must verify official documents, transport rules, health/safety requirements,
+weather, tickets, and bookings themselves.
+
+Checklist assignment records activity and can notify the assigned collaborator.
+Private exports include a compact checklist summary and unchecked/high-priority
+items; public shares and public exports omit checklist data.
 
 ## Smart Trip Constraints
 
@@ -327,6 +369,7 @@ and graceful shutdown.
 | Workspaces | Personal vs workspace trips, workspace role checks via User Service, combined effective access. |
 | Activity | Persistent audit feed plus in-memory SSE best-effort updates. |
 | Comments | Private item comments, counts, edit/delete permissions. |
+| Checklists | Private packing/preparation checklist generation, manual items, assignees, checked state, summary export. |
 | Budget | Trip budget, workspace shared budgets, item/accommodation costs, multi-currency summaries, cost splitting, analytics, proposals. |
 | Accommodation | One private structured stay per trip, included in AI/budget/route context. |
 | Sharing | One public read-only link per trip, optional expiry/password unlock. |
@@ -405,6 +448,7 @@ or itinerary JSON.
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Sync generation compatibility | `POST /trips/{id}/generate`, day regeneration, item regeneration |
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |
+| Checklist | `GET/POST /trips/{id}/checklist*`, checklist item create/update/delete/check/uncheck/reorder routes |
 | Budget | `GET /trips/{id}/budget-summary`, `PUT /trips/{id}/budget`, budget optimization job/proposal routes |
 | Policy-aware repair | `POST /trips/{id}/repair-jobs`, `GET /trips/{id}/repair-jobs/{jobId}`, `GET /trips/{id}/repair-proposals`, `GET /trips/{id}/repair-proposals/{proposalId}`, apply/discard routes |
 | Workspace budgets | `GET/POST /workspaces/{workspaceId}/budgets`, `GET/PATCH /workspaces/{workspaceId}/budgets/{budgetId}`, `POST /archive`, `POST /make-primary`, summary routes |

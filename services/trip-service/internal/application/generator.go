@@ -5,6 +5,7 @@ package application
 import (
 	"context"
 
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -23,6 +24,22 @@ type GenerateItineraryInput struct {
 	Trip                       entity.Trip
 	Instruction                string
 	OutputLanguage             string
+	UserProfile                *usercontext.UserProfile
+	UserPreferences            *usercontext.UserPreferences
+	WeatherForecast            *weathercontext.WeatherForecast
+	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
+	PlanningConstraints        *planningconstraints.PlanningConstraints
+}
+
+// GenerateChecklistInput is the internal AI request for practical packing and
+// preparation checklist generation. Trip Service owns trusted context loading
+// and merge policy; AI Planning Service returns candidate items only.
+type GenerateChecklistInput struct {
+	Trip                       entity.Trip
+	CurrentItinerary           *aggregate.Itinerary
+	OutputLanguage             string
+	Options                    appdto.GenerateChecklistInput
+	ExistingChecklist          *entity.TripChecklist
 	UserProfile                *usercontext.UserProfile
 	UserPreferences            *usercontext.UserPreferences
 	WeatherForecast            *weathercontext.WeatherForecast
@@ -71,4 +88,5 @@ type ItineraryGenerator interface {
 	AdaptTemplate(ctx context.Context, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error)
 	RepairItinerary(ctx context.Context, input triprepair.Input) (*triprepair.ProposalContent, error)
 	SuggestRouteAlternatives(ctx context.Context, input routealternatives.AIRequest) (*routealternatives.Response, error)
+	GenerateChecklist(ctx context.Context, input GenerateChecklistInput) (*appdto.GeneratedChecklist, error)
 }

@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 
+from app.schemas.checklist import GenerateChecklistRequest
 from app.schemas.destination_context import DestinationContext
 from app.schemas.destination_suggestion import DestinationSuggestionRequest
 from app.schemas.itinerary import (
@@ -360,6 +361,142 @@ Rules:
   bookings are confirmed.
 - Do not include fields outside the schema.
 - Do not include any text outside the JSON.
+""".strip()
+
+
+def build_checklist_prompt(request: GenerateChecklistRequest) -> str:
+    trip = request.trip
+    start_date = trip.start_date.isoformat() if trip.start_date else "not provided"
+    budget = (
+        f"{trip.budget.amount} {trip.budget.currency}"
+        if trip.budget is not None and trip.budget.amount is not None
+        else "not provided"
+    )
+    interests = ", ".join(trip.interests) if trip.interests else "general travel"
+    instructions = request.generation_options.instructions or "No extra user instruction provided."
+    selected_categories = (
+        ", ".join(request.generation_options.categories)
+        if request.generation_options.categories
+        else "all"
+    )
+    itinerary_json = (
+        request.itinerary.model_dump_json(by_alias=True, exclude_none=True)
+        if request.itinerary is not None
+        else "{}"
+    )
+    route_json = (
+        request.route.model_dump_json(by_alias=True, exclude_none=True)
+        if request.route is not None
+        else "{}"
+    )
+    existing_json = (
+        request.existing_checklist.model_dump_json(by_alias=True, exclude_none=True)
+        if request.existing_checklist is not None
+        else "{}"
+    )
+    planning_constraints_section = _planning_constraints_section(request)
+    user_context_section = _partial_user_context_section(request)
+    weather_context_section = _weather_context_section(request.weather)
+    accommodation_context_section = _accommodation_context_section(request.accommodation)
+    workspace_policy_section = _workspace_policy_section(request)
+
+    return f"""
+You are generating a smart packing and preparation checklist for a travel app.
+
+{_output_language_section(request)}
+
+Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
+The JSON must exactly match this schema and must not include other top-level fields:
+{{
+  "title": "Packing & preparation checklist",
+  "summary": "string",
+  "items": [
+    {{
+      "title": "string",
+      "description": "string",
+      "category": "documents",
+      "itemType": "packing",
+      "priority": "high",
+      "quantity": 1,
+      "reason": "string",
+      "relatedDayNumber": 1,
+      "relatedItemIndex": 0,
+      "relatedItemId": "optional-id",
+      "metadata": {{}}
+    }}
+  ],
+  "warnings": ["Checklist suggestions must be verified before travel."]
+}}
+
+Allowed category values:
+documents, clothing, electronics, health_safety, transport, accommodation,
+activities, food_water, money, before_departure, group_items, camping_hiking,
+weather, other.
+
+Allowed itemType values:
+packing, preparation, booking_check, document, shared_group_item, reminder,
+safety_check, other.
+
+Allowed priority values:
+low, medium, high, critical.
+
+Trip request:
+- Destination: {trip.destination}
+- Trip type: {trip.trip_type}
+- Start date: {start_date}
+- Duration days: {trip.duration_days}
+- Travelers: {trip.travelers}
+- Budget: {budget}
+- Interests: {interests}
+- Pace: {trip.pace}
+- Checklist generation mode: {request.generation_options.mode}
+- Selected categories: {selected_categories}
+- Preserve checked items: {request.generation_options.preserve_checked_items}
+- Preserve manual items: {request.generation_options.preserve_manual_items}
+- Replace AI items requested: {request.generation_options.replace_ai_items}
+
+{planning_constraints_section}
+{user_context_section}
+{weather_context_section}
+{accommodation_context_section}
+{workspace_policy_section}
+
+Route JSON:
+{route_json}
+
+Current itinerary JSON:
+{itinerary_json}
+
+Existing checklist JSON:
+{existing_json}
+
+User instruction:
+{instructions}
+
+Rules:
+- Create practical packing and preparation suggestions, not shopping guarantees.
+- Include travel document basics, electronics/power, payment backup, safety info,
+  transport readiness, accommodation arrival prep, and before-departure checks
+  when those categories are allowed.
+- Use route and itinerary context for flight, train, bus, car, ferry, boat,
+  hiking, camping, transfer, tour, and ticket-related checklist items.
+- Use weather context for rain gear, sun/heat protection, cold layers, and
+  electronics protection where relevant.
+- For hiking/camping, include conservative gear and safety checks, but do not
+  invent permits, route safety guarantees, or medical advice.
+- For booking_check items, tell the user to verify or save details; never claim
+  tickets, accommodation, transport, permits, insurance, or reservations are
+  confirmed.
+- Do not provide legal, visa, customs, medical, insurance-coverage, or safety
+  guarantees. Use warnings for verification needs.
+- Avoid duplicates with existing checklist item titles and categories.
+- If generation mode is category, include only selected categories.
+- Keep titles short and action-oriented.
+- Set relatedDayNumber and relatedItemIndex only when an item is clearly derived
+  from a specific itinerary item; otherwise omit them.
+- metadata must be an object. Use {{}} when no metadata is needed.
+- Return 8 to 30 items unless category filtering makes fewer reasonable.
+- Do not include text outside JSON.
 """.strip()
 
 

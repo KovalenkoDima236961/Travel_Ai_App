@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -151,6 +152,192 @@ func floatPtr(value float64) *float64 {
 // NewMockItineraryGenerator constructs the mock generator.
 func NewMockItineraryGenerator(logger *zap.Logger) *MockItineraryGenerator {
 	return &MockItineraryGenerator{logger: logger}
+}
+
+func (g *MockItineraryGenerator) GenerateChecklist(_ context.Context, input application.GenerateChecklistInput) (*appdto.GeneratedChecklist, error) {
+	trip := input.Trip
+	modes := mockChecklistTransportModes(input)
+	styles := mockChecklistStyles(input)
+	rain := mockChecklistHasRain(input)
+	warm := mockChecklistWarm(input)
+	items := []appdto.GeneratedChecklistItem{
+		mockChecklistItem("ID/passport", "Keep a valid identity document accessible for transport and accommodation check-in.", entity.ChecklistCategoryDocuments, entity.ChecklistItemTypeDocument, entity.ChecklistPriorityHigh, "Core travel document for the trip."),
+		mockChecklistItem("Phone charger", "Pack the charger and cable you use daily.", entity.ChecklistCategoryElectronics, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Needed for maps, tickets, and communication."),
+		mockChecklistItem("Payment card and cash", "Carry your main payment card plus a small cash backup.", entity.ChecklistCategoryMoney, entity.ChecklistItemTypePacking, entity.ChecklistPriorityHigh, "Useful for transport, meals, and backup payment."),
+		mockChecklistItem("Travel insurance check", "Review your coverage before departure; this is a general preparation reminder.", entity.ChecklistCategoryBeforeDeparture, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityLow, "A practical pre-trip check without medical or legal guarantees."),
+	}
+	if modes["flight"] {
+		items = append(items,
+			mockChecklistItem("Boarding pass", "Save boarding passes offline before leaving for the airport.", entity.ChecklistCategoryTransport, entity.ChecklistItemTypeBookingCheck, entity.ChecklistPriorityHigh, "Flight context detected."),
+			mockChecklistItem("Liquids bag", "Prepare carry-on liquids according to the rules you verify with the airline or airport.", entity.ChecklistCategoryTransport, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityMedium, "Flight security preparation."),
+			mockChecklistItem("Baggage weight check", "Check baggage allowance directly with the airline before departure.", entity.ChecklistCategoryBeforeDeparture, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityHigh, "Flight baggage rules can vary."),
+			mockChecklistItem("Airport transfer check", "Confirm how you will reach the airport with enough buffer time.", entity.ChecklistCategoryTransport, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityMedium, "Flight transfers need timing buffer."),
+		)
+	}
+	if modes["train"] {
+		items = append(items,
+			mockChecklistItem("Train tickets", "Save train tickets and seat reservations offline.", entity.ChecklistCategoryTransport, entity.ChecklistItemTypeBookingCheck, entity.ChecklistPriorityHigh, "Train travel context detected."),
+			mockChecklistItem("Power bank", "Bring a charged power bank for long train and walking days.", entity.ChecklistCategoryElectronics, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Useful during train transfers."),
+			mockChecklistItem("Snacks and water", "Pack simple snacks and a refillable bottle for transfer days.", entity.ChecklistCategoryFoodWater, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Train transfers may have limited food options."),
+		)
+	}
+	if modes["car"] || modes["rental_car"] {
+		items = append(items,
+			mockChecklistItem("Driving license", "Pack your driving license if you will drive or rent a car.", entity.ChecklistCategoryDocuments, entity.ChecklistItemTypeDocument, entity.ChecklistPriorityCritical, "Car travel context detected."),
+			mockChecklistItem("Car documents", "Verify rental or vehicle documents before departure.", entity.ChecklistCategoryTransport, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityHigh, "Car preparation check."),
+			mockChecklistItem("Parking and toll check", "Check parking, tolls, and fuel or charging options along the route.", entity.ChecklistCategoryTransport, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityMedium, "Road-trip preparation."),
+			mockChecklistItem("Emergency kit", "Confirm the required vehicle emergency kit is available.", entity.ChecklistCategoryHealthSafety, entity.ChecklistItemTypeSafetyCheck, entity.ChecklistPriorityMedium, "General driving safety preparation."),
+		)
+	}
+	if modes["ferry"] || modes["boat"] {
+		items = append(items,
+			mockChecklistItem("Ferry or boat reservation check", "Verify schedules, reservation details, and departure point before travel.", entity.ChecklistCategoryTransport, entity.ChecklistItemTypeBookingCheck, entity.ChecklistPriorityHigh, "Boat or ferry context detected."),
+			mockChecklistItem("Dry bag", "Pack a dry bag for phone, documents, and spare layers.", entity.ChecklistCategoryActivities, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Useful for water transport."),
+			mockChecklistItem("Weather check before boat travel", "Check local conditions before departure and follow provider guidance.", entity.ChecklistCategoryWeather, entity.ChecklistItemTypeSafetyCheck, entity.ChecklistPriorityHigh, "Boat plans depend on local weather."),
+		)
+	}
+	if modes["hiking"] || styles["hiking"] {
+		items = append(items,
+			mockChecklistItem("Hiking shoes", "Pack broken-in shoes suitable for planned walks or hikes.", entity.ChecklistCategoryCampingHiking, entity.ChecklistItemTypePacking, entity.ChecklistPriorityHigh, "Hiking style detected."),
+			mockChecklistItem("Water bottle", "Carry a refillable water bottle for outdoor days.", entity.ChecklistCategoryFoodWater, entity.ChecklistItemTypePacking, entity.ChecklistPriorityHigh, "Outdoor activity preparation."),
+			mockChecklistItem("First-aid kit", "Bring a small personal first-aid kit for minor issues.", entity.ChecklistCategoryHealthSafety, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "General hiking safety preparation."),
+			mockChecklistItem("Offline maps", "Download offline maps for planned outdoor areas.", entity.ChecklistCategoryElectronics, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityHigh, "Useful when mobile coverage is poor."),
+		)
+	}
+	if styles["camping"] {
+		items = append(items,
+			mockChecklistItem("Tent", "Pack the tent and verify all poles and pegs are included.", entity.ChecklistCategoryCampingHiking, entity.ChecklistItemTypePacking, entity.ChecklistPriorityCritical, "Camping style detected."),
+			mockChecklistItem("Sleeping bag", "Pack a sleeping bag suitable for expected nighttime temperatures.", entity.ChecklistCategoryCampingHiking, entity.ChecklistItemTypePacking, entity.ChecklistPriorityHigh, "Camping overnight preparation."),
+			mockChecklistItem("Headlamp", "Pack a charged headlamp or flashlight.", entity.ChecklistCategoryCampingHiking, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Useful at campsites after dark."),
+			mockChecklistItem("Campsite reservation check", "Confirm campsite booking, arrival window, and facilities.", entity.ChecklistCategoryAccommodation, entity.ChecklistItemTypeBookingCheck, entity.ChecklistPriorityHigh, "Camping accommodation preparation."),
+		)
+	}
+	if rain {
+		items = append(items,
+			mockChecklistItem("Rain jacket", "Pack a rain jacket for wet outdoor or transfer days.", entity.ChecklistCategoryWeather, entity.ChecklistItemTypePacking, entity.ChecklistPriorityHigh, "Rain is possible during the trip."),
+			mockChecklistItem("Umbrella", "Pack a compact umbrella for city walks and transfers.", entity.ChecklistCategoryWeather, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Rain is possible during the trip."),
+		)
+	}
+	if warm {
+		items = append(items,
+			mockChecklistItem("Sunscreen", "Pack sunscreen for sunny or warm outdoor days.", entity.ChecklistCategoryHealthSafety, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Warm or sunny weather detected."),
+			mockChecklistItem("Hat", "Pack a hat for exposed walks and outdoor activities.", entity.ChecklistCategoryClothing, entity.ChecklistItemTypePacking, entity.ChecklistPriorityMedium, "Warm or sunny weather detected."),
+		)
+	}
+	if input.Options.Mode == appdto.GenerateChecklistModeCategory && len(input.Options.Categories) > 0 {
+		filtered := items[:0]
+		for _, item := range items {
+			for _, category := range input.Options.Categories {
+				if item.Category == category {
+					filtered = append(filtered, item)
+					break
+				}
+			}
+		}
+		items = filtered
+	}
+	if len(items) == 0 {
+		items = []appdto.GeneratedChecklistItem{
+			mockChecklistItem("Trip preparation review", "Review transport, accommodation, and weather before departure.", entity.ChecklistCategoryBeforeDeparture, entity.ChecklistItemTypePreparation, entity.ChecklistPriorityMedium, "Fallback checklist item."),
+		}
+	}
+	return &appdto.GeneratedChecklist{
+		Title:   "Packing & preparation checklist",
+		Summary: fmt.Sprintf("Checklist for a %d-day trip to %s.", trip.Days, trip.Destination),
+		Items:   items,
+		Warnings: []string{
+			"This checklist is a planning aid; verify official requirements yourself.",
+		},
+	}, nil
+}
+
+func mockChecklistItem(title, description string, category entity.ChecklistCategory, itemType entity.ChecklistItemType, priority entity.ChecklistPriority, reason string) appdto.GeneratedChecklistItem {
+	qty := 1
+	return appdto.GeneratedChecklistItem{
+		Title:       title,
+		Description: description,
+		Category:    category,
+		ItemType:    itemType,
+		Priority:    priority,
+		Quantity:    &qty,
+		Reason:      reason,
+		Metadata:    map[string]any{"mock": true},
+	}
+}
+
+func mockChecklistTransportModes(input application.GenerateChecklistInput) map[string]bool {
+	modes := map[string]bool{}
+	if input.Trip.Route != nil {
+		for _, mode := range input.Trip.Route.Preferences.PreferredModes {
+			modes[strings.ToLower(strings.TrimSpace(mode))] = true
+		}
+		for _, leg := range input.Trip.Route.Legs {
+			modes[strings.ToLower(strings.TrimSpace(leg.Mode))] = true
+		}
+	}
+	if input.CurrentItinerary != nil {
+		for _, day := range input.CurrentItinerary.Days {
+			for _, item := range day.Items {
+				if item.TransportMode != "" {
+					modes[strings.ToLower(strings.TrimSpace(item.TransportMode))] = true
+				}
+				if item.Transfer != nil && item.Transfer.Mode != "" {
+					modes[strings.ToLower(strings.TrimSpace(item.Transfer.Mode))] = true
+				}
+				if strings.Contains(strings.ToLower(item.Type+" "+item.Name), "hiking") {
+					modes["hiking"] = true
+				}
+			}
+		}
+	}
+	if input.PlanningConstraints != nil {
+		for _, mode := range input.PlanningConstraints.Transport.PreferredModes {
+			modes[strings.ToLower(strings.TrimSpace(mode))] = true
+		}
+	}
+	return modes
+}
+
+func mockChecklistStyles(input application.GenerateChecklistInput) map[string]bool {
+	styles := map[string]bool{}
+	if input.Trip.Route != nil {
+		for _, style := range input.Trip.Route.Preferences.TripStyles {
+			styles[strings.ToLower(strings.TrimSpace(style))] = true
+		}
+	}
+	if input.PlanningConstraints != nil {
+		for _, style := range input.PlanningConstraints.TripStyles {
+			styles[strings.ToLower(strings.TrimSpace(style))] = true
+		}
+	}
+	for _, interest := range input.Trip.Interests {
+		styles[strings.ToLower(strings.TrimSpace(interest))] = true
+	}
+	return styles
+}
+
+func mockChecklistHasRain(input application.GenerateChecklistInput) bool {
+	if input.WeatherForecast == nil {
+		return false
+	}
+	for _, day := range input.WeatherForecast.Days {
+		if day.PrecipitationChance >= 50 || strings.Contains(strings.ToLower(day.Condition+" "+day.Summary), "rain") {
+			return true
+		}
+	}
+	return false
+}
+
+func mockChecklistWarm(input application.GenerateChecklistInput) bool {
+	if input.WeatherForecast == nil {
+		return false
+	}
+	for _, day := range input.WeatherForecast.Days {
+		if day.TemperatureMaxC >= 26 || strings.Contains(strings.ToLower(day.Condition+" "+day.Summary), "sun") {
+			return true
+		}
+	}
+	return false
 }
 
 // Generate builds a sample itinerary derived from the trip's destination,

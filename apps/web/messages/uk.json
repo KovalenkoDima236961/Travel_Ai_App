@@ -63,6 +63,48 @@
     "repairProposalReady": "Пропозиція виправлення готова", "budgetExceeded": "Бюджет перевищено",
     "roleChanged": "Вашу роль змінено", "collaboratorInvited": "Запрошено учасника"
   },
+  "checklist": {
+    "title": "Список речей і підготовки",
+    "description": "Створює практичні пункти з маршруту, погоди, транспорту й контексту подорожі.",
+    "onlineOnly": "Список доступний, коли ця приватна подорож онлайн.",
+    "generate": "Створити список", "generating": "Створення…", "regenerate": "Оновити AI-пункти",
+    "addItem": "Додати пункт", "hideAdd": "Сховати форму", "loading": "Завантаження списку…",
+    "generationCategory": "Обсяг", "allCategories": "Усі категорії",
+    "instructions": "Інструкції для AI", "instructionsPlaceholder": "Наприклад: легкий багаж, кемпінг або документи",
+    "categoryFilter": "Категорія", "statusFilter": "Статус",
+    "emptyEditable": "Списку ще немає. Створіть його або додайте перший пункт.",
+    "emptyReadonly": "Для цієї подорожі ще немає спільного списку.",
+    "noFilterResults": "За цими фільтрами пунктів немає.",
+    "progress": "{checked}/{total} виконано ({percent}%)", "highPriority": "{count} важливих невиконаних",
+    "confirmDelete": "Видалити цей пункт?", "up": "Вгору", "down": "Вниз",
+    "edit": "Редагувати", "delete": "Видалити", "cancel": "Скасувати", "saving": "Збереження…",
+    "saveChanges": "Зберегти зміни", "assignMe": "Призначити мені", "due": "До {date}", "relatedDay": "День {day}",
+    "errors": {
+      "load": "Не вдалося завантажити список.", "generate": "Не вдалося створити список.",
+      "titleRequired": "Введіть назву пункту.", "save": "Не вдалося зберегти пункт.",
+      "delete": "Не вдалося видалити пункт.", "check": "Не вдалося оновити пункт.",
+      "reorder": "Не вдалося змінити порядок."
+    },
+    "filters": { "all": "Усі", "unchecked": "Невиконані", "checked": "Виконані", "mine": "Призначені мені", "high": "Високий пріоритет" },
+    "fields": {
+      "title": "Назва", "description": "Опис", "category": "Категорія", "itemType": "Тип",
+      "priority": "Пріоритет", "quantity": "Кількість", "assignee": "Відповідальний користувач",
+      "assigneePlaceholder": "ID користувача або без призначення", "dueDate": "Дата", "reason": "Причина"
+    },
+    "categories": {
+      "documents": "Документи", "clothing": "Одяг", "electronics": "Електроніка", "health_safety": "Здоров’я й безпека",
+      "transport": "Транспорт", "accommodation": "Житло", "activities": "Активності", "food_water": "Їжа й вода",
+      "money": "Гроші", "before_departure": "Перед виїздом", "group_items": "Групові речі",
+      "camping_hiking": "Кемпінг і хайкінг", "weather": "Погода", "other": "Інше"
+    },
+    "itemTypes": {
+      "packing": "Пакування", "preparation": "Підготовка", "booking_check": "Перевірка бронювання",
+      "document": "Документ", "shared_group_item": "Спільний пункт", "reminder": "Нагадування",
+      "safety_check": "Перевірка безпеки", "other": "Інше"
+    },
+    "priorities": { "low": "Низький", "medium": "Середній", "high": "Високий", "critical": "Критичний" },
+    "sources": { "ai": "AI", "manual": "Вручну", "template": "Шаблон", "regenerated": "Оновлено", "system": "Система" }
+  },
   "tripDecisions": {
     "decisions": "Рішення", "createPoll": "Створити опитування", "vote": "Голосувати",
     "changeVote": "Змінити голос", "closePoll": "Закрити опитування", "pollClosed": "Опитування закрито",

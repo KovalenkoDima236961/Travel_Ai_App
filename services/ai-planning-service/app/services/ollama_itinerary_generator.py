@@ -7,6 +7,7 @@ import httpx
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.observability import record_ai_repair_attempt
+from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
 from app.schemas.destination_context import DestinationContext
 from app.schemas.itinerary import (
     BudgetOptimizationProposalResponse,
@@ -27,12 +28,14 @@ from app.services.knowledge_search import KnowledgeSearchService
 from app.services.llm_response_parser import (
     LLMResponseParseError,
     parse_budget_optimization_response,
+    parse_checklist_response,
     parse_itinerary_response,
     parse_regenerate_day_response,
     parse_regenerate_item_response,
     parse_repair_itinerary_response,
 )
 from app.services.prompt_builder import (
+    build_checklist_prompt,
     build_itinerary_prompt,
     build_optimize_budget_day_prompt,
     build_regenerate_day_prompt,
@@ -95,6 +98,31 @@ class OllamaItineraryGenerator:
 
             logger.error("Ollama itinerary generation failed", extra=log_context, exc_info=True)
             raise ItineraryGenerationError("Failed to generate itinerary") from exc
+
+    def generate_checklist(self, request: GenerateChecklistRequest) -> GeneratedChecklistResponse:
+        started_at = time.monotonic()
+        log_context = self._base_checklist_log_context(request)
+
+        try:
+            checklist = self._generate_checklist_with_ollama(request, log_context)
+            log_context["generation_duration_ms"] = self._duration_ms(started_at)
+            logger.info("Ollama checklist generation succeeded", extra=log_context)
+            return checklist
+        except (httpx.HTTPError, OllamaClientError, LLMResponseParseError) as exc:
+            self._record_generation_error(log_context, exc)
+            log_context["generation_duration_ms"] = self._duration_ms(started_at)
+
+            if self._settings.ollama_fallback_to_mock:
+                log_context["fallback_used"] = True
+                logger.warning(
+                    "Ollama checklist generation failed; falling back to mock generator",
+                    extra=log_context,
+                    exc_info=True,
+                )
+                return self._fallback_generator.generate_checklist(request)
+
+            logger.error("Ollama checklist generation failed", extra=log_context, exc_info=True)
+            raise ItineraryGenerationError("Failed to generate checklist") from exc
 
     def regenerate_day(self, request: RegenerateDayRequest) -> RegenerateDayResponse:
         started_at = time.monotonic()
@@ -264,6 +292,23 @@ class OllamaItineraryGenerator:
             log_context["repair_succeeded"] = True
             record_ai_repair_attempt("generate_itinerary", "success")
             return repaired_itinerary
+
+    def _generate_checklist_with_ollama(
+        self,
+        request: GenerateChecklistRequest,
+        log_context: dict[str, Any],
+    ) -> GeneratedChecklistResponse:
+        prompt = build_checklist_prompt(request)
+        self._log_llm_payload("Ollama checklist prompt", "prompt", prompt, log_context)
+
+        llm_response = self._call_ollama(prompt)
+        self._log_llm_payload(
+            "Ollama raw checklist response",
+            "raw_llm_response",
+            llm_response,
+            log_context,
+        )
+        return parse_checklist_response(llm_response)
 
     def _regenerate_day_with_ollama(
         self,
@@ -494,6 +539,29 @@ class OllamaItineraryGenerator:
             "rag_search_failed": False,
             "validation_error_code": None,
             "validation_error_message": None,
+        }
+
+    def _base_checklist_log_context(self, request: GenerateChecklistRequest) -> dict[str, Any]:
+        return {
+            "trip_id": str(request.trip.id) if request.trip.id is not None else None,
+            "destination": request.trip.destination,
+            "days": request.trip.duration_days,
+            "action": "generate_checklist",
+            "generator_mode": "ollama",
+            "model": self._settings.ollama_model,
+            "generation_duration_ms": None,
+            "repair_enabled": False,
+            "repair_attempted": False,
+            "repair_succeeded": False,
+            "fallback_used": False,
+            "destination_context_used": False,
+            "rag_enabled": self._settings.rag_enabled,
+            "rag_results_count": 0,
+            "rag_search_failed": False,
+            "validation_error_code": None,
+            "validation_error_message": None,
+            "generation_mode": request.generation_options.mode,
+            "category_count": len(request.generation_options.categories),
         }
 
     def _base_partial_log_context(

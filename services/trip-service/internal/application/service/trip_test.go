@@ -460,6 +460,96 @@ func (m *mockRepo) ArchiveRouteAlternativeSession(_ context.Context, id uuid.UUI
 	return nil, domainerrs.ErrNotFound
 }
 
+func (m *mockRepo) GetActiveChecklistByTripID(context.Context, uuid.UUID) (*entity.TripChecklist, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) GetChecklistByID(context.Context, uuid.UUID) (*entity.TripChecklist, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CreateChecklist(_ context.Context, checklist *entity.TripChecklist) (*entity.TripChecklist, error) {
+	if checklist == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	copy := *checklist
+	return &copy, nil
+}
+
+func (m *mockRepo) UpdateChecklist(_ context.Context, checklist *entity.TripChecklist) (*entity.TripChecklist, error) {
+	if checklist == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	copy := *checklist
+	return &copy, nil
+}
+
+func (m *mockRepo) ArchiveActiveChecklistForTrip(context.Context, uuid.UUID, uuid.UUID) (*entity.TripChecklist, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CreateChecklistItem(_ context.Context, item *entity.TripChecklistItem) (*entity.TripChecklistItem, error) {
+	if item == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	copy := *item
+	return &copy, nil
+}
+
+func (m *mockRepo) BatchCreateChecklistItems(_ context.Context, items []entity.TripChecklistItem) ([]entity.TripChecklistItem, error) {
+	out := append([]entity.TripChecklistItem(nil), items...)
+	return out, nil
+}
+
+func (m *mockRepo) ListChecklistItemsByChecklist(context.Context, uuid.UUID) ([]entity.TripChecklistItem, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) ListChecklistItemsByTrip(context.Context, uuid.UUID) ([]entity.TripChecklistItem, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) ListAssignedChecklistItemsByUser(context.Context, uuid.UUID) ([]entity.TripChecklistItem, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) GetChecklistItemByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripChecklistItem, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) UpdateChecklistItem(_ context.Context, item *entity.TripChecklistItem) (*entity.TripChecklistItem, error) {
+	if item == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	copy := *item
+	return &copy, nil
+}
+
+func (m *mockRepo) SetChecklistItemChecked(_ context.Context, tripID, itemID, actorUserID uuid.UUID, checked bool) (*entity.TripChecklistItem, error) {
+	return &entity.TripChecklistItem{
+		ID:              itemID,
+		TripID:          tripID,
+		Checked:         checked,
+		CheckedByUserID: &actorUserID,
+	}, nil
+}
+
+func (m *mockRepo) SoftDeleteChecklistItem(_ context.Context, tripID, itemID, actorUserID uuid.UUID) (*entity.TripChecklistItem, error) {
+	return &entity.TripChecklistItem{
+		ID:              itemID,
+		TripID:          tripID,
+		DeletedByUserID: &actorUserID,
+	}, nil
+}
+
+func (m *mockRepo) SoftDeleteGeneratedChecklistItems(context.Context, uuid.UUID, uuid.UUID, []entity.ChecklistCategory, bool) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockRepo) ReorderChecklistItems(context.Context, uuid.UUID, []uuid.UUID, uuid.UUID) error {
+	return nil
+}
+
 func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
 	m.statusSeq = append(m.statusSeq, status)
 	m.statusUserIDs = append(m.statusUserIDs, userID)
@@ -1384,6 +1474,10 @@ type mockGenerator struct {
 	repairErr                      error
 	repairCalled                   bool
 	capturedRepairInput            triprepair.Input
+	checklistResult                *appdto.GeneratedChecklist
+	checklistErr                   error
+	checklistCalled                bool
+	capturedChecklistInput         application.GenerateChecklistInput
 	adaptResult                    *templateadaptation.AdaptResult
 	adaptErr                       error
 	adaptCalled                    bool
@@ -1392,6 +1486,26 @@ type mockGenerator struct {
 	routeAlternativesErr           error
 	routeAlternativesCalled        bool
 	capturedRouteAlternativesInput routealternatives.AIRequest
+}
+
+func (g *mockGenerator) GenerateChecklist(_ context.Context, input application.GenerateChecklistInput) (*appdto.GeneratedChecklist, error) {
+	g.checklistCalled = true
+	g.capturedChecklistInput = input
+	if g.checklistErr != nil {
+		return nil, g.checklistErr
+	}
+	if g.checklistResult != nil {
+		return g.checklistResult, nil
+	}
+	return &appdto.GeneratedChecklist{
+		Title: "Packing & preparation checklist",
+		Items: []appdto.GeneratedChecklistItem{{
+			Title:    "Passport or ID",
+			Category: entity.ChecklistCategoryDocuments,
+			ItemType: entity.ChecklistItemTypeDocument,
+			Priority: entity.ChecklistPriorityCritical,
+		}},
+	}, nil
 }
 
 func (g *mockGenerator) SuggestRouteAlternatives(_ context.Context, input routealternatives.AIRequest) (*routealternatives.Response, error) {

@@ -120,6 +120,7 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
   }
 
   appendBudgetSummary(lines, exportTrip);
+  appendChecklistSummary(lines, exportTrip);
   appendWeatherSummary(lines, exportTrip.weatherSummary);
   appendDistanceSummary(lines, exportTrip.distanceSummary);
 
@@ -279,6 +280,45 @@ function appendAccommodationSummary(lines: TripPdfLine[], exportTrip: ExportTrip
   if (accommodation.notes) {
     lines.push({ text: accommodation.notes, variant: "muted", indent: 28 });
   }
+}
+
+function appendChecklistSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
+  if (exportTrip.source !== "private" || !exportTrip.checklist?.items?.length) {
+    return;
+  }
+
+  const items = exportTrip.checklist.items;
+  const checked = items.filter((item) => item.checked).length;
+  lines.push({ text: exportTrip.checklist.title || "Packing checklist", variant: "heading" });
+  lines.push({
+    text: `${checked}/${items.length} complete`,
+    variant: "body",
+    indent: 14
+  });
+  if (exportTrip.checklist.summary) {
+    lines.push({ text: exportTrip.checklist.summary, variant: "muted", indent: 14 });
+  }
+
+  items.forEach((item) => {
+    const assignee = item.assignedToDisplayName || item.assignedToUserId;
+    const details = [
+      item.priority ? formatRouteToken(item.priority) : null,
+      item.category ? formatRouteToken(item.category) : null,
+      item.dueDate ? `Due ${formatReadableDate(item.dueDate)}` : null,
+      assignee ? `Assigned to ${assignee}` : null
+    ].filter(Boolean);
+    lines.push({
+      text: `${item.checked ? "[x]" : "[ ]"} ${item.quantity ? `${item.quantity}x ` : ""}${item.title}`,
+      variant: "body",
+      indent: 14
+    });
+    if (details.length) {
+      lines.push({ text: details.join(" - "), variant: "small", indent: 28 });
+    }
+    if (item.description) {
+      lines.push({ text: item.description, variant: "muted", indent: 28 });
+    }
+  });
 }
 
 // appendBudgetSummary adds a private-only budget rollup. The public export never

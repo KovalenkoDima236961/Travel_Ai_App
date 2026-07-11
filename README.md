@@ -74,12 +74,12 @@ flowchart LR
 | ---- | ---- | ---- | -------------- |
 | Web app | [apps/web](apps/web/README.md) | `3000` | Workspace/trip UX, collaboration, exports, notifications, calendar controls, PWA install/offline experience. |
 | Auth | [services/auth-service](services/auth-service/README.md) | `8082` | Email/password auth, JWT access tokens, refresh-token rotation, internal user lookup. |
-| Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Personal/workspace trip ownership, collaborators, itinerary revisions, jobs, budgets, comments, shares, activity. |
+| Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Personal/workspace trip ownership, collaborators, itinerary revisions, jobs, budgets, checklists, comments, shares, activity. |
 | Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile, preferences, workspace membership, and invitations scoped by Auth JWT `sub`. |
 | External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, weather, exchange rates, price estimates, Google Calendar integration boundary. Central per-provider rate-limit and daily-quota enforcement (Provider Quota & Rate-Limit Management v1). |
 | Notifications | [services/notification-service](services/notification-service/README.md) | `8086` | In-app notifications, SSE, preferences, optional email and browser push. |
 | Worker | [services/worker-service](services/worker-service/README.md) | `8090` | RabbitMQ consumer for slow generation and budget optimization jobs. |
-| AI planning | [services/ai-planning-service](services/ai-planning-service/README.md) | `8000` | Itinerary generation, regeneration, budget proposals, destination context, local RAG. |
+| AI planning | [services/ai-planning-service](services/ai-planning-service/README.md) | `8000` | Itinerary generation, packing checklist generation, regeneration, budget proposals, destination context, local RAG. |
 | Local infra | [infra](infra/README.md) | mixed | Docker Compose, Postgres, RabbitMQ, Ollama, Adminer, Prometheus, Grafana. |
 | Observability | [infra/observability](infra/observability/README.md) | `9090`, `3001` | Metrics, dashboards, correlation IDs, label rules. |
 
@@ -126,6 +126,12 @@ Key product capabilities:
   trip polls; owners, editors, and accepted viewers can vote/react; group
   preferences guide regeneration, repair, budget optimization, discovery, and
   route planning without automatically applying winning choices.
+- Smart Packing & Preparation Checklist v1: owners/editors can generate an
+  AI-assisted private trip checklist from itinerary, route, weather, budget,
+  traveler, and preference context; add/manual-edit items; assign collaborators;
+  check items; preserve manual/checked items on regeneration; and include a
+  sanitized summary in private exports. Public shares do not expose checklist
+  data.
 - Route Alternatives & Comparison v1: users can generate 2-4 advisory
   multi-destination route options before a trip exists or from an existing trip,
   compare stops, transfer modes, rough cost/time, difficulty, scores, pros/cons,

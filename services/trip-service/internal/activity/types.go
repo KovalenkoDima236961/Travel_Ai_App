@@ -17,6 +17,11 @@ const (
 	EventTripTravelerAdded                   = "trip_traveler_added"
 	EventTripTravelerUpdated                 = "trip_traveler_updated"
 	EventTripTravelerRemoved                 = "trip_traveler_removed"
+	EventChecklistGenerated                  = "checklist_generated"
+	EventChecklistRegenerated                = "checklist_regenerated"
+	EventChecklistItemAdded                  = "checklist_item_added"
+	EventChecklistItemAssigned               = "checklist_item_assigned"
+	EventChecklistItemDeleted                = "checklist_item_deleted"
 
 	// Templates.
 	EventTemplateCreated  = "template_created"
@@ -99,6 +104,8 @@ const (
 	EntityCollaborator     = "collaborator"
 	EntityShare            = "share"
 	EntityCalendarSync     = "calendar_sync"
+	EntityChecklist        = "checklist"
+	EntityChecklistItem    = "checklist_item"
 )
 
 // knownEventTypes is the set of event types this version recognises. Recording
@@ -117,6 +124,11 @@ var knownEventTypes = map[string]struct{}{
 	EventTripTravelerAdded:                   {},
 	EventTripTravelerUpdated:                 {},
 	EventTripTravelerRemoved:                 {},
+	EventChecklistGenerated:                  {},
+	EventChecklistRegenerated:                {},
+	EventChecklistItemAdded:                  {},
+	EventChecklistItemAssigned:               {},
+	EventChecklistItemDeleted:                {},
 	EventTemplateCreated:                     {},
 	EventTemplateArchived:                    {},
 	EventAccommodationAdded:                  {},

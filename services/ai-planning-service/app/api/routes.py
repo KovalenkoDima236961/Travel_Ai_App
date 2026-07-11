@@ -17,6 +17,7 @@ from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.core.readiness import check_readiness
 from app.observability import record_ai_request, record_ai_validation_failure
+from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
 from app.schemas.destination_suggestion import (
     DestinationSuggestionRequest,
     DestinationSuggestionResponse,
@@ -131,6 +132,27 @@ def generate_itinerary(
     except Exception as exc:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to generate itinerary") from exc
+
+
+@router.post("/generate-checklist", response_model=GeneratedChecklistResponse)
+def generate_checklist(
+    request: GenerateChecklistRequest,
+    settings: Settings = Depends(get_configured_settings),
+    generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
+) -> GeneratedChecklistResponse:
+    operation = "generate_checklist"
+    mode = _generator_mode(settings)
+    started_at = time.monotonic()
+    try:
+        response = generator.generate_checklist(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
+    except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise
+    except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise ItineraryGenerationError("Failed to generate checklist") from exc
 
 
 @router.post("/regenerate-day", response_model=RegenerateDayResponse)

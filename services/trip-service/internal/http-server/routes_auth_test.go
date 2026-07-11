@@ -3052,6 +3052,95 @@ func (r *routeTestRepo) ArchiveRouteAlternativeSession(
 	return nil, domainerrs.ErrNotFound
 }
 
+func (r *routeTestRepo) GetActiveChecklistByTripID(context.Context, uuid.UUID) (*entity.TripChecklist, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) GetChecklistByID(context.Context, uuid.UUID) (*entity.TripChecklist, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CreateChecklist(_ context.Context, checklist *entity.TripChecklist) (*entity.TripChecklist, error) {
+	if checklist == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *checklist
+	return &out, nil
+}
+
+func (r *routeTestRepo) UpdateChecklist(_ context.Context, checklist *entity.TripChecklist) (*entity.TripChecklist, error) {
+	if checklist == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *checklist
+	return &out, nil
+}
+
+func (r *routeTestRepo) ArchiveActiveChecklistForTrip(context.Context, uuid.UUID, uuid.UUID) (*entity.TripChecklist, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CreateChecklistItem(_ context.Context, item *entity.TripChecklistItem) (*entity.TripChecklistItem, error) {
+	if item == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *item
+	return &out, nil
+}
+
+func (r *routeTestRepo) BatchCreateChecklistItems(_ context.Context, items []entity.TripChecklistItem) ([]entity.TripChecklistItem, error) {
+	return append([]entity.TripChecklistItem(nil), items...), nil
+}
+
+func (r *routeTestRepo) ListChecklistItemsByChecklist(context.Context, uuid.UUID) ([]entity.TripChecklistItem, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) ListChecklistItemsByTrip(context.Context, uuid.UUID) ([]entity.TripChecklistItem, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) ListAssignedChecklistItemsByUser(context.Context, uuid.UUID) ([]entity.TripChecklistItem, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) GetChecklistItemByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripChecklistItem, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) UpdateChecklistItem(_ context.Context, item *entity.TripChecklistItem) (*entity.TripChecklistItem, error) {
+	if item == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *item
+	return &out, nil
+}
+
+func (r *routeTestRepo) SetChecklistItemChecked(_ context.Context, tripID, itemID, actorUserID uuid.UUID, checked bool) (*entity.TripChecklistItem, error) {
+	return &entity.TripChecklistItem{
+		ID:              itemID,
+		TripID:          tripID,
+		Checked:         checked,
+		CheckedByUserID: &actorUserID,
+	}, nil
+}
+
+func (r *routeTestRepo) SoftDeleteChecklistItem(_ context.Context, tripID, itemID, actorUserID uuid.UUID) (*entity.TripChecklistItem, error) {
+	return &entity.TripChecklistItem{
+		ID:              itemID,
+		TripID:          tripID,
+		DeletedByUserID: &actorUserID,
+	}, nil
+}
+
+func (r *routeTestRepo) SoftDeleteGeneratedChecklistItems(context.Context, uuid.UUID, uuid.UUID, []entity.ChecklistCategory, bool) (int64, error) {
+	return 0, nil
+}
+
+func (r *routeTestRepo) ReorderChecklistItems(context.Context, uuid.UUID, []uuid.UUID, uuid.UUID) error {
+	return nil
+}
+
 func cloneRouteTestAlternativeSession(session routealternatives.Session) routealternatives.Session {
 	out := session
 	if session.TripID != nil {
@@ -3207,6 +3296,18 @@ func (routeTestGenerator) Generate(_ context.Context, input application.Generate
 				},
 			},
 		},
+	}, nil
+}
+
+func (routeTestGenerator) GenerateChecklist(context.Context, application.GenerateChecklistInput) (*appdto.GeneratedChecklist, error) {
+	return &appdto.GeneratedChecklist{
+		Title: "Packing & preparation checklist",
+		Items: []appdto.GeneratedChecklistItem{{
+			Title:    "Passport or ID",
+			Category: entity.ChecklistCategoryDocuments,
+			ItemType: entity.ChecklistItemTypeDocument,
+			Priority: entity.ChecklistPriorityCritical,
+		}},
 	}, nil
 }
 

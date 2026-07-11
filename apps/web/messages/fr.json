@@ -63,6 +63,48 @@
     "repairProposalReady": "Proposition de correction prête", "budgetExceeded": "Budget dépassé",
     "roleChanged": "Votre rôle a changé", "collaboratorInvited": "Un collaborateur a été invité"
   },
+  "checklist": {
+    "title": "Liste de bagages et préparation",
+    "description": "Générez des éléments pratiques depuis l’itinéraire, le trajet, la météo et le contexte du voyage.",
+    "onlineOnly": "La liste est disponible quand ce voyage privé est en ligne.",
+    "generate": "Générer la liste", "generating": "Génération…", "regenerate": "Régénérer les éléments IA",
+    "addItem": "Ajouter un élément", "hideAdd": "Masquer le formulaire", "loading": "Chargement de la liste…",
+    "generationCategory": "Portée", "allCategories": "Toutes les catégories",
+    "instructions": "Instructions IA", "instructionsPlaceholder": "Focus optionnel : bagage léger, camping ou documents",
+    "categoryFilter": "Catégorie", "statusFilter": "Statut",
+    "emptyEditable": "Aucune liste pour l’instant. Générez-la ou ajoutez le premier élément.",
+    "emptyReadonly": "Aucune liste n’a encore été partagée pour ce voyage.",
+    "noFilterResults": "Aucun élément ne correspond à ces filtres.",
+    "progress": "{checked}/{total} terminé ({percent}%)", "highPriority": "{count} prioritaire non coché",
+    "confirmDelete": "Supprimer cet élément ?", "up": "Monter", "down": "Descendre",
+    "edit": "Modifier", "delete": "Supprimer", "cancel": "Annuler", "saving": "Enregistrement…",
+    "saveChanges": "Enregistrer", "assignMe": "M’assigner", "due": "Échéance {date}", "relatedDay": "Jour {day}",
+    "errors": {
+      "load": "Impossible de charger la liste.", "generate": "Impossible de générer la liste.",
+      "titleRequired": "Saisissez un titre.", "save": "Impossible d’enregistrer l’élément.",
+      "delete": "Impossible de supprimer l’élément.", "check": "Impossible de mettre à jour l’élément.",
+      "reorder": "Impossible de réordonner les éléments."
+    },
+    "filters": { "all": "Tous", "unchecked": "Non cochés", "checked": "Cochés", "mine": "Assignés à moi", "high": "Priorité haute" },
+    "fields": {
+      "title": "Titre", "description": "Description", "category": "Catégorie", "itemType": "Type",
+      "priority": "Priorité", "quantity": "Quantité", "assignee": "Utilisateur assigné",
+      "assigneePlaceholder": "ID utilisateur ou non assigné", "dueDate": "Date limite", "reason": "Raison"
+    },
+    "categories": {
+      "documents": "Documents", "clothing": "Vêtements", "electronics": "Électronique", "health_safety": "Santé et sécurité",
+      "transport": "Transport", "accommodation": "Hébergement", "activities": "Activités", "food_water": "Nourriture et eau",
+      "money": "Argent", "before_departure": "Avant le départ", "group_items": "Objets de groupe",
+      "camping_hiking": "Camping et randonnée", "weather": "Météo", "other": "Autre"
+    },
+    "itemTypes": {
+      "packing": "Bagages", "preparation": "Préparation", "booking_check": "Vérification de réservation",
+      "document": "Document", "shared_group_item": "Élément partagé", "reminder": "Rappel",
+      "safety_check": "Vérification sécurité", "other": "Autre"
+    },
+    "priorities": { "low": "Basse", "medium": "Moyenne", "high": "Haute", "critical": "Critique" },
+    "sources": { "ai": "IA", "manual": "Manuel", "template": "Modèle", "regenerated": "Régénéré", "system": "Système" }
+  },
   "tripDecisions": {
     "decisions": "Décisions", "createPoll": "Créer un sondage", "vote": "Voter",
     "changeVote": "Changer le vote", "closePoll": "Fermer le sondage", "pollClosed": "Sondage fermé",
