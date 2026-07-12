@@ -1541,6 +1541,33 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
             lines.append("- Prefer replacing high-skip activities before removing must-have items.")
         lines.append("- Workspace policy overrides group preferences.")
 
+    group_availability = getattr(constraints, "group_availability", None)
+    if group_availability is not None:
+        selected = getattr(group_availability, "selected_date_option", None)
+        if selected is not None:
+            lines.append(
+                "- Selected group dates: "
+                f"{selected.start_date} to {selected.end_date} "
+                f"({selected.duration_days} days). Plan exactly within these dates."
+            )
+            lines.append(
+                "- Group date option score: "
+                f"{getattr(selected, 'score', 0)}; reported conflict count: "
+                f"{getattr(selected, 'conflict_user_count', 0)}."
+            )
+        submitted = getattr(group_availability, "submitted_count", 0)
+        total = getattr(group_availability, "total_collaborators", 0)
+        missing = getattr(group_availability, "missing_response_count", 0)
+        if total:
+            lines.append(
+                "- Group availability responses: "
+                f"{submitted}/{total} submitted; {missing} missing."
+            )
+        notes = getattr(group_availability, "notes", None)
+        if notes:
+            lines.append(f"- Group availability summary: {notes}")
+        lines.append("- Do not mention private collaborator names or personal availability notes.")
+
     route = getattr(constraints, "route", None)
     if route:
         route_payload = route if isinstance(route, dict) else {}

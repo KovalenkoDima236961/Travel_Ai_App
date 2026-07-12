@@ -284,6 +284,7 @@ type aiPlanningChecklistItem struct {
 	ItemType         entity.ChecklistItemType `json:"itemType"`
 	Priority         entity.ChecklistPriority `json:"priority"`
 	Quantity         *int                     `json:"quantity,omitempty"`
+	DueDate          *string                  `json:"dueDate,omitempty"`
 	Reason           string                   `json:"reason"`
 	RelatedDayNumber *int                     `json:"relatedDayNumber,omitempty"`
 	RelatedItemIndex *int                     `json:"relatedItemIndex,omitempty"`
@@ -304,6 +305,10 @@ func (g *AIPlanningHTTPGenerator) GenerateChecklist(ctx context.Context, input a
 
 	items := make([]appdto.GeneratedChecklistItem, 0, len(result.Items))
 	for _, item := range result.Items {
+		dueDate, err := parseChecklistDueDate(item.DueDate)
+		if err != nil {
+			return nil, err
+		}
 		items = append(items, appdto.GeneratedChecklistItem{
 			Title:            item.Title,
 			Description:      item.Description,
@@ -311,6 +316,7 @@ func (g *AIPlanningHTTPGenerator) GenerateChecklist(ctx context.Context, input a
 			ItemType:         item.ItemType,
 			Priority:         item.Priority,
 			Quantity:         item.Quantity,
+			DueDate:          dueDate,
 			Reason:           item.Reason,
 			RelatedDayNumber: item.RelatedDayNumber,
 			RelatedItemIndex: item.RelatedItemIndex,
@@ -325,6 +331,17 @@ func (g *AIPlanningHTTPGenerator) GenerateChecklist(ctx context.Context, input a
 		Items:    items,
 		Warnings: nonNilStrings(result.Warnings),
 	}, nil
+}
+
+func parseChecklistDueDate(raw *string) (*time.Time, error) {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", strings.TrimSpace(*raw))
+	if err != nil {
+		return nil, fmt.Errorf("decode checklist dueDate: %w", err)
+	}
+	return &parsed, nil
 }
 
 // AdaptTemplate calls AI Planning Service /adapt-template and maps the adapted

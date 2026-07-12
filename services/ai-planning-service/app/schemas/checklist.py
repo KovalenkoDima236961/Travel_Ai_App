@@ -177,6 +177,7 @@ class GeneratedChecklistItem(APIModel):
     item_type: ChecklistItemType = Field(default="packing", alias="itemType")
     priority: ChecklistPriority = "medium"
     quantity: int | None = Field(default=None, ge=1, le=99)
+    due_date: date | None = Field(default=None, alias="dueDate")
     reason: str = Field(default="", max_length=500)
     related_day_number: int | None = Field(default=None, ge=1, alias="relatedDayNumber")
     related_item_index: int | None = Field(default=None, ge=0, alias="relatedItemIndex")

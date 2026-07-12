@@ -518,6 +518,19 @@ payloads still send it, but new flows prefer `planningConstraints.workspacePolic
 inside the normalized context. Trip Service remains authoritative for policy
 blocking and post-generation validation.
 
+## Group Availability Constraints
+
+`planningConstraints.groupAvailability` may include submitted/total counts,
+missing response count, notes, and a `selectedDateOption` with fixed
+`startDate`, `endDate`, `durationDays`, score, and conflict count. When present,
+the shared prompt section tells generation to plan exactly within those selected
+dates and avoids exposing private collaborator names.
+
+Mock itinerary generation uses the selected/fixed start date for day dates.
+Checklist generation can return `dueDate` values based on the departure date,
+with important preparation items due before departure. V1 treats availability as
+planning guidance only; it does not imply bookings or calendar confirmation.
+
 ## Troubleshooting
 
 | Symptom | Check |

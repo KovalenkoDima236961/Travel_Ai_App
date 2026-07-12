@@ -479,6 +479,31 @@
     "rushedWarning": "This route may be rushed",
     "approximateWarning": "Estimates are approximate and do not include live ticket prices."
   },
+  "tripAvailability": {
+    "title": "Dates",
+    "myAvailability": "My availability",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "preferred": "Preferred",
+    "saveAvailability": "Save availability",
+    "requestAvailability": "Request availability",
+    "refreshOptions": "Refresh options",
+    "createPoll": "Create poll",
+    "applyDates": "Apply dates",
+    "submitted": "Submitted",
+    "missing": "Missing",
+    "travelers": "Travelers",
+    "offline": "You need to be online to update availability."
+  },
+  "dateOptions": {
+    "bestOptions": "Best date options",
+    "availableUsers": "Available users",
+    "conflicts": "Conflicts",
+    "missingResponses": "Missing responses",
+    "includesWeekend": "Includes weekend",
+    "conflictWarning": "This date option may conflict with some collaborators.",
+    "itineraryStaleWarning": "Existing itinerary may become outdated."
+  },
   "errors": {
     "generic": "Something went wrong. Please try again.",
     "unauthorized": "Please log in to continue.",

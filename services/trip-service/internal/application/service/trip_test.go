@@ -87,13 +87,14 @@ type mockRepo struct {
 	comments         []entity.ItineraryComment
 	createCommentErr error
 
-	polls               []entity.TripPoll
-	pollOptions         []entity.TripPollOption
-	pollVotes           []entity.TripPollVote
-	itemReactions       []entity.ItineraryItemReaction
-	discoveryVotes      []entity.DiscoverySuggestionVote
-	createTripPollErr   error
-	replacePollVotesErr error
+	polls                 []entity.TripPoll
+	pollOptions           []entity.TripPollOption
+	pollVotes             []entity.TripPollVote
+	itemReactions         []entity.ItineraryItemReaction
+	discoveryVotes        []entity.DiscoverySuggestionVote
+	availabilityResponses []entity.TripAvailabilityResponse
+	createTripPollErr     error
+	replacePollVotesErr   error
 
 	collaboratorByUser    *entity.TripCollaborator
 	collaboratorByUserErr error
@@ -240,6 +241,22 @@ func (m *mockRepo) UpdateTripCreationMetadata(_ context.Context, id, userID uuid
 	if m.getByIDResult != nil {
 		out = *m.getByIDResult
 	}
+	out.CreationMetadata = metadata
+	out.UpdatedAt = time.Now()
+	m.getByIDResult = &out
+	return &out, nil
+}
+
+func (m *mockRepo) UpdateTripDatesAndMetadata(_ context.Context, id, userID uuid.UUID, startDate *time.Time, days int32, route *aggregate.TripRoute, metadata map[string]any) (*entity.Trip, error) {
+	m.creationMetadataCalled = true
+	m.creationMetadata = metadata
+	out := entity.Trip{ID: id, UserID: &userID, Destination: "Rome", Days: 2, Pace: "balanced"}
+	if m.getByIDResult != nil {
+		out = *m.getByIDResult
+	}
+	out.StartDate = startDate
+	out.Days = days
+	out.Route = route
 	out.CreationMetadata = metadata
 	out.UpdatedAt = time.Now()
 	m.getByIDResult = &out
@@ -1139,6 +1156,70 @@ func (m *mockRepo) ListDiscoverySuggestionVotesByTrip(_ context.Context, tripID 
 		}
 	}
 	return out, nil
+}
+
+func (m *mockRepo) UpsertTripAvailabilityResponse(_ context.Context, response *entity.TripAvailabilityResponse) (*entity.TripAvailabilityResponse, error) {
+	out := *response
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now()
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = now
+	}
+	out.UpdatedAt = now
+	for i := range m.availabilityResponses {
+		existing := &m.availabilityResponses[i]
+		if existing.TripID == out.TripID && existing.UserID == out.UserID {
+			out.CreatedAt = existing.CreatedAt
+			m.availabilityResponses[i] = out
+			return &out, nil
+		}
+	}
+	m.availabilityResponses = append(m.availabilityResponses, out)
+	return &out, nil
+}
+
+func (m *mockRepo) GetTripAvailabilityResponseByTripAndUser(_ context.Context, tripID, userID uuid.UUID) (*entity.TripAvailabilityResponse, error) {
+	for i := range m.availabilityResponses {
+		response := m.availabilityResponses[i]
+		if response.TripID == tripID && response.UserID == userID {
+			return &response, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripAvailabilityResponsesByTrip(_ context.Context, tripID uuid.UUID) ([]entity.TripAvailabilityResponse, error) {
+	out := make([]entity.TripAvailabilityResponse, 0)
+	for _, response := range m.availabilityResponses {
+		if response.TripID == tripID {
+			out = append(out, response)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockRepo) DeleteTripAvailabilityResponse(_ context.Context, tripID, userID uuid.UUID) error {
+	kept := m.availabilityResponses[:0]
+	for _, response := range m.availabilityResponses {
+		if response.TripID == tripID && response.UserID == userID {
+			continue
+		}
+		kept = append(kept, response)
+	}
+	m.availabilityResponses = kept
+	return nil
+}
+
+func (m *mockRepo) CountTripAvailabilityResponsesByTrip(_ context.Context, tripID uuid.UUID) (int, error) {
+	count := 0
+	for _, response := range m.availabilityResponses {
+		if response.TripID == tripID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (m *mockRepo) UpsertTripCalendarSync(_ context.Context, sync *entity.TripCalendarSync) (*entity.TripCalendarSync, error) {

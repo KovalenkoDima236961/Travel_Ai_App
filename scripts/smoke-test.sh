@@ -2882,6 +2882,85 @@ if [[ "${VIEWER_ACCESS_ROLE}" != "viewer" || "${VIEWER_CAN_EDIT}" != "false" ]];
   exit 1
 fi
 
+echo "Checking group availability and date coordination..."
+OWNER_AVAILABILITY_PAYLOAD='{
+  "availableRanges":[{"startDate":"2026-09-10","endDate":"2026-09-15"}],
+  "preferredRanges":[{"startDate":"2026-09-12","endDate":"2026-09-13"}],
+  "minTripDays":2,
+  "maxTripDays":5,
+  "timezone":"Europe/Bratislava",
+  "notes":"Weekend is best."
+}'
+COLLAB_AVAILABILITY_PAYLOAD='{
+  "availableRanges":[{"startDate":"2026-09-12","endDate":"2026-09-16"}],
+  "unavailableRanges":[{"startDate":"2026-09-14","endDate":"2026-09-14"}],
+  "preferredRanges":[{"startDate":"2026-09-12","endDate":"2026-09-13"}],
+  "minTripDays":2,
+  "maxTripDays":4,
+  "timezone":"Europe/Bratislava",
+  "notes":"Avoid Sep 14."
+}'
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability/me" "${ACCESS_TOKEN}" "${OWNER_AVAILABILITY_PAYLOAD}"
+assert_2xx "Owner submit availability"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability/me" "${COLLAB_ACCESS_TOKEN}" "${COLLAB_AVAILABILITY_PAYLOAD}"
+assert_2xx "Viewer submit own availability"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability" "${ACCESS_TOKEN}"
+assert_2xx "Get trip availability"
+if ! jq -e '.summary.submittedCount >= 2 and (.responses | length) >= 2' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Trip availability summary did not include owner and collaborator responses." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/date-options?minDays=2&maxDays=4&preferWeekends=true&limit=5" "${ACCESS_TOKEN}"
+assert_2xx "Get trip date options"
+DATE_OPTION_ID="$(jq -r '.options[0].id // empty' <<<"${LAST_BODY}")"
+DATE_OPTION_SECOND_ID="$(jq -r '.options[1].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${DATE_OPTION_ID}" ]]; then
+  echo "Date options response did not include any options." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.summary.responseCount >= 2 and .options[0].score >= 0 and (.options[0].pros | type == "array") and (.options[0].cons | type == "array")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Date option response did not include expected scoring fields." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if [[ -n "${DATE_OPTION_SECOND_ID}" ]]; then
+  DATE_POLL_PAYLOAD="$(jq -nc --arg first "${DATE_OPTION_ID}" --arg second "${DATE_OPTION_SECOND_ID}" '{title:"Which dates work best?",optionIds:[$first,$second]}')"
+else
+  DATE_POLL_PAYLOAD="$(jq -nc --arg first "${DATE_OPTION_ID}" '{title:"Which dates work best?",optionIds:[$first]}')"
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/date-options/create-poll" "${ACCESS_TOKEN}" "${DATE_POLL_PAYLOAD}"
+assert_status "Create date options poll" "201"
+DATE_POLL_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+DATE_POLL_OPTION_ID="$(jq -r '.options[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${DATE_POLL_ID}" || -z "${DATE_POLL_OPTION_ID}" ]]; then
+  echo "Date poll response did not include poll and option ids." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+DATE_POLL_VOTE_PAYLOAD="$(jq -nc --arg optionId "${DATE_POLL_OPTION_ID}" '{optionIds:[$optionId]}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls/${DATE_POLL_ID}/vote" "${COLLAB_ACCESS_TOKEN}" "${DATE_POLL_VOTE_PAYLOAD}"
+assert_2xx "Viewer vote date poll"
+DATE_APPLY_PAYLOAD="$(jq -nc --argjson revision "${TRIP_REVISION}" '{expectedItineraryRevision:$revision,regenerateItinerary:false}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/date-options/${DATE_OPTION_ID}/apply" "${COLLAB_ACCESS_TOKEN}" "${DATE_APPLY_PAYLOAD}"
+assert_status "Viewer apply date option" "403"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/date-options/${DATE_OPTION_ID}/apply" "${ACCESS_TOKEN}" "${DATE_APPLY_PAYLOAD}"
+assert_2xx "Owner apply date option"
+if ! jq -e '.trip.startDate != null and .trip.days >= 2 and .appliedOption.id != null and (.warnings | type == "array")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Apply date option response did not include updated trip and applied option." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+DATE_PREVIEW_PAYLOAD="$(jq -nc --arg tripId "${TRIP_ID}" '{source:"trip_generation",tripId:$tripId,includeTripState:true,request:{}}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/planning-constraints/preview" "${ACCESS_TOKEN}" "${DATE_PREVIEW_PAYLOAD}"
+assert_2xx "Preview planning constraints after date apply"
+if ! jq -e '.constraints.groupAvailability.selectedDateOption.startDate != null and .constraints.dates.flexibility == "fixed"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Planning constraints did not include selected fixed group dates." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking collaborative trip decisions and reactions..."
 VIEWER_POLL_CREATE_PAYLOAD='{"title":"Viewer should not create","pollType":"single_choice","options":[{"optionKey":"yes","label":"Yes"},{"optionKey":"no","label":"No"}]}'
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_POLL_CREATE_PAYLOAD}"
@@ -3344,6 +3423,8 @@ request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/polls" "${PUBLIC_S
 assert_status "Public share polls access" "401"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/reactions" "${PUBLIC_SHARE_ACCESS_TOKEN}" '{"dayNumber":1,"itemIndex":0,"reaction":"skip"}'
 assert_status "Public share reaction access" "401"
+request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability/me" "${PUBLIC_SHARE_ACCESS_TOKEN}" '{"availableRanges":[{"startDate":"2026-09-12","endDate":"2026-09-13"}]}'
+assert_status "Public share availability submit access" "401"
 
 echo "Confirming public share token cannot access private checklist surfaces..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${PUBLIC_SHARE_ACCESS_TOKEN}"

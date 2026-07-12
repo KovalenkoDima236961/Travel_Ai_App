@@ -17,12 +17,14 @@ const (
 	TypeCommentCreated = "comment_created"
 
 	// Itinerary.
-	TypeItineraryUpdated    = "itinerary_updated"
-	TypeItineraryGenerated  = "itinerary_generated"
-	TypeDayRegenerated      = "day_regenerated"
-	TypeItemRegenerated     = "item_regenerated"
-	TypeVersionRestored     = "version_restored"
-	TypeGenerationJobFailed = "generation_job_failed"
+	TypeItineraryUpdated      = "itinerary_updated"
+	TypeItineraryGenerated    = "itinerary_generated"
+	TypeDayRegenerated        = "day_regenerated"
+	TypeItemRegenerated       = "item_regenerated"
+	TypeVersionRestored       = "version_restored"
+	TypeGenerationJobFailed   = "generation_job_failed"
+	TypeDateOptionApplied     = "date_option_applied"
+	TypeAvailabilityRequested = "availability_requested"
 
 	// Budget optimization.
 	TypeBudgetOptimizationReady  = "budget_optimization_ready"
@@ -62,6 +64,8 @@ const (
 	EntityItineraryVersion = "itinerary_version"
 	EntityWorkspace        = "workspace"
 	EntityWorkspaceBudget  = "workspace_budget"
+	EntityAvailability     = "availability"
+	EntityDateOption       = "date_option"
 )
 
 // knownTypes is the set of notification types this version recognises. Unknown
@@ -80,6 +84,8 @@ var knownTypes = map[string]struct{}{
 	TypeItemRegenerated:             {},
 	TypeVersionRestored:             {},
 	TypeGenerationJobFailed:         {},
+	TypeDateOptionApplied:           {},
+	TypeAvailabilityRequested:       {},
 	TypeBudgetOptimizationReady:     {},
 	TypeBudgetOptimizationFailed:    {},
 	TypeWorkspaceBudgetCreated:      {},

@@ -22,6 +22,12 @@ const (
 	EventChecklistItemAdded                  = "checklist_item_added"
 	EventChecklistItemAssigned               = "checklist_item_assigned"
 	EventChecklistItemDeleted                = "checklist_item_deleted"
+	EventAvailabilitySubmitted               = "availability_submitted"
+	EventAvailabilityUpdated                 = "availability_updated"
+	EventAvailabilityRemoved                 = "availability_removed"
+	EventAvailabilityRequested               = "availability_requested"
+	EventDateOptionApplied                   = "date_option_applied"
+	EventDateOptionsPollCreated              = "date_options_poll_created"
 
 	// Templates.
 	EventTemplateCreated  = "template_created"
@@ -106,6 +112,8 @@ const (
 	EntityCalendarSync     = "calendar_sync"
 	EntityChecklist        = "checklist"
 	EntityChecklistItem    = "checklist_item"
+	EntityAvailability     = "availability"
+	EntityDateOption       = "date_option"
 )
 
 // knownEventTypes is the set of event types this version recognises. Recording
@@ -129,6 +137,12 @@ var knownEventTypes = map[string]struct{}{
 	EventChecklistItemAdded:                  {},
 	EventChecklistItemAssigned:               {},
 	EventChecklistItemDeleted:                {},
+	EventAvailabilitySubmitted:               {},
+	EventAvailabilityUpdated:                 {},
+	EventAvailabilityRemoved:                 {},
+	EventAvailabilityRequested:               {},
+	EventDateOptionApplied:                   {},
+	EventDateOptionsPollCreated:              {},
 	EventTemplateCreated:                     {},
 	EventTemplateArchived:                    {},
 	EventAccommodationAdded:                  {},

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from app.schemas.checklist import (
     ChecklistCategory,
     ChecklistItemType,
@@ -34,6 +36,7 @@ def generate_mock_checklist(request: GenerateChecklistRequest) -> GeneratedCheck
         reason: str,
         *,
         quantity: int | None = None,
+        due_offset_days: int | None = None,
         related_day_number: int | None = None,
         related_item_index: int | None = None,
     ) -> None:
@@ -43,6 +46,10 @@ def generate_mock_checklist(request: GenerateChecklistRequest) -> GeneratedCheck
         if key in seen or key in existing_keys:
             return
         seen.add(key)
+        due_date = None
+        departure = _departure_date(request)
+        if departure is not None and due_offset_days is not None:
+            due_date = departure - timedelta(days=due_offset_days)
         items.append(
             GeneratedChecklistItem(
                 title=title,
@@ -51,6 +58,7 @@ def generate_mock_checklist(request: GenerateChecklistRequest) -> GeneratedCheck
                 itemType=item_type,
                 priority=priority,
                 quantity=quantity,
+                dueDate=due_date,
                 reason=reason,
                 relatedDayNumber=related_day_number,
                 relatedItemIndex=related_item_index,
@@ -65,6 +73,7 @@ def generate_mock_checklist(request: GenerateChecklistRequest) -> GeneratedCheck
         "critical",
         "Confirm documents are valid for the whole trip and stored somewhere accessible.",
         "Core document check for any trip.",
+        due_offset_days=1,
     )
     add(
         "Phone charger and power bank",
@@ -89,6 +98,7 @@ def generate_mock_checklist(request: GenerateChecklistRequest) -> GeneratedCheck
         "high",
         "Save policy details and emergency contacts offline before departure.",
         "Safety information should be reachable even without connectivity.",
+        due_offset_days=1,
     )
     add(
         "Confirm accommodation address and check-in instructions",
@@ -97,6 +107,7 @@ def generate_mock_checklist(request: GenerateChecklistRequest) -> GeneratedCheck
         "high",
         "Save the address, check-in window, and host or reception contact offline.",
         "Arrival logistics are easier when accommodation details are ready.",
+        due_offset_days=1,
     )
     add(
         "Offline maps and key booking references",
@@ -281,6 +292,13 @@ def _transport_modes(request: GenerateChecklistRequest) -> set[str]:
                     if mode in text:
                         modes.add(mode)
     return {mode.strip().lower() for mode in modes if mode}
+
+
+def _departure_date(request: GenerateChecklistRequest):
+    constraints = request.planning_constraints
+    if constraints is not None and constraints.dates.start_date:
+        return date.fromisoformat(constraints.dates.start_date)
+    return request.trip.start_date
 
 
 def _trip_styles(request: GenerateChecklistRequest) -> set[str]:

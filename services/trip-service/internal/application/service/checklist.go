@@ -673,6 +673,7 @@ func generatedItemsToCreate(
 			ItemType:         item.ItemType,
 			Priority:         item.Priority,
 			Quantity:         item.Quantity,
+			DueDate:          item.DueDate,
 			Source:           entity.ChecklistSourceAI,
 			Reason:           reason,
 			RelatedDayNumber: item.RelatedDayNumber,

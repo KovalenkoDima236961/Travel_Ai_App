@@ -45,6 +45,7 @@ import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHist
 import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
 import { RouteAlternativesPanel } from "@/components/route-alternatives";
 import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
+import { AvailabilityPanel } from "@/components/trip-availability";
 import { Button } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { activityKeys } from "@/lib/api/activity";
@@ -1995,6 +1996,13 @@ export function TripDetailPageContent() {
 
             {canUsePrivateCollaboration ? (
               <>
+                <AvailabilityPanel
+                  canEdit={canMutateTrip}
+                  currentUserId={currentUserId}
+                  online={onlineActionsEnabled}
+                  onGenerationJobCreated={handleGenerationJobCreated}
+                  trip={trip}
+                />
                 <PollsPanel
                   canCreate={canCreatePoll}
                   online={onlineActionsEnabled}

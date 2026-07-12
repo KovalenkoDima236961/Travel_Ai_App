@@ -14,6 +14,7 @@ type IconComponent = ComponentType<{ className?: string }>;
 
 const ITEMS: { label: string; href: string; icon: IconComponent }[] = [
   { label: "Itinerary", href: "#itinerary", icon: CalendarIcon },
+  { label: "Dates", href: "#dates", icon: CalendarIcon },
   { label: "Decisions", href: "#decisions", icon: UserGroupIcon },
   { label: "Map", href: "#map", icon: MapIcon },
   { label: "Budget", href: "#budget", icon: WalletIcon },

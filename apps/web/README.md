@@ -733,6 +733,22 @@ The repository-level smoke test exercises the web-facing service contracts:
 ./scripts/smoke-test.sh
 ```
 
+## Dates And Availability
+
+Private trip detail pages include a **Dates** section for group date
+coordination. Accepted collaborators can enter available, unavailable, and
+preferred date ranges, min/max trip days, timezone, and notes. Mutations are
+disabled offline; v1 does not expose public availability forms.
+
+The section shows submitted/missing counts, scored date options, conflicts,
+pros/cons, and warnings. Owners/editors can request missing availability, apply
+a selected option with an explicit regeneration checkbox, or create an existing
+collaboration poll from selected options. Applying dates updates the trip and
+may make the current itinerary stale unless regeneration is queued.
+
+Limitations: availability is manually entered, scores are advisory, no calendar
+free/busy import is performed, and no booking/reservation action happens.
+
 ## Security Notes
 
 - Tokens are stored in `localStorage` for development v1. Use secure httpOnly

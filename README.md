@@ -342,3 +342,12 @@ Service evaluates workspace trips deterministically, adds the result to
 approval readiness, and blocks submission only for violated rules configured
 as `blocking`. AI generation/adaptation receives active rules as best-effort
 guidance; backend evaluation remains authoritative.
+
+## Group Availability & Date Coordination v1
+
+Trip collaborators can now submit manual available, unavailable, and preferred
+date ranges. Trip Service computes deterministic scored date windows, owners or
+editors can create a date poll from those options, and applying an option fixes
+the trip dates for later planning constraints and AI generation. V1 is advisory
+and manual: it does not import calendar free/busy data, book anything, or rewrite
+an existing itinerary unless the user explicitly queues regeneration.

@@ -67,6 +67,11 @@ class MockItineraryGenerator:
             days.append(
                 ItineraryDay(
                     day=day_number,
+                    date=(
+                        request.start_date + timedelta(days=day_number - 1)
+                        if request.start_date
+                        else None
+                    ),
                     title=self._title_for_day(request, day_number),
                     items=items,
                 )

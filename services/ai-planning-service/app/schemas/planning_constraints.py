@@ -163,6 +163,25 @@ class PlanningConstraintGroupPreferences(APIModel):
     open_decision_count: int = Field(default=0, alias="openDecisionCount")
 
 
+class SelectedDateOption(APIModel):
+    start_date: str = Field(alias="startDate")
+    end_date: str = Field(alias="endDate")
+    duration_days: int = Field(alias="durationDays")
+    score: int = 0
+    conflict_user_count: int = Field(default=0, alias="conflictUserCount")
+
+
+class PlanningConstraintGroupAvailability(APIModel):
+    submitted_count: int = Field(default=0, alias="submittedCount")
+    total_collaborators: int = Field(default=0, alias="totalCollaborators")
+    selected_date_option: SelectedDateOption | None = Field(
+        default=None,
+        alias="selectedDateOption",
+    )
+    missing_response_count: int = Field(default=0, alias="missingResponseCount")
+    notes: str | None = None
+
+
 class PreviousTripSignals(APIModel):
     visited_destinations: list[str] = Field(default_factory=list, alias="visitedDestinations")
     liked_styles: list[str] = Field(default_factory=list, alias="likedStyles")
@@ -208,6 +227,10 @@ class PlanningConstraints(APIModel):
     group_preferences: PlanningConstraintGroupPreferences | None = Field(
         default=None,
         alias="groupPreferences",
+    )
+    group_availability: PlanningConstraintGroupAvailability | None = Field(
+        default=None,
+        alias="groupAvailability",
     )
     previous_trip_signals: PreviousTripSignals | None = Field(
         default=None,

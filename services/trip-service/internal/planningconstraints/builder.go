@@ -29,6 +29,7 @@ type BuildInput struct {
 	UserContext                usercontext.UserContext
 	WorkspacePolicy            *workspacepolicies.Policy
 	GroupPreferences           *GroupPreferences
+	GroupAvailability          *GroupAvailability
 	PreviousTrips              []entity.Trip
 	IncludePreviousTripSignals bool
 	IncludeRoute               bool
@@ -78,6 +79,9 @@ func Build(input BuildInput) PlanningConstraints {
 	}
 	if input.GroupPreferences != nil && strings.TrimSpace(input.GroupPreferences.Summary) != "" {
 		constraints.GroupPreferences = input.GroupPreferences
+	}
+	if input.GroupAvailability != nil {
+		constraints.GroupAvailability = input.GroupAvailability
 	}
 	if input.IncludePreviousTripSignals {
 		constraints.PreviousTripSignals = previousTripSignals(input.PreviousTrips)
@@ -143,6 +147,10 @@ func ToAIContext(c *PlanningConstraints) *AIContext {
 	}
 	if c.GroupPreferences != nil && strings.TrimSpace(c.GroupPreferences.Summary) != "" {
 		parts = append(parts, "Group preferences: "+strings.TrimSpace(c.GroupPreferences.Summary))
+	}
+	if c.GroupAvailability != nil && c.GroupAvailability.SelectedDateOption != nil {
+		selected := c.GroupAvailability.SelectedDateOption
+		parts = append(parts, "Group dates: "+selected.StartDate+" to "+selected.EndDate)
 	}
 	return &AIContext{
 		PlanningConstraints: c,
@@ -232,6 +240,13 @@ func dates(input BuildInput) Dates {
 		if parsed, err := time.Parse("2006-01-02", out.StartDate); err == nil {
 			out.EndDate = parsed.AddDate(0, 0, out.DurationDays-1).Format("2006-01-02")
 		}
+	}
+	if input.GroupAvailability != nil && input.GroupAvailability.SelectedDateOption != nil {
+		selected := input.GroupAvailability.SelectedDateOption
+		out.StartDate = selected.StartDate
+		out.EndDate = selected.EndDate
+		out.DurationDays = selected.DurationDays
+		out.Flexibility = "fixed"
 	}
 	return out
 }

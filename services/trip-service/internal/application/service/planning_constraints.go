@@ -69,6 +69,10 @@ func (s *Service) PreviewPlanningConstraints(
 	if err != nil {
 		return nil, err
 	}
+	groupAvailability, err := s.groupAvailabilityForPlanning(ctx, trip)
+	if err != nil {
+		return nil, err
+	}
 
 	constraints := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:                     user.ID,
@@ -79,6 +83,7 @@ func (s *Service) PreviewPlanningConstraints(
 		UserContext:                userCtx,
 		WorkspacePolicy:            policy,
 		GroupPreferences:           groupPreferences,
+		GroupAvailability:          groupAvailability,
 		PreviousTrips:              previousTrips,
 		IncludePreviousTripSignals: planningconstraints.IncludePreviousSignals(req.Source, req.IncludePreviousTripSignals),
 		IncludeRoute:               planningconstraints.IncludeRoute(req.IncludeRoute),
@@ -116,6 +121,10 @@ func (s *Service) buildPlanningConstraints(
 	if err != nil {
 		return nil, err
 	}
+	groupAvailability, err := s.groupAvailabilityForPlanning(ctx, trip)
+	if err != nil {
+		return nil, err
+	}
 	constraints := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:                     user.ID,
 		Trip:                       trip,
@@ -125,6 +134,7 @@ func (s *Service) buildPlanningConstraints(
 		UserContext:                userCtx,
 		WorkspacePolicy:            policy,
 		GroupPreferences:           groupPreferences,
+		GroupAvailability:          groupAvailability,
 		PreviousTrips:              previousTrips,
 		IncludePreviousTripSignals: includePrevious,
 		IncludeRoute:               true,

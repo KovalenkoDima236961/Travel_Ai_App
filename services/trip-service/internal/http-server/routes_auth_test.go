@@ -1555,6 +1555,7 @@ type routeTestRepo struct {
 	pollVotes                   []entity.TripPollVote
 	itemReactions               []entity.ItineraryItemReaction
 	discoveryVotes              []entity.DiscoverySuggestionVote
+	availabilityResponses       []entity.TripAvailabilityResponse
 }
 
 // --- approval workflow (route tests do not exercise approval endpoints; these
@@ -1680,6 +1681,20 @@ func (r *routeTestRepo) UpdateTripCreationMetadata(_ context.Context, id, userID
 	if !ok || trip.UserID == nil || *trip.UserID != userID {
 		return nil, domainerrs.ErrNotFound
 	}
+	trip.CreationMetadata = metadata
+	trip.UpdatedAt = time.Now().UTC()
+	r.trips[id] = trip
+	return &trip, nil
+}
+
+func (r *routeTestRepo) UpdateTripDatesAndMetadata(_ context.Context, id, userID uuid.UUID, startDate *time.Time, days int32, route *aggregate.TripRoute, metadata map[string]any) (*entity.Trip, error) {
+	trip, ok := r.trips[id]
+	if !ok || trip.UserID == nil || *trip.UserID != userID {
+		return nil, domainerrs.ErrNotFound
+	}
+	trip.StartDate = startDate
+	trip.Days = days
+	trip.Route = route
 	trip.CreationMetadata = metadata
 	trip.UpdatedAt = time.Now().UTC()
 	r.trips[id] = trip
@@ -2637,6 +2652,87 @@ func (r *routeTestRepo) ListDiscoverySuggestionVotesByTrip(
 		}
 	}
 	return out, nil
+}
+
+func (r *routeTestRepo) UpsertTripAvailabilityResponse(
+	_ context.Context,
+	response *entity.TripAvailabilityResponse,
+) (*entity.TripAvailabilityResponse, error) {
+	out := *response
+	if out.ID == uuid.Nil {
+		out.ID = uuid.New()
+	}
+	now := time.Now().UTC()
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = now
+	}
+	out.UpdatedAt = now
+	for i := range r.availabilityResponses {
+		existing := &r.availabilityResponses[i]
+		if existing.TripID == out.TripID && existing.UserID == out.UserID {
+			out.CreatedAt = existing.CreatedAt
+			r.availabilityResponses[i] = out
+			return &out, nil
+		}
+	}
+	r.availabilityResponses = append(r.availabilityResponses, out)
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetTripAvailabilityResponseByTripAndUser(
+	_ context.Context,
+	tripID,
+	userID uuid.UUID,
+) (*entity.TripAvailabilityResponse, error) {
+	for _, response := range r.availabilityResponses {
+		if response.TripID == tripID && response.UserID == userID {
+			out := response
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListTripAvailabilityResponsesByTrip(
+	_ context.Context,
+	tripID uuid.UUID,
+) ([]entity.TripAvailabilityResponse, error) {
+	out := make([]entity.TripAvailabilityResponse, 0)
+	for _, response := range r.availabilityResponses {
+		if response.TripID == tripID {
+			out = append(out, response)
+		}
+	}
+	return out, nil
+}
+
+func (r *routeTestRepo) DeleteTripAvailabilityResponse(
+	_ context.Context,
+	tripID,
+	userID uuid.UUID,
+) error {
+	kept := r.availabilityResponses[:0]
+	for _, response := range r.availabilityResponses {
+		if response.TripID == tripID && response.UserID == userID {
+			continue
+		}
+		kept = append(kept, response)
+	}
+	r.availabilityResponses = kept
+	return nil
+}
+
+func (r *routeTestRepo) CountTripAvailabilityResponsesByTrip(
+	_ context.Context,
+	tripID uuid.UUID,
+) (int, error) {
+	count := 0
+	for _, response := range r.availabilityResponses {
+		if response.TripID == tripID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (r *routeTestRepo) UpsertTripCalendarSync(_ context.Context, sync *entity.TripCalendarSync) (*entity.TripCalendarSync, error) {

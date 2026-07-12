@@ -280,6 +280,31 @@
     "rushedWarning": "Esta ruta puede ser apresurada",
     "approximateWarning": "Las estimaciones son aproximadas y no incluyen precios en vivo."
   },
+  "tripAvailability": {
+    "title": "Fechas",
+    "myAvailability": "Mi disponibilidad",
+    "available": "Disponible",
+    "unavailable": "No disponible",
+    "preferred": "Preferida",
+    "saveAvailability": "Guardar disponibilidad",
+    "requestAvailability": "Solicitar disponibilidad",
+    "refreshOptions": "Actualizar opciones",
+    "createPoll": "Crear encuesta",
+    "applyDates": "Aplicar fechas",
+    "submitted": "Enviadas",
+    "missing": "Faltan",
+    "travelers": "Viajeros",
+    "offline": "Necesitas conexión para actualizar la disponibilidad."
+  },
+  "dateOptions": {
+    "bestOptions": "Mejores opciones de fechas",
+    "availableUsers": "Usuarios disponibles",
+    "conflicts": "Conflictos",
+    "missingResponses": "Respuestas faltantes",
+    "includesWeekend": "Incluye fin de semana",
+    "conflictWarning": "Esta opción puede entrar en conflicto con algunos colaboradores.",
+    "itineraryStaleWarning": "El itinerario existente puede quedar desactualizado."
+  },
   "errors": {
     "generic": "Algo ha salido mal. Inténtalo de nuevo.", "unauthorized": "Inicia sesión para continuar.",
     "forbidden": "No tienes permiso para hacer eso.", "notFound": "No se encontró el elemento solicitado.",

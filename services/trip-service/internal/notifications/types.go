@@ -26,6 +26,8 @@ const (
 	TypeWorkspaceBudgetNearLimit = "workspace_budget_nearing_limit"
 	TypeChecklistItemAssigned    = "checklist_item_assigned"
 	TypeChecklistGenerated       = "checklist_generated"
+	TypeAvailabilityRequested    = "availability_requested"
+	TypeDateOptionApplied        = "date_option_applied"
 
 	// Approval workflow.
 	TypeTripSubmittedForApproval = "trip_submitted_for_approval"
@@ -48,4 +50,6 @@ const (
 	EntityWorkspaceBudget  = "workspace_budget"
 	EntityChecklist        = "checklist"
 	EntityChecklistItem    = "checklist_item"
+	EntityAvailability     = "availability"
+	EntityDateOption       = "date_option"
 )

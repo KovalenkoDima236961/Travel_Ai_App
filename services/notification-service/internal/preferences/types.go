@@ -87,6 +87,8 @@ var typeToCategory = map[string]string{
 	notifications.TypeItemRegenerated:             CategoryTripUpdates,
 	notifications.TypeVersionRestored:             CategoryTripUpdates,
 	notifications.TypeGenerationJobFailed:         CategoryTripUpdates,
+	notifications.TypeDateOptionApplied:           CategoryTripUpdates,
+	notifications.TypeAvailabilityRequested:       CategoryCollaboration,
 	notifications.TypeBudgetOptimizationReady:     CategoryTripUpdates,
 	notifications.TypeBudgetOptimizationFailed:    CategoryTripUpdates,
 	notifications.TypeWorkspaceBudgetCreated:      CategoryTripUpdates,

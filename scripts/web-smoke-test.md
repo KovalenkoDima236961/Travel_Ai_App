@@ -1212,6 +1212,27 @@ at once: the trip **owner** and a **second user** (collaborator).
 12. Open the public share link (`/share/<shareToken>`) in a logged-out session
     and confirm there is **no** notification bell.
 
+## Group Availability And Dates
+
+1. Log in as the trip owner and open a private shared trip.
+2. Go to the **Dates** section.
+3. Submit owner availability, for example Sep 10-15 with Sep 12-13 preferred.
+4. In another browser, accept the trip invitation as a collaborator and submit
+   a different availability window, including one unavailable day.
+5. Confirm the Dates section shows submitted/missing counts and scored date
+   options with availability counts, conflicts, pros/cons, and warnings.
+6. As owner/editor, select two or three options and create a date poll.
+7. Vote on the poll as the collaborator and confirm it appears in Decisions.
+8. Apply the preferred date option. Confirm the dialog warns that an existing
+   itinerary may become outdated and offers a regeneration checkbox.
+9. Confirm the trip start date/duration update and a success message appears.
+10. Generate or regenerate an itinerary and confirm day dates use the selected
+    group dates.
+11. Generate a checklist and confirm time-sensitive prep items can show due
+    dates before departure.
+12. Open the public share and confirm availability/date mutation controls are
+    unavailable.
+
 ## Workspace Approval Workflow (Trip Service + Web)
 
 Use two browsers: workspace owner A and member B (from the Workspaces flow).

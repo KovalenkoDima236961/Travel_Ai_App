@@ -966,3 +966,42 @@ partial regeneration, budget optimization, and template adaptation. This is
 guidance only: Trip Service evaluation remains authoritative. Policies are
 planning guidance, not legal/compliance or expense enforcement; v1 has no
 custom rule DSL.
+
+## Group Availability & Date Coordination v1
+
+Trip Service stores one manual availability response per user/trip in
+`trip_availability_responses`. A response contains inclusive `availableRanges`,
+`unavailableRanges`, `preferredRanges`, optional `minTripDays` / `maxTripDays`,
+`timezone`, and `notes` (max 500 chars). Public shares cannot submit; accepted
+viewers/editors/owners with private trip access can submit or delete only their
+own response.
+
+Endpoints:
+
+- `GET /trips/{tripId}/availability`
+- `PUT /trips/{tripId}/availability/me`
+- `DELETE /trips/{tripId}/availability/me`
+- `POST /trips/{tripId}/availability/request`
+- `GET /trips/{tripId}/date-options`
+- `POST /trips/{tripId}/date-options/generate`
+- `POST /trips/{tripId}/date-options/{optionId}/apply`
+- `POST /trips/{tripId}/date-options/create-poll`
+
+Date options are computed live. Scoring rewards full availability overlap,
+preferred windows, weekends, and trip-duration fit, then penalizes conflicts,
+missing responses, and user min/max duration misses. Options are sorted by
+score, conflicts, missing responses, preference count, then shorter duration.
+
+Applying an option is owner/editor-only, checks the itinerary revision when
+provided, updates `start_date` and `days`, shifts route dates only when the
+duration remains compatible, stores `creation_metadata.selectedDateOption`,
+records activity, notifies collaborators, and resets approval when needed. It
+does not rewrite the itinerary unless `regenerateItinerary=true`, in which case
+a normal full-generation job is queued.
+
+Date options can be converted into existing `date_choice` polls. Poll option
+metadata stores the selected date option ID, start/end, duration, and score.
+
+Limitations: v1 is manual only, has no Google Calendar free/busy import, no
+anonymous/public forms, no per-hour scheduling, and no booking or leave
+approval workflow.

@@ -148,6 +148,7 @@ type GeneratedChecklistItem struct {
 	ItemType         entity.ChecklistItemType
 	Priority         entity.ChecklistPriority
 	Quantity         *int
+	DueDate          *time.Time
 	Reason           string
 	RelatedDayNumber *int
 	RelatedItemIndex *int

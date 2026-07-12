@@ -280,6 +280,31 @@
     "rushedWarning": "Цей маршрут може бути поспішним",
     "approximateWarning": "Оцінки приблизні й не містять актуальних цін на квитки."
   },
+  "tripAvailability": {
+    "title": "Дати",
+    "myAvailability": "Моя доступність",
+    "available": "Доступний",
+    "unavailable": "Недоступний",
+    "preferred": "Бажаний",
+    "saveAvailability": "Зберегти доступність",
+    "requestAvailability": "Запросити доступність",
+    "refreshOptions": "Оновити варіанти",
+    "createPoll": "Створити опитування",
+    "applyDates": "Застосувати дати",
+    "submitted": "Надіслано",
+    "missing": "Бракує",
+    "travelers": "Мандрівники",
+    "offline": "Потрібне підключення, щоб оновити доступність."
+  },
+  "dateOptions": {
+    "bestOptions": "Найкращі варіанти дат",
+    "availableUsers": "Доступні користувачі",
+    "conflicts": "Конфлікти",
+    "missingResponses": "Відсутні відповіді",
+    "includesWeekend": "Містить вихідні",
+    "conflictWarning": "Цей варіант дат може конфліктувати з доступністю деяких учасників.",
+    "itineraryStaleWarning": "Поточний маршрут може застаріти."
+  },
   "errors": {
     "generic": "Сталася помилка. Спробуйте ще раз.", "unauthorized": "Увійдіть, щоб продовжити.",
     "forbidden": "У вас немає дозволу на цю дію.", "notFound": "Запитаний елемент не знайдено.",

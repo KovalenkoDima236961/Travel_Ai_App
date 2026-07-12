@@ -78,6 +78,7 @@ type PlanningConstraints struct {
 	Route               *Route               `json:"route,omitempty"`
 	WorkspacePolicy     *WorkspacePolicy     `json:"workspacePolicy,omitempty"`
 	GroupPreferences    *GroupPreferences    `json:"groupPreferences,omitempty"`
+	GroupAvailability   *GroupAvailability   `json:"groupAvailability,omitempty"`
 	PreviousTripSignals *PreviousTripSignals `json:"previousTripSignals,omitempty"`
 	Prompt              *Prompt              `json:"prompt,omitempty"`
 	Warnings            []Issue              `json:"warnings"`
@@ -167,6 +168,22 @@ type GroupPreferences struct {
 	PreferredRouteSessionID     string                      `json:"preferredRouteSessionId,omitempty"`
 	RouteAlternativeVotes       []GroupRouteAlternativeVote `json:"routeAlternativeVotes,omitempty"`
 	OpenDecisionCount           int                         `json:"openDecisionCount"`
+}
+
+type GroupAvailability struct {
+	SubmittedCount       int                 `json:"submittedCount"`
+	TotalCollaborators   int                 `json:"totalCollaborators"`
+	SelectedDateOption   *SelectedDateOption `json:"selectedDateOption,omitempty"`
+	MissingResponseCount int                 `json:"missingResponseCount"`
+	Notes                string              `json:"notes,omitempty"`
+}
+
+type SelectedDateOption struct {
+	StartDate         string `json:"startDate"`
+	EndDate           string `json:"endDate"`
+	DurationDays      int    `json:"durationDays"`
+	Score             int    `json:"score"`
+	ConflictUserCount int    `json:"conflictUserCount"`
 }
 
 type GroupPreferenceItem struct {
