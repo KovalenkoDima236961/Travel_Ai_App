@@ -1,3 +1,5 @@
+import type { ExpenseReceiptSummary, ReceiptStatus } from "@/entities/receipt/model";
+
 export type MoneyAmount = {
   amount: number;
   currency: string;
@@ -58,6 +60,10 @@ export type TripExpense = {
   linkedAccommodation: boolean;
   notes?: string | null;
   metadata: Record<string, unknown>;
+  receiptCount: number;
+  hasReceipt: boolean;
+  latestReceiptStatus?: ReceiptStatus | null;
+  receipts: ExpenseReceiptSummary[];
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;

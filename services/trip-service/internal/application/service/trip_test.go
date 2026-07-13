@@ -913,6 +913,50 @@ func (m *mockRepo) MarkTripSettlementPaid(context.Context, uuid.UUID, uuid.UUID,
 	return nil, domainerrs.ErrNotFound
 }
 
+func (m *mockRepo) CreateTripExpenseReceipt(_ context.Context, receipt *entity.TripExpenseReceipt) (*entity.TripExpenseReceipt, error) {
+	out := *receipt
+	now := time.Now()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	return &out, nil
+}
+
+func (m *mockRepo) GetTripExpenseReceiptByID(context.Context, uuid.UUID, uuid.UUID, bool) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripExpenseReceipts(context.Context, uuid.UUID, appdto.ListReceiptsInput) ([]entity.TripExpenseReceipt, error) {
+	return []entity.TripExpenseReceipt{}, nil
+}
+
+func (m *mockRepo) ListTripExpenseReceiptsByExpense(context.Context, uuid.UUID, uuid.UUID) ([]entity.TripExpenseReceipt, error) {
+	return []entity.TripExpenseReceipt{}, nil
+}
+
+func (m *mockRepo) UpdateTripExpenseReceiptStatus(context.Context, uuid.UUID, uuid.UUID, entity.ReceiptStatus, *uuid.UUID) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) AttachTripExpenseReceipt(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) SoftDeleteTripExpenseReceipt(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CreateReceiptOCRResult(_ context.Context, result *entity.ReceiptOCRResult) (*entity.ReceiptOCRResult, error) {
+	out := *result
+	now := time.Now()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	return &out, nil
+}
+
+func (m *mockRepo) GetLatestReceiptOCRResult(context.Context, uuid.UUID, uuid.UUID) (*entity.ReceiptOCRResult, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
 func (m *mockRepo) CancelTripSettlement(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripSettlement, error) {
 	return nil, domainerrs.ErrNotFound
 }

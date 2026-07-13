@@ -111,6 +111,35 @@ request_with_bearer() {
   rm -f "${response_file}"
 }
 
+request_receipt_upload() {
+  local url="$1"
+  local token="$2"
+  local file_path="$3"
+  local filename="$4"
+  local expense_id="${5:-}"
+  local response_file
+  response_file="$(mktemp)"
+  local curl_args=(
+    -sS
+    -o "${response_file}"
+    -w "%{http_code}"
+    -X POST
+    -H "Authorization: Bearer ${token}"
+    -F "file=@${file_path};filename=${filename};type=image/png"
+    -F "runOcr=true"
+  )
+  if [[ -n "${expense_id}" ]]; then
+    curl_args+=(-F "expenseId=${expense_id}")
+  fi
+  if ! LAST_STATUS="$(curl "${curl_args[@]}" "${url}")"; then
+    LAST_BODY="$(cat "${response_file}")"
+    rm -f "${response_file}"
+    return 1
+  fi
+  LAST_BODY="$(cat "${response_file}")"
+  rm -f "${response_file}"
+}
+
 request_with_internal_token() {
   local method="$1"
   local url="$2"
@@ -2954,9 +2983,64 @@ if ! jq -e --arg id "${EXPENSE_ID}" '.items | any(.id == $id)' <<<"${LAST_BODY}"
   exit 1
 fi
 
+echo "Checking receipt upload, mock OCR review, expense creation, attach, and delete..."
+RECEIPT_FILE="$(mktemp)"
+printf '\x89PNG\r\n\x1a\n' > "${RECEIPT_FILE}"
+request_receipt_upload "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/receipts/upload" "${ACCESS_TOKEN}" "${RECEIPT_FILE}" "train-ticket.png"
+assert_status "Upload receipt with OCR" "201"
+RECEIPT_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${RECEIPT_ID}" ]] || ! jq -e '.status == "extracted" and .ocrResult.category == "transport" and .ocrResult.amount.amount == 72' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Receipt upload did not return expected mock OCR data." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+RECEIPT_EXPENSE_PAYLOAD="$(
+  jq -nc \
+    --arg owner "${OWNER_USER_ID}" \
+    --arg collab "${COLLAB_USER_ID}" \
+    '{
+      title:"Train tickets",
+      amount:{amount:72,currency:"EUR"},
+      category:"transport",
+      expenseDate:"2026-08-10",
+      paidByUserId:$owner,
+      splitType:"selected_equal",
+      participantUserIds:[$owner,$collab],
+      notes:"Reviewed receipt OCR"
+    }'
+)"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/receipts/${RECEIPT_ID}/create-expense" "${ACCESS_TOKEN}" "${RECEIPT_EXPENSE_PAYLOAD}"
+assert_status "Create expense from receipt" "201"
+RECEIPT_EXPENSE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${RECEIPT_EXPENSE_ID}" ]] || ! jq -e --arg receipt_id "${RECEIPT_ID}" '.hasReceipt == true and (.receipts | any(.id == $receipt_id))' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Create expense from receipt did not link the receipt." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_receipt_upload "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/receipts/upload" "${ACCESS_TOKEN}" "${RECEIPT_FILE}" "parking-receipt.png" "${EXPENSE_ID}"
+assert_status "Upload receipt attached to existing expense" "201"
+ATTACHED_RECEIPT_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ATTACHED_RECEIPT_ID}" ]] || ! jq -e --arg expense_id "${EXPENSE_ID}" '.expenseId == $expense_id and .status == "extracted"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Attached receipt response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/receipts/${ATTACHED_RECEIPT_ID}/file" "${ACCESS_TOKEN}"
+assert_2xx "Download attached receipt file"
+request_with_bearer DELETE "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/receipts/${ATTACHED_RECEIPT_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Delete attached receipt"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/receipts/${ATTACHED_RECEIPT_ID}/file" "${ACCESS_TOKEN}"
+assert_status "Deleted receipt file denied" "404"
+request GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/receipts"
+assert_status "Unauthenticated receipt list denied" "401"
+rm -f "${RECEIPT_FILE}"
+
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/summary?currency=EUR" "${ACCESS_TOKEN}"
 assert_2xx "Expense summary"
-if ! jq -e '.actualTotal.amount == 42 and .settlementSummary.pendingCount >= 1 and (.balances | length) >= 2' <<<"${LAST_BODY}" >/dev/null; then
+if ! jq -e '.actualTotal.amount == 114 and .settlementSummary.pendingCount >= 1 and (.balances | length) >= 2' <<<"${LAST_BODY}" >/dev/null; then
   echo "Expense summary did not include expected totals, balances, and pending settlement." >&2
   echo "${LAST_BODY}" >&2
   exit 1

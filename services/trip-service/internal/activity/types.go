@@ -37,6 +37,12 @@ const (
 	EventExpenseCreated                      = "expense_created"
 	EventExpenseUpdated                      = "expense_updated"
 	EventExpenseDeleted                      = "expense_deleted"
+	EventReceiptUploaded                     = "receipt_uploaded"
+	EventReceiptExtracted                    = "receipt_extracted"
+	EventReceiptExtractionFailed             = "receipt_extraction_failed"
+	EventExpenseCreatedFromReceipt           = "expense_created_from_receipt"
+	EventReceiptAttached                     = "receipt_attached"
+	EventReceiptDeleted                      = "receipt_deleted"
 	EventSettlementMarkedPaid                = "settlement_marked_paid"
 	EventSettlementCancelled                 = "settlement_cancelled"
 
@@ -108,26 +114,27 @@ const (
 
 // Entity type constants describe the kind of object an event refers to.
 const (
-	EntityTrip             = "trip"
-	EntityTripTraveler     = "trip_traveler"
-	EntityTripTemplate     = "trip_template"
-	EntityAccommodation    = "accommodation"
-	EntityItinerary        = "itinerary"
-	EntityItineraryDay     = "itinerary_day"
-	EntityItineraryItem    = "itinerary_item"
-	EntityItineraryVersion = "itinerary_version"
-	EntityComment          = "comment"
-	EntityTripPoll         = "trip_poll"
-	EntityCollaborator     = "collaborator"
-	EntityShare            = "share"
-	EntityCalendarSync     = "calendar_sync"
-	EntityChecklist        = "checklist"
-	EntityChecklistItem    = "checklist_item"
-	EntityReminder         = "trip_reminder"
-	EntityAvailability     = "availability"
-	EntityDateOption       = "date_option"
-	EntityTripExpense      = "trip_expense"
-	EntityTripSettlement   = "trip_settlement"
+	EntityTrip               = "trip"
+	EntityTripTraveler       = "trip_traveler"
+	EntityTripTemplate       = "trip_template"
+	EntityAccommodation      = "accommodation"
+	EntityItinerary          = "itinerary"
+	EntityItineraryDay       = "itinerary_day"
+	EntityItineraryItem      = "itinerary_item"
+	EntityItineraryVersion   = "itinerary_version"
+	EntityComment            = "comment"
+	EntityTripPoll           = "trip_poll"
+	EntityCollaborator       = "collaborator"
+	EntityShare              = "share"
+	EntityCalendarSync       = "calendar_sync"
+	EntityChecklist          = "checklist"
+	EntityChecklistItem      = "checklist_item"
+	EntityReminder           = "trip_reminder"
+	EntityAvailability       = "availability"
+	EntityDateOption         = "date_option"
+	EntityTripExpense        = "trip_expense"
+	EntityTripExpenseReceipt = "trip_expense_receipt"
+	EntityTripSettlement     = "trip_settlement"
 )
 
 // knownEventTypes is the set of event types this version recognises. Recording
@@ -166,6 +173,12 @@ var knownEventTypes = map[string]struct{}{
 	EventExpenseCreated:                      {},
 	EventExpenseUpdated:                      {},
 	EventExpenseDeleted:                      {},
+	EventReceiptUploaded:                     {},
+	EventReceiptExtracted:                    {},
+	EventReceiptExtractionFailed:             {},
+	EventExpenseCreatedFromReceipt:           {},
+	EventReceiptAttached:                     {},
+	EventReceiptDeleted:                      {},
 	EventSettlementMarkedPaid:                {},
 	EventSettlementCancelled:                 {},
 	EventTemplateCreated:                     {},

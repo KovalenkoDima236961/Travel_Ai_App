@@ -99,6 +99,7 @@ import { useTripRepairProposals } from "@/features/trip-repair";
 import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
+import { useTripExpenses } from "@/hooks/useTripExpenses";
 import { useTripReminders } from "@/hooks/useTripReminders";
 import { useItineraryReactions } from "@/hooks/useItineraryReactions";
 import { useCostSplittingSummary } from "@/features/cost-splitting";
@@ -521,6 +522,14 @@ export function TripDetailPageContent() {
         displayedTrip?.status === "COMPLETED"
     }
   );
+  const exportExpensesQuery = useTripExpenses({
+    tripId,
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      canUsePrivateCollaboration &&
+      displayedTrip?.status === "COMPLETED"
+  });
   const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
   const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
   const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
@@ -645,7 +654,8 @@ export function TripDetailPageContent() {
             ),
             budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null,
             checklist: checklistQuery.data?.checklist ?? null,
-            reminders: remindersQuery.data?.reminders ?? null
+            reminders: remindersQuery.data?.reminders ?? null,
+            expenses: exportExpensesQuery.data?.items ?? null
           })
         : null,
     [
@@ -653,6 +663,7 @@ export function TripDetailPageContent() {
       budgetSummaryQuery.data,
       checklistQuery.data?.checklist,
       displayedTrip,
+      exportExpensesQuery.data?.items,
       fallbackDistanceSummaries,
       remindersQuery.data?.reminders,
       routeEstimatesByDay,

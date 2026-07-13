@@ -2,7 +2,13 @@ import {
   addDaysToDate,
   formatIcsDateTimeLocal
 } from "@/lib/export/ics";
-import type { ExportDistanceDay, ExportTrip, ExportWeatherDay } from "@/lib/export/trip-export-adapter";
+import type {
+  ExportDistanceDay,
+  ExportExpense,
+  ExportExpenseReceipt,
+  ExportTrip,
+  ExportWeatherDay
+} from "@/lib/export/trip-export-adapter";
 import { formatInterestLabel, formatMoney, formatPaceLabel } from "@/lib/utils";
 import {
   costBadgeLabel,
@@ -120,6 +126,7 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
   }
 
   appendBudgetSummary(lines, exportTrip);
+  appendActualExpensesSummary(lines, exportTrip);
   appendChecklistSummary(lines, exportTrip);
   appendReminderSummary(lines, exportTrip);
   appendWeatherSummary(lines, exportTrip.weatherSummary);
@@ -499,6 +506,79 @@ function appendBudgetSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
         indent: 28
       });
     });
+}
+
+function appendActualExpensesSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
+  if (exportTrip.source !== "private" || !exportTrip.expenses?.length) {
+    return;
+  }
+
+  const expenses = exportTrip.expenses;
+  const receiptTotal = expenses.reduce((total, expense) => total + expense.receiptCount, 0);
+  lines.push({ text: "Actual expenses", variant: "heading" });
+  lines.push({
+    text: [
+      `${expenses.length} recorded expense${expenses.length === 1 ? "" : "s"}`,
+      receiptTotal > 0 ? `${receiptTotal} receipt${receiptTotal === 1 ? "" : "s"}` : null
+    ]
+      .filter(Boolean)
+      .join(" - "),
+    variant: "body",
+    indent: 14
+  });
+
+  expenses.forEach((expense) => {
+    lines.push({
+      text: [
+        expense.expenseDate ? formatReadableDate(expense.expenseDate) : null,
+        `${expense.title} - ${formatMoney(expense.amount.amount, expense.amount.currency)}`
+      ]
+        .filter(Boolean)
+        .join(" - "),
+      variant: "body",
+      indent: 14
+    });
+
+    const details = [
+      formatRouteToken(expense.category),
+      expense.paidByDisplayName ? `Paid by ${expense.paidByDisplayName}` : null,
+      formatExpenseReceiptLabel(expense)
+    ].filter(Boolean);
+    if (details.length) {
+      lines.push({ text: details.join(" - "), variant: "small", indent: 28 });
+    }
+  });
+}
+
+function formatExpenseReceiptLabel(expense: ExportExpense): string | null {
+  if (expense.receiptCount <= 0) {
+    return null;
+  }
+
+  if (!expense.receipts.length) {
+    return [
+      `${expense.receiptCount} receipt${expense.receiptCount === 1 ? "" : "s"}`,
+      expense.latestReceiptStatus ? formatRouteToken(expense.latestReceiptStatus) : null
+    ]
+      .filter(Boolean)
+      .join(" - ");
+  }
+
+  const receiptLabels = expense.receipts.slice(0, 3).map(formatReceiptSummaryLabel);
+  const remainingCount = expense.receiptCount - receiptLabels.length;
+  if (remainingCount > 0) {
+    receiptLabels.push(`+${remainingCount} more`);
+  }
+  return `Receipts: ${receiptLabels.join("; ")}`;
+}
+
+function formatReceiptSummaryLabel(receipt: ExportExpenseReceipt): string {
+  const details = [
+    receipt.originalFilename,
+    formatRouteToken(receipt.status),
+    receipt.ocrConfidence ? `${formatRouteToken(receipt.ocrConfidence)} OCR confidence` : null
+  ].filter(Boolean);
+  return details.join(" - ");
 }
 
 function appendWeatherSummary(lines: TripPdfLine[], weatherSummary?: ExportWeatherDay[] | null) {

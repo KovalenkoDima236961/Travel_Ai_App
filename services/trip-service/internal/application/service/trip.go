@@ -26,6 +26,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -135,6 +136,15 @@ type tripRepository interface {
 	ListTripSettlementsByTrip(ctx context.Context, tripID uuid.UUID) ([]entity.TripSettlement, error)
 	MarkTripSettlementPaid(ctx context.Context, tripID, settlementID, actorUserID uuid.UUID, notes *string) (*entity.TripSettlement, error)
 	CancelTripSettlement(ctx context.Context, tripID, settlementID, actorUserID uuid.UUID) (*entity.TripSettlement, error)
+	CreateTripExpenseReceipt(ctx context.Context, receipt *entity.TripExpenseReceipt) (*entity.TripExpenseReceipt, error)
+	GetTripExpenseReceiptByID(ctx context.Context, tripID, receiptID uuid.UUID, includeDeleted bool) (*entity.TripExpenseReceipt, error)
+	ListTripExpenseReceipts(ctx context.Context, tripID uuid.UUID, filters appdto.ListReceiptsInput) ([]entity.TripExpenseReceipt, error)
+	ListTripExpenseReceiptsByExpense(ctx context.Context, tripID, expenseID uuid.UUID) ([]entity.TripExpenseReceipt, error)
+	UpdateTripExpenseReceiptStatus(ctx context.Context, tripID, receiptID uuid.UUID, status entity.ReceiptStatus, actorUserID *uuid.UUID) (*entity.TripExpenseReceipt, error)
+	AttachTripExpenseReceipt(ctx context.Context, tripID, receiptID, expenseID, actorUserID uuid.UUID) (*entity.TripExpenseReceipt, error)
+	SoftDeleteTripExpenseReceipt(ctx context.Context, tripID, receiptID, actorUserID uuid.UUID) (*entity.TripExpenseReceipt, error)
+	CreateReceiptOCRResult(ctx context.Context, result *entity.ReceiptOCRResult) (*entity.ReceiptOCRResult, error)
+	GetLatestReceiptOCRResult(ctx context.Context, tripID, receiptID uuid.UUID) (*entity.ReceiptOCRResult, error)
 	CreateTripShare(ctx context.Context, share *entity.TripShare) (*entity.TripShare, error)
 	GetTripShareByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
 	GetTripShareByToken(ctx context.Context, shareToken string) (*entity.TripShare, error)
@@ -358,6 +368,14 @@ func WithWorkspacePolicies(provider workspacePolicyProvider) Option {
 	}
 }
 
+func WithReceipts(storage receipts.Storage, ocr receipts.OCRProvider, cfg receipts.Config) Option {
+	return func(s *Service) {
+		s.receiptStorage = storage
+		s.receiptOCRProvider = ocr
+		s.receiptConfig = cfg
+	}
+}
+
 // WithPublicSharing configures owner-managed public read-only trip links.
 func WithPublicSharing(
 	enabled bool,
@@ -407,6 +425,9 @@ type Service struct {
 	workspaceProvider            workspaceProvider
 	workspacePolicyProvider      workspacePolicyProvider
 	workspacesEnabled            bool
+	receiptStorage               receipts.Storage
+	receiptOCRProvider           receipts.OCRProvider
+	receiptConfig                receipts.Config
 	activity                     activityService
 	notifier                     notifier
 	notificationsEnabled         bool
@@ -428,6 +449,7 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		shareTokenBytes:          32,
 		publicShareTokens:        sharing.NewPublicShareTokenManager("dev-public-share-secret-change-me", time.Hour),
 		budgetConversionFailOpen: true,
+		receiptConfig:            receipts.DefaultConfig(),
 		log:                      log,
 	}
 	for _, opt := range opts {

@@ -20,6 +20,12 @@ import {
 import type { Trip } from "@/entities/trip/model";
 import type { TripTraveler } from "@/entities/cost-splitting/model";
 import {
+  AttachReceiptDialog,
+  ExpenseReceiptsList,
+  ReceiptPreview,
+  UploadReceiptDialog
+} from "@/components/receipts";
+import {
   useCreateTripExpense,
   useDeleteTripExpense,
   useMarkSettlementPaid,
@@ -27,6 +33,8 @@ import {
   useTripExpenses,
   useTripSettlements
 } from "@/hooks/useTripExpenses";
+import { useDeleteReceipt } from "@/hooks/useDeleteReceipt";
+import { useReceipt } from "@/hooks/useReceipt";
 import { getErrorMessage } from "@/lib/utils";
 
 type ExpenseUserOption = {
@@ -52,6 +60,9 @@ export function ExpensesPanel({
   const t = useTranslations("expenses");
   const settlementsT = useTranslations("settlements");
   const [addOpen, setAddOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [attachExpenseId, setAttachExpenseId] = useState<string | null>(null);
+  const [viewReceiptId, setViewReceiptId] = useState<string | null>(null);
   const [payingSuggestion, setPayingSuggestion] = useState<SettlementSuggestion | null>(null);
   const [settlementNotes, setSettlementNotes] = useState("");
   const [panelError, setPanelError] = useState<string | null>(null);
@@ -67,7 +78,13 @@ export function ExpensesPanel({
   const settlementsQuery = useTripSettlements({ tripId: trip.id, currency, enabled });
   const createMutation = useCreateTripExpense(trip.id);
   const deleteMutation = useDeleteTripExpense(trip.id);
+  const deleteReceiptMutation = useDeleteReceipt(trip.id);
   const markPaidMutation = useMarkSettlementPaid(trip.id);
+  const receiptQuery = useReceipt({
+    tripId: trip.id,
+    receiptId: viewReceiptId ?? "",
+    enabled: Boolean(viewReceiptId) && enabled
+  });
 
   const expenses = expensesQuery.data?.items ?? [];
   const summary = summaryQuery.data ?? null;
@@ -97,6 +114,18 @@ export function ExpensesPanel({
     }
   }
 
+  async function removeReceipt(receiptId: string) {
+    setPanelError(null);
+    try {
+      await deleteReceiptMutation.mutateAsync(receiptId);
+      if (viewReceiptId === receiptId) {
+        setViewReceiptId(null);
+      }
+    } catch (error) {
+      setPanelError(getErrorMessage(error, t("deleteReceiptError")));
+    }
+  }
+
   return (
     <section className="space-y-4" id="expenses">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -105,15 +134,31 @@ export function ExpensesPanel({
           <p className="mt-1 text-sm leading-6 text-slate-600">{t("subtitle")}</p>
         </div>
         {canMutateExpenses ? (
-          <Button
-            disabled={createMutation.isPending}
-            onClick={() => setAddOpen((open) => !open)}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {addOpen ? t("closeAdd") : t("addExpense")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={createMutation.isPending}
+              onClick={() => {
+                setAddOpen((open) => !open);
+                setUploadOpen(false);
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {addOpen ? t("closeAdd") : t("addExpense")}
+            </Button>
+            <Button
+              onClick={() => {
+                setUploadOpen((open) => !open);
+                setAddOpen(false);
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {uploadOpen ? t("closeReceiptUpload") : t("uploadReceipt")}
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -145,6 +190,52 @@ export function ExpensesPanel({
           }}
           users={users}
         />
+      ) : null}
+
+      {uploadOpen ? (
+        <UploadReceiptDialog
+          currency={currency}
+          onClose={() => setUploadOpen(false)}
+          onCreated={() => setPanelError(null)}
+          tripId={trip.id}
+          users={users}
+        />
+      ) : null}
+
+      {attachExpenseId ? (
+        <AttachReceiptDialog
+          expenseId={attachExpenseId}
+          onClose={() => setAttachExpenseId(null)}
+          tripId={trip.id}
+        />
+      ) : null}
+
+      {viewReceiptId ? (
+        <Card>
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-base font-semibold text-slate-950">{t("receiptPreview")}</h3>
+            <Button onClick={() => setViewReceiptId(null)} size="sm" type="button" variant="ghost">
+              {t("closePreview")}
+            </Button>
+          </div>
+          {receiptQuery.isLoading ? (
+            <p className="mt-4 text-sm text-slate-500">{t("loadingReceipt")}</p>
+          ) : receiptQuery.data ? (
+            <div className="mt-4">
+              <ReceiptPreview receipt={receiptQuery.data} />
+              {receiptQuery.data.ocrResult?.rawText ? (
+                <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  <summary className="cursor-pointer font-medium text-slate-900">{t("rawText")}</summary>
+                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">
+                    {receiptQuery.data.ocrResult.rawText}
+                  </pre>
+                </details>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-500">{t("receiptUnavailable")}</p>
+          )}
+        </Card>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -211,10 +302,15 @@ export function ExpensesPanel({
               {expenses.map((expense) => (
                 <ExpenseRow
                   canDelete={canMutateExpenses}
+                  canMutateReceipts={canMutateExpenses}
                   deleting={deleteMutation.isPending}
+                  deletingReceipt={deleteReceiptMutation.isPending}
                   expense={expense}
+                  onAttachReceipt={(item) => setAttachExpenseId(item.id)}
                   key={expense.id}
                   onDelete={removeExpense}
+                  onDeleteReceipt={removeReceipt}
+                  onViewReceipt={setViewReceiptId}
                 />
               ))}
             </div>
@@ -607,13 +703,23 @@ function AddExpenseDialog({
 function ExpenseRow({
   expense,
   canDelete,
+  canMutateReceipts,
   deleting,
-  onDelete
+  deletingReceipt,
+  onDelete,
+  onAttachReceipt,
+  onDeleteReceipt,
+  onViewReceipt
 }: {
   expense: TripExpense;
   canDelete: boolean;
+  canMutateReceipts: boolean;
   deleting: boolean;
+  deletingReceipt: boolean;
   onDelete: (expense: TripExpense) => void;
+  onAttachReceipt: (expense: TripExpense) => void;
+  onDeleteReceipt: (receiptId: string) => void;
+  onViewReceipt: (receiptId: string) => void;
 }) {
   const t = useTranslations("expenses");
   return (
@@ -624,6 +730,11 @@ function ExpenseRow({
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
             {t(`categories.${expense.category}`)}
           </span>
+          {expense.hasReceipt ? (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+              {t("receiptCount", { count: expense.receiptCount })}
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 text-sm text-slate-600">
           {expense.paidByDisplayName} · {expense.expenseDate} · {t(`splitTypes.${expense.splitType}`)}
@@ -633,11 +744,27 @@ function ExpenseRow({
             .map((participant) => `${participant.displayName} ${formatMoney(participant.shareAmount.amount, participant.shareAmount.currency)}`)
             .join(", ")}
         </p>
+        <ExpenseReceiptsList
+          deleting={deletingReceipt}
+          onDelete={canMutateReceipts ? onDeleteReceipt : undefined}
+          onView={onViewReceipt}
+          receipts={expense.receipts ?? []}
+        />
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
         <span className="font-semibold text-slate-950">
           {formatMoney(expense.amount.amount, expense.amount.currency)}
         </span>
+        {canMutateReceipts ? (
+          <Button
+            onClick={() => onAttachReceipt(expense)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {t("attachReceipt")}
+          </Button>
+        ) : null}
         {canDelete ? (
           <Button
             disabled={deleting}

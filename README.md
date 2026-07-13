@@ -177,6 +177,12 @@ Key product capabilities:
   spend to the planned budget, view deterministic balance and settlement
   suggestions, and mark suggestions paid. This is collaborative bookkeeping only:
   no real payment is initiated or processed.
+- Receipt Upload & Expense OCR v1: private trip users can upload image/PDF
+  receipts, run deterministic mock OCR for merchant/date/amount/currency/category
+  suggestions, review and edit extracted data before creating an expense, attach
+  receipts to existing expenses, and preview/delete private receipt files.
+  Public shares do not expose receipts, and OCR never creates expenses
+  automatically.
 - Cost Analytics Dashboard v1 with trip and workspace cost rollups, expensive
   item insights, missing estimate warnings, and browser-generated CSV/PDF cost
   reports.

@@ -70,6 +70,7 @@ notification streams, and calendar OAuth calls.
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
 | Reminders | Private Reminders/Timeline panel with rule-based generation, manual reminders, filters, completion/disable actions, stale warnings, and notification preferences. |
 | Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
+| Receipts | Receipt upload for private trip expenses, mock OCR review, authenticated image/PDF preview, create-expense-from-receipt, attach/delete receipt actions. |
 | AI repair | Workspace trip repair jobs, pending repair proposals, before/after itinerary diff preview, revision-safe apply/discard, and approval risk integration. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
 | Availability | Per-item availability checks with a provider badge (Ticketmaster/Mock/Fallback), match-confidence label, price qualifier (`From`/`Est.`), venue/date, price-difference vs the current estimate, safe external booking links, low-confidence/fallback warnings, and apply-price updates that preserve cost-split rules. |
@@ -111,6 +112,38 @@ preparation aids only: users must verify official requirements, tickets,
 bookings, permits, weather, legal/visa/medical details, and schedules
 themselves. SMS, WhatsApp/Telegram, automatic booking confirmation, recurring
 reminders, and calendar reminder export are not part of v1.
+
+## Receipt Upload & Expense OCR
+
+The Expenses panel supports private receipt upload when the trip is online.
+Owners/editors can upload a receipt from the expenses header, review mock OCR
+suggestions side-by-side with the authenticated preview, edit title, amount,
+currency, category, date, payer, participants, and notes, then explicitly create
+the expense. No expense is created until the user submits the reviewed form.
+
+Expense rows show a receipt indicator and attached receipt summaries. Users with
+permission can attach an unlinked receipt, upload a receipt directly to an
+existing expense, preview image/PDF files through authenticated blob loading,
+and delete receipt links/files. Receipt upload is disabled in offline private
+views and omitted from public share views.
+
+Frontend contracts live in:
+
+- `src/entities/receipt/model/receipt.ts`
+- `src/lib/api/receipts.ts`
+- `src/hooks/useUploadReceipt.ts`
+- `src/hooks/useTripReceipts.ts`
+- `src/hooks/useReceipt.ts`
+- `src/hooks/useExtractReceipt.ts`
+- `src/hooks/useCreateExpenseFromReceipt.ts`
+- `src/hooks/useAttachReceiptToExpense.ts`
+- `src/hooks/useDeleteReceipt.ts`
+- `src/components/receipts/*`
+
+Limitations: OCR can be wrong and must be verified, raw OCR text is shown only
+on authorized detail preview, public exports/shares exclude receipt files, and
+v1 does not include bank sync, automatic payment matching, item-level parsing,
+tax compliance, invoice generation, or real payments.
 
 ## Create Trip discovery mode
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/tripdiscovery"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
@@ -254,6 +256,26 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			cfg.BudgetConversion.FailOpen,
 		))
 	}
+	receiptStorage, err := receipts.NewLocalStorage(cfg.Receipts.LocalDir)
+	if err != nil {
+		return nil, fmt.Errorf("init receipt storage: %w", err)
+	}
+	receiptOCRProvider := receipts.NewMockOCRProvider()
+	opts = append(opts, service.WithReceipts(
+		receiptStorage,
+		receiptOCRProvider,
+		receipts.Config{
+			StorageProvider: cfg.Receipts.StorageProvider,
+			LocalDir:        cfg.Receipts.LocalDir,
+			MaxFileSizeMB:   cfg.Receipts.MaxFileSizeMB,
+			AllowedMIMEs:    splitCSV(cfg.Receipts.AllowedMIMETypes),
+			OCREnabled:      cfg.Receipts.OCREnabled,
+			OCRProvider:     receiptOCRProvider.Name(),
+			OCRTimeout:      time.Duration(cfg.Receipts.OCRTimeoutSeconds) * time.Second,
+			OCRFailOpen:     cfg.Receipts.OCRFailOpen,
+			StoreRawText:    cfg.Receipts.OCRStoreRawText,
+		},
+	))
 	svc := service.New(repo, gen, log, opts...)
 	generationJobsCfg := generationjobs.NormalizeConfig(generationjobs.Config{
 		Enabled:               cfg.GenerationJobs.Enabled,
@@ -364,4 +386,16 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		db:     db,
 		router: router,
 	}, nil
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }

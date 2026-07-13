@@ -150,6 +150,17 @@ budget_conversion:
   internal_service_token: dev-internal-service-token
   timeout_seconds: 8
 
+receipts:
+  storage_provider: local
+  local_dir: ./data/receipts
+  max_file_size_mb: 10
+  allowed_mime_types: image/jpeg,image/png,image/webp,application/pdf
+  ocr_enabled: true
+  ocr_provider: mock
+  ocr_timeout_seconds: 30
+  ocr_fail_open: true
+  ocr_store_raw_text: true
+
 ops:
   dashboard_enabled: false
   admin_emails: ""

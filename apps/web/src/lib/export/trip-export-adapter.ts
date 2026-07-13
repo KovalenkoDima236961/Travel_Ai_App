@@ -2,7 +2,13 @@ import type { DayDistanceSummary } from "@/entities/itinerary/model/distance-uti
 import type { TripAccommodation } from "@/entities/accommodation/model";
 import type { BudgetSummary } from "@/entities/budget/model";
 import type { TripChecklist, TripChecklistItem } from "@/entities/checklist/model";
+import type { TripExpense } from "@/entities/expense/model";
 import type { Place } from "@/entities/place/model";
+import type {
+  ExpenseReceiptSummary,
+  ReceiptOCRConfidence,
+  ReceiptStatus
+} from "@/entities/receipt/model";
 import type { PublicTrip } from "@/entities/share/model";
 import type { TripReminder } from "@/entities/trip-reminder/model";
 import type { RouteEstimate, TripRoute, TripRouteLeg, TripRouteStop } from "@/entities/route/model";
@@ -26,7 +32,32 @@ export type ExportTrip = {
   budgetSummary?: BudgetSummary | null;
   checklist?: TripChecklist | null;
   reminders?: TripReminder[] | null;
+  expenses?: ExportExpense[] | null;
   source: "private" | "public";
+};
+
+export type ExportExpenseReceipt = {
+  id: string;
+  originalFilename: string;
+  contentType: string;
+  status: ReceiptStatus;
+  ocrConfidence?: ReceiptOCRConfidence | null;
+  createdAt: string;
+};
+
+export type ExportExpense = {
+  id: string;
+  title: string;
+  amount: {
+    amount: number;
+    currency: string;
+  };
+  category: string;
+  expenseDate: string;
+  paidByDisplayName: string;
+  receiptCount: number;
+  latestReceiptStatus?: ReceiptStatus | null;
+  receipts: ExportExpenseReceipt[];
 };
 
 export type ExportWeatherDay = {
@@ -50,6 +81,7 @@ export type ExportExtras = {
   budgetSummary?: BudgetSummary | null;
   checklist?: TripChecklist | null;
   reminders?: TripReminder[] | null;
+  expenses?: TripExpense[] | null;
 };
 
 export function toExportTripFromPrivateTrip(
@@ -73,6 +105,7 @@ export function toExportTripFromPrivateTrip(
     budgetSummary: extras.budgetSummary ?? null,
     checklist: sanitizeChecklist(extras.checklist),
     reminders: sanitizeReminders(extras.reminders),
+    expenses: sanitizeExpenses(extras.expenses),
     source: "private"
   };
 }
@@ -101,6 +134,7 @@ export function toExportTripFromPublicTrip(
     budgetSummary: null,
     checklist: null,
     reminders: null,
+    expenses: null,
     source: "public"
   };
 }
@@ -351,6 +385,52 @@ function sanitizeReminders(reminders: TripReminder[] | null | undefined): TripRe
       }
       return (a.triggerTime ?? "09:00").localeCompare(b.triggerTime ?? "09:00");
     });
+}
+
+function sanitizeExpenses(expenses: TripExpense[] | null | undefined): ExportExpense[] | null {
+  if (!expenses?.length) {
+    return null;
+  }
+
+  return expenses
+    .map((expense) => ({
+      id: expense.id,
+      title: expense.title,
+      amount: {
+        amount: expense.amount.amount,
+        currency: expense.amount.currency
+      },
+      category: expense.category,
+      expenseDate: expense.expenseDate,
+      paidByDisplayName: expense.paidByDisplayName,
+      receiptCount: expense.receiptCount,
+      latestReceiptStatus: expense.latestReceiptStatus ?? null,
+      receipts: sanitizeExpenseReceiptSummaries(expense.receipts)
+    }))
+    .sort((a, b) => {
+      const dateCompare = b.expenseDate.localeCompare(a.expenseDate);
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+      return a.title.localeCompare(b.title);
+    });
+}
+
+function sanitizeExpenseReceiptSummaries(
+  receipts: ExpenseReceiptSummary[] | null | undefined
+): ExportExpenseReceipt[] {
+  if (!receipts?.length) {
+    return [];
+  }
+
+  return receipts.map((receipt) => ({
+    id: receipt.id,
+    originalFilename: receipt.originalFilename,
+    contentType: receipt.contentType,
+    status: receipt.status,
+    ocrConfidence: receipt.ocrConfidence ?? null,
+    createdAt: receipt.createdAt
+  }));
 }
 
 function sanitizePlace(place: Place | null | undefined): Place | null {

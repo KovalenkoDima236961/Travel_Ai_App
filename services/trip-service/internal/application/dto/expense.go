@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,6 +44,10 @@ type TripExpense struct {
 	LinkedAccommodation bool                    `json:"linkedAccommodation"`
 	Notes               *string                 `json:"notes,omitempty"`
 	Metadata            map[string]any          `json:"metadata"`
+	ReceiptCount        int                     `json:"receiptCount"`
+	HasReceipt          bool                    `json:"hasReceipt"`
+	LatestReceiptStatus *entity.ReceiptStatus   `json:"latestReceiptStatus,omitempty"`
+	Receipts            []ExpenseReceiptSummary `json:"receipts"`
 	CreatedByUserID     uuid.UUID               `json:"createdByUserId"`
 	CreatedAt           time.Time               `json:"createdAt"`
 	UpdatedAt           time.Time               `json:"updatedAt"`
@@ -202,4 +207,69 @@ type SettlementsResponse struct {
 
 type MarkSettlementPaidInput struct {
 	Notes *string
+}
+
+type ExpenseReceiptSummary struct {
+	ID               uuid.UUID                    `json:"id"`
+	OriginalFilename string                       `json:"originalFilename"`
+	ContentType      string                       `json:"contentType"`
+	Status           entity.ReceiptStatus         `json:"status"`
+	OCRConfidence    *entity.ReceiptOCRConfidence `json:"ocrConfidence,omitempty"`
+	CreatedAt        time.Time                    `json:"createdAt"`
+}
+
+type ReceiptOCRResult struct {
+	Merchant        *string                                `json:"merchant"`
+	ExpenseDate     *string                                `json:"expenseDate"`
+	Amount          *MoneyAmount                           `json:"amount"`
+	TaxAmount       *MoneyAmount                           `json:"taxAmount"`
+	Category        *entity.ExpenseCategory                `json:"category"`
+	SuggestedTitle  *string                                `json:"suggestedTitle"`
+	Confidence      entity.ReceiptOCRConfidence            `json:"confidence"`
+	FieldConfidence map[string]entity.ReceiptOCRConfidence `json:"fieldConfidence"`
+	Warnings        []string                               `json:"warnings"`
+	RawText         *string                                `json:"rawText,omitempty"`
+}
+
+type ExpenseReceipt struct {
+	ID               uuid.UUID            `json:"id"`
+	TripID           uuid.UUID            `json:"tripId"`
+	ExpenseID        *uuid.UUID           `json:"expenseId"`
+	Status           entity.ReceiptStatus `json:"status"`
+	OriginalFilename string               `json:"originalFilename"`
+	ContentType      string               `json:"contentType"`
+	SizeBytes        int64                `json:"sizeBytes"`
+	PreviewURL       string               `json:"previewUrl"`
+	OCRResult        *ReceiptOCRResult    `json:"ocrResult"`
+	CreatedByUserID  uuid.UUID            `json:"createdByUserId"`
+	CreatedAt        time.Time            `json:"createdAt"`
+	UpdatedAt        time.Time            `json:"updatedAt"`
+}
+
+type TripReceiptsResponse struct {
+	Receipts []ExpenseReceipt `json:"receipts"`
+}
+
+type ListReceiptsInput struct {
+	ExpenseID      *uuid.UUID
+	Status         *entity.ReceiptStatus
+	UnlinkedOnly   bool
+	IncludeRawText bool
+}
+
+type UploadReceiptInput struct {
+	OriginalFilename string
+	ContentType      string
+	SizeBytes        int64
+	ExpenseID        *uuid.UUID
+	RunOCR           bool
+	File             io.Reader
+}
+
+type ExtractReceiptInput struct {
+	Provider *entity.ReceiptOCRProvider
+}
+
+type AttachReceiptInput struct {
+	ReceiptID uuid.UUID
 }

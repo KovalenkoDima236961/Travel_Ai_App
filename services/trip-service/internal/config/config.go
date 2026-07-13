@@ -45,8 +45,21 @@ type Config struct {
 	GenerationJobs     GenerationJobsConfig     `yaml:"generation_jobs"`
 	CalendarSync       CalendarSyncConfig       `yaml:"calendar_sync"`
 	BudgetConversion   BudgetConversionConfig   `yaml:"budget_conversion"`
+	Receipts           ReceiptsConfig           `yaml:"receipts"`
 	Ops                OpsConfig                `yaml:"ops"`
 	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
+}
+
+type ReceiptsConfig struct {
+	StorageProvider   string `yaml:"storage_provider" env:"RECEIPT_STORAGE_PROVIDER" env-default:"local" validate:"oneof=local"`
+	LocalDir          string `yaml:"local_dir" env:"RECEIPT_STORAGE_LOCAL_DIR" env-default:"./data/receipts"`
+	MaxFileSizeMB     int    `yaml:"max_file_size_mb" env:"RECEIPT_MAX_FILE_SIZE_MB" env-default:"10" validate:"min=1,max=50"`
+	AllowedMIMETypes  string `yaml:"allowed_mime_types" env:"RECEIPT_ALLOWED_MIME_TYPES" env-default:"image/jpeg,image/png,image/webp,application/pdf"`
+	OCREnabled        bool   `yaml:"ocr_enabled" env:"RECEIPT_OCR_ENABLED" env-default:"true"`
+	OCRProvider       string `yaml:"ocr_provider" env:"RECEIPT_OCR_PROVIDER" env-default:"mock" validate:"oneof=mock local"`
+	OCRTimeoutSeconds int    `yaml:"ocr_timeout_seconds" env:"RECEIPT_OCR_TIMEOUT_SECONDS" env-default:"30" validate:"min=1,max=300"`
+	OCRFailOpen       bool   `yaml:"ocr_fail_open" env:"RECEIPT_OCR_FAIL_OPEN" env-default:"true"`
+	OCRStoreRawText   bool   `yaml:"ocr_store_raw_text" env:"RECEIPT_OCR_STORE_RAW_TEXT" env-default:"true"`
 }
 
 type TripDiscoveryConfig struct {

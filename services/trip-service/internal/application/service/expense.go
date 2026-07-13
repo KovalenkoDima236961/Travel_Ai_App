@@ -112,7 +112,12 @@ func (s *Service) ListTripExpenses(ctx context.Context, tripID uuid.UUID, filter
 		if err != nil {
 			return appdto.TripExpensesResponse{}, err
 		}
-		items = append(items, expenseDTO(&expenses[i], participants, users))
+		item := expenseDTO(&expenses[i], participants, users)
+		summaries, err := s.receiptSummariesForExpense(ctx, tripID, expenses[i].ID)
+		if err != nil {
+			return appdto.TripExpensesResponse{}, err
+		}
+		items = append(items, withExpenseReceipts(item, summaries))
 	}
 	return appdto.TripExpensesResponse{Items: items}, nil
 }
@@ -141,7 +146,12 @@ func (s *Service) GetTripExpense(ctx context.Context, tripID, expenseID uuid.UUI
 	if err != nil {
 		return appdto.TripExpense{}, err
 	}
-	return expenseDTO(expense, participants, users), nil
+	item := expenseDTO(expense, participants, users)
+	summaries, err := s.receiptSummariesForExpense(ctx, tripID, expenseID)
+	if err != nil {
+		return appdto.TripExpense{}, err
+	}
+	return withExpenseReceipts(item, summaries), nil
 }
 
 func (s *Service) UpdateTripExpense(ctx context.Context, tripID, expenseID uuid.UUID, in appdto.UpdateExpenseInput) (appdto.TripExpense, error) {
@@ -1157,6 +1167,7 @@ func expenseDTO(expense *entity.TripExpense, participants []entity.TripExpensePa
 		LinkedAccommodation: expense.LinkedAccommodation,
 		Notes:               expense.Notes,
 		Metadata:            expense.Metadata,
+		Receipts:            []appdto.ExpenseReceiptSummary{},
 		CreatedByUserID:     expense.CreatedByUserID,
 		CreatedAt:           expense.CreatedAt,
 		UpdatedAt:           expense.UpdatedAt,

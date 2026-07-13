@@ -69,6 +69,10 @@ func IDArg(id uuid.UUID) pgtype.UUID {
 	return toPgUUID(id)
 }
 
+func IDArgPtr(id *uuid.UUID) pgtype.UUID {
+	return toPgUUIDPtr(id)
+}
+
 // NumericArg encodes a nullable decimal (e.g. budget_amount) for a query value.
 func NumericArg(f *float64) pgtype.Numeric {
 	return toPgNumeric(f)

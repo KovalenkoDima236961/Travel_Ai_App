@@ -148,9 +148,17 @@ Routes:
 - `GET /trips/{id}/expenses`
 - `POST /trips/{id}/expenses`
 - `GET /trips/{id}/expenses/summary`
+- `POST /trips/{id}/expenses/receipts/upload`
+- `GET /trips/{id}/expenses/receipts`
+- `GET /trips/{id}/expenses/receipts/{receiptId}`
+- `GET /trips/{id}/expenses/receipts/{receiptId}/file`
+- `POST /trips/{id}/expenses/receipts/{receiptId}/extract`
+- `POST /trips/{id}/expenses/receipts/{receiptId}/create-expense`
+- `DELETE /trips/{id}/expenses/receipts/{receiptId}`
 - `GET /trips/{id}/expenses/{expenseId}`
 - `PATCH /trips/{id}/expenses/{expenseId}`
 - `DELETE /trips/{id}/expenses/{expenseId}`
+- `POST /trips/{id}/expenses/{expenseId}/receipts`
 - `GET /trips/{id}/settlements`
 - `POST /trips/{id}/settlements/recalculate`
 - `POST /trips/{id}/settlements/{settlementId}/mark-paid`
@@ -172,6 +180,52 @@ collaborators cannot access expense routes.
 Settlements are bookkeeping suggestions only. Trip Service records that a user
 marked a settlement paid, but it never initiates, authorizes, schedules, or
 processes a real payment.
+
+## Receipt Upload & Expense OCR
+
+Receipt Upload & Expense OCR v1 uses migration
+`000032_create_trip_expense_receipts`:
+
+- `trip_expense_receipts`: private trip-scoped receipt metadata, optional
+  expense link, local storage key, file hash, status, and soft-delete audit
+  fields.
+- `receipt_ocr_results`: OCR suggestions for merchant, date, amount, currency,
+  optional tax, category, confidence, warnings, normalized metadata, and raw
+  text when enabled.
+
+Files are stored outside the public web root through the receipt storage
+interface. The default provider is local storage:
+
+- `RECEIPT_STORAGE_PROVIDER=local`
+- `RECEIPT_STORAGE_LOCAL_DIR=./data/receipts`
+- `RECEIPT_MAX_FILE_SIZE_MB=10`
+- `RECEIPT_ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp,application/pdf`
+
+OCR is behind a provider interface. The default `mock` provider is deterministic
+for local development and tests. Filenames containing `train`/`obb`/`rail`
+produce a transport suggestion, `restaurant`/`food`/`cafe` produce food,
+`fuel`/`gas` produce fuel, `parking` produces parking, `hotel`/`accommodation`
+produce accommodation, and `museum`/`ticket` produce tickets. Unknown filenames
+return low confidence and a warning. Config:
+
+- `RECEIPT_OCR_PROVIDER=mock`
+- `RECEIPT_OCR_ENABLED=true`
+- `RECEIPT_OCR_TIMEOUT_SECONDS=30`
+- `RECEIPT_OCR_FAIL_OPEN=true`
+- `RECEIPT_OCR_STORE_RAW_TEXT=true`
+
+Receipt files are private to authenticated users with private trip expense view
+access. Owners/editors can upload, attach, and delete receipts. Accepted viewers
+can upload receipts and create expenses only in the same constrained path as
+manual expenses; they cannot create expenses paid by someone else. Public share
+tokens cannot access receipt metadata or files.
+
+No expense is created automatically. Upload can run OCR, but users must submit a
+reviewed expense payload to `create-expense`. Activity metadata includes only
+safe receipt ids, truncated filenames, confidence/category/amount summaries, and
+expense ids. Raw OCR text is not copied into activity, exports, or list
+responses. OCR is a convenience suggestion, not tax/accounting advice; there is
+no bank sync, item-level parsing, invoice generation, or payment matching in v1.
 
 ## Smart Trip Constraints
 

@@ -2301,6 +2301,50 @@ func (r *routeTestRepo) CancelTripSettlement(context.Context, uuid.UUID, uuid.UU
 	return nil, domainerrs.ErrNotFound
 }
 
+func (r *routeTestRepo) CreateTripExpenseReceipt(_ context.Context, receipt *entity.TripExpenseReceipt) (*entity.TripExpenseReceipt, error) {
+	out := *receipt
+	now := time.Now().UTC()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetTripExpenseReceiptByID(context.Context, uuid.UUID, uuid.UUID, bool) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListTripExpenseReceipts(context.Context, uuid.UUID, appdto.ListReceiptsInput) ([]entity.TripExpenseReceipt, error) {
+	return []entity.TripExpenseReceipt{}, nil
+}
+
+func (r *routeTestRepo) ListTripExpenseReceiptsByExpense(context.Context, uuid.UUID, uuid.UUID) ([]entity.TripExpenseReceipt, error) {
+	return []entity.TripExpenseReceipt{}, nil
+}
+
+func (r *routeTestRepo) UpdateTripExpenseReceiptStatus(context.Context, uuid.UUID, uuid.UUID, entity.ReceiptStatus, *uuid.UUID) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) AttachTripExpenseReceipt(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) SoftDeleteTripExpenseReceipt(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripExpenseReceipt, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CreateReceiptOCRResult(_ context.Context, result *entity.ReceiptOCRResult) (*entity.ReceiptOCRResult, error) {
+	out := *result
+	now := time.Now().UTC()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetLatestReceiptOCRResult(context.Context, uuid.UUID, uuid.UUID) (*entity.ReceiptOCRResult, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
 func (r *routeTestRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
 	if _, ok := r.sharesByTrip[share.TripID]; ok {
 		return nil, domainerrs.ErrConflict

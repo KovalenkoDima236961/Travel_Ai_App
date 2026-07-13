@@ -24,6 +24,15 @@ export type TripActivityEventType =
   | "accommodation_added"
   | "accommodation_updated"
   | "accommodation_removed"
+  | "expense_created"
+  | "expense_created_from_receipt"
+  | "expense_updated"
+  | "expense_deleted"
+  | "receipt_uploaded"
+  | "receipt_extracted"
+  | "receipt_extraction_failed"
+  | "receipt_attached"
+  | "receipt_deleted"
   | "calendar_synced"
   | "calendar_sync_removed";
 
@@ -37,6 +46,8 @@ export type TripActivityEntityType =
   | "collaborator"
   | "share"
   | "accommodation"
+  | "trip_expense"
+  | "trip_expense_receipt"
   | "calendar_sync";
 
 export type TripActivityEvent = {

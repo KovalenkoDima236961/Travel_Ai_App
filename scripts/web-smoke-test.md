@@ -217,6 +217,27 @@ Use local Grafana credentials `admin` / `admin`.
     style suggestions and avoids nightclub-focused recommendations. Do not treat
     exact AI wording as part of the test.
 
+## Receipt Upload Manual Flow
+
+1. Open a private trip and go to the Expenses section.
+2. Click `Upload receipt`.
+3. Upload an image or PDF receipt; for local mock OCR, use filenames such as
+   `train-ticket.png`, `restaurant-receipt.png`, or `parking-receipt.png`.
+4. Confirm an authenticated receipt preview appears.
+5. Confirm OCR confidence and warnings appear where applicable.
+6. Edit the extracted title, amount, currency, category, date, payer,
+   participants, and notes.
+7. Click `Create expense from receipt`.
+8. Confirm the new expense appears with a receipt indicator and receipt summary.
+9. Open the receipt preview from the expense row and confirm raw OCR text is
+   available only in the private detail preview.
+10. On another expense, click `Attach receipt`.
+11. Upload a receipt directly to that expense or attach an unlinked receipt.
+12. Delete an attached receipt and confirm the preview/file is no longer
+    accessible.
+13. Open the public share for the same trip and confirm receipt controls,
+    receipt metadata, and receipt files are not exposed.
+
 ## Queue Worker Recovery
 
 1. With the stack running, stop only the worker:

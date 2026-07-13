@@ -122,6 +122,24 @@ function titleFor(
       return { title: `${actor} updated ${accommodationLabel(metadata)}` };
     case "accommodation_removed":
       return { title: `${actor} removed ${accommodationLabel(metadata)}` };
+    case "expense_created":
+      return { title: `${actor} added an expense`, description: expenseDescription(metadata) };
+    case "expense_created_from_receipt":
+      return { title: `${actor} created an expense from a receipt`, description: expenseDescription(metadata) };
+    case "expense_updated":
+      return { title: `${actor} updated an expense`, description: expenseDescription(metadata) };
+    case "expense_deleted":
+      return { title: `${actor} deleted an expense`, description: expenseDescription(metadata) };
+    case "receipt_uploaded":
+      return { title: `${actor} uploaded a receipt`, description: asString(metadata.originalFilename) };
+    case "receipt_extracted":
+      return { title: `${actor} extracted receipt details`, description: receiptDescription(metadata) };
+    case "receipt_extraction_failed":
+      return { title: `${actor} could not extract receipt details`, description: asString(metadata.originalFilename) };
+    case "receipt_attached":
+      return { title: `${actor} attached a receipt to an expense`, description: receiptDescription(metadata) };
+    case "receipt_deleted":
+      return { title: `${actor} deleted a receipt`, description: asString(metadata.originalFilename) };
     case "calendar_synced":
       return { title: `${actor} synced the trip calendar` };
     case "calendar_sync_removed":
@@ -167,6 +185,25 @@ function itemTarget(metadata: Record<string, unknown>): string {
 
 function accommodationLabel(metadata: Record<string, unknown>): string {
   return asString(metadata.name) ?? "the accommodation";
+}
+
+function expenseDescription(metadata: Record<string, unknown>): string | undefined {
+  const title = asString(metadata.expenseTitle);
+  const amount = asNumber(metadata.amount);
+  const currency = asString(metadata.currency);
+  if (title && amount != null && currency) {
+    return `${title} · ${amount} ${currency}`;
+  }
+  return title;
+}
+
+function receiptDescription(metadata: Record<string, unknown>): string | undefined {
+  const filename = asString(metadata.originalFilename);
+  const confidence = asString(metadata.ocrConfidence);
+  if (filename && confidence) {
+    return `${filename} · ${confidence} confidence`;
+  }
+  return filename;
 }
 
 function asNumber(value: unknown): number | undefined {
