@@ -68,6 +68,7 @@ notification streams, and calendar OAuth calls.
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
+| Reminders | Private Reminders/Timeline panel with rule-based generation, manual reminders, filters, completion/disable actions, stale warnings, and notification preferences. |
 | Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
 | AI repair | Workspace trip repair jobs, pending repair proposals, before/after itinerary diff preview, revision-safe apply/discard, and approval risk integration. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
@@ -78,6 +79,38 @@ notification streams, and calendar OAuth calls.
 | Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
 | Export | Browser-generated PDF, CSV cost reports, and `.ics` downloads for private and public views. |
 | Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip cache, offline itinerary drafts, and revision conflict recovery. |
+
+## Trip Reminders
+
+Completed private trip detail pages include a Reminders/Timeline panel after the
+packing checklist. Owners/editors can generate reminders from trip dates,
+checklist items, route/transport context, accommodation, weather, and
+collaborators; add manual reminders; edit, delete, assign, complete/reopen, and
+disable/enable reminders; and filter by category, status, assignee, high
+priority, or upcoming-only. Assigned collaborators can complete/reopen/disable
+their own assigned reminders when the backend permits it.
+
+The panel groups reminders into Overdue, Today, This week, Later, Completed, and
+Disabled, shows pending/overdue/today/high-priority/assigned-to-me summary
+counts, and displays a stale warning when the backend detects that trip dates,
+route, accommodation, or checklist data may have changed since generation.
+Regeneration preserves manual and completed reminders by default and can replace
+generated pending reminders only when the user opts in.
+
+Frontend contracts live in:
+
+- `src/entities/trip-reminder/model/trip-reminder.ts`
+- `src/lib/api/trip-reminders.ts`
+- `src/hooks/useTripReminders.ts`
+- `src/components/trip-reminders/*`
+
+Notification settings include `Pre-trip reminders` and `Checklist reminders`
+for in-app, email, and push channels. Private PDF exports include the reminder
+timeline; public shares and public exports exclude reminders. Reminders are
+preparation aids only: users must verify official requirements, tickets,
+bookings, permits, weather, legal/visa/medical details, and schedules
+themselves. SMS, WhatsApp/Telegram, automatic booking confirmation, recurring
+reminders, and calendar reminder export are not part of v1.
 
 ## Create Trip discovery mode
 

@@ -131,10 +131,13 @@ Preference categories:
 - `comments`
 - `role_changes`
 - `trip_updates`
+- `pre_trip_reminders`
+- `checklist_reminders`
 
 Default behavior enables in-app and push for all categories, enables email for
 collaboration/comments/role changes plus key workspace invitations/member
-changes, and disables email for trip updates.
+changes plus due pre-trip reminders, and disables email for noisy trip updates
+and checklist assignment reminders by default.
 
 ## Notification Types
 
@@ -169,6 +172,8 @@ Current known types include:
 - `trip_changes_requested`
 - `trip_approval_cancelled`
 - `trip_approval_reset_to_draft`
+- `pre_trip_reminder_due`
+- `reminder_assigned`
 
 Workspace invitations and accepted/declined events use the `collaboration`
 category, role/removal events use `role_changes`, and optional workspace trip
@@ -179,6 +184,9 @@ approval types (`trip_submitted_for_approval`, `trip_approved`,
 `tripId`, `workspaceId`, and `approvalStatus` in metadata. Email templates link
 workspace invites to `/workspace-invitations`, role changes to
 `/workspaces/{workspaceId}`, and never include secrets or full metadata.
+Reminder templates link back to the trip, include only the trip/reminder title
+and short safe message, and do not include full itineraries, private notes,
+legal/visa/medical guarantees, or booking confirmations.
 
 Unknown types are accepted for forward compatibility. They are allowed in-app by
 default, but are not emailed or pushed unless policy explicitly allows them.

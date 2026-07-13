@@ -87,11 +87,12 @@ func TestEmailDefaults(t *testing.T) {
 		t.Fatalf("expected email enabled+fail-open by default, got enabled=%v failOpen=%v", cfg.Email.Enabled, cfg.Email.FailOpen)
 	}
 	types := cfg.EmailNotificationTypes()
-	if len(types) != 7 ||
+	if len(types) != 8 ||
 		types[0] != "collaboration_invited" ||
 		types[4] != "workspace_invited" ||
 		types[5] != "workspace_member_removed" ||
-		types[6] != "workspace_role_changed" {
+		types[6] != "workspace_role_changed" ||
+		types[7] != "pre_trip_reminder_due" {
 		t.Fatalf("unexpected default email types: %v", types)
 	}
 }

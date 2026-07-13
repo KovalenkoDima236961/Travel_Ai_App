@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
+	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 )
@@ -43,6 +44,11 @@ func NewRouter(
 	r.Handle("/metrics", observability.MetricsHandler(nil))
 
 	tripHandler.RegisterPublicRoutes(r)
+
+	r.Group(func(r chi.Router) {
+		r.Use(internalmw.InternalServiceToken(authCfg.InternalServiceToken))
+		tripHandler.RegisterInternalRoutes(r)
+	})
 
 	devUserID, err := uuid.Parse(authCfg.DevUserID)
 	if err != nil {

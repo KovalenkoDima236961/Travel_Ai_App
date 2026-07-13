@@ -126,6 +126,26 @@ func BuildEmailForNotification(input BuildEmailInput) (email.EmailMessage, error
 			linkLabel: "Open the trip:",
 			linkURL:   tripLink(base, tripID),
 		}
+	case notifications.TypePreTripReminderDue:
+		body := strings.TrimSpace(n.Message)
+		if body == "" {
+			body = "A trip preparation reminder is due for " + destination + "."
+		}
+		c = emailContent{
+			subject:   "Trip reminder due",
+			greeting:  greeting,
+			body:      body,
+			linkLabel: "Open the trip reminders:",
+			linkURL:   tripLink(base, tripID),
+		}
+	case notifications.TypeReminderAssigned:
+		c = emailContent{
+			subject:   "Trip reminder assigned",
+			greeting:  greeting,
+			body:      "A preparation reminder was assigned to you for " + destination + ".",
+			linkLabel: "Open the trip:",
+			linkURL:   tripLink(base, tripID),
+		}
 	case notifications.TypeWorkspaceInvited:
 		workspaceName := workspaceNameOr(meta, "a workspace")
 		c = emailContent{

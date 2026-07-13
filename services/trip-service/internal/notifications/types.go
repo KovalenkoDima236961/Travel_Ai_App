@@ -26,6 +26,8 @@ const (
 	TypeWorkspaceBudgetNearLimit = "workspace_budget_nearing_limit"
 	TypeChecklistItemAssigned    = "checklist_item_assigned"
 	TypeChecklistGenerated       = "checklist_generated"
+	TypePreTripReminderDue       = "pre_trip_reminder_due"
+	TypeReminderAssigned         = "reminder_assigned"
 	TypeAvailabilityRequested    = "availability_requested"
 	TypeDateOptionApplied        = "date_option_applied"
 
@@ -50,6 +52,7 @@ const (
 	EntityWorkspaceBudget  = "workspace_budget"
 	EntityChecklist        = "checklist"
 	EntityChecklistItem    = "checklist_item"
+	EntityTripReminder     = "trip_reminder"
 	EntityAvailability     = "availability"
 	EntityDateOption       = "date_option"
 )

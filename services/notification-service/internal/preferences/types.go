@@ -25,10 +25,12 @@ const (
 // Category constants. Notification types are grouped into a small set of
 // user-facing categories so the settings UI stays manageable.
 const (
-	CategoryCollaboration = "collaboration"
-	CategoryComments      = "comments"
-	CategoryTripUpdates   = "trip_updates"
-	CategoryRoleChanges   = "role_changes"
+	CategoryCollaboration      = "collaboration"
+	CategoryComments           = "comments"
+	CategoryTripUpdates        = "trip_updates"
+	CategoryRoleChanges        = "role_changes"
+	CategoryPreTripReminders   = "pre_trip_reminders"
+	CategoryChecklistReminders = "checklist_reminders"
 )
 
 // AllChannels lists the channels in display order. Range over this (never a map)
@@ -42,6 +44,8 @@ var AllCategories = []string{
 	CategoryComments,
 	CategoryRoleChanges,
 	CategoryTripUpdates,
+	CategoryPreTripReminders,
+	CategoryChecklistReminders,
 }
 
 // knownChannels and knownCategories are the recognised vocabularies. The update
@@ -53,10 +57,12 @@ var (
 		ChannelPush:  {},
 	}
 	knownCategories = map[string]struct{}{
-		CategoryCollaboration: {},
-		CategoryComments:      {},
-		CategoryTripUpdates:   {},
-		CategoryRoleChanges:   {},
+		CategoryCollaboration:      {},
+		CategoryComments:           {},
+		CategoryTripUpdates:        {},
+		CategoryRoleChanges:        {},
+		CategoryPreTripReminders:   {},
+		CategoryChecklistReminders: {},
 	}
 )
 
@@ -107,6 +113,8 @@ var typeToCategory = map[string]string{
 	notifications.TypeTripChangesRequested:        CategoryCollaboration,
 	notifications.TypeTripApprovalCancelled:       CategoryCollaboration,
 	notifications.TypeTripApprovalResetToDraft:    CategoryCollaboration,
+	notifications.TypePreTripReminderDue:          CategoryPreTripReminders,
+	notifications.TypeReminderAssigned:            CategoryChecklistReminders,
 }
 
 // CategoryForNotificationType maps a notification type to its preference

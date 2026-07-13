@@ -22,6 +22,12 @@ const (
 	EventChecklistItemAdded                  = "checklist_item_added"
 	EventChecklistItemAssigned               = "checklist_item_assigned"
 	EventChecklistItemDeleted                = "checklist_item_deleted"
+	EventRemindersGenerated                  = "reminders_generated"
+	EventReminderCreated                     = "reminder_created"
+	EventReminderUpdated                     = "reminder_updated"
+	EventReminderAssigned                    = "reminder_assigned"
+	EventReminderDisabled                    = "reminder_disabled"
+	EventReminderDeleted                     = "reminder_deleted"
 	EventAvailabilitySubmitted               = "availability_submitted"
 	EventAvailabilityUpdated                 = "availability_updated"
 	EventAvailabilityRemoved                 = "availability_removed"
@@ -112,6 +118,7 @@ const (
 	EntityCalendarSync     = "calendar_sync"
 	EntityChecklist        = "checklist"
 	EntityChecklistItem    = "checklist_item"
+	EntityReminder         = "trip_reminder"
 	EntityAvailability     = "availability"
 	EntityDateOption       = "date_option"
 )
@@ -137,6 +144,12 @@ var knownEventTypes = map[string]struct{}{
 	EventChecklistItemAdded:                  {},
 	EventChecklistItemAssigned:               {},
 	EventChecklistItemDeleted:                {},
+	EventRemindersGenerated:                  {},
+	EventReminderCreated:                     {},
+	EventReminderUpdated:                     {},
+	EventReminderAssigned:                    {},
+	EventReminderDisabled:                    {},
+	EventReminderDeleted:                     {},
 	EventAvailabilitySubmitted:               {},
 	EventAvailabilityUpdated:                 {},
 	EventAvailabilityRemoved:                 {},

@@ -86,6 +86,7 @@ func (h *Handler) EnableWorkspacePolicies(svc *workspacepolicies.Service) *Handl
 // RegisterRoutes mounts the trip routes onto the given chi router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/collaboration/invitations", h.ListCollaborationInvitations)
+	r.Get("/reminders/assigned-to-me", h.ListAssignedReminders)
 	r.Post("/planning-constraints/preview", h.PreviewPlanningConstraints)
 	r.Post("/route-alternatives/suggest", h.SuggestRouteAlternatives)
 	r.Get("/route-alternatives/sessions", h.ListRouteAlternativeSessions)
@@ -111,6 +112,15 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/checklist/items/{itemId}/check", h.CheckChecklistItem)
 		r.Post("/{id}/checklist/items/{itemId}/uncheck", h.UncheckChecklistItem)
 		r.Post("/{id}/checklist/reorder", h.ReorderChecklistItems)
+		r.Get("/{id}/reminders", h.ListReminders)
+		r.Post("/{id}/reminders/generate", h.GenerateReminders)
+		r.Post("/{id}/reminders", h.CreateReminder)
+		r.Patch("/{id}/reminders/{reminderId}", h.UpdateReminder)
+		r.Post("/{id}/reminders/{reminderId}/complete", h.CompleteReminder)
+		r.Post("/{id}/reminders/{reminderId}/reopen", h.ReopenReminder)
+		r.Post("/{id}/reminders/{reminderId}/disable", h.DisableReminder)
+		r.Post("/{id}/reminders/{reminderId}/enable", h.EnableReminder)
+		r.Delete("/{id}/reminders/{reminderId}", h.DeleteReminder)
 		r.Post("/{id}/route-alternatives", h.SuggestTripRouteAlternatives)
 		r.Post("/{id}/route-alternatives/{sessionId}/alternatives/{alternativeId}/apply", h.ApplyRouteAlternative)
 		r.Post("/{id}/route-alternatives/{sessionId}/create-poll", h.CreateRouteAlternativesPoll)
@@ -226,6 +236,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{budgetId}/make-primary", h.MakeWorkspaceBudgetPrimary)
 		r.Get("/{budgetId}/summary", h.GetWorkspaceBudgetSummary)
 	})
+}
+
+func (h *Handler) RegisterInternalRoutes(r chi.Router) {
+	r.Post("/internal/reminders/process-due", h.ProcessDueReminders)
 }
 
 func (h *Handler) PreviewPlanningConstraints(w http.ResponseWriter, r *http.Request) {

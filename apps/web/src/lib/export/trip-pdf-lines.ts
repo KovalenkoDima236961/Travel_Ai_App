@@ -121,6 +121,7 @@ export function buildTripPdfLines(exportTrip: ExportTrip): TripPdfLine[] {
 
   appendBudgetSummary(lines, exportTrip);
   appendChecklistSummary(lines, exportTrip);
+  appendReminderSummary(lines, exportTrip);
   appendWeatherSummary(lines, exportTrip.weatherSummary);
   appendDistanceSummary(lines, exportTrip.distanceSummary);
 
@@ -318,6 +319,46 @@ function appendChecklistSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
     if (item.description) {
       lines.push({ text: item.description, variant: "muted", indent: 28 });
     }
+  });
+}
+
+function appendReminderSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
+  if (exportTrip.source !== "private" || !exportTrip.reminders?.length) {
+    return;
+  }
+
+  const reminders = exportTrip.reminders.filter(
+    (reminder) => reminder.status !== "cancelled" && reminder.status !== "disabled"
+  );
+  if (!reminders.length) {
+    return;
+  }
+
+  lines.push({ text: "Pre-trip reminders", variant: "heading" });
+  reminders.forEach((reminder) => {
+    const assignee = reminder.assignedToDisplayName || reminder.assignedToUserId;
+    const details = [
+      formatRouteToken(reminder.priority),
+      formatRouteToken(reminder.category),
+      formatRouteToken(reminder.status),
+      assignee ? `Assigned to ${assignee}` : null
+    ].filter(Boolean);
+    lines.push({
+      text: `${formatReadableDate(reminder.triggerDate)}${reminder.triggerTime ? ` ${reminder.triggerTime}` : ""} - ${reminder.title}`,
+      variant: "body",
+      indent: 14
+    });
+    if (details.length) {
+      lines.push({ text: details.join(" - "), variant: "small", indent: 28 });
+    }
+    if (reminder.description) {
+      lines.push({ text: reminder.description, variant: "muted", indent: 28 });
+    }
+  });
+  lines.push({
+    text: "Reminders are preparation aids. Verify official requirements yourself.",
+    variant: "muted",
+    indent: 14
   });
 }
 

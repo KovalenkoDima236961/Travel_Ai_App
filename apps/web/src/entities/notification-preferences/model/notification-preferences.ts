@@ -4,7 +4,9 @@ export type NotificationCategory =
   | "collaboration"
   | "comments"
   | "trip_updates"
-  | "role_changes";
+  | "role_changes"
+  | "pre_trip_reminders"
+  | "checklist_reminders";
 
 export type NotificationPreference = {
   channel: NotificationChannel;

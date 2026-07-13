@@ -567,6 +567,79 @@ func (m *mockRepo) ReorderChecklistItems(context.Context, uuid.UUID, []uuid.UUID
 	return nil
 }
 
+func (m *mockRepo) CreateTripReminder(_ context.Context, reminder *entity.TripReminder) (*entity.TripReminder, error) {
+	if reminder == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	copy := *reminder
+	return &copy, nil
+}
+
+func (m *mockRepo) BatchCreateTripReminders(_ context.Context, reminders []entity.TripReminder) ([]entity.TripReminder, error) {
+	out := append([]entity.TripReminder(nil), reminders...)
+	return out, nil
+}
+
+func (m *mockRepo) GetTripReminderByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripRemindersByTrip(context.Context, uuid.UUID, entity.TripReminderFilters) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) ListTripRemindersAssignedToUser(context.Context, uuid.UUID, entity.TripReminderFilters) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) ListDueTripReminders(context.Context, time.Time, int) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) ListRemindersByChecklistItemID(context.Context, uuid.UUID) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) UpdateTripReminder(_ context.Context, reminder *entity.TripReminder) (*entity.TripReminder, error) {
+	if reminder == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	copy := *reminder
+	return &copy, nil
+}
+
+func (m *mockRepo) MarkTripReminderSent(context.Context, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) MarkTripReminderFailed(context.Context, uuid.UUID, uuid.UUID, string) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CompleteTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ReopenTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) DisableTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) EnableTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) SoftDeleteTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) DeleteGeneratedPendingRemindersForTrip(context.Context, uuid.UUID, uuid.UUID, []entity.ReminderCategory) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockRepo) UpdateStatusByUserID(_ context.Context, id, userID uuid.UUID, status entity.Status) (*entity.Trip, error) {
 	m.statusSeq = append(m.statusSeq, status)
 	m.statusUserIDs = append(m.statusUserIDs, userID)

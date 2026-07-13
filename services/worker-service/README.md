@@ -8,6 +8,12 @@ proposal, version, activity, and notification effects.
 The Web App does not call Worker Service directly. It creates and polls jobs
 through Trip Service.
 
+Worker Service also runs the Smart Pre-Trip Reminders polling loop. That loop
+does not read reminder rows directly; it calls Trip Service
+`POST /internal/reminders/process-due` with the shared internal service token so
+Trip Service remains the owner of reminder permissions, notification recipient
+selection, and sent/failed state transitions.
+
 ## Go Package Layout
 
 - `cmd/worker` is a thin executable entrypoint.
@@ -48,6 +54,26 @@ sequenceDiagram
 Messages contain only routing metadata: `messageId`, `jobId`, `tripId`,
 `jobType`, timestamps, request ID, and correlation ID. The database job row is
 the source of truth.
+
+## Reminder Worker Flow
+
+```mermaid
+sequenceDiagram
+    participant W as Worker Service
+    participant T as Trip Service
+    participant N as Notification Service
+
+    W->>T: POST /internal/reminders/process-due
+    T->>T: Find due pending reminders
+    T->>N: POST /internal/notifications/batch
+    T-->>W: processed/sent/failed counts
+```
+
+The reminder worker runs on a configurable interval, defaults to every five
+minutes, and sends a bounded `limit` per poll. It is intentionally coarse:
+sub-minute precision, SMS/WhatsApp delivery, calendar reminder export, and
+recurring reminders are outside v1. Trip Service handles idempotency by skipping
+already sent/completed/disabled/deleted reminders.
 
 ## Queue Topology
 
@@ -168,6 +194,12 @@ make run
 | `WORKER_HTTP_ADDR` | `:8090` | Health/ready/metrics server. |
 | `WORKER_CONCURRENCY` | `1` | Local processing concurrency. |
 | `WORKER_SHUTDOWN_TIMEOUT_SECONDS` | `30` | Graceful shutdown window. |
+| `REMINDER_WORKER_ENABLED` | `true` | Enable due reminder polling. |
+| `TRIP_SERVICE_URL` | `http://trip-service:8080` | Trip Service internal endpoint base URL. |
+| `REMINDER_WORKER_POLL_INTERVAL_SECONDS` | `300` | Reminder polling interval. |
+| `REMINDER_WORKER_BATCH_SIZE` | `100` | Maximum reminders to process per poll. |
+| `REMINDER_WORKER_LOOKAHEAD_MINUTES` | `0` | Optional due-processing lookahead. |
+| `REMINDER_WORKER_TIMEOUT_SECONDS` | `10` | HTTP timeout for Trip Service reminder processing. |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` | Broker URL. |
 | `RABBITMQ_MANAGEMENT_URL` | `http://rabbitmq:15672` | RabbitMQ Management API for queue/DLQ ops. |
 | `RABBITMQ_MANAGEMENT_USER`, `RABBITMQ_MANAGEMENT_PASSWORD` | `guest` | Management API credentials. |

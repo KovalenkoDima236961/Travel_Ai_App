@@ -235,6 +235,130 @@
       "system": "System"
     }
   },
+  "tripReminders": {
+    "title": "Reminders & preparation timeline",
+    "description": "Plan preparation tasks from checklist items, route, weather, accommodation, and collaborators.",
+    "onlineOnly": "Reminder tools are available when this private trip is online.",
+    "timeline": "Timeline",
+    "generate": "Generate reminders",
+    "generateTitle": "Generate reminder timeline",
+    "add": "Add reminder",
+    "hideAdd": "Hide form",
+    "create": "Add reminder",
+    "edit": "Edit",
+    "delete": "Delete reminder",
+    "complete": "Complete",
+    "reopen": "Reopen",
+    "disable": "Disable",
+    "enable": "Enable",
+    "cancel": "Cancel",
+    "saveChanges": "Save changes",
+    "assignMe": "Assign me",
+    "loading": "Loading reminders…",
+    "emptyEditable": "No reminders yet. Generate a timeline or add the first reminder.",
+    "emptyReadonly": "No reminders have been shared for this trip yet.",
+    "confirmDelete": "Delete this reminder?",
+    "staleWarning": "Reminder timeline may be outdated because trip dates, route, or checklist changed.",
+    "officialWarning": "Generated reminders are preparation aids. Verify official requirements yourself.",
+    "instructionsPlaceholder": "Optional focus, e.g. rainy weather, hiking gear, or tickets",
+    "assignedTo": "Assigned to",
+    "unassigned": "Unassigned",
+    "day": "Day {day}",
+    "checklistLinked": "Linked checklist item",
+    "summary": {
+      "pending": "Pending",
+      "overdue": "Overdue",
+      "dueToday": "Today",
+      "highPriority": "High priority",
+      "assignedToMe": "Assigned to me"
+    },
+    "groups": {
+      "overdue": "Overdue",
+      "today": "Today",
+      "thisWeek": "This week",
+      "later": "Later",
+      "completed": "Completed",
+      "disabled": "Disabled"
+    },
+    "filters": {
+      "assignedToMe": "Assigned to me",
+      "highPriority": "High priority",
+      "upcomingOnly": "Upcoming only"
+    },
+    "fields": {
+      "mode": "Mode",
+      "categories": "Categories",
+      "instructions": "Instructions",
+      "preserveManual": "Preserve manual reminders",
+      "preserveCompleted": "Preserve completed reminders",
+      "replaceGenerated": "Replace generated pending reminders",
+      "category": "Category",
+      "status": "Status",
+      "title": "Title",
+      "description": "Description",
+      "priority": "Priority",
+      "triggerDate": "Trigger date",
+      "triggerTime": "Trigger time",
+      "timezone": "Timezone",
+      "assignee": "Assigned user",
+      "assigneePlaceholder": "User ID or leave unassigned"
+    },
+    "allCategories": "All categories",
+    "allStatuses": "All statuses",
+    "modes": {
+      "full": "Full timeline",
+      "add_missing": "Add missing",
+      "category": "Selected categories"
+    },
+    "categories": {
+      "documents": "Documents",
+      "packing": "Packing",
+      "transport": "Transport",
+      "accommodation": "Accommodation",
+      "weather": "Weather",
+      "activities": "Activities",
+      "group": "Group",
+      "checklist": "Checklist",
+      "before_departure": "Before departure",
+      "route": "Route",
+      "safety": "Safety",
+      "other": "Other"
+    },
+    "priorities": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "statuses": {
+      "pending": "Pending",
+      "sent": "Sent",
+      "completed": "Completed",
+      "disabled": "Disabled",
+      "cancelled": "Cancelled",
+      "failed": "Failed"
+    },
+    "sources": {
+      "checklist": "Checklist",
+      "route": "Route",
+      "transport": "Transport",
+      "accommodation": "Accommodation",
+      "weather": "Weather",
+      "manual": "Manual",
+      "system": "System",
+      "regenerated": "Regenerated"
+    },
+    "errors": {
+      "load": "Could not load reminders.",
+      "generate": "Could not generate reminders.",
+      "save": "Could not save reminder.",
+      "complete": "Could not update reminder completion.",
+      "disable": "Could not update reminder status.",
+      "delete": "Could not delete reminder.",
+      "titleRequired": "Enter a reminder title.",
+      "dateRequired": "Choose a trigger date."
+    }
+  },
   "tripDecisions": {
     "decisions": "Decisions",
     "createPoll": "Create poll",

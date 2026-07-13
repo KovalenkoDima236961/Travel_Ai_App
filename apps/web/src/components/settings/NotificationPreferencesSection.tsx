@@ -51,6 +51,16 @@ const categories: Array<{
     value: "trip_updates",
     label: "Trip updates",
     description: "Itinerary edits, regenerations, and restored versions."
+  },
+  {
+    value: "pre_trip_reminders",
+    label: "Pre-trip reminders",
+    description: "Due preparation tasks before the trip starts."
+  },
+  {
+    value: "checklist_reminders",
+    label: "Checklist reminders",
+    description: "Assigned preparation reminders linked to checklist work."
   }
 ];
 
@@ -217,7 +227,7 @@ function PreferenceSkeleton() {
     <div className="rounded-2xl border border-sand-300 p-4">
       <div className="h-4 w-36 rounded bg-sand-300" />
       <div className="mt-4 space-y-3">
-        {[0, 1, 2, 3].map((item) => (
+        {[0, 1, 2, 3, 4, 5].map((item) => (
           <div key={item} className="h-14 rounded-xl bg-sand-200" />
         ))}
       </div>

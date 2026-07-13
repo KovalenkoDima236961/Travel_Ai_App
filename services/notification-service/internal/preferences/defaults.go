@@ -10,22 +10,28 @@ package preferences
 //     off while the other email categories are on.
 var defaultMatrix = map[string]map[string]bool{
 	ChannelInApp: {
-		CategoryCollaboration: true,
-		CategoryComments:      true,
-		CategoryRoleChanges:   true,
-		CategoryTripUpdates:   true,
+		CategoryCollaboration:      true,
+		CategoryComments:           true,
+		CategoryRoleChanges:        true,
+		CategoryTripUpdates:        true,
+		CategoryPreTripReminders:   true,
+		CategoryChecklistReminders: true,
 	},
 	ChannelEmail: {
-		CategoryCollaboration: true,
-		CategoryComments:      true,
-		CategoryRoleChanges:   true,
-		CategoryTripUpdates:   false,
+		CategoryCollaboration:      true,
+		CategoryComments:           true,
+		CategoryRoleChanges:        true,
+		CategoryTripUpdates:        false,
+		CategoryPreTripReminders:   false,
+		CategoryChecklistReminders: false,
 	},
 	ChannelPush: {
-		CategoryCollaboration: true,
-		CategoryComments:      true,
-		CategoryRoleChanges:   true,
-		CategoryTripUpdates:   true,
+		CategoryCollaboration:      true,
+		CategoryComments:           true,
+		CategoryRoleChanges:        true,
+		CategoryTripUpdates:        true,
+		CategoryPreTripReminders:   true,
+		CategoryChecklistReminders: true,
 	},
 }
 

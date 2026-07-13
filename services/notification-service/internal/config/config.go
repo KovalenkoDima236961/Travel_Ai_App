@@ -58,7 +58,7 @@ type EmailConfig struct {
 	Provider string `yaml:"provider" env:"EMAIL_PROVIDER" env-default:"mock" validate:"required,oneof=mock smtp"`
 	// Types is the comma-separated allowlist of notification types that may
 	// trigger an email. Anything outside this list is skipped.
-	Types string `yaml:"types" env:"EMAIL_NOTIFICATION_TYPES" env-default:"collaboration_invited,comment_created,collaborator_role_changed,collaborator_removed,workspace_invited,workspace_member_removed,workspace_role_changed"`
+	Types string `yaml:"types" env:"EMAIL_NOTIFICATION_TYPES" env-default:"collaboration_invited,comment_created,collaborator_role_changed,collaborator_removed,workspace_invited,workspace_member_removed,workspace_role_changed,pre_trip_reminder_due"`
 	// PublicWebBaseURL is used to build safe links back to the Web App.
 	PublicWebBaseURL string     `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
 	SMTP             SMTPConfig `yaml:"smtp"`

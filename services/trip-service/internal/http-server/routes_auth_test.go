@@ -3237,6 +3237,78 @@ func (r *routeTestRepo) ReorderChecklistItems(context.Context, uuid.UUID, []uuid
 	return nil
 }
 
+func (r *routeTestRepo) CreateTripReminder(_ context.Context, reminder *entity.TripReminder) (*entity.TripReminder, error) {
+	if reminder == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *reminder
+	return &out, nil
+}
+
+func (r *routeTestRepo) BatchCreateTripReminders(_ context.Context, reminders []entity.TripReminder) ([]entity.TripReminder, error) {
+	return append([]entity.TripReminder(nil), reminders...), nil
+}
+
+func (r *routeTestRepo) GetTripReminderByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListTripRemindersByTrip(context.Context, uuid.UUID, entity.TripReminderFilters) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) ListTripRemindersAssignedToUser(context.Context, uuid.UUID, entity.TripReminderFilters) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) ListDueTripReminders(context.Context, time.Time, int) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) ListRemindersByChecklistItemID(context.Context, uuid.UUID) ([]entity.TripReminder, error) {
+	return nil, nil
+}
+
+func (r *routeTestRepo) UpdateTripReminder(_ context.Context, reminder *entity.TripReminder) (*entity.TripReminder, error) {
+	if reminder == nil {
+		return nil, domainerrs.ErrNotFound
+	}
+	out := *reminder
+	return &out, nil
+}
+
+func (r *routeTestRepo) MarkTripReminderSent(context.Context, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) MarkTripReminderFailed(context.Context, uuid.UUID, uuid.UUID, string) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CompleteTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ReopenTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) DisableTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) EnableTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) SoftDeleteTripReminder(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripReminder, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) DeleteGeneratedPendingRemindersForTrip(context.Context, uuid.UUID, uuid.UUID, []entity.ReminderCategory) (int64, error) {
+	return 0, nil
+}
+
 func cloneRouteTestAlternativeSession(session routealternatives.Session) routealternatives.Session {
 	out := session
 	if session.TripID != nil {

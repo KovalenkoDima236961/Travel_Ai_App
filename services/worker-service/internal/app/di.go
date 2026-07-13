@@ -18,14 +18,15 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/httpserver"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/rabbitmq"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/reminders"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/pkg/closer"
 )
 
@@ -70,6 +71,24 @@ func buildContainer(
 		return nil, fmt.Errorf("init http server: %w", err)
 	}
 	shutdown.Add("http-server", httpServer.Shutdown)
+
+	if cfg.Reminders.Enabled {
+		reminderClient, err := reminders.NewClient(
+			cfg.Reminders.TripServiceURL,
+			cfg.Trip.Auth.InternalServiceToken,
+			time.Duration(cfg.Reminders.TimeoutSeconds)*time.Second,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("init reminder worker client: %w", err)
+		}
+		reminderWorker := reminders.NewWorker(reminderClient, reminders.Config{
+			Enabled:          cfg.Reminders.Enabled,
+			PollInterval:     time.Duration(cfg.Reminders.PollIntervalSeconds) * time.Second,
+			BatchSize:        cfg.Reminders.BatchSize,
+			LookaheadMinutes: cfg.Reminders.LookaheadMinutes,
+		}, log)
+		shutdown.Add("reminder-worker", reminderWorker.Start(context.Background()))
+	}
 
 	return &container{
 		server:   httpServer,

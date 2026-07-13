@@ -4,6 +4,7 @@ import type { BudgetSummary } from "@/entities/budget/model";
 import type { TripChecklist, TripChecklistItem } from "@/entities/checklist/model";
 import type { Place } from "@/entities/place/model";
 import type { PublicTrip } from "@/entities/share/model";
+import type { TripReminder } from "@/entities/trip-reminder/model";
 import type { RouteEstimate, TripRoute, TripRouteLeg, TripRouteStop } from "@/entities/route/model";
 import type { Itinerary, ItineraryDay, ItineraryItem, Trip } from "@/entities/trip/model";
 import type { WeatherForecast } from "@/entities/weather/model";
@@ -24,6 +25,7 @@ export type ExportTrip = {
   distanceSummary?: ExportDistanceDay[] | null;
   budgetSummary?: BudgetSummary | null;
   checklist?: TripChecklist | null;
+  reminders?: TripReminder[] | null;
   source: "private" | "public";
 };
 
@@ -47,6 +49,7 @@ export type ExportExtras = {
   distanceSummary?: ExportDistanceDay[] | null;
   budgetSummary?: BudgetSummary | null;
   checklist?: TripChecklist | null;
+  reminders?: TripReminder[] | null;
 };
 
 export function toExportTripFromPrivateTrip(
@@ -69,6 +72,7 @@ export function toExportTripFromPrivateTrip(
     distanceSummary: extras.distanceSummary ?? null,
     budgetSummary: extras.budgetSummary ?? null,
     checklist: sanitizeChecklist(extras.checklist),
+    reminders: sanitizeReminders(extras.reminders),
     source: "private"
   };
 }
@@ -96,6 +100,7 @@ export function toExportTripFromPublicTrip(
     distanceSummary: extras.distanceSummary ?? null,
     budgetSummary: null,
     checklist: null,
+    reminders: null,
     source: "public"
   };
 }
@@ -313,6 +318,39 @@ function sanitizeChecklistItem(item: TripChecklistItem): TripChecklistItem {
     relatedItemId: item.relatedItemId ?? null,
     metadata: item.metadata ?? {}
   };
+}
+
+function sanitizeReminders(reminders: TripReminder[] | null | undefined): TripReminder[] | null {
+  if (!reminders?.length) {
+    return null;
+  }
+  return reminders
+    .map((reminder) => ({
+      ...reminder,
+      description: reminder.description ?? null,
+      triggerTime: reminder.triggerTime ?? null,
+      timezone: reminder.timezone ?? null,
+      assignedToUserId: reminder.assignedToUserId ?? null,
+      assignedToDisplayName: reminder.assignedToDisplayName ?? null,
+      checklistItemId: reminder.checklistItemId ?? null,
+      relatedDayNumber: reminder.relatedDayNumber ?? null,
+      relatedItemIndex: reminder.relatedItemIndex ?? null,
+      relatedItemId: reminder.relatedItemId ?? null,
+      sentAt: reminder.sentAt ?? null,
+      completedAt: reminder.completedAt ?? null,
+      completedByUserId: reminder.completedByUserId ?? null,
+      disabledAt: reminder.disabledAt ?? null,
+      disabledByUserId: reminder.disabledByUserId ?? null,
+      failureReason: reminder.failureReason ?? null,
+      metadata: reminder.metadata ?? {}
+    }))
+    .sort((a, b) => {
+      const dateCompare = a.triggerDate.localeCompare(b.triggerDate);
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+      return (a.triggerTime ?? "09:00").localeCompare(b.triggerTime ?? "09:00");
+    });
 }
 
 function sanitizePlace(place: Place | null | undefined): Place | null {

@@ -25,6 +25,13 @@ votes, and a live group preference summary. Trip Service folds that summary into
 AI planning constraints as advisory guidance while workspace policy, revision
 checks, and deterministic validation remain authoritative.
 
+Smart Pre-Trip Reminders & Timeline v1 turns preparation into a private reminder
+timeline generated from trip dates, checklist items, route/transport context,
+weather, accommodation, and collaborators. Trip Service owns reminder records,
+Worker Service polls a protected Trip Service endpoint for due reminders, and
+Notification Service sends in-app/email/push notifications through existing
+preferences.
+
 ## System Map
 
 ```mermaid
@@ -45,6 +52,7 @@ flowchart LR
     Trip --> Rabbit["RabbitMQ<br/>trip.generation.jobs"]
 
     Worker["Worker Service<br/>:8090"] --> Rabbit
+    Worker --> Trip
     Worker --> TripDB[("PostgreSQL<br/>trip_service")]
     Worker --> AI
     Worker --> External
@@ -74,7 +82,7 @@ flowchart LR
 | ---- | ---- | ---- | -------------- |
 | Web app | [apps/web](apps/web/README.md) | `3000` | Workspace/trip UX, collaboration, exports, notifications, calendar controls, PWA install/offline experience. |
 | Auth | [services/auth-service](services/auth-service/README.md) | `8082` | Email/password auth, JWT access tokens, refresh-token rotation, internal user lookup. |
-| Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Personal/workspace trip ownership, collaborators, itinerary revisions, jobs, budgets, checklists, comments, shares, activity. |
+| Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Personal/workspace trip ownership, collaborators, itinerary revisions, jobs, budgets, checklists, reminders, comments, shares, activity. |
 | Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile, preferences, workspace membership, and invitations scoped by Auth JWT `sub`. |
 | External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, weather, exchange rates, price estimates, Google Calendar integration boundary. Central per-provider rate-limit and daily-quota enforcement (Provider Quota & Rate-Limit Management v1). |
 | Notifications | [services/notification-service](services/notification-service/README.md) | `8086` | In-app notifications, SSE, preferences, optional email and browser push. |
@@ -132,6 +140,13 @@ Key product capabilities:
   check items; preserve manual/checked items on regeneration; and include a
   sanitized summary in private exports. Public shares do not expose checklist
   data.
+- Smart Pre-Trip Reminders & Timeline v1: owners/editors can generate a
+  deterministic preparation timeline from dates, checklist items, route legs,
+  transport modes, accommodation, weather, and collaborators; add/edit/complete/
+  disable/delete reminders; preserve manual/completed reminders on regeneration;
+  and receive due reminders through Notification Service preferences. Public
+  shares do not expose reminders, reminders do not mutate itineraries or approval
+  state, and users must verify official requirements themselves.
 - Route Alternatives & Comparison v1: users can generate 2-4 advisory
   multi-destination route options before a trip exists or from an existing trip,
   compare stops, transfer modes, rough cost/time, difficulty, scores, pros/cons,

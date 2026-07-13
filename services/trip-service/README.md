@@ -62,6 +62,73 @@ Checklist assignment records activity and can notify the assigned collaborator.
 Private exports include a compact checklist summary and unchecked/high-priority
 items; public shares and public exports omit checklist data.
 
+## Smart Pre-Trip Reminders
+
+Smart Pre-Trip Reminders & Timeline v1 uses migration
+`000030_create_trip_reminders` and stores reminder rows in `trip_reminders`.
+Rows are trip-scoped, soft-deletable, and include category, priority, source,
+status, trigger date/time/timezone, optional checklist/itinerary links,
+optional assignee, sent/completed/disabled/failure metadata, safe JSON metadata,
+and creator/updater audit fields. Valid categories are `documents`, `packing`,
+`transport`, `accommodation`, `weather`, `activities`, `group`, `checklist`,
+`before_departure`, `route`, `safety`, and `other`.
+
+Routes:
+
+- `GET /trips/{id}/reminders`
+- `POST /trips/{id}/reminders/generate`
+- `POST /trips/{id}/reminders`
+- `PATCH /trips/{id}/reminders/{reminderId}`
+- `POST /trips/{id}/reminders/{reminderId}/complete`
+- `POST /trips/{id}/reminders/{reminderId}/reopen`
+- `POST /trips/{id}/reminders/{reminderId}/disable`
+- `POST /trips/{id}/reminders/{reminderId}/enable`
+- `DELETE /trips/{id}/reminders/{reminderId}`
+- `GET /reminders/assigned-to-me`
+- `POST /internal/reminders/process-due`
+
+Generation is deterministic and rule-based. It derives candidates from trip
+start date, active checklist items, route legs, itinerary transfers,
+accommodation, weather context, route styles such as hiking/camping/train/flight,
+and collaborators. Default offsets are intentionally conservative: documents and
+hiking/camping gear around 7 days before, accommodation around 5 days before,
+transport/group readiness around 3 days before, weather/offline tickets/packing
+around 2 days before, and final device/offline-map checks around 1 day before.
+Generated candidates are deduplicated by normalized title/category/assignee/date
+and by linked checklist item.
+
+Merge behavior preserves manual, completed, and disabled reminders by default.
+`full` and `add_missing` modes add missing generated reminders; generated
+pending reminders are replaced only when
+`replaceGeneratedPendingReminders=true`. `category` mode limits generation to
+the selected categories. Reminder changes never increment `itineraryRevision`,
+never reset approval, and never mutate itinerary or checklist rows. The summary
+returns pending/completed/overdue/today/high-priority/assigned-to-me counts and
+a best-effort stale flag when trip/checklist/route/accommodation state appears
+newer than generated reminders.
+
+Permissions follow private trip access. Users with edit access can generate,
+create, edit, assign, delete, complete, reopen, disable, and enable reminders.
+Assigned accepted collaborators can complete/reopen/disable their own reminders.
+Public share tokens, pending collaborators, and removed collaborators cannot use
+reminder routes in v1.
+
+Due processing is owned by Trip Service and triggered by Worker Service through
+`POST /internal/reminders/process-due` with `X-Internal-Service-Token`. The
+endpoint finds pending due reminders, resolves safe recipients, calls
+Notification Service internal batch, and marks each reminder `sent` or `failed`.
+Assigned reminders notify only the assignee. Unassigned high/critical reminders
+notify the owner/editor/creator path; unassigned medium/low reminders are not
+broadcast to avoid spam. Already sent/completed/disabled/deleted reminders are
+skipped, so processing is idempotent.
+
+Notifications use `pre_trip_reminder_due` for due reminders and
+`reminder_assigned` for assignment events. Metadata is limited to trip/reminder
+ids, category, and priority; long private descriptions are not copied into
+activity metadata or notification metadata. Reminder content is a preparation
+aid only: no legal, visa, medical, booking, schedule, permit, or weather
+guarantee is provided.
+
 ## Smart Trip Constraints
 
 Trip Service owns Smart Trip Constraints & Preference Engine v1 in

@@ -2187,6 +2187,91 @@ if [[ "${CHECKLIST_AFTER_REGEN_COUNT}" -lt "${CHECKLIST_ITEM_COUNT}" ]]; then
   exit 1
 fi
 
+echo "Generating smart pre-trip reminders..."
+REMINDER_GENERATE_PAYLOAD="$(jq -nc '{mode:"full",instructions:"Include documents, weather, tickets, and group readiness.",replaceGeneratedPendingReminders:true,preserveManualReminders:true,preserveCompletedReminders:true}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/reminders/generate" "${ACCESS_TOKEN}" "${REMINDER_GENERATE_PAYLOAD}"
+assert_2xx "Generate trip reminders"
+REMINDER_COUNT="$(jq '.reminders | length' <<<"${LAST_BODY}")"
+if [[ "${REMINDER_COUNT}" -lt 4 ]]; then
+  echo "Generated reminder response had too few reminders." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '
+  (.summary.total == (.reminders | length))
+  and (.summary.pending >= 1)
+  and (.reminders | any(.category == "documents"))
+  and (.reminders | any(.category == "weather"))
+' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Generated reminders did not include expected summary/category shape." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+if ! jq -e '.reminders | any(.category == "documents" and .triggerDate <= "2026-08-03")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Document reminders were not scheduled at least seven days before departure." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Creating, completing, reopening, and disabling a manual reminder..."
+MANUAL_REMINDER_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" '{title:"Smoke reminder charge power bank",description:"Due reminder smoke test.",category:"before_departure",priority:"high",triggerDate:"2026-07-20",triggerTime:"09:00",timezone:"UTC",assignedToUserId:$userId,metadata:{smoke:true}}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/reminders" "${ACCESS_TOKEN}" "${MANUAL_REMINDER_PAYLOAD}"
+assert_status "Create manual reminder" "201"
+MANUAL_REMINDER_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${MANUAL_REMINDER_ID}" ]] || ! jq -e --arg userId "${OWNER_USER_ID}" '.source == "manual" and .assignedToUserId == $userId and .status == "pending"' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Manual reminder response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/reminders/${MANUAL_REMINDER_ID}/complete" "${ACCESS_TOKEN}"
+assert_2xx "Complete manual reminder"
+if ! jq -e --arg userId "${OWNER_USER_ID}" '.status == "completed" and .completedByUserId == $userId' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Complete reminder response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/reminders/${MANUAL_REMINDER_ID}/reopen" "${ACCESS_TOKEN}"
+assert_2xx "Reopen manual reminder"
+if ! jq -e '.status == "pending" and .completedAt == null and .completedByUserId == null' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Reopen reminder response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/reminders/${MANUAL_REMINDER_ID}/disable" "${ACCESS_TOKEN}"
+assert_2xx "Disable manual reminder"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/reminders/${MANUAL_REMINDER_ID}/enable" "${ACCESS_TOKEN}"
+assert_2xx "Enable manual reminder"
+if ! jq -e '.status == "pending" and .disabledAt == null' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Enable reminder response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+echo "Processing due reminders through the internal Trip Service endpoint..."
+PROCESS_REMINDERS_PAYLOAD='{"now":"2026-07-20T09:10:00Z","limit":100}'
+request_with_internal_token POST "${TRIP_SERVICE_URL}/internal/reminders/process-due" "${INTERNAL_SERVICE_TOKEN_FOR_SMOKE}" "${PROCESS_REMINDERS_PAYLOAD}"
+assert_2xx "Process due reminders"
+if ! jq -e '.processed >= 1 and .sent >= 1 and .failed == 0' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Due reminder processing did not send the expected reminder." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Owner due reminder notification" "${ACCESS_TOKEN}" "pre_trip_reminder_due"
+request_with_internal_token POST "${TRIP_SERVICE_URL}/internal/reminders/process-due" "${INTERNAL_SERVICE_TOKEN_FOR_SMOKE}" "${PROCESS_REMINDERS_PAYLOAD}"
+assert_2xx "Process due reminders idempotently"
+if ! jq -e '.processed == 0 and .sent == 0' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Due reminder processing was not idempotent." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/reminders?status=sent" "${ACCESS_TOKEN}"
+assert_2xx "List sent reminders"
+if ! jq -e --arg id "${MANUAL_REMINDER_ID}" '.reminders | any(.id == $id and .status == "sent" and .sentAt != null)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Sent manual reminder was not returned as sent." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking private trip template flow..."
 PRIVATE_TEMPLATE_PAYLOAD="$(jq -nc '{
   title:"Smoke private template",

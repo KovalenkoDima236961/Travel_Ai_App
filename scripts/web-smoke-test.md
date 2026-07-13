@@ -150,26 +150,38 @@ Use local Grafana credentials `admin` / `admin`.
     temporary item.
 20. Regenerate with `Add missing` and confirm the checked/manual item remains.
 21. Filter by category and unchecked status, then clear the filters.
-22. Export the private trip and confirm the export includes a compact checklist
-    summary; open the public share and confirm checklist controls/data are not
-    available.
-23. Open the `Decisions` section.
-24. As an owner/editor, create a poll named `Which destination?` with three
+22. Open the Reminders/Timeline panel and click `Generate reminders`.
+23. Confirm summary counts and grouped sections appear for Overdue, Today, This
+    week, Later, Completed, and Disabled when matching reminders exist.
+24. Add a custom reminder, assign it to yourself, edit its priority/date, mark it
+    complete, reopen it, disable it, and enable it again.
+25. Filter reminders by assigned to me, high priority, category, status, and
+    upcoming only, then clear the filters.
+26. Change a trip date, route, accommodation, or checklist input and confirm the
+    stale timeline warning appears after the backend reports it. Regenerate and
+    confirm manual/completed reminders remain unless replacement is selected.
+27. Open Settings > Notification preferences and confirm `Pre-trip reminders`
+    and `Checklist reminders` are available for in-app, email, and push.
+28. Export the private trip and confirm the export includes compact checklist and
+    reminder summaries; open the public share and confirm checklist/reminder
+    controls and data are not available.
+29. Open the `Decisions` section.
+30. As an owner/editor, create a poll named `Which destination?` with three
     options and confirm it appears at the top of the section.
-25. Vote for one option, then change the vote and confirm the selected state and
+31. Vote for one option, then change the vote and confirm the selected state and
     result counts update.
-26. Close the poll and confirm voting controls are disabled while final results
+32. Close the poll and confirm voting controls are disabled while final results
     remain visible.
-27. On two itinerary items, set one reaction to `Must-have` and another to
+33. On two itinerary items, set one reaction to `Must-have` and another to
     `Skip`; confirm counts appear on the item controls.
-28. Open the group preferences panel and confirm top poll choices, must-have or
+34. Open the group preferences panel and confirm top poll choices, must-have or
     skip items, and the AI constraint summary are populated.
-29. Invite or use an accepted collaborator account with viewer access. Confirm
+35. Invite or use an accepted collaborator account with viewer access. Confirm
     the collaborator can vote/react but cannot see `Create poll`, `Close`, or
     `Archive` controls.
-30. Open the public share link for the same trip and confirm decision voting and
+36. Open the public share link for the same trip and confirm decision voting and
     reaction controls are unavailable.
-31. If a trip-linked discovery session is available in recent discovery history,
+37. If a trip-linked discovery session is available in recent discovery history,
     open it and confirm suggestion cards show Favorite/Like/Dislike/Not
     interested counts; vote once and confirm the count updates.
 32. If any generated items show `Auto-matched place`, confirm they also show a

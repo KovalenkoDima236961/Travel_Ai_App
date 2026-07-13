@@ -17,7 +17,7 @@ import (
 
 	tripauth "github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	tripops "github.com/KovalenkoDima236961/Travel_Ai_App/internal/ops"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/pkg/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/rabbitmq"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/pkg/observability"

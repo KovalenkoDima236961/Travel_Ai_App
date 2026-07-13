@@ -162,10 +162,11 @@ type HTTPServer struct {
 
 // AuthConfig controls local JWT validation for protected trip endpoints.
 type AuthConfig struct {
-	Required        bool   `yaml:"required" env:"AUTH_REQUIRED" env-default:"true"`
-	JWTAccessSecret string `yaml:"jwt_access_secret" env:"JWT_ACCESS_SECRET" env-default:"change-me-in-development" validate:"required"`
-	HeaderName      string `yaml:"header_name" env:"AUTH_HEADER_NAME" env-default:"Authorization" validate:"required"`
-	DevUserID       string `yaml:"dev_user_id" env:"DEV_USER_ID" env-default:"00000000-0000-0000-0000-000000000001" validate:"required,uuid"`
+	Required             bool   `yaml:"required" env:"AUTH_REQUIRED" env-default:"true"`
+	JWTAccessSecret      string `yaml:"jwt_access_secret" env:"JWT_ACCESS_SECRET" env-default:"change-me-in-development" validate:"required"`
+	HeaderName           string `yaml:"header_name" env:"AUTH_HEADER_NAME" env-default:"Authorization" validate:"required"`
+	DevUserID            string `yaml:"dev_user_id" env:"DEV_USER_ID" env-default:"00000000-0000-0000-0000-000000000001" validate:"required,uuid"`
+	InternalServiceToken string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
 }
 
 // CORSConfig controls browser access to the Trip Service API.
@@ -510,6 +511,7 @@ func (c *Config) validateInternalTokens() error {
 		{"INTERNAL_SERVICE_TOKEN", c.BudgetConversion.InternalServiceToken, c.BudgetConversion.Enabled},
 		{"NOTIFICATION_SERVICE_TOKEN", c.Notifications.NotificationServiceToken, c.Notifications.Enabled},
 		{"INTERNAL_SERVICE_TOKEN", c.Workspaces.ServiceToken, c.Workspaces.Enabled},
+		{"INTERNAL_SERVICE_TOKEN", c.Auth.InternalServiceToken, true},
 	}
 	for _, token := range tokens {
 		if !token.enabled {

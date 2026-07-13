@@ -65,8 +65,8 @@ func TestGetPreferencesReturnsFullDefaultMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Items) != 12 {
-		t.Fatalf("expected 12 preference items, got %d", len(result.Items))
+	if len(result.Items) != 18 {
+		t.Fatalf("expected 18 preference items, got %d", len(result.Items))
 	}
 	if !findPreference(t, result.Items, ChannelInApp, CategoryTripUpdates).Enabled {
 		t.Fatal("expected in-app trip updates enabled by default")
@@ -79,6 +79,15 @@ func TestGetPreferencesReturnsFullDefaultMatrix(t *testing.T) {
 	}
 	if !findPreference(t, result.Items, ChannelPush, CategoryTripUpdates).Enabled {
 		t.Fatal("expected push trip updates enabled by default")
+	}
+	if !findPreference(t, result.Items, ChannelInApp, CategoryPreTripReminders).Enabled {
+		t.Fatal("expected in-app pre-trip reminders enabled by default")
+	}
+	if findPreference(t, result.Items, ChannelEmail, CategoryPreTripReminders).Enabled {
+		t.Fatal("expected email pre-trip reminders disabled by default")
+	}
+	if !findPreference(t, result.Items, ChannelPush, CategoryChecklistReminders).Enabled {
+		t.Fatal("expected push checklist reminders enabled by default")
 	}
 }
 

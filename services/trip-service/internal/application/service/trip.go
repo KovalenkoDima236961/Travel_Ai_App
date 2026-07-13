@@ -207,6 +207,22 @@ type tripRepository interface {
 	SoftDeleteChecklistItem(ctx context.Context, tripID, itemID, actorUserID uuid.UUID) (*entity.TripChecklistItem, error)
 	SoftDeleteGeneratedChecklistItems(ctx context.Context, checklistID, actorUserID uuid.UUID, categories []entity.ChecklistCategory, preserveChecked bool) (int64, error)
 	ReorderChecklistItems(ctx context.Context, tripID uuid.UUID, itemIDs []uuid.UUID, actorUserID uuid.UUID) error
+	CreateTripReminder(ctx context.Context, reminder *entity.TripReminder) (*entity.TripReminder, error)
+	BatchCreateTripReminders(ctx context.Context, reminders []entity.TripReminder) ([]entity.TripReminder, error)
+	GetTripReminderByID(ctx context.Context, tripID, reminderID uuid.UUID) (*entity.TripReminder, error)
+	ListTripRemindersByTrip(ctx context.Context, tripID uuid.UUID, filters entity.TripReminderFilters) ([]entity.TripReminder, error)
+	ListTripRemindersAssignedToUser(ctx context.Context, userID uuid.UUID, filters entity.TripReminderFilters) ([]entity.TripReminder, error)
+	ListDueTripReminders(ctx context.Context, now time.Time, limit int) ([]entity.TripReminder, error)
+	ListRemindersByChecklistItemID(ctx context.Context, checklistItemID uuid.UUID) ([]entity.TripReminder, error)
+	UpdateTripReminder(ctx context.Context, reminder *entity.TripReminder) (*entity.TripReminder, error)
+	MarkTripReminderSent(ctx context.Context, tripID, reminderID uuid.UUID) (*entity.TripReminder, error)
+	MarkTripReminderFailed(ctx context.Context, tripID, reminderID uuid.UUID, reason string) (*entity.TripReminder, error)
+	CompleteTripReminder(ctx context.Context, tripID, reminderID, actorUserID uuid.UUID) (*entity.TripReminder, error)
+	ReopenTripReminder(ctx context.Context, tripID, reminderID, actorUserID uuid.UUID) (*entity.TripReminder, error)
+	DisableTripReminder(ctx context.Context, tripID, reminderID, actorUserID uuid.UUID) (*entity.TripReminder, error)
+	EnableTripReminder(ctx context.Context, tripID, reminderID, actorUserID uuid.UUID) (*entity.TripReminder, error)
+	SoftDeleteTripReminder(ctx context.Context, tripID, reminderID, actorUserID uuid.UUID) (*entity.TripReminder, error)
+	DeleteGeneratedPendingRemindersForTrip(ctx context.Context, tripID, actorUserID uuid.UUID, categories []entity.ReminderCategory) (int64, error)
 	approvalRepository
 }
 

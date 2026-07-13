@@ -41,6 +41,7 @@ import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { TripChecklistPanel } from "@/components/checklists";
+import { TripRemindersPanel } from "@/components/trip-reminders";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
 import { RouteAlternativesPanel } from "@/components/route-alternatives";
@@ -97,6 +98,7 @@ import { useTripRepairProposals } from "@/features/trip-repair";
 import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
+import { useTripReminders } from "@/hooks/useTripReminders";
 import { useItineraryReactions } from "@/hooks/useItineraryReactions";
 import { useCostSplittingSummary } from "@/features/cost-splitting";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -507,6 +509,17 @@ export function TripDetailPageContent() {
       canUsePrivateCollaboration &&
       displayedTrip?.status === "COMPLETED"
   });
+  const remindersQuery = useTripReminders(
+    tripId,
+    {},
+    {
+      enabled:
+        onlineActionsEnabled &&
+        Boolean(tripId) &&
+        canUsePrivateCollaboration &&
+        displayedTrip?.status === "COMPLETED"
+    }
+  );
   const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
   const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
   const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
@@ -630,7 +643,8 @@ export function TripDetailPageContent() {
               routeEstimatesByDay
             ),
             budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null,
-            checklist: checklistQuery.data?.checklist ?? null
+            checklist: checklistQuery.data?.checklist ?? null,
+            reminders: remindersQuery.data?.reminders ?? null
           })
         : null,
     [
@@ -639,6 +653,7 @@ export function TripDetailPageContent() {
       checklistQuery.data?.checklist,
       displayedTrip,
       fallbackDistanceSummaries,
+      remindersQuery.data?.reminders,
       routeEstimatesByDay,
       weatherForecastQuery.data
     ]
@@ -2072,6 +2087,13 @@ export function TripDetailPageContent() {
 
               <TripChecklistPanel
                 canCheck={onlineActionsEnabled && canUsePrivateCollaboration}
+                canEdit={canMutateTrip}
+                currentUserId={currentUserId}
+                enabled={onlineActionsEnabled && canUsePrivateCollaboration}
+                tripId={trip.id}
+              />
+
+              <TripRemindersPanel
                 canEdit={canMutateTrip}
                 currentUserId={currentUserId}
                 enabled={onlineActionsEnabled && canUsePrivateCollaboration}

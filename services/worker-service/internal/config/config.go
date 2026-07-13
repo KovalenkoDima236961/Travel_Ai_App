@@ -22,7 +22,17 @@ type Runtime struct {
 type Config struct {
 	Runtime            Runtime
 	RabbitMQManagement RabbitMQManagement
+	Reminders          ReminderWorker
 	Trip               *tripconfig.Config
+}
+
+type ReminderWorker struct {
+	Enabled             bool   `env:"REMINDER_WORKER_ENABLED" env-default:"true"`
+	TripServiceURL      string `env:"TRIP_SERVICE_URL" env-default:"http://trip-service:8080"`
+	PollIntervalSeconds int    `env:"REMINDER_WORKER_POLL_INTERVAL_SECONDS" env-default:"300"`
+	BatchSize           int    `env:"REMINDER_WORKER_BATCH_SIZE" env-default:"100"`
+	LookaheadMinutes    int    `env:"REMINDER_WORKER_LOOKAHEAD_MINUTES" env-default:"0"`
+	TimeoutSeconds      int    `env:"REMINDER_WORKER_TIMEOUT_SECONDS" env-default:"10"`
 }
 
 type RabbitMQManagement struct {
@@ -54,10 +64,32 @@ func Load(tripConfigPath string) (*Config, error) {
 	if err := validateRabbitMQManagement(management, tripCfg.IsStrictEnv()); err != nil {
 		return nil, err
 	}
+	var reminders ReminderWorker
+	if err := cleanenv.ReadEnv(&reminders); err != nil {
+		return nil, fmt.Errorf("read reminder worker env config: %w", err)
+	}
+	if reminders.PollIntervalSeconds < 1 {
+		reminders.PollIntervalSeconds = 300
+	}
+	if reminders.BatchSize < 1 {
+		reminders.BatchSize = 100
+	}
+	if reminders.BatchSize > 500 {
+		reminders.BatchSize = 500
+	}
+	if reminders.TimeoutSeconds < 1 {
+		reminders.TimeoutSeconds = 10
+	}
+	if err := validateHTTPURL("TRIP_SERVICE_URL", reminders.TripServiceURL); err != nil {
+		if tripCfg.IsStrictEnv() {
+			return nil, err
+		}
+	}
 
 	return &Config{
 		Runtime:            runtime,
 		RabbitMQManagement: management,
+		Reminders:          reminders,
 		Trip:               tripCfg,
 	}, nil
 }
@@ -93,6 +125,21 @@ func validateRabbitMQManagement(cfg RabbitMQManagement, strict bool) error {
 	}
 	if len(password) < 16 {
 		return fmt.Errorf("RABBITMQ_MANAGEMENT_PASSWORD must be at least 16 characters in staging or production")
+	}
+	return nil
+}
+
+func validateHTTPURL(name, value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", name)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%s must be a valid http/https URL", name)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https", name)
 	}
 	return nil
 }
