@@ -18,6 +18,7 @@ const ITEMS: { label: string; href: string; icon: IconComponent }[] = [
   { label: "Decisions", href: "#decisions", icon: UserGroupIcon },
   { label: "Map", href: "#map", icon: MapIcon },
   { label: "Budget", href: "#budget", icon: WalletIcon },
+  { label: "Expenses", href: "#expenses", icon: WalletIcon },
   { label: "Cost split", href: "#cost-split", icon: ScaleIcon },
   { label: "Sharing", href: "#sharing", icon: UserGroupIcon },
   { label: "Activity", href: "#activity", icon: ChatBubbleIcon }

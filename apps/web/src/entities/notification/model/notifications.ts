@@ -18,6 +18,8 @@ export type NotificationType =
   | "generation_job_failed"
   | "budget_optimization_ready"
   | "budget_optimization_failed"
+  | "expense_added"
+  | "settlement_paid"
   | "workspace_budget_created"
   | "workspace_budget_updated"
   | "workspace_budget_archived"

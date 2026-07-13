@@ -850,6 +850,73 @@ func (m *mockRepo) CountActiveTravelersByTrip(_ context.Context, _ uuid.UUID) (i
 	return 0, nil
 }
 
+func (m *mockRepo) CreateTripExpenseWithParticipants(_ context.Context, expense *entity.TripExpense, participants []entity.TripExpenseParticipant) (*entity.TripExpense, []entity.TripExpenseParticipant, error) {
+	out := *expense
+	now := time.Now()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	for i := range participants {
+		if participants[i].ID == uuid.Nil {
+			participants[i].ID = uuid.New()
+		}
+		participants[i].ExpenseID = out.ID
+		participants[i].TripID = out.TripID
+		participants[i].CreatedAt = now
+		participants[i].UpdatedAt = now
+	}
+	return &out, participants, nil
+}
+
+func (m *mockRepo) UpdateTripExpenseWithParticipants(_ context.Context, expense *entity.TripExpense, participants []entity.TripExpenseParticipant, _ bool) (*entity.TripExpense, []entity.TripExpenseParticipant, error) {
+	out := *expense
+	out.UpdatedAt = time.Now()
+	return &out, participants, nil
+}
+
+func (m *mockRepo) GetTripExpenseByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripExpense, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripExpensesByTrip(context.Context, uuid.UUID, appdto.ListExpensesInput) ([]entity.TripExpense, error) {
+	return []entity.TripExpense{}, nil
+}
+
+func (m *mockRepo) SoftDeleteTripExpense(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripExpense, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListExpenseParticipantsByTrip(context.Context, uuid.UUID) ([]entity.TripExpenseParticipant, error) {
+	return []entity.TripExpenseParticipant{}, nil
+}
+
+func (m *mockRepo) ListExpenseParticipantsByExpense(context.Context, uuid.UUID, uuid.UUID) ([]entity.TripExpenseParticipant, error) {
+	return []entity.TripExpenseParticipant{}, nil
+}
+
+func (m *mockRepo) CreateTripSettlement(_ context.Context, settlement *entity.TripSettlement) (*entity.TripSettlement, error) {
+	out := *settlement
+	now := time.Now()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	return &out, nil
+}
+
+func (m *mockRepo) GetTripSettlementByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripSettlement, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ListTripSettlementsByTrip(context.Context, uuid.UUID) ([]entity.TripSettlement, error) {
+	return []entity.TripSettlement{}, nil
+}
+
+func (m *mockRepo) MarkTripSettlementPaid(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, *string) (*entity.TripSettlement, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) CancelTripSettlement(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripSettlement, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
 func (m *mockRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
 	if m.shareErr != nil {
 		return nil, m.shareErr

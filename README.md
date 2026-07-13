@@ -172,6 +172,11 @@ Key product capabilities:
 - Cost Splitting Between Travelers v1: trip traveler roster, per-item and
   accommodation allocation rules, per-traveler summaries, and CSV/PDF exports
   for planning estimates.
+- Shared Expenses & Settlement v1: private trip collaborators can record actual
+  paid expenses, choose equal/selected/custom/payer-only splits, compare actual
+  spend to the planned budget, view deterministic balance and settlement
+  suggestions, and mark suggestions paid. This is collaborative bookkeeping only:
+  no real payment is initiated or processed.
 - Cost Analytics Dashboard v1 with trip and workspace cost rollups, expensive
   item insights, missing estimate warnings, and browser-generated CSV/PDF cost
   reports.

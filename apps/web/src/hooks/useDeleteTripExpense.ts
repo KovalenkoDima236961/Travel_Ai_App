@@ -1,0 +1,1 @@
+export { useDeleteTripExpense } from "./useTripExpenses";

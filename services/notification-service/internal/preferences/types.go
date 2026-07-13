@@ -115,6 +115,8 @@ var typeToCategory = map[string]string{
 	notifications.TypeTripApprovalResetToDraft:    CategoryCollaboration,
 	notifications.TypePreTripReminderDue:          CategoryPreTripReminders,
 	notifications.TypeReminderAssigned:            CategoryChecklistReminders,
+	notifications.TypeExpenseAdded:                CategoryCollaboration,
+	notifications.TypeSettlementPaid:              CategoryCollaboration,
 }
 
 // CategoryForNotificationType maps a notification type to its preference

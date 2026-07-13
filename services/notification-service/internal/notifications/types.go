@@ -27,6 +27,8 @@ const (
 	TypeAvailabilityRequested = "availability_requested"
 	TypePreTripReminderDue    = "pre_trip_reminder_due"
 	TypeReminderAssigned      = "reminder_assigned"
+	TypeExpenseAdded          = "expense_added"
+	TypeSettlementPaid        = "settlement_paid"
 
 	// Budget optimization.
 	TypeBudgetOptimizationReady  = "budget_optimization_ready"
@@ -69,6 +71,8 @@ const (
 	EntityAvailability     = "availability"
 	EntityDateOption       = "date_option"
 	EntityTripReminder     = "trip_reminder"
+	EntityTripExpense      = "trip_expense"
+	EntityTripSettlement   = "trip_settlement"
 )
 
 // knownTypes is the set of notification types this version recognises. Unknown
@@ -91,6 +95,8 @@ var knownTypes = map[string]struct{}{
 	TypeAvailabilityRequested:       {},
 	TypePreTripReminderDue:          {},
 	TypeReminderAssigned:            {},
+	TypeExpenseAdded:                {},
+	TypeSettlementPaid:              {},
 	TypeBudgetOptimizationReady:     {},
 	TypeBudgetOptimizationFailed:    {},
 	TypeWorkspaceBudgetCreated:      {},

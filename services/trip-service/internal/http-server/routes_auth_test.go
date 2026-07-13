@@ -2234,6 +2234,73 @@ func (r *routeTestRepo) CountActiveTravelersByTrip(_ context.Context, tripID uui
 	return count, nil
 }
 
+func (r *routeTestRepo) CreateTripExpenseWithParticipants(_ context.Context, expense *entity.TripExpense, participants []entity.TripExpenseParticipant) (*entity.TripExpense, []entity.TripExpenseParticipant, error) {
+	out := *expense
+	now := time.Now().UTC()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	for i := range participants {
+		if participants[i].ID == uuid.Nil {
+			participants[i].ID = uuid.New()
+		}
+		participants[i].ExpenseID = out.ID
+		participants[i].TripID = out.TripID
+		participants[i].CreatedAt = now
+		participants[i].UpdatedAt = now
+	}
+	return &out, participants, nil
+}
+
+func (r *routeTestRepo) UpdateTripExpenseWithParticipants(_ context.Context, expense *entity.TripExpense, participants []entity.TripExpenseParticipant, _ bool) (*entity.TripExpense, []entity.TripExpenseParticipant, error) {
+	out := *expense
+	out.UpdatedAt = time.Now().UTC()
+	return &out, participants, nil
+}
+
+func (r *routeTestRepo) GetTripExpenseByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripExpense, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListTripExpensesByTrip(context.Context, uuid.UUID, appdto.ListExpensesInput) ([]entity.TripExpense, error) {
+	return []entity.TripExpense{}, nil
+}
+
+func (r *routeTestRepo) SoftDeleteTripExpense(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripExpense, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListExpenseParticipantsByTrip(context.Context, uuid.UUID) ([]entity.TripExpenseParticipant, error) {
+	return []entity.TripExpenseParticipant{}, nil
+}
+
+func (r *routeTestRepo) ListExpenseParticipantsByExpense(context.Context, uuid.UUID, uuid.UUID) ([]entity.TripExpenseParticipant, error) {
+	return []entity.TripExpenseParticipant{}, nil
+}
+
+func (r *routeTestRepo) CreateTripSettlement(_ context.Context, settlement *entity.TripSettlement) (*entity.TripSettlement, error) {
+	out := *settlement
+	now := time.Now().UTC()
+	out.CreatedAt = now
+	out.UpdatedAt = now
+	return &out, nil
+}
+
+func (r *routeTestRepo) GetTripSettlementByID(context.Context, uuid.UUID, uuid.UUID) (*entity.TripSettlement, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) ListTripSettlementsByTrip(context.Context, uuid.UUID) ([]entity.TripSettlement, error) {
+	return []entity.TripSettlement{}, nil
+}
+
+func (r *routeTestRepo) MarkTripSettlementPaid(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, *string) (*entity.TripSettlement, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
+func (r *routeTestRepo) CancelTripSettlement(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripSettlement, error) {
+	return nil, domainerrs.ErrNotFound
+}
+
 func (r *routeTestRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
 	if _, ok := r.sharesByTrip[share.TripID]; ok {
 		return nil, domainerrs.ErrConflict

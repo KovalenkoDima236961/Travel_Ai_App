@@ -2921,6 +2921,67 @@ VIEWER_SPLIT_PAYLOAD="$(
 request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/days/1/items/0/cost-split" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_SPLIT_PAYLOAD}"
 assert_status "Viewer update itinerary cost split" "403"
 
+echo "Checking shared expenses and settlement suggestions..."
+EXPENSE_PAYLOAD="$(
+  jq -nc \
+    --arg owner "${OWNER_USER_ID}" \
+    --arg collab "${COLLAB_USER_ID}" \
+    '{
+      title:"Smoke dinner",
+      amount:{amount:42,currency:"EUR"},
+      category:"food",
+      expenseDate:"2026-08-10",
+      paidByUserId:$owner,
+      splitType:"selected_equal",
+      participantUserIds:[$owner,$collab],
+      notes:"Smoke actual expense"
+    }'
+)"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses" "${ACCESS_TOKEN}" "${EXPENSE_PAYLOAD}"
+assert_2xx "Create trip expense"
+EXPENSE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${EXPENSE_ID}" ]] || ! jq -e '.amount.amount == 42 and .amount.currency == "EUR" and (.participants | length) == 2' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Create expense response did not include expected amount and participants." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer list expenses"
+if ! jq -e --arg id "${EXPENSE_ID}" '.items | any(.id == $id)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Viewer expense list did not include the created expense." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/summary?currency=EUR" "${ACCESS_TOKEN}"
+assert_2xx "Expense summary"
+if ! jq -e '.actualTotal.amount == 42 and .settlementSummary.pendingCount >= 1 and (.balances | length) >= 2' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Expense summary did not include expected totals, balances, and pending settlement." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/settlements?currency=EUR" "${ACCESS_TOKEN}"
+assert_2xx "Settlement suggestions"
+SETTLEMENT_ID="$(jq -r '.suggestions[0].id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${SETTLEMENT_ID}" ]]; then
+  echo "Settlement suggestions did not include a calculated settlement." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+SETTLEMENT_ID_ENCODED="$(jq -rn --arg id "${SETTLEMENT_ID}" '$id|@uri')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/settlements/${SETTLEMENT_ID_ENCODED}/mark-paid" "${ACCESS_TOKEN}" '{"notes":"Smoke settlement paid"}'
+assert_2xx "Mark settlement paid"
+if ! jq -e '(.paidSettlements | length) >= 1' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Mark settlement paid did not return a paid settlement." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses" "${COLLAB_ACCESS_TOKEN}" "${EXPENSE_PAYLOAD}"
+assert_status "Viewer create expense paid by owner" "403"
+
 echo "Checking viewer can read but cannot mutate accommodation..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/accommodation" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer get accommodation"
@@ -4019,6 +4080,8 @@ assert_activity_has "Owner activity feed" "checklist_generated"
 assert_activity_has "Owner activity feed" "checklist_regenerated"
 assert_activity_has "Owner activity feed" "checklist_item_added"
 assert_activity_has "Owner activity feed" "checklist_item_deleted"
+assert_activity_has "Owner activity feed" "expense_created"
+assert_activity_has "Owner activity feed" "settlement_marked_paid"
 
 echo "Paging the activity feed one event at a time via the opaque cursor..."
 ACTIVITY_CURSOR=""

@@ -34,6 +34,11 @@ const (
 	EventAvailabilityRequested               = "availability_requested"
 	EventDateOptionApplied                   = "date_option_applied"
 	EventDateOptionsPollCreated              = "date_options_poll_created"
+	EventExpenseCreated                      = "expense_created"
+	EventExpenseUpdated                      = "expense_updated"
+	EventExpenseDeleted                      = "expense_deleted"
+	EventSettlementMarkedPaid                = "settlement_marked_paid"
+	EventSettlementCancelled                 = "settlement_cancelled"
 
 	// Templates.
 	EventTemplateCreated  = "template_created"
@@ -121,6 +126,8 @@ const (
 	EntityReminder         = "trip_reminder"
 	EntityAvailability     = "availability"
 	EntityDateOption       = "date_option"
+	EntityTripExpense      = "trip_expense"
+	EntityTripSettlement   = "trip_settlement"
 )
 
 // knownEventTypes is the set of event types this version recognises. Recording
@@ -156,6 +163,11 @@ var knownEventTypes = map[string]struct{}{
 	EventAvailabilityRequested:               {},
 	EventDateOptionApplied:                   {},
 	EventDateOptionsPollCreated:              {},
+	EventExpenseCreated:                      {},
+	EventExpenseUpdated:                      {},
+	EventExpenseDeleted:                      {},
+	EventSettlementMarkedPaid:                {},
+	EventSettlementCancelled:                 {},
 	EventTemplateCreated:                     {},
 	EventTemplateArchived:                    {},
 	EventAccommodationAdded:                  {},

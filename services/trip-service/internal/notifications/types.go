@@ -30,6 +30,8 @@ const (
 	TypeReminderAssigned         = "reminder_assigned"
 	TypeAvailabilityRequested    = "availability_requested"
 	TypeDateOptionApplied        = "date_option_applied"
+	TypeExpenseAdded             = "expense_added"
+	TypeSettlementPaid           = "settlement_paid"
 
 	// Approval workflow.
 	TypeTripSubmittedForApproval = "trip_submitted_for_approval"
@@ -55,4 +57,6 @@ const (
 	EntityTripReminder     = "trip_reminder"
 	EntityAvailability     = "availability"
 	EntityDateOption       = "date_option"
+	EntityTripExpense      = "trip_expense"
+	EntityTripSettlement   = "trip_settlement"
 )

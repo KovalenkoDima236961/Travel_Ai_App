@@ -39,6 +39,7 @@ import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/features/itinerary-optimization";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
+import { ExpensesPanel } from "@/components/expenses";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { TripChecklistPanel } from "@/components/checklists";
 import { TripRemindersPanel } from "@/components/trip-reminders";
@@ -2390,6 +2391,15 @@ export function TripDetailPageContent() {
                     isEditing || createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
                   }
                   perPersonAverage={perPersonAverage}
+                  trip={trip}
+                />
+              </div>
+              <div id="expenses" className="scroll-mt-24">
+                <ExpensesPanel
+                  canEdit={canEditTripAccess}
+                  currentUserId={currentUserId}
+                  offline={offlineDataMode}
+                  travelers={tripTravelersQuery.data?.travelers ?? []}
                   trip={trip}
                 />
               </div>

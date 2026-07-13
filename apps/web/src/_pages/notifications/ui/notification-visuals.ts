@@ -60,6 +60,8 @@ const VISUALS: Record<NotificationType, NotificationVisual> = {
   workspace_budget_archived: { Icon: CheckCircleIcon, tileClassName: AMBER },
   workspace_budget_nearing_limit: { Icon: ExclamationTriangleIcon, tileClassName: ALERT },
   workspace_budget_exceeded: { Icon: ExclamationTriangleIcon, tileClassName: ALERT },
+  expense_added: { Icon: CheckCircleIcon, tileClassName: AMBER },
+  settlement_paid: { Icon: CheckCircleIcon, tileClassName: AMBER },
 
   // Failures.
   generation_job_failed: { Icon: ExclamationTriangleIcon, tileClassName: ALERT },

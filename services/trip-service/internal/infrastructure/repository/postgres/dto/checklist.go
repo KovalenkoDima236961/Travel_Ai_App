@@ -280,6 +280,10 @@ func intPtrArg(value *int) pgtype.Int4 {
 	return pgtype.Int4{Int32: int32(*value), Valid: true}
 }
 
+func IntPtrArg(value *int) pgtype.Int4 {
+	return intPtrArg(value)
+}
+
 func int4Ptr(value pgtype.Int4) *int {
 	if !value.Valid {
 		return nil
@@ -304,6 +308,10 @@ func jsonArg(value map[string]any) []byte {
 		return nil
 	}
 	return raw
+}
+
+func JSONArg(value map[string]any) []byte {
+	return jsonArg(value)
 }
 
 func unmarshalMap(raw []byte, label string) (map[string]any, error) {

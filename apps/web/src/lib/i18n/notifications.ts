@@ -6,7 +6,9 @@ const NOTIFICATION_TITLE_KEYS: Partial<Record<AppNotification["type"], string>> 
   workspace_budget_exceeded: "budgetExceeded",
   workspace_role_changed: "roleChanged",
   collaborator_role_changed: "roleChanged",
-  collaboration_invited: "collaboratorInvited"
+  collaboration_invited: "collaboratorInvited",
+  expense_added: "expenseAdded",
+  settlement_paid: "settlementPaid"
 };
 
 export function localizedNotificationTitle(

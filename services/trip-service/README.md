@@ -129,6 +129,50 @@ activity metadata or notification metadata. Reminder content is a preparation
 aid only: no legal, visa, medical, booking, schedule, permit, or weather
 guarantee is provided.
 
+## Shared Expenses & Settlement
+
+Shared Expenses & Settlement v1 uses migration
+`000031_create_trip_expenses` and stores actual trip spending separately from
+planned itinerary estimates:
+
+- `trip_expenses`: trip-scoped expense rows with amount/currency, category,
+  payer, split type, optional itinerary/route/accommodation links, notes,
+  metadata, and soft-delete audit fields.
+- `trip_expense_participants`: calculated participant shares for each expense.
+- `trip_settlements`: recorded settlement actions, including calculated
+  suggestion hash, paid/cancelled status, actor audit fields, notes, and
+  metadata.
+
+Routes:
+
+- `GET /trips/{id}/expenses`
+- `POST /trips/{id}/expenses`
+- `GET /trips/{id}/expenses/summary`
+- `GET /trips/{id}/expenses/{expenseId}`
+- `PATCH /trips/{id}/expenses/{expenseId}`
+- `DELETE /trips/{id}/expenses/{expenseId}`
+- `GET /trips/{id}/settlements`
+- `POST /trips/{id}/settlements/recalculate`
+- `POST /trips/{id}/settlements/{settlementId}/mark-paid`
+- `POST /trips/{id}/settlements/{settlementId}/cancel`
+
+Supported split types are `equal`, `selected_equal`, `custom_amounts`,
+`custom_percentages`, and `payer_only`. The service validates participants
+against private trip access, preserves deterministic cents rounding, and
+calculates simplified settlement suggestions from outstanding balances sorted by
+amount and user id. Planned-vs-actual summary uses the existing budget summary
+path and the same exchange-rate conversion behavior.
+
+Owners and editors can create/update/delete any expense and mark/cancel
+settlements. Accepted viewers can read expenses/settlements and may record an
+expense only when they are the payer; they cannot create expenses paid by
+someone else. Public share tokens, pending collaborators, and removed
+collaborators cannot access expense routes.
+
+Settlements are bookkeeping suggestions only. Trip Service records that a user
+marked a settlement paid, but it never initiates, authorizes, schedules, or
+processes a real payment.
+
 ## Smart Trip Constraints
 
 Trip Service owns Smart Trip Constraints & Preference Engine v1 in
