@@ -24,6 +24,7 @@ import { MergeConflictDialog } from "@/components/itinerary/merge/MergeConflictD
 import { ItemCommentsPanel } from "@/features/trip-comments";
 import { TripCommentsSummary } from "@/features/trip-comments";
 import { OfflineBanner } from "@/components/offline/OfflineBanner";
+import { OfflineTripCompanionPanel } from "@/components/offline/OfflineTripCompanionPanel";
 import { PendingOfflineChangesPanel } from "@/components/offline/PendingOfflineChangesPanel";
 import { PresenceEditingWarning } from "@/components/presence/TripPresenceIndicator";
 import {
@@ -112,9 +113,11 @@ import { useTripEditLock } from "@/features/trip-edit-lock";
 import { isOfflineLikeError } from "@/lib/offline/network";
 import {
   cacheTripSnapshot,
+  deleteCachedTrip,
   getCachedTrip,
   updateCachedTripItinerary
 } from "@/lib/offline/trip-cache";
+import { rollbackOfflineCompanionMutation } from "@/lib/offline/cache-writer";
 import { recordPwaEngagement } from "@/lib/pwa/pwa-detection";
 import {
   discardMutation,
@@ -153,8 +156,10 @@ import type {
 import type {
   CachedTripRecord,
   PendingItineraryMutation,
+  PendingOfflineMutation,
   SyncResult
 } from "@/lib/offline/types";
+import { isPendingItineraryMutation } from "@/lib/offline/types";
 import type { Itinerary, Trip } from "@/entities/trip/model";
 import { BudgetOptimizationProposalsPanel } from "./BudgetOptimizationProposalsPanel";
 import { TripDetailHeader } from "./TripDetailHeader";
@@ -359,16 +364,23 @@ export function TripDetailPageContent() {
   });
 
   const pendingOfflineMutation =
-    offlineSync.mutations.find((mutation) => mutation.tripId === tripId) ?? null;
+    offlineSync.mutations.find(
+      (mutation): mutation is PendingItineraryMutation =>
+        mutation.tripId === tripId && isPendingItineraryMutation(mutation)
+    ) ?? null;
+  const tripOfflineMutations = offlineSync.mutations.filter(
+    (mutation) => mutation.tripId === tripId
+  );
   const sourceTrip = tripQuery.data ?? cachedTripRecord?.trip ?? null;
   const displayedTrip = sourceTrip
     ? withPendingOfflineItinerary(sourceTrip, pendingOfflineMutation)
     : null;
   const isUsingCachedTrip = Boolean(cachedTripRecord) && (!tripQuery.data || !networkStatus.online);
-  const hasPendingOfflineChanges = Boolean(pendingOfflineMutation);
-  const offlineDataMode = isUsingCachedTrip || !networkStatus.online || hasPendingOfflineChanges;
+  const hasPendingOfflineChanges = tripOfflineMutations.length > 0;
+  const hasPendingItineraryDraft = Boolean(pendingOfflineMutation);
+  const offlineDataMode = isUsingCachedTrip || !networkStatus.online || hasPendingItineraryDraft;
   const onlineActionsEnabled =
-    networkStatus.online && !isUsingCachedTrip && !hasPendingOfflineChanges;
+    networkStatus.online && !isUsingCachedTrip && !hasPendingItineraryDraft;
   const cachedBudgetSummary = cachedTripRecord?.budgetSummary ?? null;
   const currentItinerary = displayedTrip?.itinerary ?? null;
   useEffect(() => {
@@ -1088,7 +1100,11 @@ export function TripDetailPageContent() {
       return;
     }
 
-    if (result.status === "synced") {
+    if (
+      result.status === "synced" &&
+      isPendingItineraryMutation(result.mutation) &&
+      result.trip
+    ) {
       queryClient.setQueryData(tripKeys.detail(tripId), result.trip);
       setCachedTripRecord(null);
       setRegenerationError(null);
@@ -1103,7 +1119,18 @@ export function TripDetailPageContent() {
       return;
     }
 
-    if (result.status === "conflict") {
+    if (result.status === "synced") {
+      setSuccessMessage("Offline companion changes synced.");
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["trip-checklists"] }),
+        queryClient.invalidateQueries({ queryKey: ["trip-reminders"] }),
+        queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
+      ]);
+      return;
+    }
+
+    if (result.status === "conflict" && isPendingItineraryMutation(result.mutation)) {
       void prepareOfflineMergeRecovery(
         result.mutation,
         result.latestTrip ?? null,
@@ -1268,6 +1295,63 @@ export function TripDetailPageContent() {
     }
 
     await discardOfflineMutationWithCache(pendingOfflineMutation);
+  }
+
+  async function discardTripOfflineMutation(mutation: PendingOfflineMutation) {
+    if (isPendingItineraryMutation(mutation)) {
+      await discardPendingOfflineChanges();
+      return;
+    }
+
+    if (!window.confirm("Discard this offline change?")) {
+      return;
+    }
+
+    await rollbackOfflineCompanionMutation(mutation);
+    await discardMutation(mutation.mutationId);
+    await offlineSync.refresh();
+    setSuccessMessage("Offline change discarded.");
+  }
+
+  async function refreshOfflineCopy() {
+    if (!currentUserId || !networkStatus.online) {
+      setRegenerationError("This action requires internet.");
+      return;
+    }
+
+    try {
+      const latestTrip = tripQuery.data ?? (await getTrip(tripId));
+      await cacheTripSnapshot({
+        userId: currentUserId,
+        trip: latestTrip,
+        budgetSummary: budgetSummaryQuery.data ?? null,
+        accommodation: latestTrip.accommodation ?? null
+      });
+      setCachedTripRecord(await getCachedTrip(tripId, currentUserId));
+      setOfflineUnavailable(false);
+      setRegenerationError(null);
+      setSuccessMessage("Offline copy refreshed.");
+    } catch (error) {
+      setRegenerationError(getErrorMessage(error, "Could not refresh the offline copy."));
+    }
+  }
+
+  async function removeOfflineCopy() {
+    if (!currentUserId) {
+      return;
+    }
+    if (tripOfflineMutations.length > 0) {
+      setRegenerationError("Sync or discard pending changes before removing this offline copy.");
+      return;
+    }
+    if (!window.confirm("Remove this trip from offline storage on this device?")) {
+      return;
+    }
+
+    await deleteCachedTrip(tripId, currentUserId);
+    setCachedTripRecord(null);
+    setOfflineUnavailable(false);
+    setSuccessMessage("Offline copy removed from this device.");
   }
 
   async function discardOfflineMutationWithCache(
@@ -1936,11 +2020,11 @@ export function TripDetailPageContent() {
         <OfflineBanner
           cachedAt={cachedTripRecord?.cachedAt}
           className="mb-6"
-          conflictCount={offlineSync.conflicts.length}
-          failedCount={offlineSync.failed.length}
+          conflictCount={tripOfflineMutations.filter((mutation) => mutation.status === "conflict").length}
+          failedCount={tripOfflineMutations.filter((mutation) => mutation.status === "failed").length}
           offlineCopy={isUsingCachedTrip}
           online={networkStatus.online}
-          pendingCount={offlineSync.pendingCount}
+          pendingCount={tripOfflineMutations.length}
           syncing={offlineSync.syncing}
         />
 
@@ -1987,6 +2071,22 @@ export function TripDetailPageContent() {
                 onReview={reviewPendingOfflineChanges}
                 onSyncNow={offlineSync.syncNow}
                 syncing={offlineSync.syncing}
+              />
+            ) : null}
+
+            {currentUserId &&
+            (cachedTripRecord || offlineDataMode || tripOfflineMutations.length > 0) ? (
+              <OfflineTripCompanionPanel
+                cachedAt={cachedTripRecord?.cachedAt}
+                mutations={tripOfflineMutations}
+                onDiscard={discardTripOfflineMutation}
+                onRefreshOfflineCopy={refreshOfflineCopy}
+                onRemoveOfflineCopy={removeOfflineCopy}
+                onSyncNow={offlineSync.syncNow}
+                online={networkStatus.online}
+                syncing={offlineSync.syncing}
+                tripId={trip.id}
+                userId={currentUserId}
               />
             ) : null}
 
@@ -2098,18 +2198,22 @@ export function TripDetailPageContent() {
               />
 
               <TripChecklistPanel
-                canCheck={onlineActionsEnabled && canUsePrivateCollaboration}
-                canEdit={canMutateTrip}
+                canCheck={canUsePrivateCollaboration}
+                canEdit={canEditTripAccess}
                 currentUserId={currentUserId}
-                enabled={onlineActionsEnabled && canUsePrivateCollaboration}
+                enabled={canUsePrivateCollaboration}
+                offline={offlineDataMode}
                 tripId={trip.id}
+                userId={currentUserId}
               />
 
               <TripRemindersPanel
-                canEdit={canMutateTrip}
+                canEdit={canEditTripAccess}
                 currentUserId={currentUserId}
-                enabled={onlineActionsEnabled && canUsePrivateCollaboration}
+                enabled={canUsePrivateCollaboration}
+                offline={offlineDataMode}
                 tripId={trip.id}
+                userId={currentUserId}
               />
 
               <BudgetOptimizationProposalsPanel

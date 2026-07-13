@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -11,6 +11,11 @@ import { ReminderFilters } from "./ReminderFilters";
 import { ReminderSummaryCards } from "./ReminderSummaryCards";
 import { ReminderTimeline } from "./ReminderTimeline";
 import {
+  applyOfflineReminderCreate,
+  applyOfflineReminderStatus,
+  buildReminderSummary
+} from "@/lib/offline/cache-writer";
+import {
   useCompleteTripReminder,
   useCreateTripReminder,
   useDeleteTripReminder,
@@ -19,6 +24,8 @@ import {
   useTripReminders,
   useUpdateTripReminder
 } from "@/hooks/useTripReminders";
+import { getCachedReminders, putCachedReminders } from "@/lib/offline/trip-cache";
+import { enqueueCompanionMutation } from "@/lib/offline/sync-queue";
 import { getErrorMessage } from "@/lib/utils";
 import type {
   CreateReminderInput,
@@ -34,6 +41,8 @@ type TripRemindersPanelProps = {
   canEdit: boolean;
   currentUserId?: string | null;
   enabled?: boolean;
+  offline?: boolean;
+  userId?: string | null;
 };
 
 const EMPTY_SUMMARY: ReminderSummary = {
@@ -51,7 +60,9 @@ export function TripRemindersPanel({
   tripId,
   canEdit,
   currentUserId,
-  enabled = true
+  enabled = true,
+  offline = false,
+  userId
 }: TripRemindersPanelProps) {
   const t = useTranslations("tripReminders");
   const [filters, setFilters] = useState<ReminderListParams>({});
@@ -60,7 +71,9 @@ export function TripRemindersPanel({
   const [showAdd, setShowAdd] = useState(false);
   const [editingReminder, setEditingReminder] = useState<TripReminder | null>(null);
 
-  const query = useTripReminders(tripId, filters, { enabled });
+  const query = useTripReminders(tripId, filters, { enabled: enabled && !offline });
+  const [offlineReminders, setOfflineReminders] = useState<TripReminder[] | null>(null);
+  const [offlineSummary, setOfflineSummary] = useState<ReminderSummary | null>(null);
   const generateMutation = useGenerateTripReminders(tripId);
   const createMutation = useCreateTripReminder(tripId);
   const updateMutation = useUpdateTripReminder(tripId);
@@ -68,8 +81,44 @@ export function TripRemindersPanel({
   const disableMutation = useDisableTripReminder(tripId);
   const deleteMutation = useDeleteTripReminder(tripId);
 
-  const reminders = query.data?.reminders ?? [];
-  const summary = query.data?.summary ?? EMPTY_SUMMARY;
+  useEffect(() => {
+    if (!offline || !userId) {
+      return;
+    }
+    let cancelled = false;
+    getCachedReminders(tripId, userId)
+      .then((record) => {
+        if (!cancelled) {
+          setOfflineReminders(record?.reminders ?? []);
+          setOfflineSummary(record?.summary ?? EMPTY_SUMMARY);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOfflineReminders([]);
+          setOfflineSummary(EMPTY_SUMMARY);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [offline, tripId, userId]);
+
+  useEffect(() => {
+    if (!offline && userId && query.data) {
+      void putCachedReminders({
+        tripId,
+        userId,
+        reminders: query.data.reminders,
+        summary: query.data.summary
+      });
+    }
+  }, [offline, query.data, tripId, userId]);
+
+  const reminders = offline ? offlineReminders ?? [] : query.data?.reminders ?? [];
+  const summary = offline
+    ? offlineSummary ?? buildReminderSummary(reminders, currentUserId)
+    : query.data?.summary ?? EMPTY_SUMMARY;
   const busy =
     generateMutation.isPending ||
     createMutation.isPending ||
@@ -80,7 +129,7 @@ export function TripRemindersPanel({
 
   const labelMaps = useMemo(() => buildLabelMaps(t), [t]);
 
-  if (!enabled) {
+  if (!enabled && !offline) {
     return (
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">{t("title")}</h2>
@@ -90,6 +139,10 @@ export function TripRemindersPanel({
   }
 
   function generateReminders(input: GenerateRemindersInput) {
+    if (offline) {
+      setLocalError("This action requires internet.");
+      return;
+    }
     setLocalError(null);
     generateMutation.mutate(input, {
       onSuccess: () => setShowGenerate(false),
@@ -98,6 +151,10 @@ export function TripRemindersPanel({
   }
 
   function createReminder(input: CreateReminderInput) {
+    if (offline) {
+      void createOfflineReminder(input);
+      return;
+    }
     setLocalError(null);
     createMutation.mutate(input, {
       onSuccess: () => setShowAdd(false),
@@ -106,6 +163,10 @@ export function TripRemindersPanel({
   }
 
   function updateReminder(input: UpdateReminderInput) {
+    if (offline) {
+      setLocalError("This action requires internet.");
+      return;
+    }
     if (!editingReminder) {
       return;
     }
@@ -120,6 +181,10 @@ export function TripRemindersPanel({
   }
 
   function completeReminder(reminder: TripReminder) {
+    if (offline) {
+      void completeOfflineReminder(reminder);
+      return;
+    }
     setLocalError(null);
     completeMutation.mutate(
       { reminderId: reminder.id, completed: reminder.status !== "completed" },
@@ -128,6 +193,10 @@ export function TripRemindersPanel({
   }
 
   function disableReminder(reminder: TripReminder) {
+    if (offline) {
+      void disableOfflineReminder(reminder);
+      return;
+    }
     setLocalError(null);
     disableMutation.mutate(
       { reminderId: reminder.id, disabled: reminder.status !== "disabled" },
@@ -139,10 +208,103 @@ export function TripRemindersPanel({
     if (!window.confirm(t("confirmDelete"))) {
       return;
     }
+    if (offline) {
+      setLocalError("This action requires internet.");
+      return;
+    }
     setLocalError(null);
     deleteMutation.mutate(reminder.id, {
       onError: (error) => setLocalError(getErrorMessage(error, t("errors.delete")))
     });
+  }
+
+  async function createOfflineReminder(input: CreateReminderInput) {
+    if (!userId) {
+      setLocalError("Open this trip online once before changing reminders offline.");
+      return;
+    }
+    setLocalError(null);
+    const clientMutationId = createClientMutationId();
+    const result = await applyOfflineReminderCreate({
+      tripId,
+      userId,
+      payload: input,
+      currentUserId,
+      clientMutationId
+    });
+    await enqueueCompanionMutation({
+      tripId,
+      userId,
+      type: "reminder_create",
+      entity: "reminder",
+      payload: { localEntityId: result.localEntityId, input },
+      localEntityId: result.localEntityId,
+      clientMutationId
+    });
+    setOfflineReminders(result.reminders);
+    setOfflineSummary(buildReminderSummary(result.reminders, currentUserId));
+    setShowAdd(false);
+  }
+
+  async function completeOfflineReminder(reminder: TripReminder) {
+    if (!userId) {
+      setLocalError("Open this trip online once before changing reminders offline.");
+      return;
+    }
+    setLocalError(null);
+    const nextCompleted = reminder.status !== "completed";
+    const clientMutationId = createClientMutationId();
+    const updated = await applyOfflineReminderStatus({
+      tripId,
+      userId,
+      reminderId: reminder.id,
+      status: nextCompleted ? "completed" : "pending",
+      currentUserId,
+      clientMutationId
+    });
+    await enqueueCompanionMutation({
+      tripId,
+      userId,
+      type: nextCompleted ? "reminder_complete" : "reminder_reopen",
+      entity: "reminder",
+      payload: nextCompleted
+        ? { reminderId: reminder.id, completedAt: new Date().toISOString() }
+        : { reminderId: reminder.id, reopenedAt: new Date().toISOString() },
+      clientMutationId
+    });
+    setOfflineReminders(updated ?? []);
+    setOfflineSummary(buildReminderSummary(updated ?? [], currentUserId));
+  }
+
+  async function disableOfflineReminder(reminder: TripReminder) {
+    if (!userId) {
+      setLocalError("Open this trip online once before changing reminders offline.");
+      return;
+    }
+    if (reminder.status === "disabled") {
+      setLocalError("This action requires internet.");
+      return;
+    }
+    setLocalError(null);
+    const clientMutationId = createClientMutationId();
+    const updated = await applyOfflineReminderStatus({
+      tripId,
+      userId,
+      reminderId: reminder.id,
+      status: "disabled",
+      currentUserId,
+      clientMutationId
+    });
+    await enqueueCompanionMutation({
+      tripId,
+      userId,
+      type: "reminder_disable",
+      entity: "reminder",
+      payload: { reminderId: reminder.id, disabledAt: new Date().toISOString() },
+      clientMutationId
+    });
+    setOfflineReminders(updated ?? []);
+    setOfflineSummary(buildReminderSummary(updated ?? [], currentUserId));
   }
 
   return (
@@ -157,9 +319,10 @@ export function TripRemindersPanel({
             {canEdit ? (
               <>
                 <Button
-                  disabled={busy}
+                  disabled={busy || offline}
                   onClick={() => setShowGenerate((open) => !open)}
                   size="sm"
+                  title={offline ? "This action requires internet." : undefined}
                   type="button"
                   variant="primary"
                 >
@@ -270,7 +433,7 @@ export function TripRemindersPanel({
 
         <ReminderTimeline
           busy={busy}
-          canEdit={canEdit}
+          canEdit={canEdit && !offline}
           currentUserId={currentUserId}
           labels={{
             empty: canEdit ? t("emptyEditable") : t("emptyReadonly"),
@@ -309,6 +472,13 @@ export function TripRemindersPanel({
       </div>
     </Card>
   );
+}
+
+function createClientMutationId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function buildLabelMaps(t: (key: string) => string) {

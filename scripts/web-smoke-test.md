@@ -470,6 +470,25 @@ Manual offline cache and sync test:
 13. Click `Sync now` or wait for auto-sync.
 14. Confirm the pending indicator disappears and the change persists after refresh.
 
+Manual offline companion test:
+
+1. Open a private trip online and confirm checklist, reminders, expenses, and
+   settlements load at least once.
+2. Turn off network in browser devtools.
+3. In the checklist panel, check an existing item and add one manual item.
+4. In reminders, add a manual reminder and complete or reopen one existing
+   reminder.
+5. In expenses, add a manual expense.
+6. Upload a receipt while offline, confirm the warning, and confirm it appears
+   as a pending receipt draft.
+7. Confirm the Offline Trip Companion panel shows pending queue counts, receipt
+   draft count, pending badges, and disabled online-only actions.
+8. Discard one pending companion change and confirm the optimistic local draft
+   is removed or reverted.
+9. Turn network back on and click `Sync now`.
+10. Confirm pending badges clear, receipt OCR starts online, and refreshed
+    checklist/reminder/expense data persists after reload.
+
 Manual offline conflict test:
 
 1. Open the same private trip in browser A and browser B.
@@ -524,8 +543,11 @@ Manual offline trips management test:
 7. Confirm the trip shows `Pending changes`, status, `Sync now`, and
    `Discard pending changes`.
 8. Turn network back on and click `Sync now`; confirm the pending badge clears.
-9. Click `Remove offline copy`, confirm, and verify the trip disappears.
-10. Cache another trip, create an offline draft, click `Clear offline data`, and
+9. Open the trip, create a pending checklist or expense companion change, and
+   confirm `/offline-trips` reports pending changes for the same trip.
+10. Click `Remove offline copy`, confirm, and verify the trip disappears when no
+    pending changes remain.
+11. Cache another trip, create an offline draft, click `Clear offline data`, and
     confirm the stronger unsynced-changes warning is shown before data is
     removed.
 

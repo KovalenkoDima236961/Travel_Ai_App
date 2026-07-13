@@ -14,7 +14,7 @@ import {
   OFFLINE_QUEUE_CHANGED_EVENT,
   discardMutation
 } from "@/lib/offline/sync-queue";
-import type { CachedTripRecord, PendingItineraryMutation } from "@/lib/offline/types";
+import type { CachedTripRecord, PendingOfflineMutation } from "@/lib/offline/types";
 import { formatDate } from "@/lib/utils";
 import { Button, buttonStyles } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -70,7 +70,7 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
   }, [refresh]);
 
   const pendingByTripId = useMemo(() => {
-    const map = new Map<string, PendingItineraryMutation>();
+    const map = new Map<string, PendingOfflineMutation>();
     for (const mutation of offlineSync.mutations) {
       map.set(mutation.tripId, mutation);
     }
@@ -93,8 +93,8 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
     await refresh();
   }
 
-  async function handleDiscardMutation(mutation: PendingItineraryMutation) {
-    if (!window.confirm("Discard offline itinerary changes?")) {
+  async function handleDiscardMutation(mutation: PendingOfflineMutation) {
+    if (!window.confirm("Discard offline changes?")) {
       return;
     }
 
@@ -202,11 +202,11 @@ function OfflineTripCard({
   onDeleteCachedTrip
 }: {
   record: CachedTripRecord;
-  pendingMutation: PendingItineraryMutation | null;
+  pendingMutation: PendingOfflineMutation | null;
   online: boolean;
   syncing: boolean;
   onSyncNow: () => Promise<void> | void;
-  onDiscardMutation: (mutation: PendingItineraryMutation) => Promise<void> | void;
+  onDiscardMutation: (mutation: PendingOfflineMutation) => Promise<void> | void;
   onDeleteCachedTrip: () => void;
 }) {
   return (

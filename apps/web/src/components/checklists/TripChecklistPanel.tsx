@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useAppLanguage } from "@/components/i18n/I18nProvider";
 import { Button } from "@/shared/ui/button";
@@ -10,11 +10,20 @@ import { Select } from "@/shared/ui/select";
 import { useChecklistMutations } from "@/hooks/useChecklistMutations";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
 import { cn, formatDate, getErrorMessage } from "@/lib/utils";
+import {
+  applyOfflineChecklistChecked,
+  applyOfflineChecklistCreate,
+  buildChecklistSummary,
+  isOfflinePending
+} from "@/lib/offline/cache-writer";
+import { getCachedChecklist, putCachedChecklist } from "@/lib/offline/trip-cache";
+import { enqueueCompanionMutation } from "@/lib/offline/sync-queue";
 import type {
   ChecklistCategory,
   ChecklistItemPayload,
   ChecklistItemType,
   ChecklistPriority,
+  ChecklistViewResponse,
   TripChecklistItem,
   UpdateChecklistItemPayload
 } from "@/entities/checklist/model";
@@ -30,6 +39,8 @@ type TripChecklistPanelProps = {
   canCheck: boolean;
   currentUserId?: string | null;
   enabled?: boolean;
+  offline?: boolean;
+  userId?: string | null;
 };
 
 type FilterStatus = "all" | "unchecked" | "checked" | "mine" | "high";
@@ -65,12 +76,15 @@ export function TripChecklistPanel({
   canEdit,
   canCheck,
   currentUserId,
-  enabled = true
+  enabled = true,
+  offline = false,
+  userId
 }: TripChecklistPanelProps) {
   const t = useTranslations("checklist");
   const { language } = useAppLanguage();
-  const query = useTripChecklist(tripId, { enabled });
+  const query = useTripChecklist(tripId, { enabled: enabled && !offline });
   const mutations = useChecklistMutations(tripId);
+  const [offlineData, setOfflineData] = useState<ChecklistViewResponse | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<ChecklistCategory | "all">("all");
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
   const [generationCategory, setGenerationCategory] = useState<ChecklistCategory | "all">("all");
@@ -80,7 +94,35 @@ export function TripChecklistPanel({
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const checklist = query.data?.checklist ?? null;
+  useEffect(() => {
+    if (!offline || !userId) {
+      return;
+    }
+    let cancelled = false;
+    getCachedChecklist(tripId, userId)
+      .then((record) => {
+        if (!cancelled) {
+          setOfflineData(record?.checklist ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOfflineData(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [offline, tripId, userId]);
+
+  useEffect(() => {
+    if (!offline && userId && query.data) {
+      void putCachedChecklist({ tripId, userId, checklist: query.data });
+    }
+  }, [offline, query.data, tripId, userId]);
+
+  const data = offline ? offlineData : query.data;
+  const checklist = data?.checklist ?? null;
   const items = useMemo(
     () => [...(checklist?.items ?? [])].sort(compareChecklistItems),
     [checklist?.items]
@@ -107,7 +149,7 @@ export function TripChecklistPanel({
       }),
     [categoryFilter, currentUserId, items, statusFilter]
   );
-  const summary = query.data?.summary ?? buildSummary(items, currentUserId);
+  const summary = data?.summary ?? buildSummary(items, currentUserId);
   const progress =
     summary.totalItems > 0 ? Math.round((summary.checkedItems / summary.totalItems) * 100) : 0;
   const busy =
@@ -118,7 +160,7 @@ export function TripChecklistPanel({
     mutations.setCheckedMutation.isPending ||
     mutations.reorderMutation.isPending;
 
-  if (!enabled) {
+  if (!enabled && !offline) {
     return (
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">{t("title")}</h2>
@@ -128,6 +170,10 @@ export function TripChecklistPanel({
   }
 
   function generateChecklist(replaceAiItems: boolean) {
+    if (offline) {
+      setLocalError("This action requires internet.");
+      return;
+    }
     setLocalError(null);
     mutations.generateMutation.mutate(
       {
@@ -154,6 +200,11 @@ export function TripChecklistPanel({
       return;
     }
     setLocalError(null);
+
+    if (offline) {
+      void submitOfflineItem(title);
+      return;
+    }
 
     if (editingItemId) {
       mutations.updateItemMutation.mutate(
@@ -183,12 +234,20 @@ export function TripChecklistPanel({
     if (!window.confirm(t("confirmDelete"))) {
       return;
     }
+    if (offline) {
+      void removeOfflineItem(item);
+      return;
+    }
     mutations.deleteItemMutation.mutate(item.id, {
       onError: (error) => setLocalError(getErrorMessage(error, t("errors.delete")))
     });
   }
 
   function toggleItem(item: TripChecklistItem) {
+    if (offline) {
+      void toggleOfflineItem(item);
+      return;
+    }
     mutations.setCheckedMutation.mutate(
       { itemId: item.id, checked: !item.checked },
       {
@@ -198,6 +257,10 @@ export function TripChecklistPanel({
   }
 
   function moveItem(itemId: string, direction: -1 | 1) {
+    if (offline) {
+      setLocalError("This action requires internet.");
+      return;
+    }
     const ordered = [...items];
     const index = ordered.findIndex((item) => item.id === itemId);
     const nextIndex = index + direction;
@@ -208,6 +271,114 @@ export function TripChecklistPanel({
     mutations.reorderMutation.mutate(ordered.map((item) => item.id), {
       onError: (error) => setLocalError(getErrorMessage(error, t("errors.reorder")))
     });
+  }
+
+  async function submitOfflineItem(title: string) {
+    if (!userId) {
+      setLocalError("Open this trip online once before changing checklist items offline.");
+      return;
+    }
+    setLocalError(null);
+    if (editingItemId) {
+      const current = items.find((item) => item.id === editingItemId);
+      if (!current || !isOfflinePending(current.metadata)) {
+        setLocalError("This action requires internet.");
+        return;
+      }
+      const nextItems = items.map((item) =>
+        item.id === editingItemId
+          ? {
+              ...item,
+              ...updatePayloadFromForm(form),
+              title,
+              updatedAt: new Date().toISOString()
+            }
+          : item
+      );
+      const response: ChecklistViewResponse = {
+        checklist: checklist
+          ? { ...checklist, items: nextItems, updatedAt: new Date().toISOString() }
+          : null,
+        summary: buildChecklistSummary(nextItems, currentUserId),
+        canGenerate: false
+      };
+      await putCachedChecklist({ tripId, userId, checklist: response });
+      setOfflineData(response);
+      resetForm();
+      return;
+    }
+
+    const payload = createPayloadFromForm({ ...form, title });
+    const clientMutationId = createClientMutationId();
+    const { response, localEntityId } = await applyOfflineChecklistCreate({
+      tripId,
+      userId,
+      payload,
+      currentUserId,
+      clientMutationId
+    });
+    await enqueueCompanionMutation({
+      tripId,
+      userId,
+      type: "checklist_item_create",
+      entity: "checklist",
+      payload: { localEntityId, input: payload },
+      localEntityId,
+      clientMutationId
+    });
+    setOfflineData(response);
+    resetForm();
+  }
+
+  async function toggleOfflineItem(item: TripChecklistItem) {
+    if (!userId) {
+      setLocalError("Open this trip online once before changing checklist items offline.");
+      return;
+    }
+    const checked = !item.checked;
+    const clientMutationId = createClientMutationId();
+    const response = await applyOfflineChecklistChecked({
+      tripId,
+      userId,
+      itemId: item.id,
+      checked,
+      currentUserId,
+      clientMutationId
+    });
+    await enqueueCompanionMutation({
+      tripId,
+      userId,
+      type: checked ? "checklist_item_check" : "checklist_item_uncheck",
+      entity: "checklist",
+      payload: checked
+        ? { itemId: item.id, checkedAt: new Date().toISOString() }
+        : { itemId: item.id, uncheckedAt: new Date().toISOString() },
+      clientMutationId
+    });
+    setOfflineData(response);
+  }
+
+  async function removeOfflineItem(item: TripChecklistItem) {
+    if (!userId || !checklist || !isOfflinePending(item.metadata)) {
+      setLocalError("This action requires internet.");
+      return;
+    }
+    const nextItems = checklist.items.filter((candidate) => candidate.id !== item.id);
+    const response: ChecklistViewResponse = {
+      checklist: { ...checklist, items: nextItems, updatedAt: new Date().toISOString() },
+      summary: buildChecklistSummary(nextItems, currentUserId),
+      canGenerate: false
+    };
+    await putCachedChecklist({ tripId, userId, checklist: response });
+    await enqueueCompanionMutation({
+      tripId,
+      userId,
+      type: "checklist_item_delete_local",
+      entity: "checklist",
+      payload: { localEntityId: item.id },
+      localEntityId: item.id
+    });
+    setOfflineData(response);
   }
 
   function resetForm() {
@@ -230,9 +401,10 @@ export function TripChecklistPanel({
             {canEdit ? (
               <>
                 <Button
-                  disabled={busy}
+                  disabled={busy || offline}
                   onClick={() => generateChecklist(false)}
                   size="sm"
+                  title={offline ? "This action requires internet." : undefined}
                   type="button"
                   variant={checklist ? "secondary" : "primary"}
                 >
@@ -240,9 +412,10 @@ export function TripChecklistPanel({
                 </Button>
                 {checklist ? (
                   <Button
-                    disabled={busy}
+                    disabled={busy || offline}
                     onClick={() => generateChecklist(true)}
                     size="sm"
+                    title={offline ? "This action requires internet." : undefined}
                     type="button"
                     variant="secondary"
                   >
@@ -427,6 +600,9 @@ export function TripChecklistPanel({
                         {item.assignedToDisplayName || item.assignedToUserId ? (
                           <Badge>{item.assignedToDisplayName || item.assignedToUserId}</Badge>
                         ) : null}
+                        {isOfflinePending(item.metadata) ? (
+                          <Badge tone="warning">Pending sync</Badge>
+                        ) : null}
                       </div>
                       {item.description ? (
                         <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
@@ -447,36 +623,48 @@ export function TripChecklistPanel({
                       {canEdit ? (
                         <>
                           <Button
-                            disabled={busy || orderedIndex <= 0}
+                            disabled={busy || offline || orderedIndex <= 0}
                             onClick={() => moveItem(item.id, -1)}
                             size="sm"
+                            title={offline ? "This action requires internet." : undefined}
                             type="button"
                             variant="ghost"
                           >
                             {t("up")}
                           </Button>
                           <Button
-                            disabled={busy || orderedIndex >= items.length - 1}
+                            disabled={busy || offline || orderedIndex >= items.length - 1}
                             onClick={() => moveItem(item.id, 1)}
                             size="sm"
+                            title={offline ? "This action requires internet." : undefined}
                             type="button"
                             variant="ghost"
                           >
                             {t("down")}
                           </Button>
                           <Button
-                            disabled={busy}
+                            disabled={busy || (offline && !isOfflinePending(item.metadata))}
                             onClick={() => editItem(item)}
                             size="sm"
+                            title={
+                              offline && !isOfflinePending(item.metadata)
+                                ? "This action requires internet."
+                                : undefined
+                            }
                             type="button"
                             variant="secondary"
                           >
                             {t("edit")}
                           </Button>
                           <Button
-                            disabled={busy}
+                            disabled={busy || (offline && !isOfflinePending(item.metadata))}
                             onClick={() => removeItem(item)}
                             size="sm"
+                            title={
+                              offline && !isOfflinePending(item.metadata)
+                                ? "This action requires internet."
+                                : undefined
+                            }
                             type="button"
                             variant="danger"
                           >
@@ -758,6 +946,13 @@ function parseOptionalInt(value: string) {
   }
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function createClientMutationId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function priorityTone(priority: ChecklistPriority) {

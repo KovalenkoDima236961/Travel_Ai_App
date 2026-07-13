@@ -15,13 +15,23 @@ import {
   markMutationFailed,
   syncPendingMutations
 } from "@/lib/offline/sync-queue";
+import { isPendingItineraryMutation } from "@/lib/offline/types";
 import type { BudgetSummary } from "@/entities/budget/model";
 import type { Itinerary, Trip } from "@/entities/trip/model";
 
 const dbState = vi.hoisted(() => ({
   stores: {
     cachedTrips: new Map<string, unknown>(),
+    cachedTripDetails: new Map<string, unknown>(),
+    cachedChecklists: new Map<string, unknown>(),
+    cachedReminders: new Map<string, unknown>(),
+    cachedExpenses: new Map<string, unknown>(),
+    cachedExpenseSummaries: new Map<string, unknown>(),
+    cachedSettlements: new Map<string, unknown>(),
+    offlineReceiptDrafts: new Map<string, unknown>(),
     pendingMutations: new Map<string, unknown>(),
+    syncLogs: new Map<string, unknown>(),
+    offlineSettings: new Map<string, unknown>(),
     syncMetadata: new Map<string, unknown>()
   }
 }));
@@ -206,9 +216,11 @@ describe("offline itinerary queue", () => {
     }
     expect(results[0].latestTrip?.itinerary?.days[0].items[0].name).toBe("Latest");
     expect((await getPendingMutations("user-1"))[0].status).toBe("conflict");
-    expect((await getPendingMutations("user-1"))[0].draftItinerary.days[0].items[0].name).toBe(
-      "Local"
-    );
+    const pending = (await getPendingMutations("user-1"))[0];
+    if (!isPendingItineraryMutation(pending)) {
+      throw new Error("expected itinerary mutation");
+    }
+    expect(pending.draftItinerary.days[0].items[0].name).toBe("Local");
   });
 });
 
@@ -218,6 +230,15 @@ function keyForStore(storeName: keyof typeof dbState.stores, value: Record<strin
   }
   if (storeName === "pendingMutations") {
     return String(value.mutationId);
+  }
+  if (storeName === "offlineReceiptDrafts" || storeName === "syncLogs") {
+    return String(value.id);
+  }
+  if (storeName === "offlineSettings") {
+    return String(value.userId);
+  }
+  if ("cacheKey" in value) {
+    return String(value.cacheKey);
   }
   return String(value.key);
 }

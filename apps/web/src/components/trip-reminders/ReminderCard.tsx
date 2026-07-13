@@ -1,5 +1,6 @@
 import { Button } from "@/shared/ui/button";
 import { formatDate } from "@/lib/utils";
+import { isOfflinePending } from "@/lib/offline/cache-writer";
 import {
   ReminderStatusBadge,
   reminderPriorityTone,
@@ -68,6 +69,9 @@ export function ReminderCard({
             <ReminderStatusBadge tone={reminderStatusTone(reminder.status)}>
               {labels.statuses[reminder.status] ?? reminder.status}
             </ReminderStatusBadge>
+            {isOfflinePending(reminder.metadata) ? (
+              <ReminderStatusBadge tone="warning">Pending sync</ReminderStatusBadge>
+            ) : null}
           </div>
           {reminder.description ? (
             <p className="mt-2 text-sm leading-6 text-slate-600">{reminder.description}</p>

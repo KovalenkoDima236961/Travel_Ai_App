@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -13,10 +13,16 @@ import {
   EXPENSE_SPLIT_TYPES,
   type CreateExpenseInput,
   type ExpenseCategory,
+  type ExpenseSummary,
   type ExpenseSplitType,
   type SettlementSuggestion,
+  type SettlementsResponse,
   type TripExpense
 } from "@/entities/expense/model";
+import {
+  RECEIPT_ALLOWED_TYPES,
+  RECEIPT_MAX_FILE_SIZE_BYTES
+} from "@/entities/receipt/model";
 import type { Trip } from "@/entities/trip/model";
 import type { TripTraveler } from "@/entities/cost-splitting/model";
 import {
@@ -35,6 +41,21 @@ import {
 } from "@/hooks/useTripExpenses";
 import { useDeleteReceipt } from "@/hooks/useDeleteReceipt";
 import { useReceipt } from "@/hooks/useReceipt";
+import {
+  applyOfflineExpenseCreate,
+  expenseSummaryWithPending,
+  isOfflinePending
+} from "@/lib/offline/cache-writer";
+import {
+  cacheExpenseSummarySnapshot,
+  cacheExpensesSnapshot,
+  cacheSettlementsSnapshot,
+  getCachedExpenseSummary,
+  getCachedExpenses,
+  getCachedSettlements,
+  saveOfflineReceiptDraft
+} from "@/lib/offline/trip-cache";
+import { enqueueCompanionMutation } from "@/lib/offline/sync-queue";
 import { getErrorMessage } from "@/lib/utils";
 
 type ExpenseUserOption = {
@@ -66,6 +87,10 @@ export function ExpensesPanel({
   const [payingSuggestion, setPayingSuggestion] = useState<SettlementSuggestion | null>(null);
   const [settlementNotes, setSettlementNotes] = useState("");
   const [panelError, setPanelError] = useState<string | null>(null);
+  const [panelMessage, setPanelMessage] = useState<string | null>(null);
+  const [offlineExpenses, setOfflineExpenses] = useState<TripExpense[] | null>(null);
+  const [offlineSummary, setOfflineSummary] = useState<ExpenseSummary | null>(null);
+  const [offlineSettlements, setOfflineSettlements] = useState<SettlementsResponse | null>(null);
   const currency = trip.budgetCurrency ?? "EUR";
   const enabled = !offline;
   const users = useMemo(
@@ -86,14 +111,82 @@ export function ExpensesPanel({
     enabled: Boolean(viewReceiptId) && enabled
   });
 
-  const expenses = expensesQuery.data?.items ?? [];
-  const summary = summaryQuery.data ?? null;
-  const settlements = settlementsQuery.data ?? null;
-  const canMutateExpenses = canEdit && !offline && users.length > 0;
+  useEffect(() => {
+    if (!offline || !currentUserId) {
+      return;
+    }
+    let cancelled = false;
+    Promise.all([
+      getCachedExpenses(trip.id, currentUserId),
+      getCachedExpenseSummary(trip.id, currentUserId),
+      getCachedSettlements(trip.id, currentUserId)
+    ])
+      .then(([expensesRecord, summaryRecord, settlementsRecord]) => {
+        if (!cancelled) {
+          setOfflineExpenses(expensesRecord?.expenses ?? []);
+          setOfflineSummary(summaryRecord?.summary ?? null);
+          setOfflineSettlements(settlementsRecord?.settlements ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOfflineExpenses([]);
+          setOfflineSummary(null);
+          setOfflineSettlements(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, offline, trip.id]);
+
+  useEffect(() => {
+    if (offline || !currentUserId || !expensesQuery.data) {
+      return;
+    }
+    void cacheExpensesSnapshot({
+      tripId: trip.id,
+      userId: currentUserId,
+      response: expensesQuery.data
+    });
+  }, [currentUserId, expensesQuery.data, offline, trip.id]);
+
+  useEffect(() => {
+    if (offline || !currentUserId || !summaryQuery.data) {
+      return;
+    }
+    void cacheExpenseSummarySnapshot({
+      tripId: trip.id,
+      userId: currentUserId,
+      summary: summaryQuery.data
+    });
+  }, [currentUserId, offline, summaryQuery.data, trip.id]);
+
+  useEffect(() => {
+    if (offline || !currentUserId || !settlementsQuery.data) {
+      return;
+    }
+    void cacheSettlementsSnapshot({
+      tripId: trip.id,
+      userId: currentUserId,
+      settlements: settlementsQuery.data
+    });
+  }, [currentUserId, offline, settlementsQuery.data, trip.id]);
+
+  const expenses = offline ? offlineExpenses ?? [] : expensesQuery.data?.items ?? [];
+  const summary = offline
+    ? expenseSummaryWithPending(offlineSummary, expenses, currency)
+    : summaryQuery.data ?? null;
+  const settlements = offline ? offlineSettlements : settlementsQuery.data ?? null;
+  const canMutateExpenses = canEdit && users.length > 0;
 
   async function markPaid(suggestion: SettlementSuggestion) {
     setPanelError(null);
     try {
+      if (offline) {
+        setPanelError("This action requires internet.");
+        return;
+      }
       await markPaidMutation.mutateAsync({
         settlementId: suggestion.id,
         input: { notes: settlementNotes.trim() || null }
@@ -108,6 +201,15 @@ export function ExpensesPanel({
   async function removeExpense(expense: TripExpense) {
     setPanelError(null);
     try {
+      if (offline && isOfflinePending(expense.metadata)) {
+        setOfflineExpenses((current) => (current ?? []).filter((item) => item.id !== expense.id));
+        setPanelMessage("Offline expense draft removed.");
+        return;
+      }
+      if (offline) {
+        setPanelError("This action requires internet.");
+        return;
+      }
       await deleteMutation.mutateAsync(expense.id);
     } catch (error) {
       setPanelError(getErrorMessage(error, t("deleteError")));
@@ -117,6 +219,10 @@ export function ExpensesPanel({
   async function removeReceipt(receiptId: string) {
     setPanelError(null);
     try {
+      if (offline) {
+        setPanelError("This action requires internet.");
+        return;
+      }
       await deleteReceiptMutation.mutateAsync(receiptId);
       if (viewReceiptId === receiptId) {
         setViewReceiptId(null);
@@ -164,7 +270,13 @@ export function ExpensesPanel({
 
       {offline ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          {t("offline")}
+          Using cached expense data. New expense and receipt drafts will sync when you are online.
+        </div>
+      ) : null}
+
+      {panelMessage ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          {panelMessage}
         </div>
       ) : null}
 
@@ -181,8 +293,35 @@ export function ExpensesPanel({
           onCancel={() => setAddOpen(false)}
           onSubmit={async (input) => {
             setPanelError(null);
+            setPanelMessage(null);
             try {
-              await createMutation.mutateAsync(input);
+              if (offline) {
+                if (!currentUserId) {
+                  throw new Error("Open this trip online once before adding expenses offline.");
+                }
+                const clientMutationId = createClientMutationId();
+                const result = await applyOfflineExpenseCreate({
+                  tripId: trip.id,
+                  userId: currentUserId,
+                  payload: input,
+                  users,
+                  currentUserId,
+                  clientMutationId
+                });
+                await enqueueCompanionMutation({
+                  tripId: trip.id,
+                  userId: currentUserId,
+                  type: "expense_create",
+                  entity: "expense",
+                  payload: { localEntityId: result.localEntityId, input },
+                  localEntityId: result.localEntityId,
+                  clientMutationId
+                });
+                setOfflineExpenses(result.expenses);
+                setPanelMessage("Saved offline. This expense will sync when you are online.");
+              } else {
+                await createMutation.mutateAsync(input);
+              }
               setAddOpen(false);
             } catch (error) {
               setPanelError(getErrorMessage(error, t("createError")));
@@ -193,13 +332,25 @@ export function ExpensesPanel({
       ) : null}
 
       {uploadOpen ? (
-        <UploadReceiptDialog
-          currency={currency}
-          onClose={() => setUploadOpen(false)}
-          onCreated={() => setPanelError(null)}
-          tripId={trip.id}
-          users={users}
-        />
+        offline ? (
+          <OfflineReceiptDraftUploader
+            currentUserId={currentUserId}
+            onClose={() => setUploadOpen(false)}
+            onSaved={(message) => {
+              setPanelError(null);
+              setPanelMessage(message);
+            }}
+            tripId={trip.id}
+          />
+        ) : (
+          <UploadReceiptDialog
+            currency={currency}
+            onClose={() => setUploadOpen(false)}
+            onCreated={() => setPanelError(null)}
+            tripId={trip.id}
+            users={users}
+          />
+        )
       ) : null}
 
       {attachExpenseId ? (
@@ -301,8 +452,8 @@ export function ExpensesPanel({
             <div className="mt-4 divide-y divide-slate-100">
               {expenses.map((expense) => (
                 <ExpenseRow
-                  canDelete={canMutateExpenses}
-                  canMutateReceipts={canMutateExpenses}
+                  canDelete={canMutateExpenses && (!offline || isOfflinePending(expense.metadata))}
+                  canMutateReceipts={canMutateExpenses && !offline}
                   deleting={deleteMutation.isPending}
                   deletingReceipt={deleteReceiptMutation.isPending}
                   expense={expense}
@@ -323,6 +474,12 @@ export function ExpensesPanel({
 
           {settlementsQuery.isLoading ? (
             <p className="mt-4 text-sm text-slate-500">{settlementsT("loading")}</p>
+          ) : null}
+
+          {offline ? (
+            <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Settlements will recalculate after sync.
+            </p>
           ) : null}
 
           {summary?.balances.length ? (
@@ -735,6 +892,11 @@ function ExpenseRow({
               {t("receiptCount", { count: expense.receiptCount })}
             </span>
           ) : null}
+          {isOfflinePending(expense.metadata) ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
+              Pending sync
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 text-sm text-slate-600">
           {expense.paidByDisplayName} · {expense.expenseDate} · {t(`splitTypes.${expense.splitType}`)}
@@ -831,6 +993,114 @@ function buildExpenseUsers(
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
+function OfflineReceiptDraftUploader({
+  tripId,
+  currentUserId,
+  onClose,
+  onSaved
+}: {
+  tripId: string;
+  currentUserId?: string | null;
+  onClose: () => void;
+  onSaved: (message: string) => void;
+}) {
+  const t = useTranslations("receipts");
+  const expensesT = useTranslations("expenses");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [remember, setRemember] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    if (!currentUserId) {
+      setError("Open this trip online once before saving receipt drafts offline.");
+      return;
+    }
+    if (!file) {
+      setError(t("selectFile"));
+      return;
+    }
+    const validation = validateOfflineReceiptFile(file);
+    if (validation) {
+      setError(validation);
+      return;
+    }
+    const confirmed =
+      remember ||
+      window.confirm(
+        "This receipt will be stored locally on this device until it can be uploaded. Receipt files may contain sensitive data."
+      );
+    if (!confirmed) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const draft = await saveOfflineReceiptDraft({ tripId, userId: currentUserId, file });
+      await enqueueCompanionMutation({
+        tripId,
+        userId: currentUserId,
+        type: "receipt_upload",
+        entity: "receipt",
+        payload: { receiptDraftId: draft.id },
+        clientMutationId: createClientMutationId()
+      });
+      onSaved("Receipt draft saved locally. OCR will run after upload when you are online.");
+      onClose();
+    } catch (err) {
+      setError(getErrorMessage(err, "Could not save receipt draft."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-slate-950">{t("uploadReceipt")}</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            OCR will run after upload when you are online.
+          </p>
+        </div>
+        <Button onClick={onClose} size="sm" type="button" variant="ghost">
+          {expensesT("cancel")}
+        </Button>
+      </div>
+
+      {error ? (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {error}
+        </div>
+      ) : null}
+
+      <form className="mt-4 space-y-4" onSubmit={submit}>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
+          This receipt will be stored locally on this device until it can be uploaded. Receipt files may contain sensitive data.
+        </div>
+        <Input
+          accept={RECEIPT_ALLOWED_TYPES.join(",")}
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          required
+          type="file"
+        />
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+            type="checkbox"
+          />
+          Do not ask again on this device
+        </label>
+        <Button disabled={saving} type="submit">
+          {saving ? expensesT("saving") : "Save receipt draft"}
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
 function previewSplit({
   amount,
   currency,
@@ -879,4 +1149,21 @@ function previewSplit({
     amount: (base + (index < remainder ? 1 : 0)) / 100,
     currency
   }));
+}
+
+function validateOfflineReceiptFile(file: File) {
+  if (!RECEIPT_ALLOWED_TYPES.includes(file.type as (typeof RECEIPT_ALLOWED_TYPES)[number])) {
+    return "Unsupported receipt file type.";
+  }
+  if (file.size > RECEIPT_MAX_FILE_SIZE_BYTES) {
+    return "Receipt file is too large.";
+  }
+  return null;
+}
+
+function createClientMutationId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

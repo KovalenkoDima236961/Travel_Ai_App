@@ -6,7 +6,7 @@ import {
   getPendingMutations,
   syncPendingMutations
 } from "@/lib/offline/sync-queue";
-import type { PendingItineraryMutation, SyncResult } from "@/lib/offline/types";
+import type { PendingOfflineMutation, SyncResult } from "@/lib/offline/types";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 type UseOfflineSyncOptions = {
@@ -21,7 +21,7 @@ export function useOfflineSync({
   onSyncResults
 }: UseOfflineSyncOptions) {
   const { online } = useNetworkStatus();
-  const [mutations, setMutations] = useState<PendingItineraryMutation[]>([]);
+  const [mutations, setMutations] = useState<PendingOfflineMutation[]>([]);
   const [syncing, setSyncing] = useState(false);
   const syncingRef = useRef(false);
   const onSyncResultsRef = useRef(onSyncResults);
@@ -86,12 +86,19 @@ export function useOfflineSync({
     () => mutations.filter((mutation) => mutation.status === "failed"),
     [mutations]
   );
+  const pending = useMemo(
+    () => mutations.filter((mutation) => mutation.status === "pending"),
+    [mutations]
+  );
 
   return {
     pendingCount: mutations.length,
+    activeCount: mutations.length,
+    queuedCount: pending.length,
     syncing,
     conflicts,
     failed,
+    pending,
     mutations,
     refresh,
     syncNow

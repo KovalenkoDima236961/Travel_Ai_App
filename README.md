@@ -157,8 +157,10 @@ Key product capabilities:
   `expectedItineraryRevision` writes, plus Advanced Collaborative Diff/Merge v1
   for safe day/item-level recovery of stale itinerary drafts.
 - Offline Trip Mode v1 for previously opened private trips: IndexedDB cached
-  trip snapshots, cached itinerary/budget/accommodation viewing, queued offline
-  itinerary edits, and revision-safe sync with the same diff/merge recovery.
+  trip snapshots plus itinerary, route, checklist, reminder, expense,
+  settlement, and receipt-draft companion data; queued offline itinerary and
+  companion edits; sync status, discard, and revision-safe itinerary diff/merge
+  recovery.
 - Advanced PWA Install Experience v1: strong manifest, install prompt,
   iOS Add to Home Screen instructions, installed-app detection, safe service
   worker update banner, `/offline-trips`, and settings integration.

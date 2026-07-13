@@ -79,7 +79,7 @@ notification streams, and calendar OAuth calls.
 | Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
 | Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
 | Export | Browser-generated PDF, CSV cost reports, and `.ics` downloads for private and public views. |
-| Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip cache, offline itinerary drafts, and revision conflict recovery. |
+| Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip companion cache, offline itinerary/checklist/reminder/expense/receipt-draft queue, sync status, and revision conflict recovery. |
 
 ## Trip Reminders
 
@@ -125,7 +125,8 @@ Expense rows show a receipt indicator and attached receipt summaries. Users with
 permission can attach an unlinked receipt, upload a receipt directly to an
 existing expense, preview image/PDF files through authenticated blob loading,
 and delete receipt links/files. Receipt upload is disabled in offline private
-views and omitted from public share views.
+views, but users can explicitly stage local receipt drafts for upload and OCR
+after reconnecting. Receipt upload is omitted from public share views.
 
 Frontend contracts live in:
 
@@ -628,17 +629,22 @@ availability.
 
 ## Offline Trip Mode
 
-Offline Trip Mode v1 is frontend-only and scoped to private authenticated trip
-detail pages. After a successful online trip load, the web app stores a sanitized
-snapshot in IndexedDB database `travel-ai-offline-v1`:
+Offline Trip Mode v1 is scoped to private authenticated trip detail pages. After
+a successful online trip load, the web app stores sanitized companion data in
+IndexedDB database `travel-ai-offline-v1`:
 
-- `cachedTrips`: trip detail, cached budget summary when available,
-  accommodation basics, workspace metadata already present on the trip DTO,
-  `itineraryRevision`, `cachedAt`, and `userId`.
-- `pendingMutations`: one coalesced `update_itinerary` mutation per trip/user,
-  including `baseRevision`, `baseItinerary`, `draftItinerary`, status, attempts,
-  and user-visible error fields.
-- `syncMetadata`: reserved for future sync bookkeeping.
+- `cachedTrips` and `cachedTripDetails`: trip detail, route, accommodation,
+  budget summary when available, itinerary revision, cached timestamp, and user.
+- `cachedChecklists`, `cachedReminders`, `cachedExpenses`,
+  `cachedExpenseSummaries`, and `cachedSettlements`: read-through snapshots used
+  by the trip companion panels when offline.
+- `offlineReceiptDrafts`: local receipt files explicitly staged by the user for
+  later upload and OCR when the app is online.
+- `pendingMutations`: queued itinerary, checklist, reminder, expense, and
+  receipt-upload mutations with status, attempts, idempotency metadata, and
+  user-visible error fields.
+- `syncLogs`, `offlineSettings`, and `syncMetadata`: local sync/status
+  bookkeeping.
 
 When the browser is offline or the trip fetch fails with a network-like error,
 the trip page falls back to the cached snapshot for that user. Cached pages are
@@ -649,10 +655,14 @@ still require internet access.
 
 Offline itinerary saves create or update the local pending mutation, keep the
 original `baseRevision`, update the cached trip optimistically, and show a
-pending offline change indicator. When the app is online again, the sync queue
-replays pending itinerary updates through `PUT /trips/{id}/itinerary` with
-`expectedItineraryRevision`. A `409 itinerary_conflict` keeps the local draft,
-fetches the latest trip, and opens the existing three-way diff/merge dialog.
+pending offline change indicator. Checklist checks/manual items, manual
+reminders, reminder status changes, manual expenses, and receipt upload drafts
+are queued with local pending badges and can be synced or discarded from the
+Offline Trip Companion panel. When the app is online again, the sync queue
+replays itinerary updates through `PUT /trips/{id}/itinerary` with
+`expectedItineraryRevision`, then companion writes through their normal Trip
+Service APIs. A `409 itinerary_conflict` keeps the local itinerary draft, fetches
+the latest trip, and opens the existing three-way diff/merge dialog.
 
 The existing `public/sw.js` still owns push notification events. It also caches a
 small app shell fallback (`/offline`) and static Next.js assets conservatively;
@@ -661,8 +671,8 @@ available at `/manifest.json`.
 
 Privacy notes:
 
-- Offline data is stored in this browser and can include private itinerary
-  details.
+- Offline data is stored in this browser and can include private itinerary,
+  checklist, reminder, expense, settlement, and receipt-draft details.
 - Access tokens, refresh tokens, OAuth tokens, API keys, push secrets, and raw AI
   prompts are not stored by the offline module.
 - Logging out clears cached trips and queued mutations for the current user.
@@ -671,7 +681,10 @@ Privacy notes:
 Current v1 limitations:
 
 - Only previously opened private trips are available offline.
-- Only itinerary edits are supported offline.
+- Offline writes are limited to itinerary edits, checklist checks/manual items,
+  manual reminders and status changes, manual expenses, and receipt upload
+  drafts. AI generation, OCR, route estimation, provider calls, and conflict
+  resolution still run online only.
 - Comments, calendar sync, AI jobs, place search, route/weather refreshes, and
   collaboration management need internet access.
 - Multi-device offline merge, CRDTs, native mobile offline storage, offline AI
