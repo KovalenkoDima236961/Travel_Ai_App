@@ -147,6 +147,9 @@ type CalendarSyncConfig struct {
 	InternalServiceToken           string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
 	TimeoutSeconds                 int    `yaml:"timeout_seconds" env:"CALENDAR_SYNC_TIMEOUT_SECONDS" env-default:"30" validate:"min=1"`
 	DefaultTimeZone                string `yaml:"default_time_zone" env:"DEFAULT_CALENDAR_TIMEZONE" env-default:"Europe/Bratislava"`
+	FreeBusyImportEnabled          bool   `yaml:"free_busy_import_enabled" env:"CALENDAR_FREE_BUSY_IMPORT_ENABLED" env-default:"true"`
+	FreeBusyImportFailOpen         bool   `yaml:"free_busy_import_fail_open" env:"CALENDAR_FREE_BUSY_IMPORT_FAIL_OPEN" env-default:"false"`
+	FreeBusyImportTimeoutSeconds   int    `yaml:"free_busy_import_timeout_seconds" env:"CALENDAR_FREE_BUSY_IMPORT_TIMEOUT_SECONDS" env-default:"12" validate:"min=1"`
 }
 
 type BudgetConversionConfig struct {

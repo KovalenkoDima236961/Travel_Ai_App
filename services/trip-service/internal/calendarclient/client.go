@@ -66,6 +66,27 @@ func (c *Client) GetGoogleCalendarStatus(ctx context.Context, accessToken string
 	return &out, nil
 }
 
+func (c *Client) GetGoogleFreeBusy(ctx context.Context, accessToken string, input FreeBusyRequest) (*FreeBusyResponse, error) {
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("encode freebusy request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/calendar/google/free-busy", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("build freebusy request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(accessToken) != "" {
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+	var out FreeBusyResponse
+	if err := c.do(req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *Client) SyncGoogleCalendarEvents(ctx context.Context, input SyncRequest) (*SyncResult, error) {
 	var out SyncResult
 	if err := c.postInternal(ctx, "/internal/calendar/google/events/sync", input, &out); err != nil {

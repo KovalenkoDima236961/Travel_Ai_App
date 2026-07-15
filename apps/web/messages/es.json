@@ -495,7 +495,32 @@
     "submitted": "Enviadas",
     "missing": "Faltan",
     "travelers": "Viajeros",
-    "offline": "Necesitas conexión para actualizar la disponibilidad."
+    "offline": "Necesitas conexión para actualizar la disponibilidad.",
+    "importFromGoogleCalendar": "Importar desde Google Calendar",
+    "importBusyDays": "Importar días ocupados",
+    "previewImport": "Previsualizar importación",
+    "applyToMyAvailability": "Aplicar a mi disponibilidad",
+    "mergeWithMyAvailability": "Combinar con mi disponibilidad",
+    "replaceMyAvailability": "Reemplazar mi disponibilidad",
+    "fullyBusyDays": "Días totalmente ocupados",
+    "partiallyBusyDays": "Días parcialmente ocupados",
+    "busyBlocks": "Bloques ocupados",
+    "busyHours": "Horas ocupadas",
+    "markFullyBusyDaysUnavailable": "Marcar días totalmente ocupados como no disponibles",
+    "markPartiallyBusyDaysUnavailable": "Marcar días parcialmente ocupados como no disponibles",
+    "suggestFreeWeekendsAsPreferredDates": "Sugerir fines de semana libres como fechas preferidas",
+    "importedFromCalendar": "Importado del calendario",
+    "verifyBeforeApplying": "Verificar antes de aplicar"
+  },
+  "calendar": {
+    "connectGoogleCalendar": "Conectar Google Calendar",
+    "freeBusyImport": "Importación libre/ocupado",
+    "onlyBusyFreeInformationIsImported": "Solo se importa información libre/ocupado",
+    "eventTitlesAreNotStored": "Los títulos de eventos no se almacenan",
+    "eventDescriptionsAreNotStored": "Las descripciones de eventos no se almacenan",
+    "calendarIsNotConnected": "El calendario no está conectado",
+    "calendarAccessWasRevoked": "El acceso al calendario fue revocado",
+    "thisActionRequiresInternet": "Esta acción requiere internet"
   },
   "dateOptions": {
     "bestOptions": "Mejores opciones de fechas",

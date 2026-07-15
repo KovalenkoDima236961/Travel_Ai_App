@@ -833,14 +833,30 @@ coordination. Accepted collaborators can enter available, unavailable, and
 preferred date ranges, min/max trip days, timezone, and notes. Mutations are
 disabled offline; v1 does not expose public availability forms.
 
+Accepted private collaborators can also click **Import from Google Calendar** to
+manually import free/busy data. If Google Calendar is disconnected, the dialog
+shows the existing connect flow. Users choose a date range, timezone, fully-busy
+threshold, whether fully/partially busy days should become unavailable, whether
+free weekends should be suggested as preferred dates, and whether to merge or
+replace their own availability. The app always shows a preview first and only
+applies the imported suggestions after explicit confirmation.
+
+The preview shows summary counts, suggested date ranges, busy hours, and busy
+block counts for the current user only. It never renders event titles,
+descriptions, attendees, locations, event IDs, or calendar names. After apply,
+the normal availability and date-option queries refresh; other collaborators see
+only the regular availability ranges and generic date-option conflicts.
+
 The section shows submitted/missing counts, scored date options, conflicts,
 pros/cons, and warnings. Owners/editors can request missing availability, apply
 a selected option with an explicit regeneration checkbox, or create an existing
 collaboration poll from selected options. Applying dates updates the trip and
 may make the current itinerary stale unless regeneration is queued.
 
-Limitations: availability is manually entered, scores are advisory, no calendar
-free/busy import is performed, and no booking/reservation action happens.
+Limitations: Google Calendar is the only calendar provider in v1, import is
+manual rather than continuous, only busy/free blocks are imported, a free
+calendar does not mean the user wants to travel, scores are advisory, and no
+booking/reservation action happens.
 
 ## Security Notes
 

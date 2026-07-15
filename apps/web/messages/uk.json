@@ -495,7 +495,32 @@
     "submitted": "Надіслано",
     "missing": "Бракує",
     "travelers": "Мандрівники",
-    "offline": "Потрібне підключення, щоб оновити доступність."
+    "offline": "Потрібне підключення, щоб оновити доступність.",
+    "importFromGoogleCalendar": "Імпортувати з Google Calendar",
+    "importBusyDays": "Імпортувати зайняті дні",
+    "previewImport": "Переглянути імпорт",
+    "applyToMyAvailability": "Застосувати до моєї доступності",
+    "mergeWithMyAvailability": "Об’єднати з моєю доступністю",
+    "replaceMyAvailability": "Замінити мою доступність",
+    "fullyBusyDays": "Повністю зайняті дні",
+    "partiallyBusyDays": "Частково зайняті дні",
+    "busyBlocks": "Зайняті блоки",
+    "busyHours": "Зайняті години",
+    "markFullyBusyDaysUnavailable": "Позначати повністю зайняті дні як недоступні",
+    "markPartiallyBusyDaysUnavailable": "Позначати частково зайняті дні як недоступні",
+    "suggestFreeWeekendsAsPreferredDates": "Пропонувати вільні вихідні як бажані дати",
+    "importedFromCalendar": "Імпортовано з календаря",
+    "verifyBeforeApplying": "Перевірте перед застосуванням"
+  },
+  "calendar": {
+    "connectGoogleCalendar": "Підключити Google Calendar",
+    "freeBusyImport": "Імпорт вільно/зайнято",
+    "onlyBusyFreeInformationIsImported": "Імпортується лише інформація вільно/зайнято",
+    "eventTitlesAreNotStored": "Назви подій не зберігаються",
+    "eventDescriptionsAreNotStored": "Описи подій не зберігаються",
+    "calendarIsNotConnected": "Календар не підключено",
+    "calendarAccessWasRevoked": "Доступ до календаря відкликано",
+    "thisActionRequiresInternet": "Ця дія потребує інтернету"
   },
   "dateOptions": {
     "bestOptions": "Найкращі варіанти дат",

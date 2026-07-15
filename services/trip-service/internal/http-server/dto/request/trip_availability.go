@@ -78,3 +78,67 @@ type RequestAvailability struct {
 func (r RequestAvailability) ToInput() appdto.RequestAvailabilityInput {
 	return appdto.RequestAvailabilityInput{Message: r.Message}
 }
+
+type CalendarImportConversionSettings struct {
+	FullyBusyThresholdHours          float64 `json:"fullyBusyThresholdHours"`
+	MarkFullyBusyDaysUnavailable     bool    `json:"markFullyBusyDaysUnavailable"`
+	MarkPartiallyBusyDaysUnavailable bool    `json:"markPartiallyBusyDaysUnavailable"`
+	IncludeWeekendsAsPreferredIfFree bool    `json:"includeWeekendsAsPreferredIfFree"`
+}
+
+func (r CalendarImportConversionSettings) ToInput() appdto.CalendarImportConversionSettings {
+	return appdto.CalendarImportConversionSettings{
+		FullyBusyThresholdHours:          r.FullyBusyThresholdHours,
+		MarkFullyBusyDaysUnavailable:     r.MarkFullyBusyDaysUnavailable,
+		MarkPartiallyBusyDaysUnavailable: r.MarkPartiallyBusyDaysUnavailable,
+		IncludeWeekendsAsPreferredIfFree: r.IncludeWeekendsAsPreferredIfFree,
+	}
+}
+
+type CalendarImportPreview struct {
+	StartDate        string                           `json:"startDate"`
+	EndDate          string                           `json:"endDate"`
+	Timezone         string                           `json:"timezone"`
+	CalendarProvider string                           `json:"calendarProvider"`
+	CalendarIDs      []string                         `json:"calendarIds"`
+	Conversion       CalendarImportConversionSettings `json:"conversion"`
+}
+
+func (r CalendarImportPreview) ToInput() appdto.CalendarImportPreviewInput {
+	return appdto.CalendarImportPreviewInput{
+		CalendarImportBaseInput: appdto.CalendarImportBaseInput{
+			StartDate:        r.StartDate,
+			EndDate:          r.EndDate,
+			Timezone:         r.Timezone,
+			CalendarProvider: r.CalendarProvider,
+			CalendarIDs:      r.CalendarIDs,
+			Conversion:       r.Conversion.ToInput(),
+		},
+	}
+}
+
+type CalendarImportApply struct {
+	StartDate            string                           `json:"startDate"`
+	EndDate              string                           `json:"endDate"`
+	Timezone             string                           `json:"timezone"`
+	CalendarProvider     string                           `json:"calendarProvider"`
+	CalendarIDs          []string                         `json:"calendarIds"`
+	Mode                 string                           `json:"mode"`
+	Conversion           CalendarImportConversionSettings `json:"conversion"`
+	AvailabilitySettings UpsertTripAvailability           `json:"availabilitySettings"`
+}
+
+func (r CalendarImportApply) ToInput() appdto.CalendarImportApplyInput {
+	return appdto.CalendarImportApplyInput{
+		CalendarImportBaseInput: appdto.CalendarImportBaseInput{
+			StartDate:        r.StartDate,
+			EndDate:          r.EndDate,
+			Timezone:         r.Timezone,
+			CalendarProvider: r.CalendarProvider,
+			CalendarIDs:      r.CalendarIDs,
+			Conversion:       r.Conversion.ToInput(),
+		},
+		Mode:                 r.Mode,
+		AvailabilitySettings: r.AvailabilitySettings.ToInput(),
+	}
+}

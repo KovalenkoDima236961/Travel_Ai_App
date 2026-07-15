@@ -43,7 +43,7 @@ func (p *MockCalendarProvider) ExchangeCode(_ context.Context, _ string) (*OAuth
 		AccessToken:  "mock-access-token",
 		RefreshToken: "mock-refresh-token",
 		ExpiresAt:    &expires,
-		Scopes:       "https://www.googleapis.com/auth/calendar.events",
+		Scopes:       "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy",
 	}, nil
 }
 
@@ -52,12 +52,45 @@ func (p *MockCalendarProvider) RefreshToken(_ context.Context, _ string) (*OAuth
 	return &OAuthTokenResult{
 		AccessToken: "mock-access-token-refreshed",
 		ExpiresAt:   &expires,
-		Scopes:      "https://www.googleapis.com/auth/calendar.events",
+		Scopes:      "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy",
 	}, nil
 }
 
 func (p *MockCalendarProvider) GetAccountInfo(_ context.Context, _ string) (*CalendarAccountInfo, error) {
 	return &CalendarAccountInfo{Email: p.accountEmail}, nil
+}
+
+func (p *MockCalendarProvider) GetFreeBusy(_ context.Context, _ string, input ProviderFreeBusyRequest) ([]FreeBusyBlock, error) {
+	loc, err := time.LoadLocation(strings.TrimSpace(input.TimeZone))
+	if err != nil || loc == nil {
+		loc = time.UTC
+	}
+	start := input.Start.In(loc)
+	end := input.End.In(loc)
+	if !end.After(start) {
+		return []FreeBusyBlock{}, nil
+	}
+	firstBusy := time.Date(start.Year(), start.Month(), start.Day(), 9, 0, 0, 0, loc).AddDate(0, 0, 2)
+	secondBusyStart := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 5)
+	secondBusyEnd := secondBusyStart.AddDate(0, 0, 1)
+	blocks := []FreeBusyBlock{}
+	if firstBusy.Before(end) && firstBusy.Add(2*time.Hour).After(start) {
+		blocks = append(blocks, FreeBusyBlock{
+			Start:  firstBusy,
+			End:    firstBusy.Add(2 * time.Hour),
+			AllDay: false,
+			Source: "google_calendar",
+		})
+	}
+	if secondBusyStart.Before(end) && secondBusyEnd.After(start) {
+		blocks = append(blocks, FreeBusyBlock{
+			Start:  secondBusyStart,
+			End:    secondBusyEnd,
+			AllDay: true,
+			Source: "google_calendar",
+		})
+	}
+	return blocks, nil
 }
 
 func (p *MockCalendarProvider) CreateEvent(_ context.Context, _ string, input CalendarEventInput) (*CalendarEventResult, error) {

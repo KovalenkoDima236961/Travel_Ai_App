@@ -144,6 +144,8 @@ function titleFor(
       return { title: `${actor} synced the trip calendar` };
     case "calendar_sync_removed":
       return { title: `${actor} removed calendar sync` };
+    case "availability_imported_from_calendar":
+      return { title: `${actor} updated availability` };
     default:
       return { title: "Activity recorded" };
   }

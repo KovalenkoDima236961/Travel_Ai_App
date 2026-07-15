@@ -146,6 +146,94 @@ func (p *GoogleCalendarProvider) GetAccountInfo(ctx context.Context, accessToken
 	return &CalendarAccountInfo{Email: out.Email}, nil
 }
 
+func (p *GoogleCalendarProvider) GetFreeBusy(ctx context.Context, accessToken string, input ProviderFreeBusyRequest) ([]FreeBusyBlock, error) {
+	calendarIDs := input.CalendarIDs
+	if len(calendarIDs) == 0 {
+		calendarIDs = []string{"primary"}
+	}
+	items := make([]map[string]string, 0, len(calendarIDs))
+	for _, id := range calendarIDs {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			trimmed = "primary"
+		}
+		items = append(items, map[string]string{"id": trimmed})
+	}
+	body := map[string]any{
+		"timeMin":  input.Start.Format(time.RFC3339),
+		"timeMax":  input.End.Format(time.RFC3339),
+		"timeZone": input.TimeZone,
+		"items":    items,
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("encode google freebusy request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.calendarAPI+"/freeBusy", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("build freebusy request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("google freebusy request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil, ErrCalendarReauthRequired
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("google freebusy request failed with status %d", resp.StatusCode)
+	}
+
+	var out struct {
+		Calendars map[string]struct {
+			Busy []struct {
+				Start string `json:"start"`
+				End   string `json:"end"`
+			} `json:"busy"`
+			Errors []struct {
+				Domain string `json:"domain"`
+				Reason string `json:"reason"`
+			} `json:"errors"`
+		} `json:"calendars"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("%w: decode google freebusy response: %v", ErrCalendarFreeBusyMalformedResponse, err)
+	}
+	blocks := make([]FreeBusyBlock, 0)
+	for _, calendarResult := range out.Calendars {
+		if len(calendarResult.Errors) > 0 {
+			return nil, ErrCalendarFreeBusyUnavailable
+		}
+		for _, busy := range calendarResult.Busy {
+			start, allDayStart, err := parseGoogleBusyTime(busy.Start, input.TimeZone)
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid busy start", ErrCalendarFreeBusyMalformedResponse)
+			}
+			end, allDayEnd, err := parseGoogleBusyTime(busy.End, input.TimeZone)
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid busy end", ErrCalendarFreeBusyMalformedResponse)
+			}
+			if !end.After(start) {
+				continue
+			}
+			blocks = append(blocks, FreeBusyBlock{
+				Start:  start,
+				End:    end,
+				AllDay: allDayStart && allDayEnd || looksAllDay(start, end),
+				Source: "google_calendar",
+			})
+		}
+	}
+	return blocks, nil
+}
+
 func (p *GoogleCalendarProvider) CreateEvent(ctx context.Context, accessToken string, input CalendarEventInput) (*CalendarEventResult, error) {
 	return p.writeEvent(ctx, http.MethodPost, accessToken, "primary", "", input)
 }
@@ -248,4 +336,35 @@ func googleEventBody(input CalendarEventInput) map[string]any {
 			"timeZone": timeZone,
 		},
 	}
+}
+
+func parseGoogleBusyTime(value, timezone string) (time.Time, bool, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false, fmt.Errorf("empty time")
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return parsed, false, nil
+	}
+	loc, err := time.LoadLocation(strings.TrimSpace(timezone))
+	if err != nil || loc == nil {
+		loc = time.UTC
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", value, loc)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	return parsed, true, nil
+}
+
+func looksAllDay(start, end time.Time) bool {
+	localStart := start
+	localEnd := end.In(localStart.Location())
+	if localStart.Hour() != 0 || localStart.Minute() != 0 || localStart.Second() != 0 || localStart.Nanosecond() != 0 {
+		return false
+	}
+	if localEnd.Hour() != 0 || localEnd.Minute() != 0 || localEnd.Second() != 0 || localEnd.Nanosecond() != 0 {
+		return false
+	}
+	return localEnd.Sub(localStart) >= 24*time.Hour
 }

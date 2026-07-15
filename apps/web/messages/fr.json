@@ -495,7 +495,32 @@
     "submitted": "Envoyées",
     "missing": "Manquantes",
     "travelers": "Voyageurs",
-    "offline": "Vous devez être en ligne pour modifier les disponibilités."
+    "offline": "Vous devez être en ligne pour modifier les disponibilités.",
+    "importFromGoogleCalendar": "Importer depuis Google Calendar",
+    "importBusyDays": "Importer les jours occupés",
+    "previewImport": "Prévisualiser l’import",
+    "applyToMyAvailability": "Appliquer à mes disponibilités",
+    "mergeWithMyAvailability": "Fusionner avec mes disponibilités",
+    "replaceMyAvailability": "Remplacer mes disponibilités",
+    "fullyBusyDays": "Jours entièrement occupés",
+    "partiallyBusyDays": "Jours partiellement occupés",
+    "busyBlocks": "Créneaux occupés",
+    "busyHours": "Heures occupées",
+    "markFullyBusyDaysUnavailable": "Marquer les jours entièrement occupés comme indisponibles",
+    "markPartiallyBusyDaysUnavailable": "Marquer les jours partiellement occupés comme indisponibles",
+    "suggestFreeWeekendsAsPreferredDates": "Suggérer les week-ends libres comme dates préférées",
+    "importedFromCalendar": "Importé du calendrier",
+    "verifyBeforeApplying": "Vérifier avant d’appliquer"
+  },
+  "calendar": {
+    "connectGoogleCalendar": "Connecter Google Calendar",
+    "freeBusyImport": "Import libre/occupé",
+    "onlyBusyFreeInformationIsImported": "Seules les informations libre/occupé sont importées",
+    "eventTitlesAreNotStored": "Les titres d’événements ne sont pas stockés",
+    "eventDescriptionsAreNotStored": "Les descriptions d’événements ne sont pas stockées",
+    "calendarIsNotConnected": "Le calendrier n’est pas connecté",
+    "calendarAccessWasRevoked": "L’accès au calendrier a été révoqué",
+    "thisActionRequiresInternet": "Cette action nécessite internet"
   },
   "dateOptions": {
     "bestOptions": "Meilleures options de dates",

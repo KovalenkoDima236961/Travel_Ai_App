@@ -132,6 +132,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Put("/{id}/availability/me", h.UpsertMyTripAvailability)
 		r.Delete("/{id}/availability/me", h.DeleteMyTripAvailability)
 		r.Post("/{id}/availability/request", h.RequestTripAvailability)
+		r.Post("/{id}/availability/import-calendar/preview", h.PreviewCalendarAvailabilityImport)
+		r.Post("/{id}/availability/import-calendar/apply", h.ApplyCalendarAvailabilityImport)
 		r.Get("/{id}/date-options", h.GetTripDateOptions)
 		r.Post("/{id}/date-options/generate", h.GenerateTripDateOptions)
 		r.Post("/{id}/date-options/{optionId}/apply", h.ApplyTripDateOption)

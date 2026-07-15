@@ -142,6 +142,9 @@ calendar_sync:
   internal_service_token: dev-internal-service-token
   timeout_seconds: 30
   default_time_zone: Europe/Bratislava
+  free_busy_import_enabled: true
+  free_busy_import_fail_open: false
+  free_busy_import_timeout_seconds: 12
 
 budget_conversion:
   enabled: true

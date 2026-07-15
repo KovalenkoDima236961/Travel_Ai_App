@@ -271,6 +271,7 @@ type userLookupProvider interface {
 
 type calendarSyncProvider interface {
 	GetGoogleCalendarStatus(ctx context.Context, accessToken string) (*calendarclient.ConnectionStatus, error)
+	GetGoogleFreeBusy(ctx context.Context, accessToken string, input calendarclient.FreeBusyRequest) (*calendarclient.FreeBusyResponse, error)
 	SyncGoogleCalendarEvents(ctx context.Context, input calendarclient.SyncRequest) (*calendarclient.SyncResult, error)
 	DeleteGoogleCalendarEvents(ctx context.Context, input calendarclient.DeleteRequest) (*calendarclient.DeleteResult, error)
 }
@@ -352,6 +353,17 @@ func WithCalendarSync(provider calendarSyncProvider, enabled bool, publicWebBase
 	}
 }
 
+func WithCalendarAvailabilityImport(provider calendarSyncProvider, enabled bool, failOpen bool, defaultTimeZone string) Option {
+	return func(s *Service) {
+		s.calendarAvailabilityProvider = provider
+		s.calendarAvailabilityImportEnabled = enabled
+		s.calendarAvailabilityImportFailOpen = failOpen
+		if strings.TrimSpace(defaultTimeZone) != "" {
+			s.calendarSyncDefaultTimeZone = strings.TrimSpace(defaultTimeZone)
+		}
+	}
+}
+
 func WithBudgetConversion(provider budgetConversionProvider, enabled bool, failOpen bool) Option {
 	return func(s *Service) {
 		s.budgetConversionProvider = provider
@@ -413,46 +425,49 @@ func WithPublicSharing(
 // Service holds the trip business logic. It depends on the repository and
 // generator ports and a logger.
 type Service struct {
-	repo                         tripRepository
-	generator                    application.ItineraryGenerator
-	userContextProvider          userContextProvider
-	userContextEnabled           bool
-	userContextFailOpen          bool
-	weatherContextProvider       weatherContextProvider
-	weatherContextEnabled        bool
-	weatherContextFailOpen       bool
-	placeEnrichmentProvider      placeEnrichmentProvider
-	placeEnrichmentEnabled       bool
-	placeEnrichmentFailOpen      bool
-	priceEnrichmentProvider      priceEnrichmentProvider
-	priceEnrichmentEnabled       bool
-	priceEnrichmentFailOpen      bool
-	userLookupProvider           userLookupProvider
-	calendarSyncProvider         calendarSyncProvider
-	calendarSyncEnabled          bool
-	calendarSyncPublicWebBaseURL string
-	calendarSyncDefaultTimeZone  string
-	budgetConversionProvider     budgetConversionProvider
-	budgetConversionEnabled      bool
-	budgetConversionFailOpen     bool
-	transportSearchProvider      transportSearchProvider
-	transportSearchEnabled       bool
-	transportSearchFailOpen      bool
-	workspaceProvider            workspaceProvider
-	workspacePolicyProvider      workspacePolicyProvider
-	workspacesEnabled            bool
-	receiptStorage               receipts.Storage
-	receiptOCRProvider           receipts.OCRProvider
-	receiptConfig                receipts.Config
-	activity                     activityService
-	notifier                     notifier
-	notificationsEnabled         bool
-	notificationsFailOpen        bool
-	publicSharingEnabled         bool
-	publicWebBaseURL             string
-	shareTokenBytes              int
-	publicShareTokens            *sharing.PublicShareTokenManager
-	log                          *zap.Logger
+	repo                               tripRepository
+	generator                          application.ItineraryGenerator
+	userContextProvider                userContextProvider
+	userContextEnabled                 bool
+	userContextFailOpen                bool
+	weatherContextProvider             weatherContextProvider
+	weatherContextEnabled              bool
+	weatherContextFailOpen             bool
+	placeEnrichmentProvider            placeEnrichmentProvider
+	placeEnrichmentEnabled             bool
+	placeEnrichmentFailOpen            bool
+	priceEnrichmentProvider            priceEnrichmentProvider
+	priceEnrichmentEnabled             bool
+	priceEnrichmentFailOpen            bool
+	userLookupProvider                 userLookupProvider
+	calendarSyncProvider               calendarSyncProvider
+	calendarSyncEnabled                bool
+	calendarSyncPublicWebBaseURL       string
+	calendarSyncDefaultTimeZone        string
+	calendarAvailabilityProvider       calendarSyncProvider
+	calendarAvailabilityImportEnabled  bool
+	calendarAvailabilityImportFailOpen bool
+	budgetConversionProvider           budgetConversionProvider
+	budgetConversionEnabled            bool
+	budgetConversionFailOpen           bool
+	transportSearchProvider            transportSearchProvider
+	transportSearchEnabled             bool
+	transportSearchFailOpen            bool
+	workspaceProvider                  workspaceProvider
+	workspacePolicyProvider            workspacePolicyProvider
+	workspacesEnabled                  bool
+	receiptStorage                     receipts.Storage
+	receiptOCRProvider                 receipts.OCRProvider
+	receiptConfig                      receipts.Config
+	activity                           activityService
+	notifier                           notifier
+	notificationsEnabled               bool
+	notificationsFailOpen              bool
+	publicSharingEnabled               bool
+	publicWebBaseURL                   string
+	shareTokenBytes                    int
+	publicShareTokens                  *sharing.PublicShareTokenManager
+	log                                *zap.Logger
 }
 
 // New constructs the trip service.

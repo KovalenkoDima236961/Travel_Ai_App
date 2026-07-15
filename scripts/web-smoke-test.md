@@ -866,7 +866,7 @@ Workspace dashboard:
 3. Confirm the `Calendar sync` panel appears.
 4. Click `Connect Google Calendar`.
 5. Complete OAuth. With the mock provider this redirects immediately; with real
-   Google, grant the `calendar.events` scope.
+   Google, grant the `calendar.events` and `calendar.freebusy` scopes.
 6. Confirm you return to the trip detail page with a connected account shown.
 7. Click `Sync itinerary`.
 8. Confirm the panel shows a sync summary and the sync status is no longer
@@ -1349,6 +1349,30 @@ Use two browsers: workspace owner A and member B (from the Workspaces flow).
 9. Generate, regenerate, or adapt a workspace trip and confirm the UI explains
    that policy is AI guidance and the backend check remains authoritative.
 10. Open a personal trip and confirm no workspace policy applies.
+
+## Calendar Free/Busy Import v1
+
+1. Open a private trip **Dates** section while online.
+2. Click **Import from Google Calendar**.
+3. If disconnected, click **Connect Google Calendar** and complete the OAuth
+   flow, then reopen the dialog.
+4. Select a date range and timezone.
+5. Adjust the fully-busy threshold and the fully/partially busy/free-weekend
+   conversion checkboxes.
+6. Click **Preview import**.
+7. Confirm the privacy notice is visible and the preview shows only counts,
+   dates, busy hours, and busy block counts.
+8. Confirm no event title, description, attendee, location, event ID, or calendar
+   name appears.
+9. Choose **Merge with my availability** and click **Apply to my availability**.
+10. Confirm **My availability** includes the imported unavailable ranges and the
+    best date options refresh.
+11. Sign in as another collaborator and confirm they see only normal
+    availability/conflict summaries, not calendar event details.
+12. Open a public share link and confirm calendar import controls are absent.
+13. Turn DevTools Network offline and confirm the import button is disabled with
+    the internet-required hint.
+14. Disconnect Google Calendar from settings if desired.
 
 ## Troubleshooting
 

@@ -30,24 +30,32 @@ type Repository interface {
 }
 
 type Service struct {
-	repo             Repository
-	provider         CalendarProvider
-	cipher           *tokencrypto.StringCipher
-	stateTTL         time.Duration
-	publicWebBaseURL string
-	defaultTimeZone  string
-	enabled          bool
-	guard            *providerlimits.Guard
-	providerName     string
-	log              *zap.Logger
-	now              func() time.Time
+	repo                 Repository
+	provider             CalendarProvider
+	cipher               *tokencrypto.StringCipher
+	stateTTL             time.Duration
+	publicWebBaseURL     string
+	defaultTimeZone      string
+	enabled              bool
+	freeBusyEnabled      bool
+	freeBusyMaxRangeDays int
+	freeBusyTimeout      time.Duration
+	freeBusyPrimaryOnly  bool
+	guard                *providerlimits.Guard
+	providerName         string
+	log                  *zap.Logger
+	now                  func() time.Time
 }
 
 type Config struct {
-	Enabled          bool
-	StateTTL         time.Duration
-	PublicWebBaseURL string
-	DefaultTimeZone  string
+	Enabled              bool
+	StateTTL             time.Duration
+	PublicWebBaseURL     string
+	DefaultTimeZone      string
+	FreeBusyEnabled      bool
+	FreeBusyMaxRangeDays int
+	FreeBusyTimeout      time.Duration
+	FreeBusyPrimaryOnly  bool
 	// ProviderName is the active calendar provider name used for limit metrics
 	// and Ops display (e.g. "google" or "mock").
 	ProviderName string
@@ -58,17 +66,21 @@ func NewService(repo Repository, provider CalendarProvider, cipher *tokencrypto.
 		log = zap.NewNop()
 	}
 	return &Service{
-		repo:             repo,
-		provider:         provider,
-		cipher:           cipher,
-		stateTTL:         cfg.StateTTL,
-		publicWebBaseURL: strings.TrimRight(strings.TrimSpace(cfg.PublicWebBaseURL), "/"),
-		defaultTimeZone:  strings.TrimSpace(cfg.DefaultTimeZone),
-		enabled:          cfg.Enabled,
-		guard:            guard,
-		providerName:     strings.TrimSpace(cfg.ProviderName),
-		log:              log,
-		now:              func() time.Time { return time.Now().UTC() },
+		repo:                 repo,
+		provider:             provider,
+		cipher:               cipher,
+		stateTTL:             cfg.StateTTL,
+		publicWebBaseURL:     strings.TrimRight(strings.TrimSpace(cfg.PublicWebBaseURL), "/"),
+		defaultTimeZone:      strings.TrimSpace(cfg.DefaultTimeZone),
+		enabled:              cfg.Enabled,
+		freeBusyEnabled:      cfg.FreeBusyEnabled,
+		freeBusyMaxRangeDays: cfg.FreeBusyMaxRangeDays,
+		freeBusyTimeout:      cfg.FreeBusyTimeout,
+		freeBusyPrimaryOnly:  cfg.FreeBusyPrimaryOnly,
+		guard:                guard,
+		providerName:         strings.TrimSpace(cfg.ProviderName),
+		log:                  log,
+		now:                  func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -188,7 +200,7 @@ func (s *Service) HandleCallback(ctx context.Context, code, state, googleError s
 	}
 	scopes := token.Scopes
 	if strings.TrimSpace(scopes) == "" {
-		scopes = "https://www.googleapis.com/auth/calendar.events"
+		scopes = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy"
 	}
 	_, err = s.repo.UpsertCalendarConnection(ctx, CalendarConnection{
 		ID:                    uuid.New(),
@@ -212,6 +224,88 @@ func (s *Service) Disconnect(ctx context.Context, userID uuid.UUID) error {
 		return ErrCalendarDisabled
 	}
 	return s.repo.DisconnectCalendarConnection(ctx, userID, ProviderGoogle)
+}
+
+func (s *Service) FreeBusy(ctx context.Context, userID uuid.UUID, req FreeBusyRequest) (*FreeBusyResponse, error) {
+	started := time.Now()
+	if !s.enabled {
+		return nil, ErrCalendarDisabled
+	}
+	if !s.freeBusyEnabled {
+		return nil, ErrCalendarFreeBusyDisabled
+	}
+	normalized, start, endExclusive, loc, err := s.normalizeFreeBusyRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	providerName := s.providerName
+	if strings.TrimSpace(providerName) == "" {
+		providerName = ProviderGoogle
+	}
+	if decision, ok := s.reserveCalendar(ctx, providerlimits.OpCalendarFreeBusy); !ok {
+		limitErr := providerlimits.LimitErrorFrom(decision)
+		if limitErr != nil {
+			recordCalendarFreeBusyFailure(providerName, limitErr.Code)
+			return nil, limitErr
+		}
+		recordCalendarFreeBusyFailure(providerName, "provider_rate_limited")
+		return nil, ErrCalendarFreeBusyUnavailable
+	}
+
+	callCtx := ctx
+	cancel := func() {}
+	if s.freeBusyTimeout > 0 {
+		callCtx, cancel = context.WithTimeout(ctx, s.freeBusyTimeout)
+	}
+	defer cancel()
+
+	accessToken, err := s.accessToken(callCtx, userID)
+	if err != nil {
+		recordCalendarFreeBusyFailure(providerName, calendarErrorCode(err))
+		return nil, err
+	}
+	blocks, err := s.provider.GetFreeBusy(callCtx, accessToken, ProviderFreeBusyRequest{
+		Start:       start,
+		End:         endExclusive,
+		TimeZone:    normalized.TimeZone,
+		CalendarIDs: normalized.CalendarIDs,
+	})
+	if err != nil {
+		code := calendarErrorCode(err)
+		if errors.Is(err, ErrCalendarReauthRequired) {
+			_ = s.repo.DisconnectCalendarConnection(ctx, userID, ProviderGoogle)
+			recordCalendarFreeBusyFailure(providerName, code)
+			return nil, err
+		}
+		recordCalendarFreeBusyFailure(providerName, code)
+		if errors.Is(err, ErrCalendarFreeBusyMalformedResponse) {
+			return nil, ErrCalendarFreeBusyMalformedResponse
+		}
+		if errors.Is(err, ErrCalendarFreeBusyUnavailable) {
+			return nil, ErrCalendarFreeBusyUnavailable
+		}
+		return nil, ErrCalendarFreeBusyUnavailable
+	}
+	for i := range blocks {
+		blocks[i].Source = "google_calendar"
+	}
+	summary := buildFreeBusySummary(normalized, blocks, loc)
+	recordCalendarFreeBusyRequest(providerName, "success", time.Since(started))
+	recordCalendarFreeBusyBlocks(providerName, len(blocks))
+	s.log.Info("calendar_free_busy_completed",
+		zap.String("userId", userID.String()),
+		zap.String("startDate", normalized.StartDate),
+		zap.String("endDate", normalized.EndDate),
+		zap.Int("busyBlockCount", len(blocks)),
+		zap.Float64("durationMs", float64(time.Since(started).Microseconds())/1000),
+	)
+	return &FreeBusyResponse{
+		BusyBlocks: blocks,
+		Summary:    summary,
+		Warnings: []string{
+			"Only busy/free information was imported. Event details are not stored.",
+		},
+	}, nil
 }
 
 func (s *Service) SyncEvents(ctx context.Context, req SyncEventsRequest) (*SyncEventsResponse, error) {
@@ -286,6 +380,169 @@ func (s *Service) SyncEvents(ctx context.Context, req SyncEventsRequest) (*SyncE
 		out.Items = append(out.Items, result)
 	}
 	return out, nil
+}
+
+func (s *Service) normalizeFreeBusyRequest(req FreeBusyRequest) (FreeBusyRequest, time.Time, time.Time, *time.Location, error) {
+	timezone := strings.TrimSpace(req.TimeZone)
+	if timezone == "" {
+		timezone = s.defaultTimeZone
+	}
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		if s.defaultTimeZone != "" && timezone != s.defaultTimeZone {
+			loc, err = time.LoadLocation(s.defaultTimeZone)
+			timezone = s.defaultTimeZone
+		}
+		if err != nil {
+			return req, time.Time{}, time.Time{}, nil, ErrCalendarFreeBusyInvalidTimeZone
+		}
+	}
+	start, err := parseCalendarDateInLocation(req.StartDate, loc)
+	if err != nil {
+		return req, time.Time{}, time.Time{}, nil, ErrCalendarFreeBusyInvalidRange
+	}
+	end, err := parseCalendarDateInLocation(req.EndDate, loc)
+	if err != nil {
+		return req, time.Time{}, time.Time{}, nil, ErrCalendarFreeBusyInvalidRange
+	}
+	if end.Before(start) {
+		return req, time.Time{}, time.Time{}, nil, ErrCalendarFreeBusyInvalidRange
+	}
+	maxRange := s.freeBusyMaxRangeDays
+	if maxRange <= 0 {
+		maxRange = 180
+	}
+	rangeDays := int(end.Sub(start).Hours()/24) + 1
+	if rangeDays > maxRange {
+		return req, time.Time{}, time.Time{}, nil, ErrCalendarFreeBusyRangeTooLarge
+	}
+	calendarIDs := normalizeCalendarIDs(req.CalendarIDs)
+	if len(calendarIDs) > 5 {
+		return req, time.Time{}, time.Time{}, nil, ErrCalendarFreeBusyUnsupportedCalendar
+	}
+	if s.freeBusyPrimaryOnly {
+		for _, id := range calendarIDs {
+			if id != "primary" {
+				return req, time.Time{}, time.Time{}, nil, ErrCalendarFreeBusyUnsupportedCalendar
+			}
+		}
+		calendarIDs = []string{"primary"}
+	}
+	req.StartDate = start.Format("2006-01-02")
+	req.EndDate = end.Format("2006-01-02")
+	req.TimeZone = timezone
+	req.CalendarIDs = calendarIDs
+	return req, start, end.AddDate(0, 0, 1), loc, nil
+}
+
+func normalizeCalendarIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return []string{"primary"}
+	}
+	out := make([]string, 0, len(ids))
+	seen := map[string]struct{}{}
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			trimmed = "primary"
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	if len(out) == 0 {
+		return []string{"primary"}
+	}
+	return out
+}
+
+func parseCalendarDateInLocation(value string, loc *time.Location) (time.Time, error) {
+	parsed, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(value), loc)
+	if err != nil {
+		return time.Time{}, err
+	}
+	y, m, d := parsed.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, loc), nil
+}
+
+func buildFreeBusySummary(req FreeBusyRequest, blocks []FreeBusyBlock, loc *time.Location) FreeBusySummary {
+	busyHoursByDay := map[string]float64{}
+	fullDays := map[string]struct{}{}
+	for _, block := range blocks {
+		if !block.End.After(block.Start) {
+			continue
+		}
+		startDay := dayStart(block.Start.In(loc))
+		endDay := dayStart(block.End.Add(-time.Nanosecond).In(loc))
+		for day := startDay; !day.After(endDay); day = day.AddDate(0, 0, 1) {
+			next := day.AddDate(0, 0, 1)
+			overlapStart := maxCalendarTime(block.Start.In(loc), day)
+			overlapEnd := minCalendarTime(block.End.In(loc), next)
+			if overlapEnd.After(overlapStart) {
+				key := day.Format("2006-01-02")
+				busyHoursByDay[key] += overlapEnd.Sub(overlapStart).Hours()
+				if block.AllDay || overlapEnd.Sub(overlapStart) >= 23*time.Hour {
+					fullDays[key] = struct{}{}
+				}
+			}
+		}
+	}
+	fullyBusy := len(fullDays)
+	partiallyBusy := 0
+	for day := range busyHoursByDay {
+		if _, ok := fullDays[day]; !ok {
+			partiallyBusy++
+		}
+	}
+	return FreeBusySummary{
+		StartDate:         req.StartDate,
+		EndDate:           req.EndDate,
+		TimeZone:          req.TimeZone,
+		BusyBlockCount:    len(blocks),
+		BusyDays:          len(busyHoursByDay),
+		FullyBusyDays:     fullyBusy,
+		PartiallyBusyDays: partiallyBusy,
+		CalendarCount:     len(req.CalendarIDs),
+	}
+}
+
+func dayStart(value time.Time) time.Time {
+	y, m, d := value.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, value.Location())
+}
+
+func maxCalendarTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
+}
+
+func minCalendarTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+func calendarErrorCode(err error) string {
+	switch {
+	case errors.Is(err, ErrCalendarNotConnected):
+		return "calendar_not_connected"
+	case errors.Is(err, ErrCalendarReauthRequired):
+		return "calendar_connection_revoked"
+	case errors.Is(err, ErrCalendarFreeBusyMalformedResponse):
+		return "calendar_free_busy_malformed_response"
+	case errors.Is(err, ErrCalendarFreeBusyUnavailable):
+		return "calendar_free_busy_unavailable"
+	default:
+		return "calendar_free_busy_unavailable"
+	}
 }
 
 func (s *Service) DeleteEvents(ctx context.Context, req DeleteEventsRequest) (*DeleteEventsResponse, error) {

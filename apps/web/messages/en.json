@@ -779,7 +779,32 @@
     "submitted": "Submitted",
     "missing": "Missing",
     "travelers": "Travelers",
-    "offline": "You need to be online to update availability."
+    "offline": "You need to be online to update availability.",
+    "importFromGoogleCalendar": "Import from Google Calendar",
+    "importBusyDays": "Import busy days",
+    "previewImport": "Preview import",
+    "applyToMyAvailability": "Apply to my availability",
+    "mergeWithMyAvailability": "Merge with my availability",
+    "replaceMyAvailability": "Replace my availability",
+    "fullyBusyDays": "Fully busy days",
+    "partiallyBusyDays": "Partially busy days",
+    "busyBlocks": "Busy blocks",
+    "busyHours": "Busy hours",
+    "markFullyBusyDaysUnavailable": "Mark fully busy days as unavailable",
+    "markPartiallyBusyDaysUnavailable": "Mark partially busy days as unavailable",
+    "suggestFreeWeekendsAsPreferredDates": "Suggest free weekends as preferred dates",
+    "importedFromCalendar": "Imported from calendar",
+    "verifyBeforeApplying": "Verify before applying"
+  },
+  "calendar": {
+    "connectGoogleCalendar": "Connect Google Calendar",
+    "freeBusyImport": "Free/busy import",
+    "onlyBusyFreeInformationIsImported": "Only busy/free information is imported",
+    "eventTitlesAreNotStored": "Event titles are not stored",
+    "eventDescriptionsAreNotStored": "Event descriptions are not stored",
+    "calendarIsNotConnected": "Calendar is not connected",
+    "calendarAccessWasRevoked": "Calendar access was revoked",
+    "thisActionRequiresInternet": "This action requires internet"
   },
   "dateOptions": {
     "bestOptions": "Best date options",

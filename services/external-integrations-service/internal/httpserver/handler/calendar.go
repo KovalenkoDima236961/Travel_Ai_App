@@ -11,6 +11,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/calendar"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providerlimits"
 )
 
 type CalendarHandler struct {
@@ -86,14 +87,56 @@ func (h *CalendarHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
+func (h *CalendarHandler) FreeBusy(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req calendar.FreeBusyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.FreeBusy(r.Context(), user.ID, req)
+	if err != nil {
+		h.writeCalendarError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (h *CalendarHandler) writeCalendarError(w http.ResponseWriter, err error) {
+	var limitErr *providerlimits.LimitError
+	if errors.As(err, &limitErr) {
+		status := http.StatusServiceUnavailable
+		if limitErr.Code == providerlimits.CodeRateLimited {
+			status = http.StatusTooManyRequests
+		}
+		writeError(w, status, limitErr.Code)
+		return
+	}
 	switch {
 	case errors.Is(err, calendar.ErrCalendarDisabled):
 		writeError(w, http.StatusServiceUnavailable, "calendar_disabled")
+	case errors.Is(err, calendar.ErrCalendarFreeBusyDisabled):
+		writeError(w, http.StatusServiceUnavailable, "calendar_free_busy_disabled")
 	case errors.Is(err, calendar.ErrCalendarNotConnected):
 		writeError(w, http.StatusNotFound, "calendar_not_connected")
 	case errors.Is(err, calendar.ErrCalendarReauthRequired):
-		writeError(w, http.StatusConflict, "calendar_reauth_required")
+		writeError(w, http.StatusConflict, "calendar_connection_revoked")
+	case errors.Is(err, calendar.ErrCalendarFreeBusyInvalidRange):
+		writeError(w, http.StatusBadRequest, "invalid_date_range")
+	case errors.Is(err, calendar.ErrCalendarFreeBusyRangeTooLarge):
+		writeError(w, http.StatusBadRequest, "date_range_too_large")
+	case errors.Is(err, calendar.ErrCalendarFreeBusyInvalidTimeZone):
+		writeError(w, http.StatusBadRequest, "invalid_timezone")
+	case errors.Is(err, calendar.ErrCalendarFreeBusyUnsupportedCalendar):
+		writeError(w, http.StatusBadRequest, "unsupported_calendar_ids")
+	case errors.Is(err, calendar.ErrCalendarFreeBusyMalformedResponse):
+		writeError(w, http.StatusBadGateway, "calendar_free_busy_malformed_response")
+	case errors.Is(err, calendar.ErrCalendarFreeBusyUnavailable):
+		writeError(w, http.StatusBadGateway, "calendar_free_busy_unavailable")
 	default:
 		h.log.Warn("calendar request failed", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "calendar_request_failed")

@@ -306,8 +306,12 @@ func calendarClientError(err error) error {
 		switch clientErr.Code {
 		case "calendar_not_connected":
 			return apperrs.NewInvalidInput("calendar_not_connected")
-		case "calendar_reauth_required":
-			return apperrs.NewInvalidInput("calendar_reauth_required")
+		case "calendar_reauth_required", "calendar_connection_revoked":
+			return apperrs.NewInvalidInput("calendar_connection_revoked")
+		case "provider_rate_limited", "provider_quota_exceeded", "calendar_free_busy_unavailable", "calendar_free_busy_malformed_response":
+			return apperrs.NewDependencyError("%s", clientErr.Code)
+		case "invalid_date_range", "date_range_too_large", "invalid_timezone", "unsupported_calendar_ids":
+			return apperrs.NewInvalidInput("%s", clientErr.Code)
 		default:
 			return apperrs.NewDependencyError("%s", clientErr.Code)
 		}

@@ -131,7 +131,7 @@ calendar:
   google_client_id: ""
   google_client_secret: ""
   google_redirect_url: "http://localhost:8084/calendar/google/callback"
-  google_scopes: "https://www.googleapis.com/auth/calendar.events"
+  google_scopes: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy"
   encryption_key: "dev-calendar-token-key-32-bytes!"
   oauth_state_ttl_seconds: 600
   public_web_base_url: "http://localhost:3000"
@@ -142,3 +142,8 @@ calendar:
   google_calendar_api: "https://www.googleapis.com/calendar/v3"
   mock_account_email: "mock-calendar@example.local"
   mock_event_link_base: "http://localhost:3000/mock-calendar/events"
+  free_busy_enabled: true
+  free_busy_max_range_days: 180
+  free_busy_timeout_seconds: 10
+  free_busy_primary_only: true
+  free_busy_cache_enabled: false

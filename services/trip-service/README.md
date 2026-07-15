@@ -1167,6 +1167,8 @@ Endpoints:
 - `PUT /trips/{tripId}/availability/me`
 - `DELETE /trips/{tripId}/availability/me`
 - `POST /trips/{tripId}/availability/request`
+- `POST /trips/{tripId}/availability/import-calendar/preview`
+- `POST /trips/{tripId}/availability/import-calendar/apply`
 - `GET /trips/{tripId}/date-options`
 - `POST /trips/{tripId}/date-options/generate`
 - `POST /trips/{tripId}/date-options/{optionId}/apply`
@@ -1187,6 +1189,38 @@ a normal full-generation job is queued.
 Date options can be converted into existing `date_choice` polls. Poll option
 metadata stores the selected date option ID, start/end, duration, and score.
 
-Limitations: v1 is manual only, has no Google Calendar free/busy import, no
-anonymous/public forms, no per-hour scheduling, and no booking or leave
-approval workflow.
+Calendar free/busy import v1 lets an accepted private collaborator preview and
+apply their own Google Calendar busy days. Trip Service calls External
+Integrations `POST /calendar/google/free-busy` with the user's JWT, converts
+sanitized busy intervals into date-level `unavailableRanges` and optional
+preferred free weekend ranges, and saves them as a normal
+`trip_availability_responses` row only after the user applies the preview.
+
+Conversion defaults:
+
+- `fullyBusyThresholdHours`: `6`
+- `markFullyBusyDaysUnavailable`: `true`
+- `markPartiallyBusyDaysUnavailable`: `false`
+- `includeWeekendsAsPreferredIfFree`: `false`
+
+Apply modes:
+
+- `merge`: keeps existing manual ranges and merges imported suggestions.
+- `overwrite_all_my_availability`: replaces the user's ranges with imported
+  suggestions and supplied settings.
+
+Unavailable ranges override preferred/available ranges, and adjacent or
+overlapping ranges are merged. Activity event
+`availability_imported_from_calendar` records only provider, date range, and
+summary counts. Raw busy blocks, event titles, event IDs, descriptions,
+attendees, locations, and calendar names are not persisted, added to activity,
+sent to AI prompts, or exposed to other collaborators. Date option conflicts
+remain generic, e.g. `Unavailable on 2026-09-12`.
+
+Limitations: v1 supports Google Calendar free/busy only, import is manual and
+review-before-apply, public shares cannot import, there is no continuous sync,
+no per-hour trip scheduling, and no booking or leave approval workflow.
+`CALENDAR_FREE_BUSY_IMPORT_FAIL_OPEN=false` is the recommended default. When it
+is explicitly enabled, preview can degrade to an empty warning preview on
+dependency failures; apply remains fail-closed so missing calendar data cannot
+write misleading availability.

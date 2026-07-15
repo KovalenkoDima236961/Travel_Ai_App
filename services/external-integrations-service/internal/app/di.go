@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -110,11 +111,15 @@ func buildContainer(
 	}
 	calendarRepo := calendarrepo.New(db)
 	calendarSvc := calendar.NewService(calendarRepo, calendarProvider, cipher, calendar.Config{
-		Enabled:          cfg.Calendar.Enabled,
-		StateTTL:         cfg.Calendar.StateTTL(),
-		PublicWebBaseURL: cfg.Calendar.PublicWebBaseURL,
-		DefaultTimeZone:  cfg.Calendar.DefaultTimeZone,
-		ProviderName:     cfg.Calendar.Provider,
+		Enabled:              cfg.Calendar.Enabled,
+		StateTTL:             cfg.Calendar.StateTTL(),
+		PublicWebBaseURL:     cfg.Calendar.PublicWebBaseURL,
+		DefaultTimeZone:      cfg.Calendar.DefaultTimeZone,
+		FreeBusyEnabled:      cfg.Calendar.FreeBusyEnabled,
+		FreeBusyMaxRangeDays: cfg.Calendar.FreeBusyMaxRangeDays,
+		FreeBusyTimeout:      time.Duration(cfg.Calendar.FreeBusyTimeoutSeconds) * time.Second,
+		FreeBusyPrimaryOnly:  cfg.Calendar.FreeBusyPrimaryOnly,
+		ProviderName:         cfg.Calendar.Provider,
 	}, guard, log)
 	calendarHandler := handler.NewCalendarHandler(calendarSvc, log)
 	internalCalendarHandler := handler.NewInternalCalendarHandler(calendarSvc, log)

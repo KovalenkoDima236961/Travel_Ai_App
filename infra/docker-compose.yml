@@ -596,7 +596,7 @@ services:
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       GOOGLE_OAUTH_REDIRECT_URL: ${GOOGLE_OAUTH_REDIRECT_URL:-http://localhost:8084/calendar/google/callback}
-      GOOGLE_CALENDAR_SCOPES: ${GOOGLE_CALENDAR_SCOPES:-https://www.googleapis.com/auth/calendar.events}
+      GOOGLE_CALENDAR_SCOPES: "${GOOGLE_CALENDAR_SCOPES:-https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy}"
       CALENDAR_TOKEN_ENCRYPTION_KEY: ${CALENDAR_TOKEN_ENCRYPTION_KEY:-dev-calendar-token-key-32-bytes!}
       CALENDAR_OAUTH_STATE_TTL_SECONDS: ${CALENDAR_OAUTH_STATE_TTL_SECONDS:-600}
       PUBLIC_WEB_BASE_URL: ${PUBLIC_WEB_BASE_URL:-http://localhost:3000}

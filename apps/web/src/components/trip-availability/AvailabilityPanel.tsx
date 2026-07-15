@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ApplyDateOptionDialog } from "./ApplyDateOptionDialog";
 import { AvailabilitySummaryCard } from "./AvailabilitySummaryCard";
+import { CalendarImportDialog } from "./CalendarImportDialog";
 import { CreateDatePollDialog } from "./CreateDatePollDialog";
 import { DateOptionsList } from "./DateOptionsList";
 import { MissingAvailabilityNotice } from "./MissingAvailabilityNotice";
@@ -42,6 +43,7 @@ export function AvailabilityPanel({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [applyingOption, setApplyingOption] = useState<TripDateOption | null>(null);
+  const [calendarImportOpen, setCalendarImportOpen] = useState(false);
   const [pollOptionIds, setPollOptionIds] = useState<string[]>([]);
   const [dateOptionsInput, setDateOptionsInput] = useState<DateOptionsInput>(() => ({
     minDays: trip.days,
@@ -151,17 +153,31 @@ export function AvailabilityPanel({
             Dates
           </h2>
         </div>
-        {canEdit ? (
-          <Button
-            disabled={disabled || requestMutation.isPending}
-            onClick={() => void requestAvailability()}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {requestMutation.isPending ? "Requesting..." : "Request availability"}
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {currentUserId ? (
+            <Button
+              disabled={disabled}
+              onClick={() => setCalendarImportOpen(true)}
+              size="sm"
+              title={disabled ? "This action requires internet." : undefined}
+              type="button"
+              variant="secondary"
+            >
+              Import from Google Calendar
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <Button
+              disabled={disabled || requestMutation.isPending}
+              onClick={() => void requestAvailability()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {requestMutation.isPending ? "Requesting..." : "Request availability"}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {!online ? (
@@ -293,6 +309,13 @@ export function AvailabilityPanel({
         }}
         open={pollOptionIds.length > 0}
         optionCount={pollOptionIds.length}
+      />
+      <CalendarImportDialog
+        currentResponse={currentUserResponse}
+        onApplied={() => setMessage("Imported availability applied.")}
+        onOpenChange={setCalendarImportOpen}
+        open={calendarImportOpen}
+        trip={trip}
       />
     </section>
   );

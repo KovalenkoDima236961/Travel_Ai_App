@@ -226,21 +226,35 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			cfg.Notifications.FailOpen,
 		))
 	}
-	if cfg.CalendarSync.Enabled {
+	if cfg.CalendarSync.Enabled || cfg.CalendarSync.FreeBusyImportEnabled {
+		calendarTimeout := cfg.CalendarSync.TimeoutSeconds
+		if cfg.CalendarSync.FreeBusyImportEnabled && cfg.CalendarSync.FreeBusyImportTimeoutSeconds > calendarTimeout {
+			calendarTimeout = cfg.CalendarSync.FreeBusyImportTimeoutSeconds
+		}
 		calendarClient, err := calendarclient.New(calendarclient.Config{
 			BaseURL:        cfg.CalendarSync.ExternalIntegrationsServiceURL,
 			Token:          cfg.CalendarSync.InternalServiceToken,
-			TimeoutSeconds: cfg.CalendarSync.TimeoutSeconds,
+			TimeoutSeconds: calendarTimeout,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("init calendar sync client: %w", err)
 		}
-		opts = append(opts, service.WithCalendarSync(
-			calendarClient,
-			cfg.CalendarSync.Enabled,
-			cfg.PublicSharing.PublicWebBaseURL,
-			cfg.CalendarSync.DefaultTimeZone,
-		))
+		if cfg.CalendarSync.Enabled {
+			opts = append(opts, service.WithCalendarSync(
+				calendarClient,
+				cfg.CalendarSync.Enabled,
+				cfg.PublicSharing.PublicWebBaseURL,
+				cfg.CalendarSync.DefaultTimeZone,
+			))
+		}
+		if cfg.CalendarSync.FreeBusyImportEnabled {
+			opts = append(opts, service.WithCalendarAvailabilityImport(
+				calendarClient,
+				cfg.CalendarSync.FreeBusyImportEnabled,
+				cfg.CalendarSync.FreeBusyImportFailOpen,
+				cfg.CalendarSync.DefaultTimeZone,
+			))
+		}
 	}
 	if cfg.BudgetConversion.Enabled {
 		exchangeRateClient, err := exchangerateclient.New(exchangerateclient.Config{

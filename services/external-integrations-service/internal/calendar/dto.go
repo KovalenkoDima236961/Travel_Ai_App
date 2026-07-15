@@ -60,6 +60,44 @@ type CalendarEventResult struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
+type FreeBusyRequest struct {
+	StartDate   string   `json:"startDate"`
+	EndDate     string   `json:"endDate"`
+	TimeZone    string   `json:"timezone"`
+	CalendarIDs []string `json:"calendarIds,omitempty"`
+}
+
+type ProviderFreeBusyRequest struct {
+	Start       time.Time
+	End         time.Time
+	TimeZone    string
+	CalendarIDs []string
+}
+
+type FreeBusyBlock struct {
+	Start  time.Time `json:"start"`
+	End    time.Time `json:"end"`
+	AllDay bool      `json:"allDay"`
+	Source string    `json:"source"`
+}
+
+type FreeBusySummary struct {
+	StartDate         string `json:"startDate"`
+	EndDate           string `json:"endDate"`
+	TimeZone          string `json:"timezone"`
+	BusyBlockCount    int    `json:"busyBlockCount"`
+	BusyDays          int    `json:"busyDays"`
+	FullyBusyDays     int    `json:"fullyBusyDays"`
+	PartiallyBusyDays int    `json:"partiallyBusyDays"`
+	CalendarCount     int    `json:"calendarCount"`
+}
+
+type FreeBusyResponse struct {
+	BusyBlocks []FreeBusyBlock `json:"busyBlocks"`
+	Summary    FreeBusySummary `json:"summary"`
+	Warnings   []string        `json:"warnings"`
+}
+
 type ConnectionStatus struct {
 	Connected            bool       `json:"connected"`
 	Provider             string     `json:"provider"`

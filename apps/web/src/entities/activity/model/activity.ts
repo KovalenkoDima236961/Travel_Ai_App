@@ -34,7 +34,8 @@ export type TripActivityEventType =
   | "receipt_attached"
   | "receipt_deleted"
   | "calendar_synced"
-  | "calendar_sync_removed";
+  | "calendar_sync_removed"
+  | "availability_imported_from_calendar";
 
 export type TripActivityEntityType =
   | "trip"
@@ -48,7 +49,8 @@ export type TripActivityEntityType =
   | "accommodation"
   | "trip_expense"
   | "trip_expense_receipt"
-  | "calendar_sync";
+  | "calendar_sync"
+  | "availability";
 
 export type TripActivityEvent = {
   id: string;

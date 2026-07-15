@@ -383,9 +383,12 @@ guidance; backend evaluation remains authoritative.
 
 ## Group Availability & Date Coordination v1
 
-Trip collaborators can now submit manual available, unavailable, and preferred
-date ranges. Trip Service computes deterministic scored date windows, owners or
-editors can create a date poll from those options, and applying an option fixes
-the trip dates for later planning constraints and AI generation. V1 is advisory
-and manual: it does not import calendar free/busy data, book anything, or rewrite
-an existing itinerary unless the user explicitly queues regeneration.
+Trip collaborators can submit available, unavailable, and preferred date ranges,
+or manually import sanitized Google Calendar free/busy blocks after reviewing a
+preview. Calendar import stores only normal availability ranges, never event
+titles, descriptions, attendees, locations, event IDs, or raw calendar payloads.
+Trip Service computes deterministic scored date windows, owners or editors can
+create a date poll from those options, and applying an option fixes the trip
+dates for later planning constraints and AI generation. V1 is advisory: it does
+not continuously sync calendars, book anything, or rewrite an existing itinerary
+unless the user explicitly queues regeneration.

@@ -3172,6 +3172,73 @@ if ! jq -e '.summary.submittedCount >= 2 and (.responses | length) >= 2' <<<"${L
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+if [[ "${CALENDAR_PROVIDER:-mock}" == "mock" ]]; then
+  echo "Checking Google Calendar free/busy availability import..."
+  CALENDAR_IMPORT_PREVIEW_PAYLOAD='{
+    "startDate":"2026-09-10",
+    "endDate":"2026-09-30",
+    "timezone":"Europe/Bratislava",
+    "calendarProvider":"google",
+    "calendarIds":["primary"],
+    "conversion":{
+      "fullyBusyThresholdHours":6,
+      "markFullyBusyDaysUnavailable":true,
+      "markPartiallyBusyDaysUnavailable":false,
+      "includeWeekendsAsPreferredIfFree":false
+    }
+  }'
+  request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability/import-calendar/preview" "${ACCESS_TOKEN}" "${CALENDAR_IMPORT_PREVIEW_PAYLOAD}"
+  assert_2xx "Preview calendar availability import"
+  if ! jq -e '.preview.busyBlocksSummary.busyBlockCount >= 2 and .preview.busyBlocksSummary.fullyBusyDays >= 1 and .preview.busyBlocksSummary.partiallyBusyDays >= 1 and (.preview.suggestedUnavailableRanges | length) >= 1' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Calendar import preview did not include expected sanitized summaries." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  if jq -e '.. | objects | has("title") or has("description") or has("attendees") or has("location") or has("eventId")' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Calendar import preview exposed event details." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  CALENDAR_IMPORT_APPLY_PAYLOAD='{
+    "startDate":"2026-09-10",
+    "endDate":"2026-09-30",
+    "timezone":"Europe/Bratislava",
+    "calendarProvider":"google",
+    "calendarIds":["primary"],
+    "mode":"merge",
+    "conversion":{
+      "fullyBusyThresholdHours":6,
+      "markFullyBusyDaysUnavailable":true,
+      "markPartiallyBusyDaysUnavailable":false,
+      "includeWeekendsAsPreferredIfFree":false
+    },
+    "availabilitySettings":{
+      "minTripDays":2,
+      "maxTripDays":5,
+      "timezone":"Europe/Bratislava",
+      "notes":"Imported from Google Calendar."
+    }
+  }'
+  request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability/import-calendar/apply" "${ACCESS_TOKEN}" "${CALENDAR_IMPORT_APPLY_PAYLOAD}"
+  assert_2xx "Apply calendar availability import"
+  if ! jq -e '(.availability.unavailableRanges | length) >= 1 and (.dateOptions.options | type == "array")' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Calendar import apply did not update availability/date options." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  if jq -e '.. | strings | test("Google Calendar conflict|calendar event|event title"; "i")' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Calendar import apply exposed calendar-specific conflict details." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability" "${ACCESS_TOKEN}"
+  assert_2xx "Get availability after calendar import"
+  if ! jq -e --arg userId "${AUTH_ME_ID}" '.responses[] | select(.userId == $userId) | (.unavailableRanges | length) >= 1' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Imported unavailable ranges were not persisted as normal availability." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+fi
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/date-options?minDays=2&maxDays=4&preferWeekends=true&limit=5" "${ACCESS_TOKEN}"
 assert_2xx "Get trip date options"
 DATE_OPTION_ID="$(jq -r '.options[0].id // empty' <<<"${LAST_BODY}")"
@@ -3686,6 +3753,8 @@ request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/itinerary/reactio
 assert_status "Public share reaction access" "401"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability/me" "${PUBLIC_SHARE_ACCESS_TOKEN}" '{"availableRanges":[{"startDate":"2026-09-12","endDate":"2026-09-13"}]}'
 assert_status "Public share availability submit access" "401"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/availability/import-calendar/preview" "${PUBLIC_SHARE_ACCESS_TOKEN}" '{"startDate":"2026-09-01","endDate":"2026-09-30","timezone":"Europe/Bratislava","calendarProvider":"google"}'
+assert_status "Public share calendar availability import access" "401"
 
 echo "Confirming public share token cannot access private checklist surfaces..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${PUBLIC_SHARE_ACCESS_TOKEN}"

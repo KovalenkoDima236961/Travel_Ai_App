@@ -126,3 +126,74 @@ type CreateDateOptionsPollInput struct {
 type RequestAvailabilityInput struct {
 	Message string
 }
+
+type CalendarImportConversionSettings struct {
+	FullyBusyThresholdHours          float64 `json:"fullyBusyThresholdHours"`
+	MarkFullyBusyDaysUnavailable     bool    `json:"markFullyBusyDaysUnavailable"`
+	MarkPartiallyBusyDaysUnavailable bool    `json:"markPartiallyBusyDaysUnavailable"`
+	IncludeWeekendsAsPreferredIfFree bool    `json:"includeWeekendsAsPreferredIfFree"`
+}
+
+type CalendarImportBaseInput struct {
+	StartDate        string                           `json:"startDate"`
+	EndDate          string                           `json:"endDate"`
+	Timezone         string                           `json:"timezone"`
+	CalendarProvider string                           `json:"calendarProvider"`
+	CalendarIDs      []string                         `json:"calendarIds"`
+	Conversion       CalendarImportConversionSettings `json:"conversion"`
+}
+
+type CalendarImportPreviewInput struct {
+	CalendarImportBaseInput
+}
+
+type CalendarImportApplyInput struct {
+	CalendarImportBaseInput
+	Mode                 string                      `json:"mode"`
+	AvailabilitySettings UpsertTripAvailabilityInput `json:"availabilitySettings"`
+}
+
+type CalendarImportRange struct {
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Reason    string `json:"reason"`
+}
+
+type CalendarBusyBlocksSummary struct {
+	BusyBlockCount    int `json:"busyBlockCount"`
+	BusyDays          int `json:"busyDays"`
+	FullyBusyDays     int `json:"fullyBusyDays"`
+	PartiallyBusyDays int `json:"partiallyBusyDays"`
+}
+
+type CalendarBusyDaySummary struct {
+	Date           string  `json:"date"`
+	Status         string  `json:"status"`
+	BusyHours      float64 `json:"busyHours"`
+	BusyBlockCount int     `json:"busyBlockCount"`
+}
+
+type CalendarImportRangeInfo struct {
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Timezone  string `json:"timezone"`
+}
+
+type CalendarImportPreview struct {
+	Source                     string                    `json:"source"`
+	Range                      CalendarImportRangeInfo   `json:"range"`
+	BusyBlocksSummary          CalendarBusyBlocksSummary `json:"busyBlocksSummary"`
+	SuggestedUnavailableRanges []CalendarImportRange     `json:"suggestedUnavailableRanges"`
+	SuggestedPreferredRanges   []CalendarImportRange     `json:"suggestedPreferredRanges"`
+	DaySummaries               []CalendarBusyDaySummary  `json:"daySummaries"`
+	Warnings                   []string                  `json:"warnings"`
+}
+
+type CalendarImportPreviewResult struct {
+	Preview CalendarImportPreview `json:"preview"`
+}
+
+type CalendarImportApplyResult struct {
+	Availability TripAvailabilityResponseInfo `json:"availability"`
+	DateOptions  DateOptionsResult            `json:"dateOptions"`
+}

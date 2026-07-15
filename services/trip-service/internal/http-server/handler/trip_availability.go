@@ -163,6 +163,42 @@ func (h *Handler) RequestTripAvailability(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, response.TripAvailabilitySummary(summary))
 }
 
+func (h *Handler) PreviewCalendarAvailabilityImport(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var req request.CalendarImportPreview
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.PreviewCalendarAvailabilityImport(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.CalendarImportPreviewResponse(result))
+}
+
+func (h *Handler) ApplyCalendarAvailabilityImport(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var req request.CalendarImportApply
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.ApplyCalendarAvailabilityImport(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.CalendarImportApplyResponse(result))
+}
+
 func parseDateOptionsQuery(w http.ResponseWriter, r *http.Request) (request.GenerateDateOptions, bool) {
 	minDays, ok := parseOptionalQueryInt(w, r, "minDays")
 	if !ok {

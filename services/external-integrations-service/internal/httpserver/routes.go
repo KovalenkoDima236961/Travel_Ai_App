@@ -93,6 +93,7 @@ func NewRouter(
 			}))
 			r.Get("/calendar/google/status", calendarHandler.Status)
 			r.Post("/calendar/google/connect", calendarHandler.Connect)
+			r.Post("/calendar/google/free-busy", calendarHandler.FreeBusy)
 			r.Delete("/calendar/google/disconnect", calendarHandler.Disconnect)
 		})
 	}

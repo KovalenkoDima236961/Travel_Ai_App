@@ -14,6 +14,37 @@ type ConnectionStatus struct {
 	Scopes               *string    `json:"scopes,omitempty"`
 }
 
+type FreeBusyRequest struct {
+	StartDate   string   `json:"startDate"`
+	EndDate     string   `json:"endDate"`
+	TimeZone    string   `json:"timezone"`
+	CalendarIDs []string `json:"calendarIds,omitempty"`
+}
+
+type FreeBusyBlock struct {
+	Start  time.Time `json:"start"`
+	End    time.Time `json:"end"`
+	AllDay bool      `json:"allDay"`
+	Source string    `json:"source"`
+}
+
+type FreeBusySummary struct {
+	StartDate         string `json:"startDate"`
+	EndDate           string `json:"endDate"`
+	TimeZone          string `json:"timezone"`
+	BusyBlockCount    int    `json:"busyBlockCount"`
+	BusyDays          int    `json:"busyDays"`
+	FullyBusyDays     int    `json:"fullyBusyDays"`
+	PartiallyBusyDays int    `json:"partiallyBusyDays"`
+	CalendarCount     int    `json:"calendarCount"`
+}
+
+type FreeBusyResponse struct {
+	BusyBlocks []FreeBusyBlock `json:"busyBlocks"`
+	Summary    FreeBusySummary `json:"summary"`
+	Warnings   []string        `json:"warnings"`
+}
+
 type SyncRequest struct {
 	UserID    uuid.UUID  `json:"userId"`
 	TripID    uuid.UUID  `json:"tripId"`

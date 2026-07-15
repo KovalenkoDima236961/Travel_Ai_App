@@ -10,6 +10,8 @@ type TripAvailabilityResponse = dto.TripAvailabilityResponseInfo
 type DateOptionsResponse = dto.DateOptionsResult
 type DateOption = dto.DateOption
 type TripAvailabilitySummary = dto.TripAvailabilitySummary
+type CalendarImportPreviewResponse = dto.CalendarImportPreviewResult
+type CalendarImportApplyResponse = dto.CalendarImportApplyResult
 
 type ApplyDateOptionResponse struct {
 	Trip           Trip                        `json:"trip"`

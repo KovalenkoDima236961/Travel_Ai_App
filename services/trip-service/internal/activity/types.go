@@ -34,6 +34,7 @@ const (
 	EventAvailabilityUpdated                 = "availability_updated"
 	EventAvailabilityRemoved                 = "availability_removed"
 	EventAvailabilityRequested               = "availability_requested"
+	EventAvailabilityImportedFromCalendar    = "availability_imported_from_calendar"
 	EventDateOptionApplied                   = "date_option_applied"
 	EventDateOptionsPollCreated              = "date_options_poll_created"
 	EventExpenseCreated                      = "expense_created"
@@ -172,6 +173,7 @@ var knownEventTypes = map[string]struct{}{
 	EventAvailabilityUpdated:                 {},
 	EventAvailabilityRemoved:                 {},
 	EventAvailabilityRequested:               {},
+	EventAvailabilityImportedFromCalendar:    {},
 	EventDateOptionApplied:                   {},
 	EventDateOptionsPollCreated:              {},
 	EventExpenseCreated:                      {},

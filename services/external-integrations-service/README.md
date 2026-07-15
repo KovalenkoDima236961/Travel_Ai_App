@@ -79,6 +79,7 @@ Google Calendar directly.
 | `GET` | `/calendar/google/status` | bearer access token | Connected calendar account status. |
 | `POST` | `/calendar/google/connect` | bearer access token | Start OAuth flow. |
 | `GET` | `/calendar/google/callback` | OAuth state | Complete provider callback. |
+| `POST` | `/calendar/google/free-busy` | bearer access token | Import sanitized Google Calendar busy blocks for review. |
 | `DELETE` | `/calendar/google/disconnect` | bearer access token | Disconnect calendar. |
 | `POST` | `/internal/calendar/google/events/sync` | `X-Internal-Service-Token` | Create/update app-owned calendar events. |
 | `POST` | `/internal/calendar/google/events/delete` | `X-Internal-Service-Token` | Delete app-owned calendar events. |
@@ -407,6 +408,55 @@ Availability also exposes `availability_search_requests_total`,
 `availability_fallback_total`, `availability_errors_total`, and
 `availability_match_confidence_total` (bucketed `high`/`medium`/`low`/`none`).
 
+## Google Calendar Free/Busy Import v1
+
+`POST /calendar/google/free-busy` uses the current user's existing Google
+Calendar OAuth connection and calls Google's FreeBusy API. It does not call
+`events.list`, and it does not import event titles, descriptions, attendees,
+locations, organizers, reminders, attachments, conferencing links, event IDs, or
+calendar names. The response contains only busy interval `start`/`end`, an
+`allDay` flag, `source: google_calendar`, summary counts, and safe warnings.
+
+OAuth must include `https://www.googleapis.com/auth/calendar.freebusy` for
+free/busy import. Keep `https://www.googleapis.com/auth/calendar.events` enabled
+when itinerary event sync is also enabled. Users connected before the free/busy
+scope was added may need to reconnect Google Calendar.
+
+Request:
+
+```json
+{
+  "startDate": "2026-09-01",
+  "endDate": "2026-09-30",
+  "timezone": "Europe/Bratislava",
+  "calendarIds": ["primary"]
+}
+```
+
+`calendarIds` defaults to `["primary"]`. V1 is primary-calendar-only when
+`GOOGLE_CALENDAR_FREE_BUSY_PRIMARY_ONLY=true`; non-primary IDs return
+`unsupported_calendar_ids`. Date ranges are inclusive and capped by
+`GOOGLE_CALENDAR_FREE_BUSY_MAX_RANGE_DAYS` (default `180`).
+
+Controlled errors include `calendar_not_connected`,
+`calendar_connection_revoked`, `provider_rate_limited`,
+`provider_quota_exceeded`, `calendar_free_busy_unavailable`, and
+`calendar_free_busy_malformed_response`.
+
+Config:
+
+- `GOOGLE_CALENDAR_FREE_BUSY_ENABLED=true`
+- `GOOGLE_CALENDAR_FREE_BUSY_MAX_RANGE_DAYS=180`
+- `GOOGLE_CALENDAR_FREE_BUSY_TIMEOUT_SECONDS=10`
+- `GOOGLE_CALENDAR_FREE_BUSY_PRIMARY_ONLY=true`
+- `GOOGLE_CALENDAR_FREE_BUSY_CACHE_ENABLED=false`
+
+Metrics:
+`calendar_free_busy_requests_total`,
+`calendar_free_busy_request_duration_seconds`,
+`calendar_free_busy_failures_total`, and
+`calendar_free_busy_busy_blocks_count`.
+
 **Ops** endpoints (`/ops/providers/quotas*`, admin-only) expose usage, blocked,
 fallback counts, remaining quota, and status
 (`healthy` / `nearing_quota` / `quota_exceeded` / `rate_limited_recently` /
@@ -433,7 +483,8 @@ production.
   inventory, process payment, or guarantee that a quoted price remains available.
   Caches are in-memory and can be stale until the TTL expires.
 - Calendar sync is Google-only, primary-calendar-only, one-way, and app-owned
-  event oriented.
+  event oriented. Free/busy import is Google-only, manual, primary-calendar-only
+  by default, and stores no raw event data in this service.
 
 ## Observability And Safety
 

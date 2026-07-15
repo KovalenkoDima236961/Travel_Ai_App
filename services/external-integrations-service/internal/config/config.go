@@ -238,22 +238,27 @@ func (a AvailabilityConfig) EffectiveCacheTTLSeconds() int {
 }
 
 type CalendarConfig struct {
-	Enabled            bool   `yaml:"enabled" env:"GOOGLE_CALENDAR_ENABLED" env-default:"true"`
-	Provider           string `yaml:"provider" env:"CALENDAR_PROVIDER" env-default:"mock"`
-	GoogleClientID     string `yaml:"google_client_id" env:"GOOGLE_OAUTH_CLIENT_ID"`
-	GoogleClientSecret string `yaml:"google_client_secret" env:"GOOGLE_OAUTH_CLIENT_SECRET"`
-	GoogleRedirectURL  string `yaml:"google_redirect_url" env:"GOOGLE_OAUTH_REDIRECT_URL" env-default:"http://localhost:8084/calendar/google/callback"`
-	GoogleScopes       string `yaml:"google_scopes" env:"GOOGLE_CALENDAR_SCOPES" env-default:"https://www.googleapis.com/auth/calendar.events"`
-	EncryptionKey      string `yaml:"encryption_key" env:"CALENDAR_TOKEN_ENCRYPTION_KEY" env-default:"dev-calendar-token-key-32-bytes!"`
-	OAuthStateTTL      int    `yaml:"oauth_state_ttl_seconds" env:"CALENDAR_OAUTH_STATE_TTL_SECONDS" env-default:"600" validate:"min=60"`
-	PublicWebBaseURL   string `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
-	DefaultTimeZone    string `yaml:"default_time_zone" env:"DEFAULT_CALENDAR_TIMEZONE" env-default:"Europe/Bratislava"`
-	GoogleAuthURL      string `yaml:"google_auth_url" env:"GOOGLE_OAUTH_AUTH_URL" env-default:"https://accounts.google.com/o/oauth2/v2/auth"`
-	GoogleTokenURL     string `yaml:"google_token_url" env:"GOOGLE_OAUTH_TOKEN_URL" env-default:"https://oauth2.googleapis.com/token"`
-	GoogleUserInfoURL  string `yaml:"google_user_info_url" env:"GOOGLE_USERINFO_URL" env-default:"https://www.googleapis.com/oauth2/v2/userinfo"`
-	GoogleCalendarAPI  string `yaml:"google_calendar_api" env:"GOOGLE_CALENDAR_API_URL" env-default:"https://www.googleapis.com/calendar/v3"`
-	MockAccountEmail   string `yaml:"mock_account_email" env:"MOCK_GOOGLE_ACCOUNT_EMAIL" env-default:"mock-calendar@example.local"`
-	MockEventLinkBase  string `yaml:"mock_event_link_base" env:"MOCK_GOOGLE_EVENT_LINK_BASE" env-default:"http://localhost:3000/mock-calendar/events"`
+	Enabled                bool   `yaml:"enabled" env:"GOOGLE_CALENDAR_ENABLED" env-default:"true"`
+	Provider               string `yaml:"provider" env:"CALENDAR_PROVIDER" env-default:"mock"`
+	GoogleClientID         string `yaml:"google_client_id" env:"GOOGLE_OAUTH_CLIENT_ID"`
+	GoogleClientSecret     string `yaml:"google_client_secret" env:"GOOGLE_OAUTH_CLIENT_SECRET"`
+	GoogleRedirectURL      string `yaml:"google_redirect_url" env:"GOOGLE_OAUTH_REDIRECT_URL" env-default:"http://localhost:8084/calendar/google/callback"`
+	GoogleScopes           string `yaml:"google_scopes" env:"GOOGLE_CALENDAR_SCOPES" env-default:"https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy"`
+	EncryptionKey          string `yaml:"encryption_key" env:"CALENDAR_TOKEN_ENCRYPTION_KEY" env-default:"dev-calendar-token-key-32-bytes!"`
+	OAuthStateTTL          int    `yaml:"oauth_state_ttl_seconds" env:"CALENDAR_OAUTH_STATE_TTL_SECONDS" env-default:"600" validate:"min=60"`
+	PublicWebBaseURL       string `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
+	DefaultTimeZone        string `yaml:"default_time_zone" env:"DEFAULT_CALENDAR_TIMEZONE" env-default:"Europe/Bratislava"`
+	GoogleAuthURL          string `yaml:"google_auth_url" env:"GOOGLE_OAUTH_AUTH_URL" env-default:"https://accounts.google.com/o/oauth2/v2/auth"`
+	GoogleTokenURL         string `yaml:"google_token_url" env:"GOOGLE_OAUTH_TOKEN_URL" env-default:"https://oauth2.googleapis.com/token"`
+	GoogleUserInfoURL      string `yaml:"google_user_info_url" env:"GOOGLE_USERINFO_URL" env-default:"https://www.googleapis.com/oauth2/v2/userinfo"`
+	GoogleCalendarAPI      string `yaml:"google_calendar_api" env:"GOOGLE_CALENDAR_API_URL" env-default:"https://www.googleapis.com/calendar/v3"`
+	MockAccountEmail       string `yaml:"mock_account_email" env:"MOCK_GOOGLE_ACCOUNT_EMAIL" env-default:"mock-calendar@example.local"`
+	MockEventLinkBase      string `yaml:"mock_event_link_base" env:"MOCK_GOOGLE_EVENT_LINK_BASE" env-default:"http://localhost:3000/mock-calendar/events"`
+	FreeBusyEnabled        bool   `yaml:"free_busy_enabled" env:"GOOGLE_CALENDAR_FREE_BUSY_ENABLED" env-default:"true"`
+	FreeBusyMaxRangeDays   int    `yaml:"free_busy_max_range_days" env:"GOOGLE_CALENDAR_FREE_BUSY_MAX_RANGE_DAYS" env-default:"180"`
+	FreeBusyTimeoutSeconds int    `yaml:"free_busy_timeout_seconds" env:"GOOGLE_CALENDAR_FREE_BUSY_TIMEOUT_SECONDS" env-default:"10"`
+	FreeBusyPrimaryOnly    bool   `yaml:"free_busy_primary_only" env:"GOOGLE_CALENDAR_FREE_BUSY_PRIMARY_ONLY" env-default:"true"`
+	FreeBusyCacheEnabled   bool   `yaml:"free_busy_cache_enabled" env:"GOOGLE_CALENDAR_FREE_BUSY_CACHE_ENABLED" env-default:"false"`
 }
 
 type OpsConfig struct {
@@ -547,6 +552,12 @@ func Load(path string) (*Config, error) {
 	cfg.Calendar.GoogleCalendarAPI = strings.TrimRight(strings.TrimSpace(cfg.Calendar.GoogleCalendarAPI), "/")
 	cfg.Calendar.MockAccountEmail = strings.TrimSpace(cfg.Calendar.MockAccountEmail)
 	cfg.Calendar.MockEventLinkBase = strings.TrimRight(strings.TrimSpace(cfg.Calendar.MockEventLinkBase), "/")
+	if cfg.Calendar.FreeBusyMaxRangeDays <= 0 {
+		cfg.Calendar.FreeBusyMaxRangeDays = 180
+	}
+	if cfg.Calendar.FreeBusyTimeoutSeconds <= 0 {
+		cfg.Calendar.FreeBusyTimeoutSeconds = 10
+	}
 	if cfg.Calendar.Enabled && cfg.Calendar.Provider == CalendarProviderGoogle {
 		if cfg.Calendar.GoogleClientID == "" {
 			return nil, fmt.Errorf("GOOGLE_OAUTH_CLIENT_ID is required when CALENDAR_PROVIDER=google")
