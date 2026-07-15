@@ -43,6 +43,14 @@ trip_discovery:
   max_previous_trips: 15
   default_suggestion_count: 5
 
+trip_health:
+  enabled: true
+  cache_ttl_seconds: 60
+  include_debug: false
+  large_expense_receipt_threshold: 100
+  default_max_walking_km_per_day: 12
+  default_max_transfer_minutes_per_day: 480
+
 user_context:
   enabled: true
   user_service_url: http://localhost:8083

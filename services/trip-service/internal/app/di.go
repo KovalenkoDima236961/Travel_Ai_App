@@ -35,6 +35,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/transportclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/tripdiscovery"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -218,6 +219,13 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		service.WithActivity(activitySvc),
 		service.WithWorkspaces(workspaceClient, cfg.Workspaces.Enabled),
 		service.WithWorkspacePolicies(policySvc),
+		service.WithTripHealthConfig(triphealth.Config{
+			Enabled:                         cfg.TripHealth.Enabled,
+			IncludeDebug:                    cfg.TripHealth.IncludeDebug,
+			LargeExpenseReceiptThreshold:    cfg.TripHealth.LargeExpenseReceiptThreshold,
+			DefaultMaxWalkingKmPerDay:       cfg.TripHealth.DefaultMaxWalkingKmPerDay,
+			DefaultMaxTransferMinutesPerDay: cfg.TripHealth.DefaultMaxTransferMinutesPerDay,
+		}),
 	}
 	if notificationClient != nil {
 		opts = append(opts, service.WithNotifications(

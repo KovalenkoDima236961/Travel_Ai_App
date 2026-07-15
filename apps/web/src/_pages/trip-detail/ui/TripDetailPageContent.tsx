@@ -41,6 +41,7 @@ import { OptimizeDayOrderDialog } from "@/features/itinerary-optimization";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { ExpensesPanel } from "@/components/expenses";
+import { TripHealthPanel } from "@/components/trip-health";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { TripChecklistPanel } from "@/components/checklists";
 import { TripRemindersPanel } from "@/components/trip-reminders";
@@ -83,6 +84,7 @@ import {
 import { buildCommentCountMap } from "@/entities/comment/model";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import { workspacePolicyKeys } from "@/lib/api/workspace-policies";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import {
   toExportDistanceSummary,
   toExportTripFromPrivateTrip,
@@ -100,6 +102,7 @@ import { useTripRepairProposals } from "@/features/trip-repair";
 import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
+import { useTripHealth } from "@/hooks/useTripHealth";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
 import { useTripReminders } from "@/hooks/useTripReminders";
 import { useItineraryReactions } from "@/hooks/useItineraryReactions";
@@ -516,6 +519,9 @@ export function TripDetailPageContent() {
     tripAccess.role === "owner" ||
     tripAccess.role === "editor" ||
     tripAccess.role === "viewer";
+  const tripHealthQuery = useTripHealth(tripId, {
+    enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess) && canUsePrivateCollaboration
+  });
   const checklistQuery = useTripChecklist(tripId, {
     enabled:
       onlineActionsEnabled &&
@@ -580,6 +586,7 @@ export function TripDetailPageContent() {
     onActivityCreated: () => {
       void queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       void queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) });
+      void queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     }
   });
   const setPresenceState = useTripPresenceState(tripId, presenceEnabled);
@@ -1113,6 +1120,7 @@ export function TripDetailPageContent() {
         queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
       ]);
@@ -1125,6 +1133,7 @@ export function TripDetailPageContent() {
         queryClient.invalidateQueries({ queryKey: ["trip-checklists"] }),
         queryClient.invalidateQueries({ queryKey: ["trip-reminders"] }),
         queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
       ]);
       return;
@@ -1425,6 +1434,7 @@ export function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
     ]);
@@ -1442,6 +1452,7 @@ export function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: costSplittingKeys.all }),
+      queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
     ]);
@@ -1595,6 +1606,7 @@ export function TripDetailPageContent() {
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
@@ -1626,6 +1638,7 @@ export function TripDetailPageContent() {
       await discardBudgetOptimizationMutation.mutateAsync(proposal);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
       ]);
       setSuccessMessage("Budget optimization proposal discarded.");
@@ -1676,6 +1689,7 @@ export function TripDetailPageContent() {
         queryClient.invalidateQueries({ queryKey: workspacePolicyKeys.evaluation(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
@@ -1705,6 +1719,7 @@ export function TripDetailPageContent() {
       await discardTripRepairMutation.mutateAsync(proposal);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
       ]);
       setSuccessMessage("AI repair proposal discarded.");
@@ -1873,6 +1888,7 @@ export function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
     ]);
     await tripQuery.refetch();
@@ -1881,6 +1897,7 @@ export function TripDetailPageContent() {
   async function refreshAfterBudgetOptimizationJob() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) })
     ]);
@@ -1891,6 +1908,7 @@ export function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: workspacePolicyKeys.evaluation(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) })
     ]);
@@ -1924,6 +1942,7 @@ export function TripDetailPageContent() {
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
     await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
     await queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) });
+    await queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
@@ -1936,6 +1955,7 @@ export function TripDetailPageContent() {
     await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
     await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
     await queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) });
+    await queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
@@ -1950,6 +1970,7 @@ export function TripDetailPageContent() {
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
     await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
     await queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) });
+    await queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
     await tripQuery.refetch();
     setRegenerationError(null);
@@ -2042,6 +2063,8 @@ export function TripDetailPageContent() {
                 }
               : null
           }
+          health={tripHealthQuery.data ?? null}
+          healthLoading={tripHealthQuery.isLoading}
           trip={trip}
           workspaceName={workspaceName}
         />
@@ -2121,6 +2144,14 @@ export function TripDetailPageContent() {
               </div>
             ) : null}
 
+            {canUsePrivateCollaboration && onlineActionsEnabled ? (
+              <TripHealthPanel
+                error={tripHealthQuery.error instanceof Error ? tripHealthQuery.error : null}
+                health={tripHealthQuery.data ?? null}
+                loading={tripHealthQuery.isLoading}
+              />
+            ) : null}
+
             {canUsePrivateCollaboration ? (
               <>
                 <AvailabilityPanel
@@ -2179,6 +2210,9 @@ export function TripDetailPageContent() {
                       onRouteApplied={(updatedTrip) => {
                         setSuccessMessage("Route alternative applied.");
                         queryClient.setQueryData(tripKeys.detail(trip.id), updatedTrip);
+                        void queryClient.invalidateQueries({
+                          queryKey: tripHealthKeys.detail(trip.id)
+                        });
                         setRouteAlternativesOpen(false);
                       }}
                     />
@@ -2478,6 +2512,9 @@ export function TripDetailPageContent() {
                       onRouteApplied={(updatedTrip) => {
                         setSuccessMessage("Route alternative applied.");
                         queryClient.setQueryData(tripKeys.detail(trip.id), updatedTrip);
+                        void queryClient.invalidateQueries({
+                          queryKey: tripHealthKeys.detail(trip.id)
+                        });
                         setRouteAlternativesOpen(false);
                       }}
                     />

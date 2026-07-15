@@ -30,6 +30,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/transportclient"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -393,6 +394,12 @@ func WithWorkspacePolicies(provider workspacePolicyProvider) Option {
 	}
 }
 
+func WithTripHealthConfig(cfg triphealth.Config) Option {
+	return func(s *Service) {
+		s.tripHealthConfig = cfg
+	}
+}
+
 func WithReceipts(storage receipts.Storage, ocr receipts.OCRProvider, cfg receipts.Config) Option {
 	return func(s *Service) {
 		s.receiptStorage = storage
@@ -467,6 +474,7 @@ type Service struct {
 	publicWebBaseURL                   string
 	shareTokenBytes                    int
 	publicShareTokens                  *sharing.PublicShareTokenManager
+	tripHealthConfig                   triphealth.Config
 	log                                *zap.Logger
 }
 
@@ -482,6 +490,7 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		budgetConversionFailOpen: true,
 		transportSearchFailOpen:  true,
 		receiptConfig:            receipts.DefaultConfig(),
+		tripHealthConfig:         triphealth.DefaultConfig(),
 		log:                      log,
 	}
 	for _, opt := range opts {

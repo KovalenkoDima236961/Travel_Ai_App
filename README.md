@@ -32,6 +32,12 @@ Worker Service polls a protected Trip Service endpoint for due reminders, and
 Notification Service sends in-app/email/push notifications through existing
 preferences.
 
+Trip Health & Consistency Engine v1 gives private trips a deterministic
+readiness score, issue list, and top fixes across itinerary, route, transport,
+budget, availability, collaboration, checklist, reminders, accommodation,
+expenses, workspace policy, approval, and data-quality signals. The Web App
+surfaces the score in trip detail and refreshes it after related trip mutations.
+
 Real Transport Provider Integrations v1 adds route-leg transport search and
 selection. External Integrations Service exposes `/transport/search` with mock
 and route-estimate providers plus future provider configuration; Trip Service can
@@ -157,6 +163,12 @@ Key product capabilities:
   and receive due reminders through Notification Service preferences. Public
   shares do not expose reminders, reminders do not mutate itineraries or approval
   state, and users must verify official requirements themselves.
+- Trip Health & Consistency Engine v1: authenticated private trip users can view
+  a deterministic readiness score, grouped issue list, and top fixes derived from
+  existing trip subsystems. Public shares cannot access health results, failed
+  optional subsystems produce warning issues instead of failing the response, and
+  health output is advisory rather than booking, legal, visa, medical, weather,
+  or approval advice.
 - Route Alternatives & Comparison v1: users can generate 2-4 advisory
   multi-destination route options before a trip exists or from an existing trip,
   compare stops, transfer modes, rough cost/time, difficulty, scores, pros/cons,

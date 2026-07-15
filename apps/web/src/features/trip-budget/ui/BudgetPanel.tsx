@@ -7,6 +7,7 @@ import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { budgetKeys, getTripBudgetSummary, updateTripBudget } from "@/lib/api/budget";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import { tripKeys } from "@/lib/api/trips";
 import { formatApproxMoney, formatMoney } from "@/entities/budget/model";
 import { getErrorMessage } from "@/lib/utils";
@@ -52,6 +53,7 @@ export function BudgetPanel({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(trip.id) }),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(trip.id) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(trip.id) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(trip.id) })
       ]);
     },

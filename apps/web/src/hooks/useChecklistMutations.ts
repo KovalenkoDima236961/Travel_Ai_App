@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { activityKeys } from "@/lib/api/activity";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import {
   checkChecklistItem,
   checklistKeys,
@@ -24,6 +25,7 @@ export function useChecklistMutations(tripId: string) {
   async function invalidateChecklist() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: checklistKeys.detail(tripId) }),
+      queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
     ]);
   }
@@ -32,7 +34,10 @@ export function useChecklistMutations(tripId: string) {
     mutationFn: (input: GenerateChecklistRequest) => generateTripChecklist(tripId, input),
     onSuccess: async (data) => {
       queryClient.setQueryData(checklistKeys.detail(tripId), data);
-      await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
+      ]);
     }
   });
 
@@ -77,4 +82,3 @@ export function useChecklistMutations(tripId: string) {
     reorderMutation
   };
 }
-

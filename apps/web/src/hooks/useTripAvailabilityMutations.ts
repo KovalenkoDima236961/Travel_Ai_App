@@ -5,6 +5,7 @@ import { activityKeys } from "@/lib/api/activity";
 import { generationJobKeys } from "@/lib/api/generation-jobs";
 import { notificationKeys } from "@/lib/api/notifications";
 import { planningConstraintKeys } from "@/lib/api/planning-constraints";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import { tripAvailabilityKeys } from "@/lib/api/trip-availability";
 import {
   applyTripDateOption,
@@ -78,6 +79,7 @@ export function useApplyTripDateOption(tripId: string) {
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripAvailabilityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: planningConstraintKeys.all }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
         queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) })
@@ -94,6 +96,7 @@ export function useCreateDateOptionsPoll(tripId: string) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripDecisionKeys.polls(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripDecisionKeys.groupPreferences(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       ]);
@@ -108,6 +111,7 @@ async function invalidateAvailability(
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: tripAvailabilityKeys.all(tripId) }),
     queryClient.invalidateQueries({ queryKey: planningConstraintKeys.all }),
+    queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
     queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
     queryClient.invalidateQueries({ queryKey: notificationKeys.all })
   ]);

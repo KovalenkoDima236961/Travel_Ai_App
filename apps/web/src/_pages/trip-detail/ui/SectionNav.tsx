@@ -13,6 +13,7 @@ import {
 type IconComponent = ComponentType<{ className?: string }>;
 
 const ITEMS: { label: string; href: string; icon: IconComponent }[] = [
+  { label: "Health", href: "#health", icon: ChartBarIcon },
   { label: "Itinerary", href: "#itinerary", icon: CalendarIcon },
   { label: "Dates", href: "#dates", icon: CalendarIcon },
   { label: "Decisions", href: "#decisions", icon: UserGroupIcon },

@@ -5,6 +5,7 @@ import {
   getTripPolicyEvaluation,
   workspacePolicyKeys
 } from "@/lib/api/workspace-policies";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 
 export function useTripPolicyEvaluation(tripId: string, enabled = true) {
   const queryClient = useQueryClient();
@@ -17,6 +18,7 @@ export function useTripPolicyEvaluation(tripId: string, enabled = true) {
     mutationFn: () => evaluateTripPolicy(tripId),
     onSuccess: (result) => {
       queryClient.setQueryData(workspacePolicyKeys.evaluation(tripId), result);
+      void queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     }
   });
   return { query, evaluate };

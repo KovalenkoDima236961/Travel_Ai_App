@@ -129,6 +129,50 @@ activity metadata or notification metadata. Reminder content is a preparation
 aid only: no legal, visa, medical, booking, schedule, permit, or weather
 guarantee is provided.
 
+## Trip Health & Consistency
+
+Trip Health & Consistency Engine v1 exposes a private readiness summary for a
+trip through:
+
+- `GET /trips/{id}/health`
+
+Owners, editors, and accepted viewers can read trip health. Public share tokens,
+pending collaborators, removed collaborators, and unrelated users cannot access
+the endpoint. Query parameters:
+
+- `includeResolved=true` keeps resolved/ignored issues in the response when the
+  engine emits them.
+- `includeDebug=true` includes safe debug counts when allowed by service config.
+
+The response includes `score` (`0`-`100`), `level` (`ready`,
+`almost_ready`, `needs_attention`, or `not_ready`), `summary`, grouped
+`categories`, ordered `issues`, `topFixes`, and `computedFrom` revision
+metadata. Issue action links point back to trip detail anchors such as
+`#itinerary`, `#route`, `#budget`, `#checklist`, `#reminders`, `#expenses`,
+`#policy`, and `#approval`.
+
+The engine is deterministic and read-only. It evaluates itinerary shape, route
+consistency, selected transport options, budget estimates, collaborator
+availability and decisions, checklist/reminder readiness, accommodation dates,
+expenses/receipts/settlements, workspace policy, approval risk/status, and
+provider data quality. Optional subsystem load failures are fail-soft: the
+response still returns and includes data-quality warning issues for missing
+inputs.
+
+Configuration:
+
+- `TRIP_HEALTH_ENABLED=true`
+- `TRIP_HEALTH_CACHE_TTL_SECONDS=60`
+- `TRIP_HEALTH_INCLUDE_DEBUG=false`
+- `TRIP_HEALTH_LARGE_EXPENSE_RECEIPT_THRESHOLD=100`
+- `TRIP_HEALTH_DEFAULT_MAX_WALKING_KM_PER_DAY=12`
+- `TRIP_HEALTH_DEFAULT_MAX_TRANSFER_MINUTES_PER_DAY=480`
+
+Health scores are planning guidance only. They do not mutate itinerary,
+checklist, reminder, expense, policy, or approval state, and they do not
+represent booking, legal, visa, medical, weather, payment, or compliance
+guarantees.
+
 ## Shared Expenses & Settlement
 
 Shared Expenses & Settlement v1 uses migration

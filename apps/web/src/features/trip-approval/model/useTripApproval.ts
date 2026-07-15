@@ -12,6 +12,7 @@ import {
   submitTripApproval
 } from "@/lib/api/approvals";
 import { notificationKeys } from "@/lib/api/notifications";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import { tripKeys } from "@/lib/api/trips";
 import type {
   ApprovalDecisionInput,
@@ -45,6 +46,7 @@ export function useTripApprovalMutations(tripId: string) {
     void queryClient.invalidateQueries({ queryKey: approvalKeys.trip(tripId) });
     void queryClient.invalidateQueries({ queryKey: approvalKeys.tripEvents(tripId) });
     void queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) });
+    void queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     void queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
     void queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
     void queryClient.invalidateQueries({ queryKey: notificationKeys.all });

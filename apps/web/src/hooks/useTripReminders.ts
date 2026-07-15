@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { activityKeys } from "@/lib/api/activity";
 import { notificationKeys } from "@/lib/api/notifications";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import {
   completeTripReminder,
   createTripReminder,
@@ -130,6 +131,7 @@ function useReminderQueryClient(tripId: string) {
     invalidateSideEffects() {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       ]);
     },
@@ -137,6 +139,7 @@ function useReminderQueryClient(tripId: string) {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: reminderKeys.all }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       ]);
     }

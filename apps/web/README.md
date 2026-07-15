@@ -64,6 +64,7 @@ notification streams, and calendar OAuth calls.
 | Route alternatives | AI route alternatives panel with cards, comparison table, route-order preview, refinement controls, create-trip/apply dialogs, and route-poll creation. |
 | Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
 | Decisions | Trip detail has a Decisions section for polls, editable votes, item reactions, group preference summaries, and trip-linked discovery suggestion voting. |
+| Trip health | Trip detail shows a private readiness badge, score panel, category summary, top fixes, and filterable consistency issues from Trip Service health checks. |
 | Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, create new trips from templates, and adapt templates to a new destination with AI. |
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
@@ -126,6 +127,31 @@ preparation aids only: users must verify official requirements, tickets,
 bookings, permits, weather, legal/visa/medical details, and schedules
 themselves. SMS, WhatsApp/Telegram, automatic booking confirmation, recurring
 reminders, and calendar reminder export are not part of v1.
+
+## Trip Health
+
+Private trip detail pages call `GET /trips/{id}/health` for authenticated
+owners, editors, and accepted viewers. Public share pages do not call or render
+trip health. The header badge links to the Health section, and the Health panel
+shows score, readiness level, category summaries, top fixes, readiness
+checklist, and filterable issue cards.
+
+Frontend contracts live in:
+
+- `src/types/trip-health.ts`
+- `src/lib/api/trip-health.ts`
+- `src/hooks/useTripHealth.ts`
+- `src/components/trip-health/*`
+
+Trip health queries are invalidated after mutations that can affect readiness:
+itinerary generation/edit/restore, route and selected transport changes, budget
+updates and optimization, availability/date decisions, polls and votes,
+checklists, reminders, accommodation, expenses/receipts/settlements, policy
+evaluation, approval actions, and place review updates.
+
+Health output is advisory. The UI links users back to existing trip sections to
+fix issues, but it does not auto-apply route, budget, checklist, reminder,
+expense, policy, or approval changes.
 
 ## Receipt Upload & Expense OCR
 

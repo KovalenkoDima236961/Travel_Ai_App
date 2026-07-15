@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { RiskBadge } from "@/features/approval-risk";
 import { TripApprovalBadge } from "@/features/trip-approval";
+import { TripHealthBadge } from "@/components/trip-health";
 import { formatPaceLabel } from "@/lib/utils";
 import { formatAccessSource } from "../model/tripDetailPageModel";
 import { formatTripDateRange } from "./tripDetailFormat";
@@ -9,12 +10,15 @@ import { StatusPill } from "./StatusPill";
 import { ArrowLeftIcon, BoltIcon, CalendarIcon, UsersIcon } from "./icons";
 import type { ApprovalRiskQueueSummary } from "@/entities/approval-risk/model";
 import type { Trip, TripAccess } from "@/entities/trip/model";
+import type { TripHealth } from "@/types/trip-health";
 
 type TripDetailHeaderProps = {
   trip: Trip;
   workspaceName?: string | null;
   accessSource?: TripAccess["source"] | null;
   approvalRisk?: ApprovalRiskQueueSummary | null;
+  health?: TripHealth | null;
+  healthLoading?: boolean;
   /** Action cluster (Share / Export / Edit or Generate) composed by the page. */
   actions?: ReactNode;
 };
@@ -24,6 +28,8 @@ export function TripDetailHeader({
   workspaceName,
   accessSource,
   approvalRisk,
+  health,
+  healthLoading,
   actions
 }: TripDetailHeaderProps) {
   const dateRange = formatTripDateRange(trip.startDate, trip.days);
@@ -60,6 +66,7 @@ export function TripDetailHeader({
               Access: {formatAccessSource(accessSource)}
             </span>
           ) : null}
+          <TripHealthBadge health={health} loading={healthLoading} />
           {trip.workspaceId ? <TripApprovalBadge tripId={trip.id} /> : null}
           {trip.workspaceId ? (
             <RiskBadge

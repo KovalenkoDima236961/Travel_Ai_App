@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TripRoute } from "@/entities/route/model";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import { getTripRoute, tripKeys, updateTripRoute } from "@/lib/api/trips";
 
 export function useTripRoute(tripId: string, enabled = true) {
@@ -19,6 +20,7 @@ export function useUpdateTripRoute(tripId: string) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.route(tripId) }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
       ]);
       queryClient.setQueryData(tripKeys.detail(tripId), trip);

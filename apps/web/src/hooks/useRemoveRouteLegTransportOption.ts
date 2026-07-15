@@ -5,6 +5,7 @@ import { activityKeys } from "@/lib/api/activity";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { budgetKeys } from "@/lib/api/budget";
 import { planningConstraintKeys } from "@/lib/api/planning-constraints";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import { reminderKeys } from "@/lib/api/trip-reminders";
 import { tripKeys } from "@/lib/api/trips";
 import { removeRouteLegTransportOption } from "@/lib/api/transport";
@@ -23,6 +24,7 @@ export function useRemoveRouteLegTransportOption(tripId: string, legId: string) 
         queryClient.invalidateQueries({ queryKey: tripKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
         queryClient.invalidateQueries({ queryKey: reminderKeys.all }),
+        queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: planningConstraintKeys.all })

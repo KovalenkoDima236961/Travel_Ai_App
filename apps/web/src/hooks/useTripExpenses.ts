@@ -12,6 +12,7 @@ import {
   updateTripExpense
 } from "@/lib/api/expenses";
 import { activityKeys } from "@/lib/api/activity";
+import { tripHealthKeys } from "@/lib/api/trip-health";
 import type {
   CreateExpenseInput,
   ListExpensesFilters,
@@ -125,6 +126,7 @@ export function useRecalculateTripSettlements(tripId: string, currency?: string 
 function invalidateExpenseQueries(queryClient: QueryClient, tripId: string) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: expenseKeys.all }),
+    queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
     queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
   ]);
 }

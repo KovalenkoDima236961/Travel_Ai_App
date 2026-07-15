@@ -29,6 +29,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
@@ -99,6 +100,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/shared-with-me", h.ListSharedTrips)
 		r.Get("/{id}", h.Get)
+		r.Get("/{id}/health", h.GetTripHealth)
 		r.Post("/{id}/templates", h.SaveTripAsTemplate)
 		r.Get("/{id}/accommodation", h.GetAccommodation)
 		r.Put("/{id}/accommodation", h.UpdateAccommodation)
@@ -595,6 +597,34 @@ func (h *Handler) GetBudgetSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, summary)
+}
+
+// GetTripHealth handles GET /trips/{id}/health. Health is computed live for
+// private trip viewers; public share routes do not expose this endpoint.
+func (h *Handler) GetTripHealth(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	includeResolved, ok := parseBoolQuery(w, r, "includeResolved")
+	if !ok {
+		return
+	}
+	includeDebug, ok := parseBoolQuery(w, r, "includeDebug")
+	if !ok {
+		return
+	}
+
+	health, err := h.svc.GetTripHealth(r.Context(), id, triphealth.Options{
+		IncludeResolved: includeResolved,
+		IncludeDebug:    includeDebug,
+	})
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, health)
 }
 
 // GetTripCostAnalytics handles GET /trips/{id}/analytics/costs.
@@ -1736,6 +1766,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		})
 	case errors.As(err, &dependency):
 		writeError(w, http.StatusBadGateway, dependency.Error())
+	case errors.Is(err, service.ErrTripHealthDisabled):
+		writeError(w, http.StatusServiceUnavailable, "trip health is disabled")
 	case errors.Is(err, apperrs.ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, service.ErrRegisteredUserNotFound):

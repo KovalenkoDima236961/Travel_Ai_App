@@ -49,6 +49,16 @@ type Config struct {
 	Receipts           ReceiptsConfig           `yaml:"receipts"`
 	Ops                OpsConfig                `yaml:"ops"`
 	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
+	TripHealth         TripHealthConfig         `yaml:"trip_health"`
+}
+
+type TripHealthConfig struct {
+	Enabled                         bool    `yaml:"enabled" env:"TRIP_HEALTH_ENABLED" env-default:"true"`
+	CacheTTLSeconds                 int     `yaml:"cache_ttl_seconds" env:"TRIP_HEALTH_CACHE_TTL_SECONDS" env-default:"60" validate:"min=0,max=3600"`
+	IncludeDebug                    bool    `yaml:"include_debug" env:"TRIP_HEALTH_INCLUDE_DEBUG" env-default:"false"`
+	LargeExpenseReceiptThreshold    float64 `yaml:"large_expense_receipt_threshold" env:"TRIP_HEALTH_LARGE_EXPENSE_RECEIPT_THRESHOLD" env-default:"100" validate:"min=0"`
+	DefaultMaxWalkingKmPerDay       float64 `yaml:"default_max_walking_km_per_day" env:"TRIP_HEALTH_DEFAULT_MAX_WALKING_KM_PER_DAY" env-default:"12" validate:"min=1,max=100"`
+	DefaultMaxTransferMinutesPerDay int     `yaml:"default_max_transfer_minutes_per_day" env:"TRIP_HEALTH_DEFAULT_MAX_TRANSFER_MINUTES_PER_DAY" env-default:"480" validate:"min=30,max=2880"`
 }
 
 type ReceiptsConfig struct {
