@@ -4,6 +4,7 @@ from datetime import timedelta
 from app.schemas.checklist import GenerateChecklistRequest
 from app.schemas.destination_context import DestinationContext
 from app.schemas.destination_suggestion import DestinationSuggestionRequest
+from app.schemas.generation_repair import RepairGenerationOutputRequest
 from app.schemas.itinerary import (
     GenerateItineraryRequest,
     OpeningHoursInterval,
@@ -1030,6 +1031,113 @@ Rules:
 - Include warnings for uncertain costs, required availability recheck, partial repairs,
   or major changes.
 - Use realistic HH:MM 24-hour times for itinerary item time/endTime fields.
+- Return JSON only.
+""".strip()
+
+
+def build_generation_output_repair_prompt(request: RepairGenerationOutputRequest) -> str:
+    payload = request.model_dump(by_alias=True, exclude_none=True, mode="json")
+    issues = json.dumps(
+        [issue.model_dump(by_alias=True, exclude_none=True) for issue in request.validation_issues],
+        ensure_ascii=False,
+        indent=2,
+    )
+    current_output = json.dumps(request.current_output, ensure_ascii=False, indent=2)
+    planning_context = request.planning_context.model_dump_json(
+        by_alias=True,
+        exclude_none=True,
+    )
+
+    return f"""
+You are a reliability repair engine for AI-generated travel itineraries.
+
+Return ONLY valid JSON. Do not include markdown, explanations, comments, or code fences.
+The JSON must contain only these top-level keys:
+{{
+  "repairedOutput": {{
+    "destination": "string",
+    "summary": "string",
+    "travelers": 2,
+    "pace": "balanced",
+    "currency": "EUR",
+    "totalBudget": 700,
+    "days": [
+      {{
+        "day": 1,
+        "date": "YYYY-MM-DD",
+        "title": "string",
+        "primaryStopId": "stop_1",
+        "locationName": "City",
+        "transferDay": false,
+        "items": [
+          {{
+            "time": "09:00",
+            "endTime": "10:30",
+            "type": "activity",
+            "transportMode": "train",
+            "name": "string",
+            "note": "string",
+            "estimatedCost": {{
+              "amount": 20,
+              "currency": "EUR",
+              "category": "activity",
+              "confidence": "medium",
+              "source": "ai"
+            }},
+            "transfer": {{
+              "legId": "leg_1",
+              "from": "string",
+              "to": "string",
+              "mode": "train",
+              "bookingRequired": true,
+              "notes": "string"
+            }}
+          }}
+        ]
+      }}
+    ]
+  }},
+  "changesMade": [
+    {{
+      "type": "item_moved",
+      "description": "Moved item after selected transport arrival.",
+      "dayNumber": 1,
+      "itemIndex": 0,
+      "metadata": {{"issueId": "string"}}
+    }}
+  ],
+  "warnings": ["Availability and costs should be reviewed after repair."]
+}}
+
+Repair target:
+- generationType: {request.generation_type}
+- repairScope: {request.repair_scope.model_dump_json(by_alias=True, exclude_none=True)}
+- constraints: {request.constraints.model_dump_json(by_alias=True, exclude_none=True)}
+
+Validation issues to fix:
+{issues}
+
+Current generated itinerary:
+{current_output}
+
+Trusted planning context:
+{planning_context}
+
+Full repair request for reference:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
+
+Rules:
+- Fix validation issues first, especially critical route, selected transport,
+  schema, day-count, budget, and policy conflicts.
+- Preserve unaffected days and user-edited-looking item metadata when requested.
+- For selected transport conflicts, add or keep transfer items that reference the
+  route leg via transfer.legId, and move activities after arrival.
+- Use realistic HH:MM 24-hour time and endTime values.
+- Keep route stop IDs, day numbers, dates, destination, currency, and language stable
+  unless a validation issue requires a change.
+- Do not invent bookings, live availability, exact prices, legal compliance, or approvals.
+- Include a short changesMade entry for each meaningful repair.
+- Include warnings for unresolved uncertainty, availability rechecks, and approximate costs.
 - Return JSON only.
 """.strip()
 

@@ -378,6 +378,89 @@ echo "Checking AI Planning Service health..."
 request GET "${AI_PLANNING_SERVICE_URL}/health"
 assert_2xx "AI Planning Service health check"
 
+echo "Checking AI generation repair endpoint..."
+AI_REPAIR_PAYLOAD="$(
+  jq -nc '{
+    generationType:"full_itinerary",
+    currentOutput:{
+      destination:"Vienna",
+      currency:"EUR",
+      days:[{
+        day:1,
+        title:"Arrival",
+        primaryStopId:"stop_1",
+        items:[{
+          time:"09:00",
+          endTime:"10:00",
+          type:"activity",
+          name:"Old town walk",
+          estimatedCost:{amount:12,currency:"EUR",category:"activity"}
+        }]
+      }]
+    },
+    validationIssues:[
+      {
+        id:"activity_before_transport_arrival:day_1:item_0:leg_1",
+        category:"transport",
+        severity:"critical",
+        title:"Activity starts before transport arrival",
+        fixability:"fixable_by_ai",
+        dayNumber:1,
+        itemIndex:0,
+        routeLegId:"leg_1"
+      },
+      {
+        id:"transfer_item_missing_or_mismatch:leg_1",
+        category:"transport",
+        severity:"high",
+        title:"Selected transport is missing from itinerary",
+        fixability:"fixable_by_ai",
+        dayNumber:1,
+        routeLegId:"leg_1"
+      }
+    ],
+    planningContext:{
+      trip:{Destination:"Vienna",Days:1,BudgetCurrency:"EUR"},
+      route:{
+        stops:[{id:"stop_1",destination:"Vienna"}],
+        legs:[{
+          id:"leg_1",
+          fromStopId:"origin",
+          toStopId:"stop_1",
+          fromName:"Bratislava",
+          toName:"Vienna",
+          mode:"train",
+          selectedTransportOption:{
+            id:"opt_1",
+            mode:"train",
+            provider:"mock",
+            departureDate:"2026-09-10",
+            departureTime:"08:00",
+            arrivalDate:"2026-09-10",
+            arrivalTime:"11:00",
+            durationMinutes:180,
+            estimatedPrice:{amount:18,currency:"EUR"}
+          }
+        }]
+      }
+    },
+    repairScope:{type:"full_output"},
+    constraints:{
+      preserveUnaffectedDays:true,
+      preserveUserEditedItems:true,
+      outputLanguage:"en"
+    }
+  }'
+)"
+request POST "${AI_PLANNING_SERVICE_URL}/repair-generation-output" "${AI_REPAIR_PAYLOAD}"
+assert_2xx "AI generation repair"
+if ! jq -e '
+  .repairedOutput.days[0].items[] | select(.transfer.legId == "leg_1")
+' <<<"${LAST_BODY}" >/dev/null; then
+  echo "AI generation repair did not add the expected transfer item." >&2
+  exit 1
+fi
+
 echo "Checking External Integrations Service health..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/health"
 assert_2xx "External Integrations Service health check"

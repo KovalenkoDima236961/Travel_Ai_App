@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
@@ -1702,6 +1703,7 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var invalid *apperrs.InvalidInputError
 	var dependency *apperrs.DependencyError
 	var budgetConversion *apperrs.BudgetConversionError
+	var aiValidation *aivalidation.ValidationError
 	var policyBlocking *workspacepolicies.BlockingViolationError
 	var planningBlocking *planningconstraints.BlockingError
 	var providerLimit *providerlimit.Error
@@ -1709,6 +1711,17 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var conflict *apperrs.ItineraryConflictError
 	var stateConflict *apperrs.ConflictError
 	switch {
+	case errors.As(err, &aiValidation):
+		writeJSON(w, http.StatusBadGateway, map[string]any{
+			"error": map[string]any{
+				"code":    aiValidation.Code,
+				"message": aiValidation.Message,
+				"details": map[string]any{
+					"issues":            aiValidation.Issues,
+					"generationQuality": aiValidation.Quality,
+				},
+			},
+		})
 	case errors.As(err, &planningBlocking):
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"error":       "planning_constraints_blocked",

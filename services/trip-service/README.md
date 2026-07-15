@@ -21,6 +21,39 @@ Trip language is not stored as separate trip metadata in this v1 slice, so
 background regeneration follows the current profile preference unless an
 explicit language is supplied.
 
+## AI Generation Reliability
+
+AI Generation Reliability & Repair Pipeline v1 validates generated itinerary
+output before it is saved. The pipeline runs for full generation, day/item
+regeneration, template adaptation, policy repair apply, and budget optimization
+apply. It checks schema shape, trip duration, route stops, selected transport
+timing, transfer items, opening-hours hints, weather risk, budget constraints,
+workspace policy evaluation, group preferences, accommodation dates, and place
+data quality.
+
+Critical schema, route, transport, budget, and policy issues block persistence.
+Repairable issues are sent to AI Planning Service
+`POST /repair-generation-output` up to `AI_VALIDATION_MAX_REPAIR_ATTEMPTS`
+times. If repair succeeds, Trip Service saves the repaired itinerary and stores
+`metadata.generationQuality` on the itinerary version. Async generation jobs
+copy the latest `generationQuality` into `resultPayload` and expose it directly
+as `generationQuality` in job responses.
+
+Configuration:
+
+- `AI_VALIDATION_ENABLED=true`
+- `AI_VALIDATION_REPAIR_ENABLED=true`
+- `AI_VALIDATION_MAX_REPAIR_ATTEMPTS=2`
+- `AI_VALIDATION_BLOCK_ON_SCHEMA_ISSUES=true`
+- `AI_VALIDATION_BLOCK_ON_ROUTE_ISSUES=true`
+- `AI_VALIDATION_BLOCK_ON_POLICY_ISSUES=true`
+- `AI_VALIDATION_BLOCK_ON_BUDGET_ERRORS=true`
+- `AI_VALIDATION_FAIL_OPEN=false`
+
+Prometheus metrics use the `ai_generation_*` prefix for validation status,
+issue counts, repair attempts, repair success/failure, blocked saves, and saves
+with warnings.
+
 ## Smart Packing Checklist
 
 Smart Packing & Preparation Checklist v1 uses migration

@@ -4,6 +4,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
 from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
+from app.schemas.generation_repair import (
+    GenerationRepairChange,
+    GenerationValidationIssue,
+    RepairGenerationOutputRequest,
+    RepairGenerationOutputResponse,
+)
 from app.schemas.itinerary import (
     BudgetOptimizationChange,
     BudgetOptimizationPreservedItem,
@@ -51,6 +57,10 @@ class ItineraryGenerator(Protocol):
     ) -> BudgetOptimizationProposalResponse: ...
 
     def repair_itinerary(self, request: RepairItineraryRequest) -> RepairItineraryResponse: ...
+
+    def repair_generation_output(
+        self, request: RepairGenerationOutputRequest
+    ) -> RepairGenerationOutputResponse: ...
 
 
 class MockItineraryGenerator:
@@ -474,6 +484,44 @@ class MockItineraryGenerator:
                 warnings=warnings,
             ),
             changes=changes,
+        )
+
+    def repair_generation_output(
+        self, request: RepairGenerationOutputRequest
+    ) -> RepairGenerationOutputResponse:
+        repaired = deepcopy(request.current_output)
+        currency = _generation_repair_currency(request)
+        changes: list[GenerationRepairChange] = []
+        warnings: list[str] = []
+
+        _ensure_generation_output_shape(repaired, currency)
+
+        if _needs_day_count_repair(request):
+            changes.extend(_normalize_generation_day_count(repaired, request, currency))
+
+        for issue in request.validation_issues:
+            issue_id = issue.id.casefold()
+            if issue_id.startswith("schema_missing_required_field"):
+                changes.extend(_repair_generation_schema_issue(repaired, issue, currency))
+            elif "activity_during_transport" in issue_id or "activity_before_transport" in issue_id:
+                changes.extend(_move_generation_item_after_transport(repaired, request, issue))
+            elif "transfer_item_missing" in issue_id or "missing_transfer_between_stops" in issue_id:
+                changes.extend(_add_generation_transfer_item(repaired, request, issue, currency))
+            elif "place_likely_closed" in issue_id:
+                changes.extend(_move_generation_item_to_opening_hours(repaired, issue))
+            elif issue.category == "budget" or "budget" in issue_id:
+                changes.extend(_reduce_generation_cost_risk(repaired, issue, currency))
+
+        if not changes:
+            warnings.append("No deterministic repair was available for the supplied issues.")
+
+        for day in _generation_days(repaired):
+            _sort_generation_day_items(day)
+
+        return RepairGenerationOutputResponse(
+            repaired_output=repaired,
+            changes_made=changes,
+            warnings=warnings,
         )
 
     def _title_for_day(self, request: GenerateItineraryRequest, day_number: int) -> str:
@@ -1095,7 +1143,8 @@ def _day_items(day: dict) -> list[dict]:
     filtered = [item for item in items if isinstance(item, dict)]
     if len(filtered) != len(items):
         day["items"] = filtered
-    return filtered
+        return filtered
+    return items
 
 
 def _day_number(day: dict) -> int | None:
@@ -1241,6 +1290,487 @@ def _add_repair_warning_note(itinerary: dict, note: str) -> None:
         for item in _day_items(day)[:1]:
             item["note"] = _append_note(item.get("note"), note)
             return
+
+
+def _generation_repair_currency(request: RepairGenerationOutputRequest) -> str:
+    raw = str(request.current_output.get("currency") or "").strip().upper()
+    if len(raw) == 3:
+        return raw
+    trip_currency = str(
+        request.planning_context.trip.get("BudgetCurrency")
+        or request.planning_context.trip.get("budgetCurrency")
+        or ""
+    ).strip().upper()
+    return trip_currency if len(trip_currency) == 3 else "EUR"
+
+
+def _ensure_generation_output_shape(itinerary: dict, currency: str) -> None:
+    days = itinerary.get("days")
+    if not isinstance(days, list):
+        itinerary["days"] = []
+    if not str(itinerary.get("currency") or "").strip():
+        itinerary["currency"] = currency
+
+
+def _generation_days(itinerary: dict) -> list[dict]:
+    return _repair_days(itinerary)
+
+
+def _needs_day_count_repair(request: RepairGenerationOutputRequest) -> bool:
+    for issue in request.validation_issues:
+        issue_id = issue.id.casefold()
+        if (
+            "day_count" in issue_id
+            or "missing_day" in issue_id
+            or "duplicate_day" in issue_id
+        ):
+            return True
+    return False
+
+
+def _generation_expected_days(request: RepairGenerationOutputRequest) -> int:
+    raw = request.planning_context.trip.get("Days") or request.planning_context.trip.get("days")
+    if isinstance(raw, int):
+        return max(raw, 0)
+    if isinstance(raw, float):
+        return max(int(raw), 0)
+    try:
+        return max(int(str(raw)), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalize_generation_day_count(
+    itinerary: dict,
+    request: RepairGenerationOutputRequest,
+    currency: str,
+) -> list[GenerationRepairChange]:
+    expected = _generation_expected_days(request)
+    if expected <= 0:
+        return []
+
+    current_days = _generation_days(itinerary)
+    existing_by_number: dict[int, dict] = {}
+    for index, day in enumerate(current_days, start=1):
+        number = _day_number(day) or index
+        if number not in existing_by_number:
+            existing_by_number[number] = day
+
+    normalized: list[dict] = []
+    added = 0
+    renumbered = 0
+    for number in range(1, expected + 1):
+        day = existing_by_number.get(number)
+        if day is None:
+            day = _generation_placeholder_day(number, currency)
+            added += 1
+        if day.get("day") != number:
+            renumbered += 1
+        day["day"] = number
+        if not str(day.get("title") or "").strip():
+            day["title"] = f"Day {number}: repaired plan"
+        _day_items(day)
+        normalized.append(day)
+
+    itinerary["days"] = normalized
+    if added == 0 and renumbered == 0 and len(current_days) == expected:
+        return []
+
+    return [
+        GenerationRepairChange(
+            type="day_count_normalized",
+            description=f"Normalized itinerary to {expected} day(s).",
+            metadata={"addedDays": added, "renumberedDays": renumbered},
+        )
+    ]
+
+
+def _generation_placeholder_day(day_number: int, currency: str) -> dict:
+    return {
+        "day": day_number,
+        "title": f"Day {day_number}: flexible repaired plan",
+        "items": [
+            {
+                "time": "10:00",
+                "endTime": "11:30",
+                "type": "activity",
+                "name": "Flexible itinerary block",
+                "note": "Added by AI repair to keep the trip duration complete.",
+                "estimatedCost": {
+                    "amount": 0,
+                    "currency": currency,
+                    "category": "activity",
+                    "confidence": "low",
+                    "source": "ai",
+                },
+            }
+        ],
+    }
+
+
+def _repair_generation_schema_issue(
+    itinerary: dict,
+    issue: GenerationValidationIssue,
+    currency: str,
+) -> list[GenerationRepairChange]:
+    day_number = issue.day_number
+    item_index = issue.item_index
+    changes: list[GenerationRepairChange] = []
+
+    if day_number is not None:
+        day = _generation_day_at(itinerary, day_number)
+        if day is None:
+            day = _generation_placeholder_day(day_number, currency)
+            itinerary["days"].append(day)
+            changes.append(
+                GenerationRepairChange(
+                    type="day_added",
+                    description="Added missing day for schema repair.",
+                    day_number=day_number,
+                    metadata={"issueId": issue.id},
+                )
+            )
+        if not str(day.get("title") or "").strip():
+            day["title"] = f"Day {day_number}: repaired plan"
+            changes.append(
+                GenerationRepairChange(
+                    type="day_title_added",
+                    description="Filled missing day title.",
+                    day_number=day_number,
+                    metadata={"issueId": issue.id},
+                )
+            )
+        items = _day_items(day)
+        if item_index is not None:
+            while len(items) <= item_index:
+                items.append(_generation_placeholder_item(currency))
+            item = items[item_index]
+            before = _compact_item(item)
+            _ensure_generation_item_schema(item, currency)
+            after = _compact_item(item)
+            if before != after:
+                changes.append(
+                    GenerationRepairChange(
+                        type="item_schema_filled",
+                        description="Filled missing item fields.",
+                        day_number=day_number,
+                        item_index=item_index,
+                        metadata={"issueId": issue.id, "before": before, "after": after},
+                    )
+                )
+        elif not items:
+            items.append(_generation_placeholder_item(currency))
+            changes.append(
+                GenerationRepairChange(
+                    type="item_added",
+                    description="Added a placeholder item to a day with no items.",
+                    day_number=day_number,
+                    item_index=0,
+                    metadata={"issueId": issue.id},
+                )
+            )
+    elif not _generation_days(itinerary):
+        itinerary["days"] = [_generation_placeholder_day(1, currency)]
+        changes.append(
+            GenerationRepairChange(
+                type="day_added",
+                description="Added a first itinerary day.",
+                day_number=1,
+                metadata={"issueId": issue.id},
+            )
+        )
+
+    return changes
+
+
+def _generation_placeholder_item(currency: str) -> dict:
+    return {
+        "time": "10:00",
+        "endTime": "11:00",
+        "type": "activity",
+        "name": "Flexible repaired item",
+        "note": "Added by AI repair to complete a required itinerary field.",
+        "estimatedCost": {
+            "amount": 0,
+            "currency": currency,
+            "category": "activity",
+            "confidence": "low",
+            "source": "ai",
+        },
+    }
+
+
+def _ensure_generation_item_schema(item: dict, currency: str) -> None:
+    if not str(item.get("time") or "").strip():
+        item["time"] = "10:00"
+    if not str(item.get("type") or "").strip():
+        item["type"] = "activity"
+    if not str(item.get("name") or "").strip():
+        item["name"] = "Flexible repaired item"
+    cost = item.get("estimatedCost")
+    if isinstance(cost, dict):
+        cost["currency"] = str(cost.get("currency") or currency).strip().upper() or currency
+
+
+def _move_generation_item_after_transport(
+    itinerary: dict,
+    request: RepairGenerationOutputRequest,
+    issue: GenerationValidationIssue,
+) -> list[GenerationRepairChange]:
+    if issue.day_number is None or issue.item_index is None:
+        return []
+    item = _item_at(itinerary, issue.day_number, issue.item_index)
+    if item is None:
+        return []
+    leg = _generation_route_leg(request, issue)
+    selected = leg.get("selectedTransportOption") if isinstance(leg, dict) else None
+    arrival = selected.get("arrivalTime") if isinstance(selected, dict) else None
+    new_start = _hhmm_add_minutes(str(arrival or "12:00"), 30)
+    new_end = _hhmm_add_minutes(new_start, _generation_item_duration_minutes(item, 90))
+    before = _compact_item(item)
+    item["time"] = new_start
+    item["endTime"] = new_end
+    item["note"] = _append_note(
+        item.get("note"),
+        "AI repair moved this after the selected transport arrival.",
+    )
+    return [
+        GenerationRepairChange(
+            type="item_moved",
+            description="Moved activity after selected transport arrival.",
+            day_number=issue.day_number,
+            item_index=issue.item_index,
+            metadata={"issueId": issue.id, "before": before, "after": _compact_item(item)},
+        )
+    ]
+
+
+def _add_generation_transfer_item(
+    itinerary: dict,
+    request: RepairGenerationOutputRequest,
+    issue: GenerationValidationIssue,
+    currency: str,
+) -> list[GenerationRepairChange]:
+    leg = _generation_route_leg(request, issue)
+    if not isinstance(leg, dict):
+        return []
+    leg_id = str(leg.get("id") or issue.route_leg_id or "").strip()
+    if not leg_id:
+        return []
+    target_day_number = issue.day_number or _generation_day_number_for_leg(itinerary, leg)
+    if target_day_number is None:
+        return []
+    day = _generation_day_at(itinerary, target_day_number)
+    if day is None:
+        day = _generation_placeholder_day(target_day_number, currency)
+        itinerary["days"].append(day)
+    items = _day_items(day)
+    if any(_item_has_transfer_leg(item, leg_id) for item in items):
+        return []
+
+    selected = leg.get("selectedTransportOption")
+    selected = selected if isinstance(selected, dict) else {}
+    departure_time = str(selected.get("departureTime") or "09:00")
+    arrival_time = str(selected.get("arrivalTime") or "")
+    mode = str(selected.get("mode") or leg.get("mode") or "other")
+    from_name = str(leg.get("fromName") or selected.get("originName") or "origin")
+    to_name = str(leg.get("toName") or selected.get("destinationName") or "destination")
+    duration = leg.get("estimatedDurationMinutes") or selected.get("durationMinutes")
+    amount = _generation_transport_cost_amount(selected, leg)
+    transfer_item = {
+        "time": departure_time,
+        "type": "transport",
+        "transportMode": mode,
+        "name": f"Transfer from {from_name} to {to_name}",
+        "note": "Added by AI repair to match selected route transport.",
+        "estimatedCost": {
+            "amount": amount,
+            "currency": currency,
+            "category": "transport",
+            "confidence": "medium",
+            "source": "ai",
+        },
+        "transfer": {
+            "legId": leg_id,
+            "from": from_name,
+            "to": to_name,
+            "mode": mode,
+            "bookingRequired": bool(selected),
+            "notes": "Verify provider details before travel.",
+        },
+    }
+    if arrival_time:
+        transfer_item["endTime"] = arrival_time
+    if isinstance(duration, int) and duration > 0:
+        transfer_item["durationMinutes"] = duration
+        transfer_item["transfer"]["estimatedDurationMinutes"] = duration
+
+    items.append(transfer_item)
+    return [
+        GenerationRepairChange(
+            type="transfer_item_added",
+            description="Added selected transport as an itinerary transfer item.",
+            day_number=target_day_number,
+            item_index=len(items) - 1,
+            metadata={"issueId": issue.id, "routeLegId": leg_id},
+        )
+    ]
+
+
+def _move_generation_item_to_opening_hours(
+    itinerary: dict,
+    issue: GenerationValidationIssue,
+) -> list[GenerationRepairChange]:
+    if issue.day_number is None or issue.item_index is None:
+        return []
+    item = _item_at(itinerary, issue.day_number, issue.item_index)
+    if item is None:
+        return []
+    before = _compact_item(item)
+    item["time"] = "10:00"
+    if "endTime" in item:
+        item["endTime"] = "11:30"
+    item["note"] = _append_note(
+        item.get("note"),
+        "AI repair moved this to a safer daytime opening-hours window.",
+    )
+    return [
+        GenerationRepairChange(
+            type="item_moved",
+            description="Moved item into a safer opening-hours window.",
+            day_number=issue.day_number,
+            item_index=issue.item_index,
+            metadata={"issueId": issue.id, "before": before, "after": _compact_item(item)},
+        )
+    ]
+
+
+def _reduce_generation_cost_risk(
+    itinerary: dict,
+    issue: GenerationValidationIssue,
+    currency: str,
+) -> list[GenerationRepairChange]:
+    for day, item_index, item in _items_by_cost_desc(itinerary):
+        amount = _repair_item_amount(item)
+        if amount is None or amount <= 0:
+            continue
+        day_number = _day_number(day)
+        before = _compact_item(item)
+        reduced = max(Decimal("0"), (amount * Decimal("0.70")).quantize(Decimal("0.01")))
+        _set_repair_item_amount(item, reduced, currency)
+        item["name"] = _marked_name(item.get("name"), "lower-cost")
+        item["note"] = _append_note(
+            item.get("note"),
+            "AI repair lowered this estimated cost for reliability validation.",
+        )
+        return [
+            GenerationRepairChange(
+                type="item_cost_reduced",
+                description="Reduced estimated cost on the highest-cost item.",
+                day_number=day_number,
+                item_index=item_index,
+                metadata={"issueId": issue.id, "before": before, "after": _compact_item(item)},
+            )
+        ]
+    return []
+
+
+def _generation_day_at(itinerary: dict, day_number: int) -> dict | None:
+    for day in _generation_days(itinerary):
+        if _day_number(day) == day_number:
+            return day
+    return None
+
+
+def _generation_route_leg(
+    request: RepairGenerationOutputRequest,
+    issue: GenerationValidationIssue,
+) -> dict | None:
+    route = request.planning_context.route or {}
+    legs = route.get("legs") if isinstance(route, dict) else None
+    if not isinstance(legs, list):
+        return None
+    route_leg_id = issue.route_leg_id or _route_leg_id_from_issue(issue.id)
+    for leg in legs:
+        if isinstance(leg, dict) and str(leg.get("id") or "") == route_leg_id:
+            return leg
+    return None
+
+
+def _route_leg_id_from_issue(issue_id: str) -> str:
+    if ":" not in issue_id:
+        return ""
+    return issue_id.rsplit(":", 1)[-1].strip()
+
+
+def _generation_day_number_for_leg(itinerary: dict, leg: dict) -> int | None:
+    to_stop_id = str(leg.get("toStopId") or "")
+    for day in _generation_days(itinerary):
+        if to_stop_id and str(day.get("primaryStopId") or "") == to_stop_id:
+            number = _day_number(day)
+            if number is not None:
+                return number
+    days = _generation_days(itinerary)
+    if days:
+        return _day_number(days[0])
+    return None
+
+
+def _item_has_transfer_leg(item: dict, leg_id: str) -> bool:
+    transfer = item.get("transfer")
+    return isinstance(transfer, dict) and str(transfer.get("legId") or "") == leg_id
+
+
+def _generation_transport_cost_amount(selected: dict, leg: dict) -> int | float:
+    price = selected.get("estimatedPrice")
+    if isinstance(price, dict) and price.get("amount") is not None:
+        return price["amount"]
+    cost = leg.get("estimatedCost")
+    if isinstance(cost, dict) and cost.get("amount") is not None:
+        return cost["amount"]
+    return 0
+
+
+def _generation_item_duration_minutes(item: dict, fallback: int) -> int:
+    raw = item.get("durationMinutes")
+    if isinstance(raw, int) and raw > 0:
+        return raw
+    start = _hhmm_to_minutes(str(item.get("time") or ""))
+    end = _hhmm_to_minutes(str(item.get("endTime") or ""))
+    if start is not None and end is not None and end > start:
+        return end - start
+    return fallback
+
+
+def _hhmm_add_minutes(raw: str, minutes: int) -> str:
+    base = _hhmm_to_minutes(raw)
+    if base is None:
+        base = 12 * 60
+    value = min((24 * 60) - 1, max(0, base + minutes))
+    return f"{value // 60:02d}:{value % 60:02d}"
+
+
+def _hhmm_to_minutes(raw: str) -> int | None:
+    if len(raw) < 5 or raw[2] != ":":
+        return None
+    try:
+        hour = int(raw[:2])
+        minute = int(raw[3:5])
+    except ValueError:
+        return None
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        return None
+    return hour * 60 + minute
+
+
+def _sort_generation_day_items(day: dict) -> None:
+    items = _day_items(day)
+
+    def sort_key(item: dict) -> tuple[int, str]:
+        minutes = _hhmm_to_minutes(str(item.get("time") or ""))
+        return (minutes if minutes is not None else 24 * 60, str(item.get("name") or ""))
+
+    items.sort(key=sort_key)
 
 
 def _apply_weather(

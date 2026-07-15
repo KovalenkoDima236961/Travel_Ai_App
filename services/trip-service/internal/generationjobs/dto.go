@@ -63,6 +63,7 @@ type JobResponse struct {
 	ItemIndex                 *int                       `json:"itemIndex"`
 	Payload                   json.RawMessage            `json:"payload,omitempty"`
 	ResultPayload             json.RawMessage            `json:"resultPayload,omitempty"`
+	GenerationQuality         any                        `json:"generationQuality,omitempty"`
 	ErrorCode                 *string                    `json:"errorCode"`
 	ErrorMessage              *string                    `json:"errorMessage"`
 	ResultItineraryRevision   *int                       `json:"resultItineraryRevision"`
@@ -98,6 +99,7 @@ func NewJobResponse(job *entity.GenerationJob) JobResponse {
 		ItemIndex:                 job.ItemIndex,
 		Payload:                   job.Payload,
 		ResultPayload:             job.ResultPayload,
+		GenerationQuality:         generationQualityFromPayload(job.ResultPayload),
 		ErrorCode:                 job.ErrorCode,
 		ErrorMessage:              job.ErrorMessage,
 		ResultItineraryRevision:   job.ResultItineraryRevision,
@@ -107,4 +109,15 @@ func NewJobResponse(job *entity.GenerationJob) JobResponse {
 		CancelledAt:               job.CancelledAt,
 		UpdatedAt:                 job.UpdatedAt,
 	}
+}
+
+func generationQualityFromPayload(payload json.RawMessage) any {
+	if len(payload) == 0 {
+		return nil
+	}
+	var body map[string]any
+	if err := json.Unmarshal(payload, &body); err != nil {
+		return nil
+	}
+	return body["generationQuality"]
 }

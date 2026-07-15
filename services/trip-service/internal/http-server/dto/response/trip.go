@@ -109,25 +109,27 @@ type CollaborationInvitation struct {
 
 // ItineraryVersionSummary is returned by the version-history list endpoint.
 type ItineraryVersionSummary struct {
-	ID              uuid.UUID                     `json:"id"`
-	TripID          uuid.UUID                     `json:"tripId"`
-	VersionNumber   int                           `json:"versionNumber"`
-	Source          entity.ItineraryVersionSource `json:"source"`
-	Metadata        map[string]any                `json:"metadata"`
-	CreatedByUserID *uuid.UUID                    `json:"createdByUserId,omitempty"`
-	CreatedAt       time.Time                     `json:"createdAt"`
+	ID                uuid.UUID                     `json:"id"`
+	TripID            uuid.UUID                     `json:"tripId"`
+	VersionNumber     int                           `json:"versionNumber"`
+	Source            entity.ItineraryVersionSource `json:"source"`
+	Metadata          map[string]any                `json:"metadata"`
+	GenerationQuality any                           `json:"generationQuality,omitempty"`
+	CreatedByUserID   *uuid.UUID                    `json:"createdByUserId,omitempty"`
+	CreatedAt         time.Time                     `json:"createdAt"`
 }
 
 // ItineraryVersionDetail includes the snapshot JSON for preview/restore flows.
 type ItineraryVersionDetail struct {
-	ID              uuid.UUID                     `json:"id"`
-	TripID          uuid.UUID                     `json:"tripId"`
-	VersionNumber   int                           `json:"versionNumber"`
-	Source          entity.ItineraryVersionSource `json:"source"`
-	Itinerary       any                           `json:"itinerary"`
-	Metadata        map[string]any                `json:"metadata"`
-	CreatedByUserID *uuid.UUID                    `json:"createdByUserId,omitempty"`
-	CreatedAt       time.Time                     `json:"createdAt"`
+	ID                uuid.UUID                     `json:"id"`
+	TripID            uuid.UUID                     `json:"tripId"`
+	VersionNumber     int                           `json:"versionNumber"`
+	Source            entity.ItineraryVersionSource `json:"source"`
+	Itinerary         any                           `json:"itinerary"`
+	Metadata          map[string]any                `json:"metadata"`
+	GenerationQuality any                           `json:"generationQuality,omitempty"`
+	CreatedByUserID   *uuid.UUID                    `json:"createdByUserId,omitempty"`
+	CreatedAt         time.Time                     `json:"createdAt"`
 }
 
 // ListItineraryVersions is the paginated envelope returned by
@@ -300,28 +302,32 @@ func NewListItineraryVersions(versions []entity.ItineraryVersion, limit, offset 
 
 // NewItineraryVersionSummary maps one version to its list representation.
 func NewItineraryVersionSummary(v *entity.ItineraryVersion) ItineraryVersionSummary {
+	metadata := metadataOrEmpty(v.Metadata)
 	return ItineraryVersionSummary{
-		ID:              v.ID,
-		TripID:          v.TripID,
-		VersionNumber:   v.VersionNumber,
-		Source:          v.Source,
-		Metadata:        metadataOrEmpty(v.Metadata),
-		CreatedByUserID: v.CreatedByUserID,
-		CreatedAt:       v.CreatedAt,
+		ID:                v.ID,
+		TripID:            v.TripID,
+		VersionNumber:     v.VersionNumber,
+		Source:            v.Source,
+		Metadata:          metadata,
+		GenerationQuality: metadataGenerationQuality(metadata),
+		CreatedByUserID:   v.CreatedByUserID,
+		CreatedAt:         v.CreatedAt,
 	}
 }
 
 // NewItineraryVersionDetail maps one version to its preview representation.
 func NewItineraryVersionDetail(v *entity.ItineraryVersion) ItineraryVersionDetail {
+	metadata := metadataOrEmpty(v.Metadata)
 	return ItineraryVersionDetail{
-		ID:              v.ID,
-		TripID:          v.TripID,
-		VersionNumber:   v.VersionNumber,
-		Source:          v.Source,
-		Itinerary:       v.Itinerary,
-		Metadata:        metadataOrEmpty(v.Metadata),
-		CreatedByUserID: v.CreatedByUserID,
-		CreatedAt:       v.CreatedAt,
+		ID:                v.ID,
+		TripID:            v.TripID,
+		VersionNumber:     v.VersionNumber,
+		Source:            v.Source,
+		Itinerary:         v.Itinerary,
+		Metadata:          metadata,
+		GenerationQuality: metadataGenerationQuality(metadata),
+		CreatedByUserID:   v.CreatedByUserID,
+		CreatedAt:         v.CreatedAt,
 	}
 }
 
@@ -502,4 +508,11 @@ func metadataOrEmpty(metadata map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	return metadata
+}
+
+func metadataGenerationQuality(metadata map[string]any) any {
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata["generationQuality"]
 }

@@ -8,6 +8,18 @@
     "clear": "Limpiar", "yes": "Sí", "no": "No", "enabled": "Activado",
     "disabled": "Desactivado", "optional": "Opcional", "required": "Obligatorio"
   },
+  "generationQuality": {
+    "validated": "Validado",
+    "validatedWithWarnings": "Validado con avisos",
+    "repairedAndValidated": "Reparado y validado",
+    "repairedWithWarnings": "Reparado con avisos",
+    "repairFailed": "La reparación falló",
+    "blockedByPolicy": "Bloqueado por política",
+    "blockedByValidation": "Bloqueado por validación",
+    "schemaInvalid": "Esquema no válido",
+    "aiOutputInvalid": "Salida de IA no válida",
+    "reviewWarnings": "Revisa los avisos de validación"
+  },
   "transport": {
     "findTransport": "Buscar transporte", "transportOptions": "Opciones de transporte",
     "selectedTransport": "Transporte seleccionado", "useThisOption": "Usar esta opción",

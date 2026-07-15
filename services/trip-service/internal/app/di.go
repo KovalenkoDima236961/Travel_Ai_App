@@ -12,6 +12,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
@@ -76,6 +77,10 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	gen, err := generator.NewItineraryGenerator(cfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("init itinerary generator: %w", err)
+	}
+	repairClient, err := generator.NewGenerationRepairClient(cfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("init ai generation repair client: %w", err)
 	}
 	var userContextClient interface {
 		GetUserContext(context.Context, string) (*usercontext.UserContext, error)
@@ -227,6 +232,16 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			DefaultMaxTransferMinutesPerDay: cfg.TripHealth.DefaultMaxTransferMinutesPerDay,
 		}),
 	}
+	aiValidationCfg := aivalidation.Config{
+		Enabled:                    cfg.AIValidation.Enabled,
+		RepairEnabled:              cfg.AIValidation.RepairEnabled,
+		MaxRepairAttempts:          cfg.AIValidation.MaxRepairAttempts,
+		BlockOnSchemaErrors:        cfg.AIValidation.BlockOnSchemaErrors,
+		BlockOnPolicyBlockers:      cfg.AIValidation.BlockOnPolicyBlockers,
+		BlockOnCriticalRouteErrors: cfg.AIValidation.BlockOnCriticalRouteErrors,
+		BlockOnBudgetErrors:        cfg.AIValidation.BlockOnBudgetErrors,
+		FailOpen:                   cfg.AIValidation.FailOpen,
+	}
 	if notificationClient != nil {
 		opts = append(opts, service.WithNotifications(
 			notificationClient,
@@ -315,6 +330,15 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		},
 	))
 	svc := service.New(repo, gen, log, opts...)
+	reliability := aivalidation.NewPipeline(
+		aivalidation.NewValidator(aiValidationCfg),
+		repairClient,
+		svc,
+		aiValidationCfg,
+		log,
+	)
+	opts = append(opts, service.WithGenerationReliability(reliability))
+	svc = service.New(repo, gen, log, opts...)
 	generationJobsCfg := generationjobs.NormalizeConfig(generationjobs.Config{
 		Enabled:               cfg.GenerationJobs.Enabled,
 		WorkerEnabled:         cfg.GenerationJobs.WorkerEnabled,

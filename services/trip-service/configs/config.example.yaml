@@ -51,6 +51,16 @@ trip_health:
   default_max_walking_km_per_day: 12
   default_max_transfer_minutes_per_day: 480
 
+ai_validation:
+  enabled: true
+  repair_enabled: true
+  max_repair_attempts: 2
+  block_on_schema_errors: true
+  block_on_policy_blockers: true
+  block_on_critical_route_errors: true
+  block_on_budget_errors: true
+  fail_open: false
+
 user_context:
   enabled: true
   user_service_url: http://localhost:8083

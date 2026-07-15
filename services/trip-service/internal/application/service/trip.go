@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
@@ -400,6 +401,12 @@ func WithTripHealthConfig(cfg triphealth.Config) Option {
 	}
 }
 
+func WithGenerationReliability(pipeline aivalidation.GenerationReliabilityPipeline) Option {
+	return func(s *Service) {
+		s.generationReliability = pipeline
+	}
+}
+
 func WithReceipts(storage receipts.Storage, ocr receipts.OCRProvider, cfg receipts.Config) Option {
 	return func(s *Service) {
 		s.receiptStorage = storage
@@ -475,6 +482,7 @@ type Service struct {
 	shareTokenBytes                    int
 	publicShareTokens                  *sharing.PublicShareTokenManager
 	tripHealthConfig                   triphealth.Config
+	generationReliability              aivalidation.GenerationReliabilityPipeline
 	log                                *zap.Logger
 }
 
@@ -731,6 +739,25 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 		s.markFailed(ctx, id, ownerID)
 		return nil, err
 	}
+	outputLanguage := resolveOutputLanguage(in.OutputLanguage, userContext.Profile)
+	reliableItinerary, metadata, _, err := s.validateGeneratedItinerary(
+		ctx,
+		*current,
+		*itinerary,
+		entity.ItineraryVersionSourceGenerated,
+		map[string]any{
+			"generator":     "full",
+			"routeSnapshot": current.Route,
+		},
+		constraints,
+		weatherForecast,
+		outputLanguage,
+	)
+	if err != nil {
+		s.markFailed(ctx, id, ownerID)
+		return nil, err
+	}
+	itinerary = &reliableItinerary
 
 	raw, err := json.Marshal(itinerary)
 	if err != nil {
@@ -746,10 +773,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 		raw,
 		expectedRevision,
 		entity.ItineraryVersionSourceGenerated,
-		map[string]any{
-			"generator":     "full",
-			"routeSnapshot": current.Route,
-		},
+		metadata,
 	)
 	if err != nil {
 		if !isItineraryConflict(err) {
@@ -999,18 +1023,32 @@ func (s *Service) RegenerateDay(ctx context.Context, id uuid.UUID, dayNumber int
 	}
 
 	currentItinerary.Days[dayIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(
+	reliableItinerary, metadata, _, err := s.validateGeneratedItinerary(
 		ctx,
-		id,
-		ownerID,
-		user.ID,
+		*current,
 		currentItinerary,
-		expectedRevision,
 		entity.ItineraryVersionSourceRegenerateDay,
 		map[string]any{
 			"dayNumber":          dayNumber,
 			"instructionPresent": instruction != "",
 		},
+		constraints,
+		weatherForecast,
+		resolveOutputLanguage(in.OutputLanguage, userContext.Profile),
+	)
+	if err != nil {
+		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+	updated, err := s.saveRegeneratedItinerary(
+		ctx,
+		id,
+		ownerID,
+		user.ID,
+		reliableItinerary,
+		expectedRevision,
+		entity.ItineraryVersionSourceRegenerateDay,
+		metadata,
 	)
 	if err != nil {
 		s.logRegenerationFailure("itinerary day regeneration failed", fields, started, userContextLoaded, err)
@@ -1162,19 +1200,33 @@ func (s *Service) RegenerateItem(ctx context.Context, id uuid.UUID, dayNumber, i
 	}
 
 	currentItinerary.Days[dayIndex].Items[itemIndex] = normalizedReplacement
-	updated, err := s.saveRegeneratedItinerary(
+	reliableItinerary, metadata, _, err := s.validateGeneratedItinerary(
 		ctx,
-		id,
-		ownerID,
-		user.ID,
+		*current,
 		currentItinerary,
-		expectedRevision,
 		entity.ItineraryVersionSourceRegenerateItem,
 		map[string]any{
 			"dayNumber":          dayNumber,
 			"itemIndex":          itemIndex,
 			"instructionPresent": instruction != "",
 		},
+		constraints,
+		weatherForecast,
+		resolveOutputLanguage(in.OutputLanguage, userContext.Profile),
+	)
+	if err != nil {
+		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)
+		return nil, err
+	}
+	updated, err := s.saveRegeneratedItinerary(
+		ctx,
+		id,
+		ownerID,
+		user.ID,
+		reliableItinerary,
+		expectedRevision,
+		entity.ItineraryVersionSourceRegenerateItem,
+		metadata,
 	)
 	if err != nil {
 		s.logRegenerationFailure("itinerary item regeneration failed", fields, started, userContextLoaded, err)

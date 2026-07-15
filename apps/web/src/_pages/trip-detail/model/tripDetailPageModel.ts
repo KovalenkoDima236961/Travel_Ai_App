@@ -127,23 +127,28 @@ export function targetFromGenerationJob(job: GenerationJob): RegeneratingTarget 
 }
 
 export function successMessageForGenerationJob(job: GenerationJob) {
+  const warningSuffix =
+    job.generationQuality &&
+    (job.generationQuality.warningIssueCount > 0 || job.generationQuality.highIssueCount > 0)
+      ? " Review validation warnings."
+      : "";
   if (job.jobType === "full_generation") {
-    return "Itinerary generated.";
+    return `Itinerary generated.${warningSuffix}`;
   }
   if (job.jobType === "budget_optimization_day") {
-    return "Budget optimization proposal ready.";
+    return `Budget optimization proposal ready.${warningSuffix}`;
   }
   if (
     (job.jobType === "item_regeneration" || job.jobType === "quality_improvement_item") &&
     job.dayNumber != null &&
     job.itemIndex != null
   ) {
-    return `Day ${job.dayNumber} item ${job.itemIndex + 1} regenerated.`;
+    return `Day ${job.dayNumber} item ${job.itemIndex + 1} regenerated.${warningSuffix}`;
   }
   if (job.dayNumber != null) {
-    return `Day ${job.dayNumber} regenerated.`;
+    return `Day ${job.dayNumber} regenerated.${warningSuffix}`;
   }
-  return "Itinerary updated.";
+  return `Itinerary updated.${warningSuffix}`;
 }
 
 export function failureMessageForGenerationJob(job: GenerationJob) {
@@ -152,6 +157,30 @@ export function failureMessageForGenerationJob(job: GenerationJob) {
   }
   if (job.errorCode === "no_optimization_found") {
     return "Budget optimization could not find a useful cheaper alternative for that day.";
+  }
+  if (job.errorCode === "ai_generation_schema_invalid") {
+    return "The AI returned an invalid itinerary shape and it could not be saved.";
+  }
+  if (job.errorCode === "ai_generation_repair_failed") {
+    return "The itinerary had validation issues that could not be repaired automatically.";
+  }
+  if (job.errorCode === "ai_generation_blocked_by_policy") {
+    return "Generation was blocked by workspace policy rules.";
+  }
+  if (job.errorCode === "ai_generation_route_conflict") {
+    return "Generation was blocked because route stops or transfers did not line up.";
+  }
+  if (job.errorCode === "ai_generation_transport_conflict") {
+    return "Generation was blocked because activities conflicted with selected transport.";
+  }
+  if (job.errorCode === "ai_generation_budget_conflict") {
+    return "Generation was blocked because the itinerary could not satisfy the budget constraints.";
+  }
+  if (
+    job.errorCode === "ai_generation_validation_failed" ||
+    job.errorCode === "ai_output_invalid"
+  ) {
+    return "The generated itinerary failed reliability validation.";
   }
   if (job.jobType === "budget_optimization_day") {
     return job.errorMessage ?? "Budget optimization failed. The itinerary was not changed.";

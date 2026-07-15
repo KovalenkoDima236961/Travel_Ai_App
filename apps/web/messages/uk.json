@@ -8,6 +8,18 @@
     "clear": "Очистити", "yes": "Так", "no": "Ні", "enabled": "Увімкнено",
     "disabled": "Вимкнено", "optional": "Необов’язково", "required": "Обов’язково"
   },
+  "generationQuality": {
+    "validated": "Перевірено",
+    "validatedWithWarnings": "Перевірено з попередженнями",
+    "repairedAndValidated": "Виправлено й перевірено",
+    "repairedWithWarnings": "Виправлено з попередженнями",
+    "repairFailed": "Виправлення не вдалося",
+    "blockedByPolicy": "Заблоковано політикою",
+    "blockedByValidation": "Заблоковано перевіркою",
+    "schemaInvalid": "Недійсна схема",
+    "aiOutputInvalid": "Недійсний результат ШІ",
+    "reviewWarnings": "Перегляньте попередження перевірки"
+  },
   "transport": {
     "findTransport": "Знайти транспорт", "transportOptions": "Варіанти транспорту",
     "selectedTransport": "Вибраний транспорт", "useThisOption": "Використати цей варіант",

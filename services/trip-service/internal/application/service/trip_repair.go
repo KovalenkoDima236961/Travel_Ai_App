@@ -273,13 +273,14 @@ func (s *Service) ApplyTripRepairProposal(
 	if err != nil {
 		return nil, nil, apperrs.NewInvalidInput("proposal itinerary is invalid")
 	}
-	updated, err := s.saveItineraryWithVersion(
+	var normalizedItinerary aggregate.Itinerary
+	if err := json.Unmarshal(normalizedRaw, &normalizedItinerary); err != nil {
+		return nil, nil, apperrs.NewInvalidInput("proposal itinerary is invalid")
+	}
+	reliableItinerary, metadata, _, err := s.validateGeneratedItinerary(
 		ctx,
-		tripID,
-		ownerID,
-		user.ID,
-		normalizedRaw,
-		expectedRevision,
+		*current,
+		normalizedItinerary,
 		entity.ItineraryVersionSourceAIPolicyRepairApplied,
 		map[string]any{
 			"source":            "ai_policy_repair",
@@ -289,6 +290,26 @@ func (s *Service) ApplyTripRepairProposal(
 			"baseRiskScore":     valueOrNilInt(proposal.BaseRiskScore),
 			"proposedRiskScore": valueOrNilInt(proposal.ProposedRiskScore),
 		},
+		nil,
+		nil,
+		"",
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	reliableRaw, err := json.Marshal(reliableItinerary)
+	if err != nil {
+		return nil, nil, err
+	}
+	updated, err := s.saveItineraryWithVersion(
+		ctx,
+		tripID,
+		ownerID,
+		user.ID,
+		reliableRaw,
+		expectedRevision,
+		entity.ItineraryVersionSourceAIPolicyRepairApplied,
+		metadata,
 	)
 	if err != nil {
 		return nil, nil, err

@@ -155,28 +155,34 @@ Use local Grafana credentials `admin` / `admin`.
 14. In RabbitMQ, confirm `trip.generation.jobs` briefly receives and consumes a
     message.
 15. Wait for the card to show completion.
-16. Confirm the itinerary appears.
-17. Confirm the trip header shows a Health readiness badge and the left section
+16. Confirm the generation card shows a reliability badge such as `Validated`,
+    `Validated with warnings`, or `Repaired and validated`.
+17. If warnings are shown, confirm they remain readable in the status card and
+    do not block the itinerary from rendering.
+18. Confirm the itinerary appears.
+19. Open Version History and confirm the latest generated version shows the same
+    reliability badge and any non-blocking warning summary.
+20. Confirm the trip header shows a Health readiness badge and the left section
     navigation includes `Health`.
-18. Open the Health section and confirm it shows a readiness score, level,
+21. Open the Health section and confirm it shows a readiness score, level,
     category summaries, top fixes when issues are actionable, a readiness
     checklist, and filterable issue cards.
-19. Change a trip input such as budget, route transport, checklist, reminder,
+22. Change a trip input such as budget, route transport, checklist, reminder,
     accommodation, expense, policy, approval, availability, or a poll vote and
     confirm the Health section refreshes without exposing private data in public
     shares.
-20. Open the packing checklist panel and click `Generate checklist`.
-21. Confirm the checklist shows categorized items, progress counts, priority
+23. Open the packing checklist panel and click `Generate checklist`.
+24. Confirm the checklist shows categorized items, progress counts, priority
     labels, source labels, and a high-priority remaining count.
-22. Add a manual item, assign it to yourself, set a due date, check it, edit its
+25. Add a manual item, assign it to yourself, set a due date, check it, edit its
     title/priority, move it with the reorder controls, and delete a separate
     temporary item.
-23. Regenerate with `Add missing` and confirm the checked/manual item remains.
-24. Filter by category and unchecked status, then clear the filters.
-25. Open the Reminders/Timeline panel and click `Generate reminders`.
-26. Confirm summary counts and grouped sections appear for Overdue, Today, This
+26. Regenerate with `Add missing` and confirm the checked/manual item remains.
+27. Filter by category and unchecked status, then clear the filters.
+28. Open the Reminders/Timeline panel and click `Generate reminders`.
+29. Confirm summary counts and grouped sections appear for Overdue, Today, This
     week, Later, Completed, and Disabled when matching reminders exist.
-27. Add a custom reminder, assign it to yourself, edit its priority/date, mark it
+30. Add a custom reminder, assign it to yourself, edit its priority/date, mark it
     complete, reopen it, disable it, and enable it again.
 28. Filter reminders by assigned to me, high priority, category, status, and
     upcoming only, then clear the filters.

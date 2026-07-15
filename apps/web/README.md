@@ -69,7 +69,7 @@ notification streams, and calendar OAuth calls.
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
-| Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
+| Jobs | Async full generation, partial regeneration, quality improvement, budget optimization, and generation reliability badges/warnings. |
 | Reminders | Private Reminders/Timeline panel with rule-based generation, manual reminders, filters, completion/disable actions, stale warnings, and notification preferences. |
 | Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, selected transport estimates, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
 | Receipts | Receipt upload for private trip expenses, mock OCR review, authenticated image/PDF preview, create-expense-from-receipt, attach/delete receipt actions. |
@@ -152,6 +152,21 @@ evaluation, approval actions, and place review updates.
 Health output is advisory. The UI links users back to existing trip sections to
 fix issues, but it does not auto-apply route, budget, checklist, reminder,
 expense, policy, or approval changes.
+
+## Generation Reliability UI
+
+Generation job responses and itinerary version history can include
+`generationQuality`, produced by Trip Service after AI output validation and
+repair. The web app surfaces this as compact badges on active generation jobs
+and itinerary versions, plus inline warning/remaining-issue summaries when a
+saved output needed repair or still has non-blocking warnings.
+
+Frontend contracts and components live in:
+
+- `src/types/generation-quality.ts`
+- `src/components/generation-quality/*`
+- `src/entities/generation-job/model/generation-jobs.ts`
+- `src/entities/itinerary/model/itinerary-version.ts`
 
 ## Receipt Upload & Expense OCR
 

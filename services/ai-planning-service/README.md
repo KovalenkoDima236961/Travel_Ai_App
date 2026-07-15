@@ -100,6 +100,7 @@ flowchart TD
 | `POST` | `/regenerate-item` | Replace one itinerary item. |
 | `POST` | `/optimize-budget/day` | Return a reviewable cheaper-day proposal. |
 | `POST` | `/repair-itinerary` | Return a reviewable policy/risk repair proposal with repaired itinerary, summary, and changes. |
+| `POST` | `/repair-generation-output` | Repair generated itinerary output that failed Trip Service reliability validation. |
 | `POST` | `/adapt-template` | Adapt a reusable template to a new destination/duration/budget. |
 | `POST` | `/suggest-destinations` | Return 3–5 destination ideas for `prompt`, `surprise`, or `refine` mode. |
 | `POST` | `/suggest-route-alternatives` | Return route alternatives with stops, legs, estimates, scores, pros/cons, and warnings. |
@@ -110,6 +111,26 @@ flowchart TD
 
 Destination context and knowledge routes are development/internal routes in v1.
 Protect them before exposing the service outside a private network.
+
+## Generation Output Repair
+
+`POST /repair-generation-output` is called by Trip Service after reliability
+validation finds repairable generated-output issues. The request includes the
+current generated itinerary, validation issues, repair scope, preservation
+constraints, and trusted planning context such as trip, route, selected
+transport, accommodation, weather, budget, and workspace policy evaluation.
+
+The response returns:
+
+- `repairedOutput`: the repaired itinerary JSON.
+- `changesMade`: compact repair entries with day/item/route metadata.
+- `warnings`: uncertainty that should remain visible to users.
+
+Mock mode performs deterministic repairs for the v1 critical cases: missing day
+count, missing schema fields, activities before/inside selected transport,
+missing transfer items, likely closed places, and budget-risk reductions.
+Ollama mode uses a strict repair prompt and parser, then falls back to the mock
+repairer when configured.
 
 ## Packing Checklist Generation
 

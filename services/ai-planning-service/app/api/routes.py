@@ -32,6 +32,10 @@ from app.schemas.itinerary import (
     RegenerateItemRequest,
     RegenerateItemResponse,
 )
+from app.schemas.generation_repair import (
+    RepairGenerationOutputRequest,
+    RepairGenerationOutputResponse,
+)
 from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.schemas.route_alternatives import RouteAlternativeRequest, RouteAlternativeResponse
 from app.schemas.template_adaptation import TemplateAdaptationRequest, TemplateAdaptationResponse
@@ -284,6 +288,27 @@ def repair_itinerary(
     except Exception as exc:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise ItineraryGenerationError("Failed to repair itinerary") from exc
+
+
+@router.post("/repair-generation-output", response_model=RepairGenerationOutputResponse)
+def repair_generation_output(
+    request: RepairGenerationOutputRequest,
+    settings: Settings = Depends(get_configured_settings),
+    generator: ItineraryGenerator = Depends(get_configured_itinerary_generator),
+) -> RepairGenerationOutputResponse:
+    operation = "repair_generation_output"
+    mode = _generator_mode(settings)
+    started_at = time.monotonic()
+    try:
+        response = generator.repair_generation_output(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
+    except ItineraryGenerationError:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise
+    except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        raise ItineraryGenerationError("Failed to repair generated output") from exc
 
 
 @router.post("/adapt-template", response_model=TemplateAdaptationResponse)

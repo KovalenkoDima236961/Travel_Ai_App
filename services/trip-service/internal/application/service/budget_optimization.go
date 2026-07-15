@@ -270,20 +270,33 @@ func (s *Service) ApplyBudgetOptimizationProposal(
 		return nil, nil, err
 	}
 	currentItinerary.Days[dayIndex] = content.ProposedDay
-
-	updated, err := s.saveRegeneratedItinerary(
+	reliableItinerary, metadata, _, err := s.validateGeneratedItinerary(
 		ctx,
-		tripID,
-		ownerID,
-		user.ID,
+		*current,
 		currentItinerary,
-		expectedRevision,
 		entity.ItineraryVersionSourceBudgetOptimizationApplied,
 		map[string]any{
 			"source":     "budget_optimization_applied",
 			"proposalId": proposal.ID.String(),
 			"dayNumber":  *proposal.DayNumber,
 		},
+		nil,
+		nil,
+		"",
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	updated, err := s.saveRegeneratedItinerary(
+		ctx,
+		tripID,
+		ownerID,
+		user.ID,
+		reliableItinerary,
+		expectedRevision,
+		entity.ItineraryVersionSourceBudgetOptimizationApplied,
+		metadata,
 	)
 	if err != nil {
 		return nil, nil, err

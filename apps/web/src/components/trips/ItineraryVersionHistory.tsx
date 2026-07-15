@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  GenerationQualityBadge,
+  GenerationWarningsPanel
+} from "@/components/generation-quality";
 import { ItineraryView } from "@/components/trips/ItineraryView";
 import { Button } from "@/shared/ui/button";
 import { isItineraryConflictError } from "@/shared/api/client";
@@ -33,6 +37,11 @@ const sourceLabels: Record<ItineraryVersionSource, string> = {
   MANUAL_EDIT: "Manual edit",
   REGENERATE_DAY: "Regenerated day",
   REGENERATE_ITEM: "Regenerated item",
+  BUDGET_OPTIMIZATION_APPLIED: "Budget optimized",
+  AI_POLICY_REPAIR: "Policy repair",
+  COST_SPLIT_UPDATED: "Cost split updated",
+  CREATED_FROM_TEMPLATE: "Template",
+  CREATED_FROM_TEMPLATE_AI: "AI template",
   RESTORED: "Restored"
 };
 
@@ -176,6 +185,7 @@ export function ItineraryVersionHistory({
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
                         {sourceLabel(version.source)}
                       </span>
+                      <GenerationQualityBadge quality={versionGenerationQuality(version)} />
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-500">
                       <span>
@@ -186,6 +196,10 @@ export function ItineraryVersionHistory({
                       </span>
                       {metadataLabel(version) ? <span>{metadataLabel(version)}</span> : null}
                     </div>
+                    <GenerationWarningsPanel
+                      compact
+                      quality={versionGenerationQuality(version)}
+                    />
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -228,7 +242,10 @@ export function ItineraryVersionHistory({
                 <h3 className="text-lg font-semibold text-slate-950">
                   Previewing Version {preview.versionNumber}
                 </h3>
-                <p className="text-sm text-slate-500">{sourceLabel(preview.source)}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-slate-500">{sourceLabel(preview.source)}</p>
+                  <GenerationQualityBadge quality={versionGenerationQuality(preview)} />
+                </div>
               </div>
               <div className="flex gap-2">
                 {canRestore ? (
@@ -248,6 +265,7 @@ export function ItineraryVersionHistory({
                 </Button>
               </div>
             </div>
+            <GenerationWarningsPanel quality={versionGenerationQuality(preview)} />
             <ItineraryView currency={currency} disabled itinerary={preview.itinerary} />
           </div>
         </div>
@@ -279,6 +297,10 @@ function metadataLabel(version: ItineraryVersionSummary) {
     return restoredFrom == null ? null : `Restored from Version ${restoredFrom}`;
   }
   return null;
+}
+
+function versionGenerationQuality(version: ItineraryVersionSummary) {
+  return version.generationQuality ?? version.metadata?.generationQuality ?? null;
 }
 
 function numberValue(value: unknown) {

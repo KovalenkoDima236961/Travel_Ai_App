@@ -293,14 +293,15 @@ func (s *Service) AdaptTemplateForActor(
 		s.markFailed(ctx, tripID, ownerID)
 		return nil, nil, templateadaptation.NewError(templateadaptation.ErrorValidationFailed, err.Error(), err)
 	}
-
-	updated, err := s.saveItineraryWithVersion(
+	var normalizedItinerary aggregate.Itinerary
+	if err := json.Unmarshal(normalizedRaw, &normalizedItinerary); err != nil {
+		s.markFailed(ctx, tripID, ownerID)
+		return nil, nil, err
+	}
+	reliableItinerary, metadata, _, err := s.validateGeneratedItinerary(
 		ctx,
-		tripID,
-		ownerID,
-		user.ID,
-		normalizedRaw,
-		expectedRevision,
+		*current,
+		normalizedItinerary,
 		entity.ItineraryVersionSourceCreatedFromTemplateAI,
 		map[string]any{
 			"source":        "ai_template_adaptation",
@@ -308,6 +309,29 @@ func (s *Service) AdaptTemplateForActor(
 			"templateTitle": template.Title,
 			"fallbackUsed":  summary.FallbackUsed,
 		},
+		constraints,
+		nil,
+		"",
+	)
+	if err != nil {
+		s.markFailed(ctx, tripID, ownerID)
+		return nil, nil, err
+	}
+	reliableRaw, err := json.Marshal(reliableItinerary)
+	if err != nil {
+		s.markFailed(ctx, tripID, ownerID)
+		return nil, nil, err
+	}
+
+	updated, err := s.saveItineraryWithVersion(
+		ctx,
+		tripID,
+		ownerID,
+		user.ID,
+		reliableRaw,
+		expectedRevision,
+		entity.ItineraryVersionSourceCreatedFromTemplateAI,
+		metadata,
 	)
 	if err != nil {
 		if !isItineraryConflict(err) {

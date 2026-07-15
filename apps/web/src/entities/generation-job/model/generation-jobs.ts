@@ -1,3 +1,5 @@
+import type { GenerationQuality } from "@/types/generation-quality";
+
 export type GenerationJobType =
   | "full_generation"
   | "day_regeneration"
@@ -26,7 +28,8 @@ export type GenerationJob = {
   dayNumber?: number | null;
   itemIndex?: number | null;
   payload?: unknown;
-  resultPayload?: unknown;
+  resultPayload?: ({ generationQuality?: GenerationQuality | null } & Record<string, unknown>) | null;
+  generationQuality?: GenerationQuality | null;
   errorCode?: string | null;
   errorMessage?: string | null;
   resultItineraryRevision?: number | null;

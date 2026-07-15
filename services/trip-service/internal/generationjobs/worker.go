@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -258,6 +259,7 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 		return result, w.failJob(ctx, job, code, message)
 	}
 
+	resultPayload = w.withLatestGenerationQuality(ctx, job, resultPayload)
 	if len(resultPayload) > 0 {
 		if err := w.repo.SetGenerationJobResultPayload(ctx, job.ID, resultPayload); err != nil {
 			w.log.Warn("failed to persist generation job result payload",
@@ -368,6 +370,37 @@ func (w *Worker) process(ctx context.Context, job *entity.GenerationJob) (*entit
 	}
 }
 
+func (w *Worker) withLatestGenerationQuality(
+	ctx context.Context,
+	job *entity.GenerationJob,
+	payload json.RawMessage,
+) json.RawMessage {
+	reader, ok := w.repo.(interface {
+		ListItineraryVersionsByTrip(ctx context.Context, tripID uuid.UUID, limit, offset int) ([]entity.ItineraryVersion, error)
+	})
+	if !ok {
+		return payload
+	}
+	versions, err := reader.ListItineraryVersionsByTrip(ctx, job.TripID, 1, 0)
+	if err != nil || len(versions) == 0 || len(versions[0].Metadata) == 0 {
+		return payload
+	}
+	quality, ok := versions[0].Metadata["generationQuality"]
+	if !ok {
+		return payload
+	}
+	out := map[string]any{}
+	if len(payload) > 0 {
+		_ = json.Unmarshal(payload, &out)
+	}
+	out["generationQuality"] = quality
+	raw, err := json.Marshal(out)
+	if err != nil {
+		return payload
+	}
+	return raw
+}
+
 func (w *Worker) failJob(ctx context.Context, job *entity.GenerationJob, code, message string) error {
 	message = truncateSafeMessage(message)
 	failed, err := w.repo.FailGenerationJob(ctx, job.ID, code, message)
@@ -436,8 +469,11 @@ func ClassifyJobError(err error) (string, string) {
 
 	var invalid *apperrs.InvalidInputError
 	var dependency *apperrs.DependencyError
+	var validation *aivalidation.ValidationError
 	var conflict *apperrs.ItineraryConflictError
 	switch {
+	case errors.As(err, &validation):
+		return validation.Code, validation.Message
 	case errors.As(err, &conflict):
 		return ErrorItineraryConflict, "The itinerary changed while this job was running."
 	case errors.As(err, &invalid), errors.Is(err, apperrs.ErrExpectedItineraryRevisionRequired):

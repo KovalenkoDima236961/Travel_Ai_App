@@ -4,6 +4,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.schemas.checklist import GeneratedChecklistResponse
+from app.schemas.generation_repair import (
+    RepairGenerationOutputRequest,
+    RepairGenerationOutputResponse,
+)
 from app.schemas.itinerary import (
     BudgetOptimizationProposalResponse,
     ItineraryItem,
@@ -34,6 +38,7 @@ _BUDGET_OPTIMIZATION_KEYS = {
     "proposedDay",
 }
 _REPAIR_KEYS = {"repairedItinerary", "repairSummary", "changes"}
+_GENERATION_REPAIR_KEYS = {"repairedOutput", "changesMade", "warnings"}
 _CHECKLIST_KEYS = {"title", "summary", "items", "warnings"}
 _DAY_KEYS = {"day", "title", "items"}
 _ITEM_KEYS = {"time", "type", "name", "note", "estimatedCost"}
@@ -158,6 +163,36 @@ def parse_repair_itinerary_response(
         response.repair_summary.warnings.append(
             "Availability and prices should be checked again after repair."
         )
+    return response
+
+
+def parse_repair_generation_output_response(
+    response_text: str,
+    request: RepairGenerationOutputRequest,
+) -> RepairGenerationOutputResponse:
+    parsed = _parse_json(response_text)
+    _ensure_generation_repair_response_shape(parsed)
+
+    try:
+        response = RepairGenerationOutputResponse.model_validate(parsed)
+    except ValidationError as exc:
+        raise LLMResponseParseError(
+            "LLM response did not match generation repair schema"
+        ) from exc
+
+    repaired_days = response.repaired_output.get("days")
+    current_days = request.current_output.get("days")
+    if not isinstance(repaired_days, list):
+        raise LLMResponseParseError("Generation repair response must include itinerary days")
+    if (
+        request.constraints.preserve_unaffected_days
+        and isinstance(current_days, list)
+        and current_days
+        and not repaired_days
+    ):
+        raise LLMResponseParseError("Generation repair removed all itinerary days")
+    if not response.warnings:
+        response.warnings.append("Availability and estimates should be reviewed after repair.")
     return response
 
 
@@ -398,6 +433,29 @@ def _ensure_repair_response_shape(parsed: Any) -> None:
                     raise LLMResponseParseError(
                         f"Repair day {day_index} item {item_index} field {field} is required"
                     )
+
+
+def _ensure_generation_repair_response_shape(parsed: Any) -> None:
+    if not isinstance(parsed, dict):
+        raise LLMResponseParseError("LLM response must be a JSON object")
+    if "repairedOutput" not in parsed:
+        raise LLMResponseParseError("LLM generation repair response must include repairedOutput")
+    extra = set(parsed.keys()) - _GENERATION_REPAIR_KEYS
+    if extra:
+        raise LLMResponseParseError(
+            "LLM generation repair response contains unsupported top-level fields"
+        )
+    parsed.setdefault("changesMade", [])
+    parsed.setdefault("warnings", [])
+    if not isinstance(parsed["repairedOutput"], dict):
+        raise LLMResponseParseError("repairedOutput must be a JSON object")
+    days = parsed["repairedOutput"].get("days")
+    if not isinstance(days, list):
+        raise LLMResponseParseError("repairedOutput.days must be a list")
+    if not isinstance(parsed["changesMade"], list):
+        raise LLMResponseParseError("changesMade must be a list")
+    if not isinstance(parsed["warnings"], list):
+        raise LLMResponseParseError("warnings must be a list")
 
 
 def _ensure_checklist_response_shape(parsed: Any) -> None:

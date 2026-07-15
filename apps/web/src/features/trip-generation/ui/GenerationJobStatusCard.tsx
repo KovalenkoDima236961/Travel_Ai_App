@@ -1,3 +1,7 @@
+import {
+  GenerationQualityBadge,
+  GenerationWarningsPanel
+} from "@/components/generation-quality";
 import { Button } from "@/shared/ui/button";
 import { formatDate } from "@/lib/utils";
 import type { GenerationJob } from "@/entities/generation-job/model";
@@ -16,16 +20,21 @@ export function GenerationJobStatusCard({
   onCancel
 }: GenerationJobStatusCardProps) {
   const copy = getStatusCopy(job);
+  const generationQuality = job.generationQuality ?? job.resultPayload?.generationQuality ?? null;
 
   return (
     <div className={copy.className}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold">{copy.title}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold">{copy.title}</p>
+            <GenerationQualityBadge quality={generationQuality} />
+          </div>
           <p className="mt-1 text-sm leading-6">{copy.message}</p>
           {job.status === "failed" && job.errorMessage ? (
             <p className="mt-2 text-sm leading-6">{job.errorMessage}</p>
           ) : null}
+          <GenerationWarningsPanel quality={generationQuality} />
           <p className="mt-2 text-xs opacity-80">
             Started {job.startedAt ? formatDate(job.startedAt, dateTimeFormat) : "not yet"} -
             Queued {formatDate(job.createdAt, dateTimeFormat)}
@@ -64,7 +73,9 @@ function getStatusCopy(job: GenerationJob) {
     case "running":
       return {
         title: budgetOptimization ? "Optimizing budget..." : "Generating itinerary...",
-        message: describeTarget(job),
+        message: budgetOptimization
+          ? describeTarget(job)
+          : `${describeTarget(job)} Validation and repair run before saving.`,
         className: "mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900"
       };
     case "completed":
@@ -110,6 +121,30 @@ function describeTarget(job: GenerationJob) {
 function conflictMessage(job: GenerationJob) {
   if (job.errorCode === "no_optimization_found") {
     return "No useful cheaper alternative was found for that day. Try a different target or instruction.";
+  }
+  if (job.errorCode === "ai_generation_schema_invalid") {
+    return "The AI returned an invalid itinerary shape and it could not be saved.";
+  }
+  if (job.errorCode === "ai_generation_repair_failed") {
+    return "The itinerary had validation issues that could not be repaired automatically.";
+  }
+  if (job.errorCode === "ai_generation_blocked_by_policy") {
+    return "Generation was blocked by workspace policy rules.";
+  }
+  if (job.errorCode === "ai_generation_route_conflict") {
+    return "Generation was blocked because route stops or transfers did not line up.";
+  }
+  if (job.errorCode === "ai_generation_transport_conflict") {
+    return "Generation was blocked because activities conflicted with selected transport.";
+  }
+  if (job.errorCode === "ai_generation_budget_conflict") {
+    return "Generation was blocked because the itinerary could not satisfy the budget constraints.";
+  }
+  if (
+    job.errorCode === "ai_generation_validation_failed" ||
+    job.errorCode === "ai_output_invalid"
+  ) {
+    return "The generated itinerary failed reliability validation.";
   }
   if (job.errorCode !== "itinerary_conflict") {
     return null;

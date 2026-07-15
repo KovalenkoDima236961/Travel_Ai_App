@@ -50,6 +50,18 @@ type Config struct {
 	Ops                OpsConfig                `yaml:"ops"`
 	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
 	TripHealth         TripHealthConfig         `yaml:"trip_health"`
+	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
+}
+
+type AIValidationConfig struct {
+	Enabled                    bool `yaml:"enabled" env:"AI_VALIDATION_ENABLED" env-default:"true"`
+	RepairEnabled              bool `yaml:"repair_enabled" env:"AI_VALIDATION_REPAIR_ENABLED" env-default:"true"`
+	MaxRepairAttempts          int  `yaml:"max_repair_attempts" env:"AI_VALIDATION_MAX_REPAIR_ATTEMPTS" env-default:"2" validate:"min=0,max=5"`
+	BlockOnSchemaErrors        bool `yaml:"block_on_schema_errors" env:"AI_VALIDATION_BLOCK_ON_SCHEMA_ERRORS" env-default:"true"`
+	BlockOnPolicyBlockers      bool `yaml:"block_on_policy_blockers" env:"AI_VALIDATION_BLOCK_ON_POLICY_BLOCKERS" env-default:"true"`
+	BlockOnCriticalRouteErrors bool `yaml:"block_on_critical_route_errors" env:"AI_VALIDATION_BLOCK_ON_CRITICAL_ROUTE_ERRORS" env-default:"true"`
+	BlockOnBudgetErrors        bool `yaml:"block_on_budget_errors" env:"AI_VALIDATION_BLOCK_ON_BUDGET_ERRORS" env-default:"true"`
+	FailOpen                   bool `yaml:"fail_open" env:"AI_VALIDATION_FAIL_OPEN" env-default:"false"`
 }
 
 type TripHealthConfig struct {

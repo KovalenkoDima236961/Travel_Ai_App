@@ -28,6 +28,18 @@
     "optional": "Optional",
     "required": "Required"
   },
+  "generationQuality": {
+    "validated": "Validated",
+    "validatedWithWarnings": "Validated with warnings",
+    "repairedAndValidated": "Repaired and validated",
+    "repairedWithWarnings": "Repaired with warnings",
+    "repairFailed": "Repair failed",
+    "blockedByPolicy": "Blocked by policy",
+    "blockedByValidation": "Blocked by validation",
+    "schemaInvalid": "Schema invalid",
+    "aiOutputInvalid": "AI output invalid",
+    "reviewWarnings": "Review validation warnings"
+  },
   "transport": {
     "findTransport": "Find transport",
     "transportOptions": "Transport options",

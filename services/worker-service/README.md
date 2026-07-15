@@ -116,6 +116,12 @@ review. It does not mean the itinerary changed.
 For policy repair, a completed job means a pending repair proposal was stored
 for review. The worker never applies the repaired itinerary directly.
 
+Jobs that persist or apply itinerary output run through Trip Service AI
+Generation Reliability validation. When a version is saved, the worker copies
+the latest itinerary version `metadata.generationQuality` into the completed
+job `resultPayload.generationQuality`, and Trip Service exposes the same object
+as a direct `generationQuality` field on job responses.
+
 ## Idempotency And Retries
 
 ```mermaid

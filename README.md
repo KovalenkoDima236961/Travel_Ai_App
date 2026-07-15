@@ -38,6 +38,13 @@ budget, availability, collaboration, checklist, reminders, accommodation,
 expenses, workspace policy, approval, and data-quality signals. The Web App
 surfaces the score in trip detail and refreshes it after related trip mutations.
 
+AI Generation Reliability & Repair Pipeline v1 validates AI-created itineraries
+before Trip Service persists them. Critical schema, route, selected-transport,
+budget, and workspace-policy issues block saves; repairable issues can be sent
+back to AI Planning Service for `/repair-generation-output`; and saved versions
+and generation jobs expose `generationQuality` for Web App badges and warning
+summaries.
+
 Real Transport Provider Integrations v1 adds route-leg transport search and
 selection. External Integrations Service exposes `/transport/search` with mock
 and route-estimate providers plus future provider configuration; Trip Service can
