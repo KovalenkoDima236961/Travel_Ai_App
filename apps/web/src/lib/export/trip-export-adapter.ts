@@ -295,8 +295,16 @@ function sanitizeRouteLeg(leg: TripRouteLeg): TripRouteLeg {
     estimatedDurationMinutes: leg.estimatedDurationMinutes ?? null,
     estimatedDistanceKm: leg.estimatedDistanceKm ?? null,
     estimatedCost: leg.estimatedCost ?? null,
+    selectedTransportOption: leg.selectedTransportOption
+      ? {
+          ...leg.selectedTransportOption,
+          selectedByUserId: null,
+          warnings: leg.selectedTransportOption.warnings ?? []
+        }
+      : null,
     notes: null,
-    providerMetadata: null
+    providerMetadata: null,
+    warnings: leg.warnings ?? []
   };
 }
 

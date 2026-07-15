@@ -3,7 +3,8 @@
 Next.js App Router frontend for the Travel AI App. The web app owns the browser
 experience for authentication, workspace planning, trip planning, itinerary
 editing, collaboration, notifications, exports, calendar sync controls, maps,
-weather, budgets, and ticket/activity availability checks.
+weather, budgets, route-leg transport search, and ticket/activity availability
+checks.
 
 ## Internationalization
 
@@ -59,7 +60,7 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
-| Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
+| Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, route-leg transport option search/compare/attach, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
 | Route alternatives | AI route alternatives panel with cards, comparison table, route-order preview, refinement controls, create-trip/apply dialogs, and route-poll creation. |
 | Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
 | Decisions | Trip detail has a Decisions section for polls, editable votes, item reactions, group preference summaries, and trip-linked discovery suggestion voting. |
@@ -69,7 +70,7 @@ notification streams, and calendar OAuth calls.
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization. |
 | Reminders | Private Reminders/Timeline panel with rule-based generation, manual reminders, filters, completion/disable actions, stale warnings, and notification preferences. |
-| Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
+| Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, selected transport estimates, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
 | Receipts | Receipt upload for private trip expenses, mock OCR review, authenticated image/PDF preview, create-expense-from-receipt, attach/delete receipt actions. |
 | AI repair | Workspace trip repair jobs, pending repair proposals, before/after itinerary diff preview, revision-safe apply/discard, and approval risk integration. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
@@ -79,7 +80,20 @@ notification streams, and calendar OAuth calls.
 | Notifications | Header bell, unread count, SSE stream, preferences, optional browser push. |
 | Calendar | Google Calendar connect/sync/disconnect controls through backend services. |
 | Export | Browser-generated PDF, CSV cost reports, and `.ics` downloads for private and public views. |
-| Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip companion cache, offline itinerary/checklist/reminder/expense/receipt-draft queue, sync status, and revision conflict recovery. |
+| Offline / PWA | Installable PWA manifest, app update banner, `/offline-trips`, IndexedDB trip companion cache including selected route transport details, offline itinerary/checklist/reminder/expense/receipt-draft queue, sync status, and revision conflict recovery. Transport search remains online-only. |
+
+## Route-Leg Transport Search
+
+Saved route legs can search provider-backed transport options through Trip
+Service and External Integrations Service. Editors can compare mode/operator,
+departure and arrival times, duration, transfers, price, confidence, and
+warnings, then attach one selected option to the route leg. The selection updates
+the route estimate and budget summary but never creates an expense or booking.
+
+Selected options are visible in private trip detail, public shares, PDF exports,
+and offline cached trips. Search and external booking/provider links are
+disabled when offline. Every selected option remains an estimate until the user
+verifies schedules, prices, and tickets outside the app.
 
 ## Trip Reminders
 

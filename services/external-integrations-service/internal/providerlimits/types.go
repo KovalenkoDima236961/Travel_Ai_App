@@ -9,6 +9,7 @@ const (
 	CategoryCalendar     = "calendar"
 	CategoryExchangeRate = "exchange_rate"
 	CategoryPrice        = "price"
+	CategoryTransport    = "transport_search"
 	CategoryAvailability = "availability"
 )
 
@@ -26,6 +27,7 @@ const (
 	OpExchangeRateLatest  = "exchange_rate_latest"
 	OpExchangeRateConvert = "exchange_rate_convert"
 	OpPriceEstimate       = "price_estimate"
+	OpTransportSearch     = "transport_search"
 	OpAvailabilitySearch  = "availability_search"
 )
 
@@ -42,6 +44,7 @@ var operationCategory = map[string]string{
 	OpExchangeRateLatest:  CategoryExchangeRate,
 	OpExchangeRateConvert: CategoryExchangeRate,
 	OpPriceEstimate:       CategoryPrice,
+	OpTransportSearch:     CategoryTransport,
 	OpAvailabilitySearch:  CategoryAvailability,
 }
 
@@ -54,6 +57,7 @@ var categoryOperations = map[string][]string{
 	CategoryCalendar:     {OpCalendarEventCreate, OpCalendarEventUpdate, OpCalendarEventDelete, OpCalendarSync},
 	CategoryExchangeRate: {OpExchangeRateLatest, OpExchangeRateConvert},
 	CategoryPrice:        {OpPriceEstimate},
+	CategoryTransport:    {OpTransportSearch},
 	CategoryAvailability: {OpAvailabilitySearch},
 }
 

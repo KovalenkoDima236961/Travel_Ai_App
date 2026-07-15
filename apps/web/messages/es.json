@@ -8,6 +8,23 @@
     "clear": "Limpiar", "yes": "Sí", "no": "No", "enabled": "Activado",
     "disabled": "Desactivado", "optional": "Opcional", "required": "Obligatorio"
   },
+  "transport": {
+    "findTransport": "Buscar transporte", "transportOptions": "Opciones de transporte",
+    "selectedTransport": "Transporte seleccionado", "useThisOption": "Usar esta opción",
+    "changeOption": "Cambiar opción", "removeOption": "Quitar opción",
+    "train": "Tren", "bus": "Autobús", "flight": "Vuelo", "ferry": "Ferri",
+    "car": "Coche", "rentalCar": "Coche de alquiler", "publicTransport": "Transporte público",
+    "walk": "Caminar", "bike": "Bicicleta", "hiking": "Senderismo",
+    "operator": "Operador", "departure": "Salida", "arrival": "Llegada",
+    "duration": "Duración", "transfers": "Transbordos", "estimatedPrice": "Precio estimado",
+    "confidence": "Confianza", "lowConfidence": "Confianza baja",
+    "mediumConfidence": "Confianza media", "highConfidence": "Confianza alta",
+    "verifyScheduleBeforeBooking": "Verifica el horario antes de reservar",
+    "doesNotBook": "Esto no reserva nada", "requiresInternet": "Esta acción requiere internet",
+    "noOptionsFound": "No se encontraron opciones de transporte", "cheapest": "Más barato",
+    "fastest": "Más rápido", "recommended": "Recomendado",
+    "fewestTransfers": "Menos transbordos"
+  },
   "navigation": {
     "trips": "Viajes", "templates": "Plantillas", "workspaces": "Espacios de trabajo",
     "settings": "Ajustes", "notifications": "Notificaciones", "offlineTrips": "Viajes sin conexión",

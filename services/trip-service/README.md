@@ -252,7 +252,8 @@ available; new discovery/generation/adaptation requests may override with
 
 - `constraints`: schema version 1, source, scope, profile, budget, dates,
   travelers, pace/walking, transport, styles, accommodation, food,
-  accessibility, route, workspace policy, previous-trip signals, prompt,
+  accessibility, route, selected transport windows, workspace policy,
+  previous-trip signals, prompt,
   warnings, and blockers.
 - `summary`: localized-ish display strings/counts for UI preview.
 - `warnings` and `blockers`: flattened issue lists with suggested actions.
@@ -393,7 +394,8 @@ single_destination` with `route_json = null`, while route trips store a nullable
 - `stops`: 1-20 ordered stops with `id`, `destination`, optional city/country,
   arrival/departure dates, nights, coordinates, accommodation hint, and notes.
 - `legs`: optional transfer legs joining `origin` or stop IDs with a transport
-  mode, date, duration/distance estimates, and an estimated transport cost.
+  mode, date, duration/distance estimates, an estimated transport cost, and an
+  optional `selectedTransportOption`.
 - `preferences`: preferred/avoided modes, car availability, max transfer hours
   per day, and trip styles.
 
@@ -410,12 +412,24 @@ Create accepts either a normal `destination` or `{ tripType:
 
 - `GET /trips/{id}/route`
 - `PUT /trips/{id}/route` with `{ expectedItineraryRevision, route }`
+- `POST /trips/{id}/route/legs/{legId}/transport/search`
+- `PUT /trips/{id}/route/legs/{legId}/transport-option`
+- `DELETE /trips/{id}/route/legs/{legId}/transport-option`
 
 Viewers can read the route; owners/editors can update it. Updating a route after
 an itinerary exists requires the current itinerary revision, records
 `route_updated`, and resets an approved workspace trip back to draft. Route
 updates do not rewrite the itinerary automatically; editors should regenerate
 affected days or a full itinerary when needed.
+
+Transport search calls External Integrations Service `/transport/search` with
+the route leg's resolved origin/destination, date, modes, travelers, currency,
+and constraints. Search is fail-open by default: provider outages return an
+empty option list with a warning, while strict mode preserves provider rate-limit
+and quota errors. Attaching an option stores provider, operator/service, times,
+duration, price, confidence, status, booking/provider URLs, baggage/accessibility
+notes, warnings, selected timestamp, and selecting user ID on the route leg.
+Public shares remove selecting user ID and private route notes/provider metadata.
 
 Itinerary JSON now accepts transfer days/items. Days may include
 `primaryStopId`, `locationName`, and `transferDay`. A transfer item uses
@@ -424,12 +438,17 @@ estimatedDurationMinutes, estimatedDistanceKm, estimatedCost, bookingRequired,
 notes, warnings }`; `estimatedCost.category = "transport"` is accepted.
 
 Budget summaries, cost analytics, and cost splitting count transfer item costs
-from the itinerary. Route-leg costs are route-display/prefill data and are not
-counted separately, avoiding double counting when the transfer item mirrors a
-leg. Workspace policies can evaluate `maxTransferHoursPerDay` and
+from the itinerary. Selected route-leg transport prices are included in budget
+summaries when no matching itinerary transfer item already carries a transport
+cost, avoiding double counting when the transfer item mirrors a leg. Workspace
+policies can evaluate `maxTransferHoursPerDay` and
 `disallowedTransportModes`; approval risk scoring adds route factors such as
 too many stops, long transfers, missing estimates, high transport cost,
-hiking-day density, and missing camping accommodation hints.
+low-confidence/unverified selected options, missing provider options for
+scheduled legs, hiking-day density, and missing camping accommodation hints.
+Generated reminders include selected transport checks for tickets, baggage,
+ferry/weather review, car documents, offline maps, and route safety where
+applicable.
 
 Public shares include a sanitized route snapshot: origin/stops/legs, modes,
 durations, and costs, but no private stop notes, provider metadata, user IDs, or
@@ -1024,6 +1043,7 @@ repair.
 | `WEATHER_CONTEXT_*` | Optional weather context for AI prompts. |
 | `PLACE_ENRICHMENT_*`, `PRICE_ENRICHMENT_*` | Auto-enrichment after generation. |
 | `BUDGET_CONVERSION_*` | Exchange-rate conversion for budget summaries. |
+| `TRANSPORT_SEARCH_*` | Route-leg provider search client, fail-open behavior, internal token, and timeout. |
 | `PUBLIC_SHARING_*`, `PUBLIC_SHARE_ACCESS_*` | Public share link controls. |
 | `TRIP_PRESENCE_*`, `TRIP_ACTIVITY_STREAM_*`, `TRIP_EDIT_LOCK_*` | In-memory SSE/advisory collaboration features. |
 | `GENERATION_JOB_*`, `RABBITMQ_*` | Job queue, retry, DLQ, and worker behavior. |

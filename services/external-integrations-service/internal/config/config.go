@@ -25,6 +25,15 @@ const (
 	ExchangeRateProviderAPI               = "exchangerate_api"
 	PriceProviderMock                     = "mock"
 	PriceProviderAPI                      = "api"
+	TransportProviderMock                 = "mock"
+	TransportProviderRouteEstimate        = "route_estimate"
+	TransportProviderGTFSStatic           = "gtfs_static"
+	TransportProviderAmadeus              = "amadeus"
+	TransportProviderSkyscanner           = "skyscanner"
+	TransportProviderRome2Rio             = "rome2rio"
+	TransportProviderNationalRail         = "national_rail"
+	TransportProviderFerry                = "ferry_provider"
+	TransportProviderManual               = "manual"
 	AvailabilityProviderMock              = "mock"
 	AvailabilityProviderTicketmaster      = "ticketmaster"
 	AvailabilityProviderGetYourGuide      = "getyourguide"
@@ -55,6 +64,7 @@ type Config struct {
 	WeatherProvider      WeatherProviderConfig      `yaml:"weather_provider" validate:"required"`
 	ExchangeRateProvider ExchangeRateProviderConfig `yaml:"exchange_rate_provider" validate:"required"`
 	PriceProvider        PriceProviderConfig        `yaml:"price_provider" validate:"required"`
+	TransportProvider    TransportProviderConfig    `yaml:"transport_provider" validate:"required"`
 	Availability         AvailabilityConfig         `yaml:"availability" validate:"required"`
 	Calendar             CalendarConfig             `yaml:"calendar" validate:"required"`
 	Ops                  OpsConfig                  `yaml:"ops"`
@@ -158,6 +168,26 @@ type PriceProviderConfig struct {
 	DefaultCurrency string `yaml:"default_currency" env:"PRICE_ENRICHMENT_DEFAULT_CURRENCY" env-default:"EUR"`
 	BaseURL         string `yaml:"base_url" env:"PRICE_API_BASE_URL"`
 	APIKey          string `yaml:"api_key" env:"PRICE_API_KEY"`
+}
+
+// TransportProviderConfig selects the transport-search provider adapter. Mock
+// is the v1 default; real API fields are intentionally placeholders until the
+// provider adapters are implemented.
+type TransportProviderConfig struct {
+	Provider          string `yaml:"provider" env:"TRANSPORT_PROVIDER" env-default:"mock"`
+	FallbackToMock    bool   `yaml:"fallback_to_mock" env:"TRANSPORT_PROVIDER_FALLBACK_TO_MOCK" env-default:"true"`
+	TimeoutSeconds    int    `yaml:"timeout_seconds" env:"TRANSPORT_PROVIDER_TIMEOUT_SECONDS" env-default:"8"`
+	CacheEnabled      bool   `yaml:"cache_enabled" env:"TRANSPORT_CACHE_ENABLED" env-default:"true"`
+	CacheTTLSeconds   int    `yaml:"cache_ttl_seconds" env:"TRANSPORT_CACHE_TTL_SECONDS" env-default:"3600"`
+	MaxOptionsPerMode int    `yaml:"max_options_per_mode" env:"TRANSPORT_MAX_OPTIONS_PER_MODE" env-default:"5"`
+	DefaultCurrency   string `yaml:"default_currency" env:"TRANSPORT_DEFAULT_CURRENCY" env-default:"EUR"`
+
+	AmadeusAPIKey       string `yaml:"amadeus_api_key" env:"AMADEUS_API_KEY"`
+	SkyscannerAPIKey    string `yaml:"skyscanner_api_key" env:"SKYSCANNER_API_KEY"`
+	Rome2RioAPIKey      string `yaml:"rome2rio_api_key" env:"ROME2RIO_API_KEY"`
+	GTFSStaticFeedsDir  string `yaml:"gtfs_static_feeds_dir" env:"GTFS_STATIC_FEEDS_DIR"`
+	NationalRailAPIKey  string `yaml:"national_rail_api_key" env:"NATIONAL_RAIL_API_KEY"`
+	FerryProviderAPIKey string `yaml:"ferry_provider_api_key" env:"FERRY_PROVIDER_API_KEY"`
 }
 
 // AvailabilityConfig selects the external availability provider adapter. Mock is
@@ -268,6 +298,10 @@ type ProviderLimitsConfig struct {
 	PriceRatePerMinute int   `yaml:"price_rate_per_minute" env:"PRICE_PROVIDER_RATE_LIMIT_PER_MINUTE" env-default:"60"`
 	PriceBurst         int   `yaml:"price_burst" env:"PRICE_PROVIDER_RATE_LIMIT_BURST" env-default:"10"`
 	PriceDailyQuota    int64 `yaml:"price_daily_quota" env:"PRICE_PROVIDER_DAILY_QUOTA" env-default:"1000"`
+
+	TransportRatePerMinute int   `yaml:"transport_rate_per_minute" env:"TRANSPORT_SEARCH_RATE_LIMIT_PER_MINUTE" env-default:"60"`
+	TransportBurst         int   `yaml:"transport_burst" env:"TRANSPORT_SEARCH_RATE_LIMIT_BURST" env-default:"10"`
+	TransportDailyQuota    int64 `yaml:"transport_daily_quota" env:"TRANSPORT_SEARCH_DAILY_QUOTA" env-default:"1000"`
 
 	AvailabilityRatePerMinute int   `yaml:"availability_rate_per_minute" env:"AVAILABILITY_RATE_LIMIT_PER_MINUTE" env-default:"30"`
 	AvailabilityBurst         int   `yaml:"availability_burst" env:"AVAILABILITY_RATE_LIMIT_BURST" env-default:"5"`
@@ -422,6 +456,33 @@ func Load(path string) (*Config, error) {
 	}
 	cfg.PriceProvider.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.PriceProvider.BaseURL), "/")
 	cfg.PriceProvider.APIKey = strings.TrimSpace(cfg.PriceProvider.APIKey)
+
+	cfg.TransportProvider.Provider = strings.ToLower(strings.TrimSpace(cfg.TransportProvider.Provider))
+	if cfg.TransportProvider.Provider == "" {
+		cfg.TransportProvider.Provider = TransportProviderMock
+	}
+	if cfg.TransportProvider.TimeoutSeconds <= 0 {
+		cfg.TransportProvider.TimeoutSeconds = 8
+	}
+	if cfg.TransportProvider.CacheTTLSeconds <= 0 {
+		cfg.TransportProvider.CacheTTLSeconds = 3600
+	}
+	if cfg.TransportProvider.MaxOptionsPerMode <= 0 {
+		cfg.TransportProvider.MaxOptionsPerMode = 5
+	}
+	if cfg.TransportProvider.MaxOptionsPerMode > 5 {
+		cfg.TransportProvider.MaxOptionsPerMode = 5
+	}
+	cfg.TransportProvider.DefaultCurrency = strings.ToUpper(strings.TrimSpace(cfg.TransportProvider.DefaultCurrency))
+	if cfg.TransportProvider.DefaultCurrency == "" {
+		cfg.TransportProvider.DefaultCurrency = "EUR"
+	}
+	cfg.TransportProvider.AmadeusAPIKey = strings.TrimSpace(cfg.TransportProvider.AmadeusAPIKey)
+	cfg.TransportProvider.SkyscannerAPIKey = strings.TrimSpace(cfg.TransportProvider.SkyscannerAPIKey)
+	cfg.TransportProvider.Rome2RioAPIKey = strings.TrimSpace(cfg.TransportProvider.Rome2RioAPIKey)
+	cfg.TransportProvider.GTFSStaticFeedsDir = strings.TrimSpace(cfg.TransportProvider.GTFSStaticFeedsDir)
+	cfg.TransportProvider.NationalRailAPIKey = strings.TrimSpace(cfg.TransportProvider.NationalRailAPIKey)
+	cfg.TransportProvider.FerryProviderAPIKey = strings.TrimSpace(cfg.TransportProvider.FerryProviderAPIKey)
 
 	cfg.Availability.Provider = strings.ToLower(strings.TrimSpace(cfg.Availability.Provider))
 	if cfg.Availability.Provider == "" {
@@ -627,6 +688,20 @@ func (c *Config) validateProviders() error {
 		return fmt.Errorf("PRICE_PROVIDER must be mock or api")
 	}
 
+	switch c.TransportProvider.Provider {
+	case TransportProviderMock,
+		TransportProviderRouteEstimate,
+		TransportProviderGTFSStatic,
+		TransportProviderAmadeus,
+		TransportProviderSkyscanner,
+		TransportProviderRome2Rio,
+		TransportProviderNationalRail,
+		TransportProviderFerry,
+		TransportProviderManual:
+	default:
+		return fmt.Errorf("TRANSPORT_PROVIDER must be mock, route_estimate, gtfs_static, amadeus, skyscanner, rome2rio, national_rail, ferry_provider, or manual")
+	}
+
 	if c.Availability.Enabled {
 		switch c.Availability.Provider {
 		case AvailabilityProviderMock:
@@ -747,6 +822,7 @@ func (c *Config) validateProviderLimits() error {
 		{"GOOGLE_CALENDAR", pl.GoogleCalendarRatePerMinute, pl.GoogleCalendarBurst, pl.GoogleCalendarDailyQuota},
 		{"EXCHANGE_RATE", pl.ExchangeRateRatePerMinute, pl.ExchangeRateBurst, pl.ExchangeRateDailyQuota},
 		{"PRICE_PROVIDER", pl.PriceRatePerMinute, pl.PriceBurst, pl.PriceDailyQuota},
+		{"TRANSPORT_SEARCH", pl.TransportRatePerMinute, pl.TransportBurst, pl.TransportDailyQuota},
 		{"AVAILABILITY", pl.AvailabilityRatePerMinute, pl.AvailabilityBurst, pl.AvailabilityDailyQuota},
 	}
 	for _, check := range checks {

@@ -32,6 +32,12 @@ Worker Service polls a protected Trip Service endpoint for due reminders, and
 Notification Service sends in-app/email/push notifications through existing
 preferences.
 
+Real Transport Provider Integrations v1 adds route-leg transport search and
+selection. External Integrations Service exposes `/transport/search` with mock
+and route-estimate providers plus future provider configuration; Trip Service can
+attach selected transport options to route JSON; and the Web App can compare and
+store options without booking or payment.
+
 ## System Map
 
 ```mermaid
@@ -84,7 +90,7 @@ flowchart LR
 | Auth | [services/auth-service](services/auth-service/README.md) | `8082` | Email/password auth, JWT access tokens, refresh-token rotation, internal user lookup. |
 | Trips | [services/trip-service](services/trip-service/README.md) | `8080` | Personal/workspace trip ownership, collaborators, itinerary revisions, jobs, budgets, checklists, reminders, comments, shares, activity. |
 | Users | [services/user-service](services/user-service/README.md) | `8083` | Travel profile, preferences, workspace membership, and invitations scoped by Auth JWT `sub`. |
-| External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, weather, exchange rates, price estimates, Google Calendar integration boundary. Central per-provider rate-limit and daily-quota enforcement (Provider Quota & Rate-Limit Management v1). |
+| External integrations | [services/external-integrations-service](services/external-integrations-service/README.md) | `8084` | Places, routes, route-leg transport search, weather, exchange rates, price estimates, Google Calendar integration boundary. Central per-provider rate-limit and daily-quota enforcement (Provider Quota & Rate-Limit Management v1). |
 | Notifications | [services/notification-service](services/notification-service/README.md) | `8086` | In-app notifications, SSE, preferences, optional email and browser push. |
 | Worker | [services/worker-service](services/worker-service/README.md) | `8090` | RabbitMQ consumer for slow generation and budget optimization jobs. |
 | AI planning | [services/ai-planning-service](services/ai-planning-service/README.md) | `8000` | Itinerary generation, packing checklist generation, regeneration, budget proposals, destination context, local RAG. |
@@ -130,6 +136,10 @@ Key product capabilities:
 - Smart Trip Constraints & Preference Engine v1: preview the AI planning
   context, detect warnings/blockers such as disallowed flights or unrealistic
   route density, and pass one normalized constraints object through AI flows.
+- Real Transport Provider Integrations v1: search train/bus/flight/ferry/car
+  style options for route legs, attach selected options, feed estimated costs
+  into budgets and reminders, keep selected details offline, and never claim a
+  booking was made.
 - Collaborative Trip Decision & Voting v1: owners/editors can create and manage
   trip polls; owners, editors, and accepted viewers can vote/react; group
   preferences guide regeneration, repair, budget optimization, discovery, and

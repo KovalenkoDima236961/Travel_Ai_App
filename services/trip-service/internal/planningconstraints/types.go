@@ -76,6 +76,7 @@ type PlanningConstraints struct {
 	Accessibility       Accessibility        `json:"accessibility"`
 	Food                Food                 `json:"food"`
 	Route               *Route               `json:"route,omitempty"`
+	TransportSelections []TransportSelection `json:"transportSelections,omitempty"`
 	WorkspacePolicy     *WorkspacePolicy     `json:"workspacePolicy,omitempty"`
 	GroupPreferences    *GroupPreferences    `json:"groupPreferences,omitempty"`
 	GroupAvailability   *GroupAvailability   `json:"groupAvailability,omitempty"`
@@ -147,6 +148,22 @@ type Route struct {
 	Legs           []aggregate.RouteLeg       `json:"legs"`
 	ReturnToOrigin bool                       `json:"returnToOrigin"`
 	Preferences    aggregate.RoutePreferences `json:"preferences"`
+}
+
+type TransportSelection struct {
+	RouteLegID      string                    `json:"routeLegId"`
+	Mode            string                    `json:"mode"`
+	Provider        string                    `json:"provider,omitempty"`
+	OperatorName    string                    `json:"operatorName,omitempty"`
+	ServiceName     string                    `json:"serviceName,omitempty"`
+	DepartureDate   string                    `json:"departureDate,omitempty"`
+	DepartureTime   string                    `json:"departureTime,omitempty"`
+	ArrivalDate     string                    `json:"arrivalDate,omitempty"`
+	ArrivalTime     string                    `json:"arrivalTime,omitempty"`
+	DurationMinutes int                       `json:"durationMinutes,omitempty"`
+	EstimatedPrice  *aggregate.TransportMoney `json:"estimatedPrice,omitempty"`
+	Status          string                    `json:"status,omitempty"`
+	Confidence      string                    `json:"confidence,omitempty"`
 }
 
 type WorkspacePolicy struct {

@@ -89,6 +89,7 @@ func (s *Service) tripCostAnalyticsForTrip(
 		Currency:      targetCurrency,
 		Days:          int(trip.Days),
 		Accommodation: trip.Accommodation,
+		Route:         trip.Route,
 	}, itinerary, s.budgetConversionProvider, budget.ConversionOptions{
 		Enabled:  s.budgetConversionEnabled,
 		FailOpen: s.budgetConversionFailOpen,
@@ -100,6 +101,7 @@ func (s *Service) tripCostAnalyticsForTrip(
 				Currency:      targetCurrency,
 				Days:          int(trip.Days),
 				Accommodation: trip.Accommodation,
+				Route:         trip.Route,
 			}, itinerary)
 		} else {
 			return analytics.TripCostAnalytics{}, apperrs.ErrBudgetConversionFailed
@@ -126,6 +128,7 @@ func (s *Service) tripCostAnalyticsForTrip(
 					Currency:      targetCurrency,
 					Days:          int(trip.Days),
 					Accommodation: trip.Accommodation,
+					Route:         trip.Route,
 				}, itinerary),
 				Currency:           targetCurrency,
 				GeneratedAt:        generatedAt,

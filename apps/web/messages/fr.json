@@ -8,6 +8,23 @@
     "clear": "Effacer", "yes": "Oui", "no": "Non", "enabled": "Activé",
     "disabled": "Désactivé", "optional": "Facultatif", "required": "Obligatoire"
   },
+  "transport": {
+    "findTransport": "Rechercher un transport", "transportOptions": "Options de transport",
+    "selectedTransport": "Transport sélectionné", "useThisOption": "Utiliser cette option",
+    "changeOption": "Changer d’option", "removeOption": "Supprimer l’option",
+    "train": "Train", "bus": "Bus", "flight": "Vol", "ferry": "Ferry",
+    "car": "Voiture", "rentalCar": "Voiture de location", "publicTransport": "Transport public",
+    "walk": "Marche", "bike": "Vélo", "hiking": "Randonnée",
+    "operator": "Opérateur", "departure": "Départ", "arrival": "Arrivée",
+    "duration": "Durée", "transfers": "Correspondances", "estimatedPrice": "Prix estimé",
+    "confidence": "Confiance", "lowConfidence": "Confiance faible",
+    "mediumConfidence": "Confiance moyenne", "highConfidence": "Confiance élevée",
+    "verifyScheduleBeforeBooking": "Vérifiez l’horaire avant de réserver",
+    "doesNotBook": "Cela ne réserve rien", "requiresInternet": "Cette action nécessite internet",
+    "noOptionsFound": "Aucune option de transport trouvée", "cheapest": "Moins cher",
+    "fastest": "Plus rapide", "recommended": "Recommandé",
+    "fewestTransfers": "Moins de correspondances"
+  },
   "navigation": {
     "trips": "Voyages", "templates": "Modèles", "workspaces": "Espaces de travail",
     "settings": "Paramètres", "notifications": "Notifications", "offlineTrips": "Voyages hors ligne",

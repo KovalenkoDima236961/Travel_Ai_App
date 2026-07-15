@@ -65,6 +65,72 @@ func (r UpdateTripRoute) ToInput() appdto.UpdateTripRouteInput {
 	}
 }
 
+type TransportSearchConstraints struct {
+	MaxDurationMinutes *int     `json:"maxDurationMinutes"`
+	MaxPriceAmount     *float64 `json:"maxPriceAmount"`
+	AvoidFlights       bool     `json:"avoidFlights"`
+	PreferredModes     []string `json:"preferredModes"`
+	AccessibilityNotes *string  `json:"accessibilityNotes"`
+}
+
+type SearchRouteLegTransport struct {
+	Date           string                     `json:"date"`
+	Time           string                     `json:"time"`
+	TimePreference string                     `json:"timePreference"`
+	Modes          []string                   `json:"modes"`
+	Travelers      int                        `json:"travelers"`
+	Currency       string                     `json:"currency"`
+	Constraints    TransportSearchConstraints `json:"constraints"`
+}
+
+func (r SearchRouteLegTransport) ToInput() appdto.SearchRouteLegTransportInput {
+	return appdto.SearchRouteLegTransportInput{
+		Date:           r.Date,
+		Time:           r.Time,
+		TimePreference: r.TimePreference,
+		Modes:          r.Modes,
+		Travelers:      r.Travelers,
+		Currency:       r.Currency,
+		Constraints: appdto.TransportSearchConstraintsInput{
+			MaxDurationMinutes: r.Constraints.MaxDurationMinutes,
+			MaxPriceAmount:     r.Constraints.MaxPriceAmount,
+			AvoidFlights:       r.Constraints.AvoidFlights,
+			PreferredModes:     r.Constraints.PreferredModes,
+			AccessibilityNotes: r.Constraints.AccessibilityNotes,
+		},
+	}
+}
+
+type AttachRouteLegTransportOption struct {
+	ExpectedItineraryRevision *int                              `json:"expectedItineraryRevision"`
+	Option                    aggregate.SelectedTransportOption `json:"option"`
+	UpdateLegMode             *bool                             `json:"updateLegMode"`
+}
+
+func (r AttachRouteLegTransportOption) ToInput() appdto.AttachRouteLegTransportOptionInput {
+	updateLegMode := true
+	if r.UpdateLegMode != nil {
+		updateLegMode = *r.UpdateLegMode
+	}
+	return appdto.AttachRouteLegTransportOptionInput{
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+		Option:                    r.Option,
+		UpdateLegMode:             updateLegMode,
+	}
+}
+
+type RemoveRouteLegTransportOption struct {
+	ExpectedItineraryRevision *int `json:"expectedItineraryRevision"`
+	ResetLegMode              bool `json:"resetLegMode"`
+}
+
+func (r RemoveRouteLegTransportOption) ToInput() appdto.RemoveRouteLegTransportOptionInput {
+	return appdto.RemoveRouteLegTransportOptionInput{
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+		ResetLegMode:              r.ResetLegMode,
+	}
+}
+
 // UpdateTripItinerary is the JSON body accepted by PUT /trips/{id}/itinerary.
 type UpdateTripItinerary struct {
 	Itinerary                 json.RawMessage `json:"itinerary"`

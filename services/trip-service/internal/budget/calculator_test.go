@@ -152,6 +152,89 @@ func TestCalculateBudgetSummary_NoTripBudget(t *testing.T) {
 	}
 }
 
+func TestCalculateBudgetSummary_IncludesSelectedRouteTransport(t *testing.T) {
+	trip := TripBudget{
+		Currency: "EUR",
+		Days:     1,
+		Route: &aggregate.TripRoute{
+			Legs: []aggregate.RouteLeg{
+				{
+					ID:            "leg_1",
+					EstimatedCost: cost(50, "EUR", CategoryTransport),
+					SelectedTransportOption: &aggregate.SelectedTransportOption{
+						ID:         "mock-train-1",
+						Mode:       aggregate.TransportModeTrain,
+						Provider:   "mock",
+						Confidence: ConfidenceMedium,
+						EstimatedPrice: &aggregate.TransportMoney{
+							Amount:   14,
+							Currency: "EUR",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	summary := CalculateBudgetSummary(trip, aggregate.Itinerary{Currency: "EUR"})
+	if summary.EstimatedTotal != 14 {
+		t.Fatalf("expected selected option cost to replace leg estimate, got %v", summary.EstimatedTotal)
+	}
+	if amountByCategory(summary.ByCategory, CategoryTransport) != 14 {
+		t.Fatalf("expected transport category total 14, got %+v", summary.ByCategory)
+	}
+}
+
+func TestCalculateBudgetSummary_SkipsSelectedRouteTransportWhenTransferItemHasSameLegCost(t *testing.T) {
+	trip := TripBudget{
+		Currency: "EUR",
+		Days:     1,
+		Route: &aggregate.TripRoute{
+			Legs: []aggregate.RouteLeg{
+				{
+					ID: "leg_1",
+					SelectedTransportOption: &aggregate.SelectedTransportOption{
+						ID:         "mock-train-1",
+						Mode:       aggregate.TransportModeTrain,
+						Provider:   "mock",
+						Confidence: ConfidenceMedium,
+						EstimatedPrice: &aggregate.TransportMoney{
+							Amount:   14,
+							Currency: "EUR",
+						},
+					},
+				},
+			},
+		},
+	}
+	itinerary := aggregate.Itinerary{
+		Currency: "EUR",
+		Days: []aggregate.ItineraryDay{
+			{
+				Day:   1,
+				Title: "Transfer",
+				Items: []aggregate.ItineraryItem{
+					{
+						Time:          "09:00",
+						Type:          "transfer",
+						Name:          "Train to Vienna",
+						EstimatedCost: cost(20, "EUR", CategoryTransport),
+						Transfer:      &aggregate.TransferDetails{LegID: "leg_1"},
+					},
+				},
+			},
+		},
+	}
+
+	summary := CalculateBudgetSummary(trip, itinerary)
+	if summary.EstimatedTotal != 20 {
+		t.Fatalf("expected itinerary transfer cost only, got %v", summary.EstimatedTotal)
+	}
+	if amountByCategory(summary.ByCategory, CategoryTransport) != 20 {
+		t.Fatalf("expected transport category total 20, got %+v", summary.ByCategory)
+	}
+}
+
 func TestCalculateBudgetSummary_UnsupportedCurrency(t *testing.T) {
 	itinerary := aggregate.Itinerary{
 		Days: []aggregate.ItineraryDay{{

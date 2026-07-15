@@ -2,6 +2,7 @@ package planningconstraints
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -71,8 +72,12 @@ func Build(input BuildInput) PlanningConstraints {
 	if b := budget(input); b != nil {
 		constraints.Budget = b
 	}
-	if route := route(input); route != nil && input.IncludeRoute {
-		constraints.Route = route
+	routeSnapshot := route(input)
+	if routeSnapshot != nil && input.IncludeRoute {
+		constraints.Route = routeSnapshot
+	}
+	if selections := transportSelections(routeSnapshot); len(selections) > 0 {
+		constraints.TransportSelections = selections
 	}
 	if policy := workspacePolicy(input.WorkspacePolicy); policy != nil {
 		constraints.WorkspacePolicy = policy
@@ -113,6 +118,14 @@ func SummaryFor(c PlanningConstraints) Summary {
 		}
 		transportSummary = strings.Join(parts, "; ")
 	}
+	if len(c.TransportSelections) > 0 {
+		transportSummary = strings.TrimSpace(transportSummary)
+		if transportSummary == "" || transportSummary == "No transport preference" {
+			transportSummary = formatSelectedTransportCount(len(c.TransportSelections))
+		} else {
+			transportSummary += "; " + formatSelectedTransportCount(len(c.TransportSelections))
+		}
+	}
 	return Summary{
 		Language:             languageName(c.Language),
 		Budget:               budget,
@@ -151,6 +164,9 @@ func ToAIContext(c *PlanningConstraints) *AIContext {
 	if c.GroupAvailability != nil && c.GroupAvailability.SelectedDateOption != nil {
 		selected := c.GroupAvailability.SelectedDateOption
 		parts = append(parts, "Group dates: "+selected.StartDate+" to "+selected.EndDate)
+	}
+	if len(c.TransportSelections) > 0 {
+		parts = append(parts, "Selected transport: "+formatSelectedTransportCount(len(c.TransportSelections))+"; plan around departure and arrival times and do not imply booking is confirmed unless status proves it.")
 	}
 	return &AIContext{
 		PlanningConstraints: c,
@@ -477,6 +493,49 @@ func route(input BuildInput) *Route {
 		ReturnToOrigin: clean.ReturnToOrigin,
 		Preferences:    clean.Preferences,
 	}
+}
+
+func transportSelections(route *Route) []TransportSelection {
+	if route == nil {
+		return nil
+	}
+	out := make([]TransportSelection, 0, len(route.Legs))
+	for _, leg := range route.Legs {
+		if leg.SelectedTransportOption == nil {
+			continue
+		}
+		option := leg.SelectedTransportOption
+		selection := TransportSelection{
+			RouteLegID:      leg.ID,
+			Mode:            option.Mode,
+			Provider:        option.Provider,
+			OperatorName:    option.OperatorName,
+			ServiceName:     option.ServiceName,
+			DepartureDate:   option.DepartureDate,
+			DepartureTime:   option.DepartureTime,
+			ArrivalDate:     option.ArrivalDate,
+			ArrivalTime:     option.ArrivalTime,
+			DurationMinutes: option.DurationMinutes,
+			Status:          option.Status,
+			Confidence:      option.Confidence,
+		}
+		if option.EstimatedPrice != nil {
+			price := *option.EstimatedPrice
+			selection.EstimatedPrice = &price
+		}
+		out = append(out, selection)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func formatSelectedTransportCount(count int) string {
+	if count == 1 {
+		return "1 selected route leg"
+	}
+	return fmt.Sprintf("%d selected route legs", count)
 }
 
 func workspacePolicy(policy *workspacepolicies.Policy) *WorkspacePolicy {

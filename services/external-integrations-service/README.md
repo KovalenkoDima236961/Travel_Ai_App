@@ -1,9 +1,9 @@
 # External Integrations Service
 
 Go service that isolates third-party integration boundaries from the Web App and
-Trip Service. It exposes stable application APIs for places, routes, weather,
-exchange rates, attraction/ticket price estimates, availability checks, and
-Google Calendar sync.
+Trip Service. It exposes stable application APIs for places, routes, transport,
+weather, exchange rates, attraction/ticket price estimates, availability checks,
+and Google Calendar sync.
 
 Mock providers are the local default. Real providers are opt-in and keep API
 keys server-side.
@@ -17,6 +17,7 @@ flowchart LR
 
     API --> Places["Place provider port"]
     API --> Routes["Route provider port"]
+    API --> Transport["Transport provider port"]
     API --> Weather["Weather provider port"]
     API --> Rates["Exchange-rate provider port"]
     API --> Prices["Price provider port"]
@@ -27,6 +28,7 @@ flowchart LR
     Places --> Foursquare["Foursquare"]
     Routes --> RouteMock["mock"]
     Routes --> ORS["OpenRouteService"]
+    Transport --> TransportMock["mock / route_estimate"]
     Weather --> WeatherMock["mock"]
     Weather --> OWM["OpenWeatherMap"]
     Rates --> RatesMock["mock"]
@@ -72,6 +74,7 @@ Google Calendar directly.
 | `GET` | `/exchange-rates/latest?base=` | none v1 | Latest deterministic/real rate table. |
 | `GET` | `/exchange-rates/convert?amount=&from=&to=` | none v1 | Currency conversion. |
 | `POST` | `/prices/estimate` | `X-Internal-Service-Token` | Internal attraction/ticket estimate. |
+| `POST` | `/transport/search` | `X-Internal-Service-Token` | Internal route-leg transport options. |
 | `POST` | `/availability/search` | bearer access token | User-triggered ticket/activity availability search. |
 | `GET` | `/calendar/google/status` | bearer access token | Connected calendar account status. |
 | `POST` | `/calendar/google/connect` | bearer access token | Start OAuth flow. |
@@ -93,12 +96,32 @@ Google Calendar directly.
 | Weather | `WEATHER_PROVIDER=mock` | `openweathermap` | `WEATHER_PROVIDER_FALLBACK_TO_MOCK` |
 | Exchange rates | `EXCHANGE_RATE_PROVIDER=mock` | reserved future adapters | `EXCHANGE_RATE_PROVIDER_FALLBACK_TO_MOCK` |
 | Prices | `PRICE_PROVIDER=mock` | reserved future API adapter | `PRICE_PROVIDER_FALLBACK_TO_MOCK` |
+| Transport search | `TRANSPORT_PROVIDER=mock` | `route_estimate`; placeholders for `gtfs_static`, `amadeus`, `skyscanner`, `rome2rio`, `national_rail`, `ferry_provider` | `TRANSPORT_PROVIDER_FALLBACK_TO_MOCK` |
 | Availability | `AVAILABILITY_PROVIDER=mock` | `ticketmaster` (real); `getyourguide`, `viator`, `tiqets` placeholders | `AVAILABILITY_FALLBACK_TO_MOCK` |
 | Calendar | `CALENDAR_PROVIDER=mock` | `google` | none; validate config |
 
 Unsupported provider names fail startup. When fallback is enabled, missing keys
 or provider failures return mock data with `fallbackUsed: true` where the
 response shape supports it.
+
+### Transport search
+
+`POST /transport/search` accepts an origin, destination, date, optional time,
+mode list, traveler count, currency, and constraints. It returns normalized
+`options[]` with `mode`, `provider`, departure/arrival fields, duration,
+transfers, price or price range, confidence, status, booking/provider URLs when
+available, warnings, and a `summary`.
+
+The default `mock` provider is deterministic and intentionally marked
+low/medium confidence with warnings. `route_estimate` adapts the route estimator
+for car, rental car, walk, bike, hiking, and public transport when coordinates
+are available; other modes fall back to mock when fallback is enabled. Real
+provider names are accepted as placeholders so environments can reserve
+configuration now, but until adapters are implemented they either fall back to
+mock or return `transport_provider_unavailable`.
+
+Provider results are planning data, not booking guarantees. Clients must keep
+booking and verification language explicit, especially for mock/fallback data.
 
 ### Route estimates
 
@@ -304,6 +327,7 @@ prices.
 | `INTERNAL_SERVICE_TOKEN` | Protects internal price and calendar event routes. |
 | `PLACE_PROVIDER`, `FOURSQUARE_API_KEY` | Place provider selection and key. |
 | `ROUTE_PROVIDER`, `ORS_API_KEY` | Route provider selection and key. |
+| `TRANSPORT_PROVIDER`, `TRANSPORT_*` | Route-leg transport search provider, cache, fallback, placeholder API keys, and limits. |
 | `WEATHER_PROVIDER`, `OPENWEATHER_API_KEY` | Weather provider selection and key. |
 | `EXCHANGE_RATE_*`, `PRICE_*` | Currency and attraction price settings. |
 | `AVAILABILITY_*`, `TICKETMASTER_*`, `GETYOURGUIDE_*`, `VIATOR_*`, `TIQETS_*` | Availability provider selection, matching thresholds, cache, fallback, the real Ticketmaster adapter, and reserved real-provider settings. |
@@ -353,7 +377,7 @@ A reservation consumes a unit up-front; a real call that then errors and falls
 back still counts (conservative v1 behavior). Each call costs 1 unit.
 
 **Fallback / controlled errors.** When a real provider is limited:
-- places/routes/weather/exchange/price fall back to mock when
+- places/routes/weather/exchange/price/transport fall back to mock when
   `*_PROVIDER_FALLBACK_TO_MOCK=true` (response carries `fallbackUsed: true`);
   otherwise the handler returns a controlled error.
 - availability falls back to mock when `AVAILABILITY_FALLBACK_TO_MOCK=true`

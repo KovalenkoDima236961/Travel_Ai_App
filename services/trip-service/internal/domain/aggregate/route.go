@@ -100,19 +100,51 @@ type RouteStop struct {
 }
 
 type RouteLeg struct {
-	ID                       string         `json:"id"`
-	FromStopID               string         `json:"fromStopId"`
-	ToStopID                 string         `json:"toStopId"`
-	FromName                 string         `json:"fromName,omitempty"`
-	ToName                   string         `json:"toName,omitempty"`
-	Mode                     string         `json:"mode"`
-	DepartureDate            string         `json:"departureDate,omitempty"`
-	EstimatedDurationMinutes *int           `json:"estimatedDurationMinutes,omitempty"`
-	EstimatedDistanceKm      *float64       `json:"estimatedDistanceKm,omitempty"`
-	EstimatedCost            *EstimatedCost `json:"estimatedCost,omitempty"`
-	Notes                    string         `json:"notes,omitempty"`
-	ProviderMetadata         map[string]any `json:"providerMetadata,omitempty"`
-	Warnings                 []string       `json:"warnings,omitempty"`
+	ID                       string                   `json:"id"`
+	FromStopID               string                   `json:"fromStopId"`
+	ToStopID                 string                   `json:"toStopId"`
+	FromName                 string                   `json:"fromName,omitempty"`
+	ToName                   string                   `json:"toName,omitempty"`
+	Mode                     string                   `json:"mode"`
+	DepartureDate            string                   `json:"departureDate,omitempty"`
+	EstimatedDurationMinutes *int                     `json:"estimatedDurationMinutes,omitempty"`
+	EstimatedDistanceKm      *float64                 `json:"estimatedDistanceKm,omitempty"`
+	EstimatedCost            *EstimatedCost           `json:"estimatedCost,omitempty"`
+	SelectedTransportOption  *SelectedTransportOption `json:"selectedTransportOption,omitempty"`
+	Notes                    string                   `json:"notes,omitempty"`
+	ProviderMetadata         map[string]any           `json:"providerMetadata,omitempty"`
+	Warnings                 []string                 `json:"warnings,omitempty"`
+}
+
+type TransportMoney struct {
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
+}
+
+type SelectedTransportOption struct {
+	ID                 string          `json:"id"`
+	Mode               string          `json:"mode"`
+	Provider           string          `json:"provider"`
+	OperatorName       string          `json:"operatorName,omitempty"`
+	ServiceName        string          `json:"serviceName,omitempty"`
+	OriginName         string          `json:"originName,omitempty"`
+	DestinationName    string          `json:"destinationName,omitempty"`
+	DepartureDate      string          `json:"departureDate,omitempty"`
+	DepartureTime      string          `json:"departureTime,omitempty"`
+	ArrivalDate        string          `json:"arrivalDate,omitempty"`
+	ArrivalTime        string          `json:"arrivalTime,omitempty"`
+	DurationMinutes    int             `json:"durationMinutes,omitempty"`
+	Transfers          int             `json:"transfers,omitempty"`
+	EstimatedPrice     *TransportMoney `json:"estimatedPrice,omitempty"`
+	BookingURL         *string         `json:"bookingUrl,omitempty"`
+	ProviderURL        *string         `json:"providerUrl,omitempty"`
+	Status             string          `json:"status,omitempty"`
+	Confidence         string          `json:"confidence,omitempty"`
+	BaggageNotes       *string         `json:"baggageNotes,omitempty"`
+	AccessibilityNotes *string         `json:"accessibilityNotes,omitempty"`
+	Warnings           []string        `json:"warnings,omitempty"`
+	SelectedAt         string          `json:"selectedAt,omitempty"`
+	SelectedByUserID   string          `json:"selectedByUserId,omitempty"`
 }
 
 type RoutePreferences struct {
@@ -170,6 +202,32 @@ func PublicRoute(route *TripRoute) *TripRoute {
 		if leg.EstimatedCost != nil {
 			cost := *leg.EstimatedCost
 			clean.EstimatedCost = &cost
+		}
+		if leg.SelectedTransportOption != nil {
+			selected := *leg.SelectedTransportOption
+			selected.SelectedByUserID = ""
+			selected.Warnings = append([]string(nil), leg.SelectedTransportOption.Warnings...)
+			if leg.SelectedTransportOption.EstimatedPrice != nil {
+				price := *leg.SelectedTransportOption.EstimatedPrice
+				selected.EstimatedPrice = &price
+			}
+			if leg.SelectedTransportOption.BookingURL != nil {
+				bookingURL := *leg.SelectedTransportOption.BookingURL
+				selected.BookingURL = &bookingURL
+			}
+			if leg.SelectedTransportOption.ProviderURL != nil {
+				providerURL := *leg.SelectedTransportOption.ProviderURL
+				selected.ProviderURL = &providerURL
+			}
+			if leg.SelectedTransportOption.BaggageNotes != nil {
+				baggageNotes := *leg.SelectedTransportOption.BaggageNotes
+				selected.BaggageNotes = &baggageNotes
+			}
+			if leg.SelectedTransportOption.AccessibilityNotes != nil {
+				accessibilityNotes := *leg.SelectedTransportOption.AccessibilityNotes
+				selected.AccessibilityNotes = &accessibilityNotes
+			}
+			clean.SelectedTransportOption = &selected
 		}
 		out.Legs = append(out.Legs, clean)
 	}

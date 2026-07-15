@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -19,6 +20,7 @@ import (
 	placeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/places"
 	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/routes"
 	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/weather"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/transport"
 )
 
 func TestHealthReturnsOK(t *testing.T) {
@@ -240,6 +242,8 @@ func newTestRouter() http.Handler {
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateSvc, zap.NewNop())
 	priceSvc := prices.NewService(prices.NewMockPriceProvider(), zap.NewNop())
 	priceHandler := prices.NewHandler(priceSvc, zap.NewNop(), "EUR")
+	transportSvc := transport.NewService(transport.NewMockProvider(5), 8*time.Second, zap.NewNop())
+	transportHandler := transport.NewHandler(transportSvc, zap.NewNop(), "EUR")
 	availabilitySvc := availability.NewService(availability.NewMockAvailabilityProvider(), zap.NewNop(), true)
 	availabilityHandler := availability.NewHandler(availabilitySvc, zap.NewNop(), "EUR")
 	return NewRouter(
@@ -249,6 +253,7 @@ func newTestRouter() http.Handler {
 		weatherHandler,
 		exchangeRateHandler,
 		priceHandler,
+		transportHandler,
 		availabilityHandler,
 		nil,
 		nil,
@@ -273,6 +278,7 @@ func testConfig() *config.Config {
 		WeatherProvider:      config.WeatherProviderConfig{Provider: "mock"},
 		ExchangeRateProvider: config.ExchangeRateProviderConfig{Provider: "mock"},
 		PriceProvider:        config.PriceProviderConfig{Provider: "mock", DefaultCurrency: "EUR"},
+		TransportProvider:    config.TransportProviderConfig{Provider: "mock", DefaultCurrency: "EUR", MaxOptionsPerMode: 5},
 		Availability:         config.AvailabilityConfig{Enabled: true, Provider: "mock", DefaultCurrency: "EUR"},
 		Internal:             config.InternalConfig{ServiceToken: "dev-internal-service-token"},
 		Auth:                 config.AuthConfig{JWTAccessSecret: "test-secret", HeaderName: "Authorization"},

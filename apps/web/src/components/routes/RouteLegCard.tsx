@@ -1,6 +1,7 @@
 "use client";
 
 import type { TransportMode, TripRouteLeg, TripRouteStop } from "@/entities/route/model";
+import { RouteLegTransportOptions } from "@/components/transport";
 import { TransportModeSelector } from "./TransportModeSelector";
 import { transportModeLabel } from "./route-options";
 
@@ -10,9 +11,27 @@ type RouteLegCardProps = {
   fromName: string;
   toStop: TripRouteStop;
   onChange: (leg: TripRouteLeg) => void;
+  tripId?: string;
+  currency?: string;
+  travelers?: number;
+  canEditTransport?: boolean;
+  expectedItineraryRevision?: number;
+  online?: boolean;
 };
 
-export function RouteLegCard({ leg, index, fromName, toStop, onChange }: RouteLegCardProps) {
+export function RouteLegCard({
+  leg,
+  index,
+  fromName,
+  toStop,
+  onChange,
+  tripId,
+  currency = "EUR",
+  travelers = 1,
+  canEditTransport = false,
+  expectedItineraryRevision,
+  online = true
+}: RouteLegCardProps) {
   return (
     <div className="rounded-[16px] border border-sand-300 bg-[#FFFDFA] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -34,6 +53,15 @@ export function RouteLegCard({ leg, index, fromName, toStop, onChange }: RouteLe
           onChange={(mode) => onChange({ ...leg, mode })}
         />
       </div>
+      <RouteLegTransportOptions
+        canEdit={canEditTransport}
+        currency={currency}
+        expectedItineraryRevision={expectedItineraryRevision}
+        leg={leg}
+        online={online}
+        travelers={travelers}
+        tripId={tripId}
+      />
     </div>
   );
 }

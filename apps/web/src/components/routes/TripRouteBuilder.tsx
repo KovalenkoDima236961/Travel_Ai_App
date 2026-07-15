@@ -19,13 +19,28 @@ type TripRouteBuilderProps = {
   onChange: (route: TripRoute) => void;
   totalDays?: number;
   currency?: string;
+  tripId?: string;
+  travelers?: number;
+  canEditTransport?: boolean;
+  expectedItineraryRevision?: number;
+  online?: boolean;
 };
 
 const INPUT =
   "h-11 w-full rounded-xl border border-sand-400 bg-[#FFFDFA] px-3.5 text-[14px] text-cocoa-900 outline-none transition placeholder:text-cocoa-400 focus:border-clay focus:ring-[3px] focus:ring-clay-tint";
 const LABEL = "block text-[13px] font-semibold text-cocoa-700";
 
-export function TripRouteBuilder({ value, onChange, totalDays = 1, currency = "EUR" }: TripRouteBuilderProps) {
+export function TripRouteBuilder({
+  value,
+  onChange,
+  totalDays = 1,
+  currency = "EUR",
+  tripId,
+  travelers = 1,
+  canEditTransport = false,
+  expectedItineraryRevision,
+  online = true
+}: TripRouteBuilderProps) {
   const route = ensureRouteShape(value);
   const warnings = getRouteValidationWarnings(route, totalDays);
 
@@ -128,7 +143,13 @@ export function TripRouteBuilder({ value, onChange, totalDays = 1, currency = "E
                   : route.stops[index - 1]?.destination || `Stop ${index}`
               }
               toStop={route.stops[index]}
+              canEditTransport={canEditTransport}
+              currency={currency}
+              expectedItineraryRevision={expectedItineraryRevision}
+              online={online}
               onChange={(nextLeg) => updateLeg(index, nextLeg)}
+              travelers={travelers}
+              tripId={tripId}
             />
           ))}
         </div>
@@ -259,7 +280,11 @@ function syncLegs(route: TripRoute): TripRoute {
       estimatedDurationMinutes: previous?.estimatedDurationMinutes ?? null,
       estimatedDistanceKm: previous?.estimatedDistanceKm ?? null,
       estimatedCost: previous?.estimatedCost ?? null,
-      notes: previous?.notes ?? null
+      selectedTransportOption: previous?.selectedTransportOption ?? null,
+      notes: previous?.notes ?? null,
+      providerMetadata: previous?.providerMetadata ?? null,
+      warnings: previous?.warnings ?? [],
+      departureDate: previous?.departureDate ?? null
     };
   });
   return { ...route, legs };

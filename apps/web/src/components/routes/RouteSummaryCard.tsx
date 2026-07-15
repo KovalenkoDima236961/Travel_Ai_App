@@ -1,14 +1,29 @@
 import { formatMoney, getCostAmount } from "@/entities/budget/model";
-import type { TripRoute } from "@/entities/route/model";
+import type { TripRoute, TripRouteLeg } from "@/entities/route/model";
+import { RouteLegTransportOptions } from "@/components/transport";
 import { transportModeLabel, tripStyleLabel } from "./route-options";
 
 type RouteSummaryCardProps = {
   route: TripRoute | null | undefined;
   currency?: string;
   title?: string;
+  tripId?: string;
+  travelers?: number;
+  canEditTransport?: boolean;
+  expectedItineraryRevision?: number;
+  online?: boolean;
 };
 
-export function RouteSummaryCard({ route, currency = "EUR", title = "Route overview" }: RouteSummaryCardProps) {
+export function RouteSummaryCard({
+  route,
+  currency = "EUR",
+  title = "Route overview",
+  tripId,
+  travelers = 1,
+  canEditTransport = false,
+  expectedItineraryRevision,
+  online = true
+}: RouteSummaryCardProps) {
   if (!route || route.stops.length === 0) {
     return null;
   }
@@ -18,7 +33,7 @@ export function RouteSummaryCard({ route, currency = "EUR", title = "Route overv
     0
   );
   const totalCost = (route.legs ?? []).reduce((sum, leg) => {
-    const amount = getCostAmount(leg.estimatedCost);
+    const amount = getRouteLegCostAmount(leg);
     return sum + (amount ?? 0);
   }, 0);
   const styles = route.preferences?.tripStyles ?? [];
@@ -56,12 +71,25 @@ export function RouteSummaryCard({ route, currency = "EUR", title = "Route overv
                 {stop.arrivalDate ? ` · arrives ${stop.arrivalDate}` : ""}
               </p>
               {index < (route.legs ?? []).length ? (
-                <p className="mt-1 text-[12.5px] font-medium text-clay-deep">
-                  {transportModeLabel(route.legs?.[index]?.mode)} transfer
-                  {route.legs?.[index]?.estimatedDurationMinutes
-                    ? ` · ${formatDuration(route.legs[index].estimatedDurationMinutes ?? 0)}`
-                    : ""}
-                </p>
+                <div className="mt-1">
+                  <p className="text-[12.5px] font-medium text-clay-deep">
+                    {transportModeLabel(route.legs?.[index]?.mode)} transfer
+                    {route.legs?.[index]?.estimatedDurationMinutes
+                      ? ` | ${formatDuration(route.legs[index].estimatedDurationMinutes ?? 0)}`
+                      : ""}
+                  </p>
+                  {route.legs?.[index] ? (
+                    <RouteLegTransportOptions
+                      canEdit={canEditTransport}
+                      currency={currency}
+                      expectedItineraryRevision={expectedItineraryRevision}
+                      leg={route.legs[index]}
+                      online={online}
+                      travelers={travelers}
+                      tripId={tripId}
+                    />
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </li>
@@ -91,4 +119,11 @@ function formatDuration(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return remainder === 0 ? `${hours} hr` : `${hours} hr ${remainder} min`;
+}
+
+function getRouteLegCostAmount(leg: TripRouteLeg) {
+  if (leg.selectedTransportOption?.estimatedPrice) {
+    return leg.selectedTransportOption.estimatedPrice.amount;
+  }
+  return getCostAmount(leg.estimatedCost);
 }

@@ -134,6 +134,9 @@ function BudgetSummaryView({
   const suggestedOptimizationDayNumber = getSuggestedOptimizationDay(summary);
   const canOptimize =
     suggestedOptimizationDayNumber != null && Boolean(onOpenBudgetOptimization);
+  const hasTransportEstimate = summary.byCategory.some(
+    (category) => category.category === "transport" && category.estimatedTotal > 0
+  );
 
   return (
     <div className="mt-4 space-y-4 text-sm">
@@ -293,6 +296,12 @@ function BudgetSummaryView({
             ))}
           </ul>
         </div>
+      ) : null}
+
+      {hasTransportEstimate ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Transport prices are estimates from selected options or planning data. Verify before booking.
+        </p>
       ) : null}
     </div>
   );

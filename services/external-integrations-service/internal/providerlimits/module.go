@@ -54,6 +54,7 @@ func resolveLimits(cfg *config.Config) []ProviderLimit {
 		exchangeRateLimit(cfg),
 		limitFor(CategoryPrice, cfg.PriceProvider.Provider, config.PriceProviderAPI,
 			pl.PriceRatePerMinute, pl.PriceBurst, pl.PriceDailyQuota),
+		transportLimit(cfg),
 		availabilityLimit(cfg),
 	}
 }
@@ -82,6 +83,24 @@ func exchangeRateLimit(cfg *config.Config) ProviderLimit {
 		}
 	}
 	return ProviderLimit{Category: CategoryExchangeRate, Provider: active}
+}
+
+// transportLimit resolves the transport-search provider limit. Mock and
+// route_estimate remain unlimited in v1; any future real provider shares the
+// TRANSPORT_SEARCH_* controls.
+func transportLimit(cfg *config.Config) ProviderLimit {
+	active := cfg.TransportProvider.Provider
+	pl := cfg.ProviderLimits
+	if active != config.TransportProviderMock && active != config.TransportProviderRouteEstimate && active != "" {
+		return ProviderLimit{
+			Category:      CategoryTransport,
+			Provider:      active,
+			RatePerMinute: pl.TransportRatePerMinute,
+			Burst:         pl.TransportBurst,
+			DailyQuota:    pl.TransportDailyQuota,
+		}
+	}
+	return ProviderLimit{Category: CategoryTransport, Provider: active}
 }
 
 // availabilityLimit resolves the availability provider limit. Mock remains

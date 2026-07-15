@@ -543,6 +543,37 @@ for MODE in train bus flight ferry; do
   fi
 done
 
+echo "Checking internal transport search endpoint..."
+TRANSPORT_SEARCH_PAYLOAD="$(
+  jq -nc '{
+    origin:{name:"Bratislava",lat:48.1486,lng:17.1077,country:"Slovakia"},
+    destination:{name:"Vienna",lat:48.2082,lng:16.3738,country:"Austria"},
+    date:"2026-09-10",
+    time:"09:00",
+    timePreference:"depart_after",
+    travelers:2,
+    modes:["train","bus","car"],
+    currency:"EUR",
+    locale:"en",
+    constraints:{maxDurationMinutes:240,maxPriceAmount:100}
+  }'
+)"
+request POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/transport/search" "${TRANSPORT_SEARCH_PAYLOAD}"
+assert_status "Transport search requires internal token" "401"
+request_with_internal_token POST "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/transport/search" "${INTERNAL_SERVICE_TOKEN_FOR_SMOKE}" "${TRANSPORT_SEARCH_PAYLOAD}"
+assert_2xx "Transport search"
+if ! jq -e '
+  (.options | length) >= 1
+  and .summary.origin == "Bratislava"
+  and .summary.destination == "Vienna"
+  and (.summary.searchedModes | index("train"))
+  and (.options[] | select(.mode == "train") | .durationMinutes > 0 and .estimatedPrice.currency == "EUR")
+' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Transport search did not return the expected option shape." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking mock weather forecast..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/weather/forecast?destination=Rome&startDate=2026-08-10&days=3"
 assert_2xx "Weather forecast"

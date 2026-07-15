@@ -7,6 +7,8 @@ const (
 	EventTripCreated                         = "trip_created"
 	EventTripBudgetUpdated                   = "trip_budget_updated"
 	EventRouteUpdated                        = "route_updated"
+	EventTransportOptionAttached             = "transport_option_attached"
+	EventTransportOptionRemoved              = "transport_option_removed"
 	EventRouteAlternativesGenerated          = "route_alternatives_generated"
 	EventRouteAlternativeRefined             = "route_alternative_refined"
 	EventTripCreatedFromRouteAlternative     = "trip_created_from_route_alternative"
@@ -143,6 +145,8 @@ var knownEventTypes = map[string]struct{}{
 	EventTripCreated:                         {},
 	EventTripBudgetUpdated:                   {},
 	EventRouteUpdated:                        {},
+	EventTransportOptionAttached:             {},
+	EventTransportOptionRemoved:              {},
 	EventRouteAlternativesGenerated:          {},
 	EventRouteAlternativeRefined:             {},
 	EventTripCreatedFromRouteAlternative:     {},

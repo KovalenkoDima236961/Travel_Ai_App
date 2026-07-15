@@ -91,6 +91,7 @@ func budgetSummaryForTrip(trip *entity.Trip) budget.Summary {
 		Currency:      trip.BudgetCurrency,
 		Days:          int(trip.Days),
 		Accommodation: trip.Accommodation,
+		Route:         trip.Route,
 	}, parseItineraryLenient(trip.Itinerary))
 }
 
@@ -100,6 +101,7 @@ func (s *Service) budgetSummaryForTrip(ctx context.Context, trip *entity.Trip) (
 		Currency:      trip.BudgetCurrency,
 		Days:          int(trip.Days),
 		Accommodation: trip.Accommodation,
+		Route:         trip.Route,
 	}, parseItineraryLenient(trip.Itinerary), s.budgetConversionProvider, budget.ConversionOptions{
 		Enabled:  s.budgetConversionEnabled,
 		FailOpen: s.budgetConversionFailOpen,

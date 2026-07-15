@@ -60,6 +60,23 @@ route_provider:
   mapbox_access_token: ""
   google_maps_api_key: ""
 
+transport_provider:
+  # mock (deterministic schedules) | route_estimate (car/walk/bike/public transport estimates) |
+  # gtfs_static | amadeus | skyscanner | rome2rio | national_rail | ferry_provider | manual.
+  provider: mock
+  fallback_to_mock: true
+  timeout_seconds: 8
+  cache_enabled: true
+  cache_ttl_seconds: 3600
+  max_options_per_mode: 3
+  default_currency: EUR
+  amadeus_api_key: ""
+  skyscanner_api_key: ""
+  rome2rio_api_key: ""
+  gtfs_static_feeds_dir: ""
+  national_rail_api_key: ""
+  ferry_provider_api_key: ""
+
 weather_provider:
   # mock (default and fallback) | openweathermap (OpenWeatherMap).
   provider: mock

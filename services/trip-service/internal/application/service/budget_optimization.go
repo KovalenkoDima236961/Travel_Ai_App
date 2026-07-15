@@ -126,6 +126,7 @@ func (s *Service) OptimizeBudgetDayForActor(
 				Currency:      current.BudgetCurrency,
 				Days:          int(current.Days),
 				Accommodation: current.Accommodation,
+				Route:         current.Route,
 			}, currentItinerary)
 		} else {
 			return nil, apperrs.ErrBudgetConversionFailed

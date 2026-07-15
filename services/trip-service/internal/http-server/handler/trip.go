@@ -28,6 +28,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
@@ -104,6 +105,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Delete("/{id}/accommodation", h.DeleteAccommodation)
 		r.Get("/{id}/route", h.GetRoute)
 		r.Put("/{id}/route", h.UpdateRoute)
+		r.Post("/{id}/route/legs/{legId}/transport/search", h.SearchRouteLegTransportOptions)
+		r.Put("/{id}/route/legs/{legId}/transport-option", h.AttachRouteLegTransportOption)
+		r.Delete("/{id}/route/legs/{legId}/transport-option", h.RemoveRouteLegTransportOption)
 		r.Get("/{id}/checklist", h.GetChecklist)
 		r.Post("/{id}/checklist/generate", h.GenerateChecklist)
 		r.Post("/{id}/checklist/items", h.CreateChecklistItem)
@@ -442,6 +446,75 @@ func (h *Handler) UpdateRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated, err := h.svc.UpdateTripRoute(r.Context(), id, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTrip(updated))
+}
+
+func (h *Handler) SearchRouteLegTransportOptions(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	legID := strings.TrimSpace(chi.URLParam(r, "legId"))
+	if legID == "" {
+		writeError(w, http.StatusBadRequest, "invalid route leg id")
+		return
+	}
+	var req request.SearchRouteLegTransport
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.SearchRouteLegTransportOptions(r.Context(), id, legID, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) AttachRouteLegTransportOption(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	legID := strings.TrimSpace(chi.URLParam(r, "legId"))
+	if legID == "" {
+		writeError(w, http.StatusBadRequest, "invalid route leg id")
+		return
+	}
+	var req request.AttachRouteLegTransportOption
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	updated, err := h.svc.AttachRouteLegTransportOption(r.Context(), id, legID, req.ToInput())
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTrip(updated))
+}
+
+func (h *Handler) RemoveRouteLegTransportOption(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	legID := strings.TrimSpace(chi.URLParam(r, "legId"))
+	if legID == "" {
+		writeError(w, http.StatusBadRequest, "invalid route leg id")
+		return
+	}
+	var req request.RemoveRouteLegTransportOption
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	updated, err := h.svc.RemoveRouteLegTransportOption(r.Context(), id, legID, req.ToInput())
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -1599,6 +1672,7 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 	var budgetConversion *apperrs.BudgetConversionError
 	var policyBlocking *workspacepolicies.BlockingViolationError
 	var planningBlocking *planningconstraints.BlockingError
+	var providerLimit *providerlimit.Error
 	var revisionRequired *apperrs.ExpectedItineraryRevisionRequiredError
 	var conflict *apperrs.ItineraryConflictError
 	var stateConflict *apperrs.ConflictError
@@ -1610,6 +1684,24 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 			"constraints": planningBlocking.Constraints,
 			"warnings":    planningBlocking.Constraints.Warnings,
 			"blockers":    planningBlocking.Constraints.Blockers,
+		})
+	case errors.As(err, &providerLimit):
+		status := http.StatusTooManyRequests
+		if providerLimit.Code == providerlimit.CodeQuotaExceeded {
+			status = http.StatusTooManyRequests
+		}
+		if providerLimit.Code == providerlimit.CodeLimitsUnavailable {
+			status = http.StatusServiceUnavailable
+		}
+		if providerLimit.RetryAfterSeconds > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(providerLimit.RetryAfterSeconds))
+		}
+		writeJSON(w, status, map[string]any{
+			"error":             providerLimit.Code,
+			"message":           providerLimit.Error(),
+			"provider":          providerLimit.Provider,
+			"operation":         providerLimit.Operation,
+			"retryAfterSeconds": providerLimit.RetryAfterSeconds,
 		})
 	case errors.As(err, &policyBlocking):
 		writeJSON(w, http.StatusBadRequest, map[string]any{

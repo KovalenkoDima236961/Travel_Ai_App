@@ -29,6 +29,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/transportclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -278,6 +279,10 @@ type budgetConversionProvider interface {
 	Convert(ctx context.Context, amount float64, from string, to string) (*budget.CurrencyConversionResult, error)
 }
 
+type transportSearchProvider interface {
+	SearchTransportOptions(ctx context.Context, input transportclient.TransportSearchRequest) (*transportclient.TransportSearchResponse, error)
+}
+
 type workspaceProvider interface {
 	AccessCheck(ctx context.Context, userID, workspaceID uuid.UUID) (*workspaces.Access, error)
 	ListForUser(ctx context.Context, userID uuid.UUID) ([]workspaces.UserWorkspace, error)
@@ -355,6 +360,14 @@ func WithBudgetConversion(provider budgetConversionProvider, enabled bool, failO
 	}
 }
 
+func WithTransportSearch(provider transportSearchProvider, enabled bool, failOpen bool) Option {
+	return func(s *Service) {
+		s.transportSearchProvider = provider
+		s.transportSearchEnabled = enabled
+		s.transportSearchFailOpen = failOpen
+	}
+}
+
 func WithWorkspaces(provider workspaceProvider, enabled bool) Option {
 	return func(s *Service) {
 		s.workspaceProvider = provider
@@ -422,6 +435,9 @@ type Service struct {
 	budgetConversionProvider     budgetConversionProvider
 	budgetConversionEnabled      bool
 	budgetConversionFailOpen     bool
+	transportSearchProvider      transportSearchProvider
+	transportSearchEnabled       bool
+	transportSearchFailOpen      bool
 	workspaceProvider            workspaceProvider
 	workspacePolicyProvider      workspacePolicyProvider
 	workspacesEnabled            bool
@@ -449,6 +465,7 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		shareTokenBytes:          32,
 		publicShareTokens:        sharing.NewPublicShareTokenManager("dev-public-share-secret-change-me", time.Hour),
 		budgetConversionFailOpen: true,
+		transportSearchFailOpen:  true,
 		receiptConfig:            receipts.DefaultConfig(),
 		log:                      log,
 	}

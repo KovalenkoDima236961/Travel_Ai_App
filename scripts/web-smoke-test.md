@@ -117,14 +117,28 @@ Use local Grafana credentials `admin` / `admin`.
 43. Confirm the map shows numbered route stop markers and dashed approximate
     transfer lines in addition to activity markers.
 44. Confirm the budget summary includes a `transport` category cost for transfers.
-45. Edit the route and confirm the UI warns that changing the route can make the
+45. In the route overview, click `Find transport` on a route leg.
+46. Search train/bus/car with the trip currency and travelers.
+47. Confirm the dialog shows a comparison table, sort controls, option cards,
+    confidence labels, prices, durations, transfers, and warnings.
+48. Attach one option and confirm the selected transport card appears on the
+    route leg with the not-booked disclaimer.
+49. Confirm the budget summary still shows transport estimates and the transport
+    estimate warning.
+50. Open reminders, regenerate if needed, and confirm transport-specific
+    reminder candidates appear for the selected option.
+51. Go offline or use browser devtools offline mode and confirm the selected
+    transport details remain visible while `Find transport` is disabled.
+52. Export PDF and confirm the route section includes selected transport details
+    and a non-booking disclaimer.
+53. Edit the route and confirm the UI warns that changing the route can make the
     current itinerary outdated.
-46. Open Trip Discovery and confirm the compact planning summary reflects the
+54. Open Trip Discovery and confirm the compact planning summary reflects the
     same transport/language/style preferences before requesting suggestions.
-47. Open a workspace AI Repair dialog and confirm constraint blockers are shown
+55. Open a workspace AI Repair dialog and confirm constraint blockers are shown
     as repair targets rather than disabling repair submission.
-48. Return to the known-destination mode for the baseline flow below.
-49. Create a trip with:
+56. Return to the known-destination mode for the baseline flow below.
+57. Create a trip with:
    - destination: `Rome`
    - startDate: `2026-08-10`
    - days: `2`

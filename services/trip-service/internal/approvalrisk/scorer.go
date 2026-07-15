@@ -570,14 +570,30 @@ func routeFactors(in Input) []Factor {
 	longTransfers := 0
 	missingEstimates := 0
 	highCost := 0.0
+	lowConfidenceSelections := 0
+	unverifiedSelections := 0
+	missingSelections := 0
 	for _, leg := range route.Legs {
-		if leg.EstimatedDurationMinutes == nil || *leg.EstimatedDurationMinutes <= 0 {
+		duration := effectiveRouteLegDuration(leg)
+		if duration == nil || *duration <= 0 {
 			missingEstimates++
-		} else if *leg.EstimatedDurationMinutes > 6*60 {
+		} else if *duration > 6*60 {
 			longTransfers++
 		}
-		if leg.EstimatedCost != nil && leg.EstimatedCost.Amount != nil {
-			highCost += *leg.EstimatedCost.Amount
+		if amount := effectiveRouteLegCostAmount(leg); amount != nil {
+			highCost += *amount
+		}
+		if leg.SelectedTransportOption == nil {
+			if routeLegNeedsSelection(leg.Mode) {
+				missingSelections++
+			}
+			continue
+		}
+		if selectedTransportLowConfidence(leg.SelectedTransportOption) {
+			lowConfidenceSelections++
+		}
+		if selectedTransportUnverified(leg.SelectedTransportOption) {
+			unverifiedSelections++
 		}
 	}
 	if longTransfers > 0 {
@@ -619,6 +635,42 @@ func routeFactors(in Input) []Factor {
 			},
 		})
 	}
+	if lowConfidenceSelections > 0 {
+		out = append(out, Factor{
+			Type:             "transport_option_low_confidence",
+			Severity:         FactorSeverityMedium,
+			Points:           minInt(5+lowConfidenceSelections*3, 15),
+			Title:            "Low-confidence transport selection",
+			Message:          fmt.Sprintf("%d selected transport option(s) have low or medium confidence.", lowConfidenceSelections),
+			Source:           SourceRoute,
+			Affected:         affected("route", lowConfidenceSelections, nil),
+			SuggestedActions: []SuggestedAction{action("review_route", "Review route", ActionPriorityMedium)},
+		})
+	}
+	if unverifiedSelections > 0 {
+		out = append(out, Factor{
+			Type:             "transport_option_unverified",
+			Severity:         FactorSeverityMedium,
+			Points:           minInt(6+unverifiedSelections*3, 18),
+			Title:            "Transport selection needs verification",
+			Message:          fmt.Sprintf("%d selected transport option(s) come from mock, manual, or unknown availability data.", unverifiedSelections),
+			Source:           SourceRoute,
+			Affected:         affected("route", unverifiedSelections, nil),
+			SuggestedActions: []SuggestedAction{action("review_route", "Review route", ActionPriorityMedium)},
+		})
+	}
+	if missingSelections > 0 {
+		out = append(out, Factor{
+			Type:             "missing_transport_option_for_required_leg",
+			Severity:         FactorSeverityMedium,
+			Points:           minInt(4+missingSelections*2, 12),
+			Title:            "Transport option not selected",
+			Message:          fmt.Sprintf("%d scheduled transport leg(s) do not have a selected provider option.", missingSelections),
+			Source:           SourceRoute,
+			Affected:         affected("route", missingSelections, nil),
+			SuggestedActions: []SuggestedAction{action("review_route", "Review route", ActionPriorityMedium)},
+		})
+	}
 	styles := tokenSet(route.Preferences.TripStyles)
 	if _, ok := styles["hiking"]; ok && denseHikingDays(in.Itinerary) > 0 {
 		out = append(out, Factor{
@@ -645,6 +697,59 @@ func routeFactors(in Input) []Factor {
 		})
 	}
 	return out
+}
+
+func effectiveRouteLegDuration(leg aggregate.RouteLeg) *int {
+	if leg.SelectedTransportOption != nil && leg.SelectedTransportOption.DurationMinutes > 0 {
+		duration := leg.SelectedTransportOption.DurationMinutes
+		return &duration
+	}
+	return leg.EstimatedDurationMinutes
+}
+
+func effectiveRouteLegCostAmount(leg aggregate.RouteLeg) *float64 {
+	if leg.SelectedTransportOption != nil && leg.SelectedTransportOption.EstimatedPrice != nil {
+		amount := leg.SelectedTransportOption.EstimatedPrice.Amount
+		return &amount
+	}
+	if leg.EstimatedCost != nil && leg.EstimatedCost.Amount != nil {
+		amount := *leg.EstimatedCost.Amount
+		return &amount
+	}
+	return nil
+}
+
+func routeLegNeedsSelection(mode string) bool {
+	switch normalizeToken(mode) {
+	case aggregate.TransportModeTrain, aggregate.TransportModeBus, aggregate.TransportModeFlight, aggregate.TransportModeFerry, aggregate.TransportModeBoat, aggregate.TransportModePublicTransport:
+		return true
+	default:
+		return false
+	}
+}
+
+func selectedTransportLowConfidence(option *aggregate.SelectedTransportOption) bool {
+	if option == nil {
+		return false
+	}
+	switch normalizeToken(option.Confidence) {
+	case "low", "medium", "":
+		return true
+	default:
+		return false
+	}
+}
+
+func selectedTransportUnverified(option *aggregate.SelectedTransportOption) bool {
+	if option == nil {
+		return false
+	}
+	switch normalizeToken(option.Provider) {
+	case "", "mock", "manual":
+		return true
+	default:
+		return normalizeToken(option.Status) == "unknown"
+	}
 }
 
 func denseHikingDays(itinerary aggregate.Itinerary) int {

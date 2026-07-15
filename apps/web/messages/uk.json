@@ -8,6 +8,23 @@
     "clear": "Очистити", "yes": "Так", "no": "Ні", "enabled": "Увімкнено",
     "disabled": "Вимкнено", "optional": "Необов’язково", "required": "Обов’язково"
   },
+  "transport": {
+    "findTransport": "Знайти транспорт", "transportOptions": "Варіанти транспорту",
+    "selectedTransport": "Вибраний транспорт", "useThisOption": "Використати цей варіант",
+    "changeOption": "Змінити варіант", "removeOption": "Видалити варіант",
+    "train": "Потяг", "bus": "Автобус", "flight": "Рейс", "ferry": "Пором",
+    "car": "Авто", "rentalCar": "Орендоване авто", "publicTransport": "Громадський транспорт",
+    "walk": "Пішки", "bike": "Велосипед", "hiking": "Похід",
+    "operator": "Оператор", "departure": "Відправлення", "arrival": "Прибуття",
+    "duration": "Тривалість", "transfers": "Пересадки", "estimatedPrice": "Орієнтовна ціна",
+    "confidence": "Надійність", "lowConfidence": "Низька надійність",
+    "mediumConfidence": "Середня надійність", "highConfidence": "Висока надійність",
+    "verifyScheduleBeforeBooking": "Перевірте розклад перед бронюванням",
+    "doesNotBook": "Це нічого не бронює", "requiresInternet": "Для цієї дії потрібен інтернет",
+    "noOptionsFound": "Варіанти транспорту не знайдено", "cheapest": "Найдешевше",
+    "fastest": "Найшвидше", "recommended": "Рекомендовано",
+    "fewestTransfers": "Найменше пересадок"
+  },
   "navigation": {
     "trips": "Подорожі", "templates": "Шаблони", "workspaces": "Робочі простори",
     "settings": "Налаштування", "notifications": "Сповіщення", "offlineTrips": "Офлайн-подорожі",

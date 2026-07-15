@@ -718,13 +718,33 @@ func routeReminderCandidates(trip *entity.Trip) []entity.TripReminder {
 	if trip.Route == nil {
 		return nil
 	}
+	out := []entity.TripReminder{}
+	selectedModes := map[string]struct{}{}
+	for _, leg := range trip.Route.Legs {
+		if leg.SelectedTransportOption == nil {
+			continue
+		}
+		mode := aggregate.NormalizeRouteToken(leg.SelectedTransportOption.Mode)
+		if mode != "" {
+			selectedModes[mode] = struct{}{}
+		}
+		if reminder, ok := selectedTransportReminder(trip, leg); ok {
+			out = append(out, reminder)
+		}
+	}
 	seenModes := map[string]struct{}{}
 	for _, mode := range trip.Route.Preferences.PreferredModes {
-		seenModes[aggregate.NormalizeRouteToken(mode)] = struct{}{}
+		normalized := aggregate.NormalizeRouteToken(mode)
+		if _, selected := selectedModes[normalized]; !selected {
+			seenModes[normalized] = struct{}{}
+		}
 	}
 	for _, leg := range trip.Route.Legs {
 		mode := aggregate.NormalizeRouteToken(leg.Mode)
 		if mode != "" {
+			if _, selected := selectedModes[mode]; selected {
+				continue
+			}
 			seenModes[mode] = struct{}{}
 		}
 	}
@@ -733,7 +753,6 @@ func routeReminderCandidates(trip *entity.Trip) []entity.TripReminder {
 		modes = append(modes, mode)
 	}
 	sort.Strings(modes)
-	out := make([]entity.TripReminder, 0, len(modes))
 	for _, mode := range modes {
 		if reminder, ok := transportModeReminder(trip, mode); ok {
 			out = append(out, reminder)
@@ -746,6 +765,100 @@ func routeReminderCandidates(trip *entity.Trip) []entity.TripReminder {
 		}
 	}
 	return out
+}
+
+func selectedTransportReminder(trip *entity.Trip, leg aggregate.RouteLeg) (entity.TripReminder, bool) {
+	option := leg.SelectedTransportOption
+	if option == nil {
+		return entity.TripReminder{}, false
+	}
+	mode := aggregate.NormalizeRouteToken(option.Mode)
+	label := strings.TrimSpace(option.OperatorName)
+	if label == "" {
+		label = strings.TrimSpace(option.ServiceName)
+	}
+	if label == "" {
+		label = strings.ReplaceAll(mode, "_", " ")
+	}
+	offset := -3
+	title := "Check and save transport ticket"
+	description := "Check departure details, save tickets offline, and verify the provider schedule before travel."
+	category := entity.ReminderCategoryTransport
+	priority := entity.ReminderPriorityHigh
+	source := entity.ReminderSourceTransport
+	switch mode {
+	case aggregate.TransportModeTrain, aggregate.TransportModeBus, aggregate.TransportModePublicTransport:
+		title = "Check and save ticket for " + label
+		description = selectedTransportDescription(option, "Check departure time, platform or stop details, and save tickets offline.")
+	case aggregate.TransportModeFlight:
+		offset = -2
+		title = "Check flight details and baggage"
+		description = selectedTransportDescription(option, "Check boarding pass, baggage rules, airport transfer, and travel documents.")
+	case aggregate.TransportModeCar, aggregate.TransportModeRentalCar:
+		title = "Confirm car route details"
+		description = selectedTransportDescription(option, "Check driving documents, fuel, tolls, parking, and offline route access.")
+	case aggregate.TransportModeFerry, aggregate.TransportModeBoat:
+		offset = -2
+		title = "Verify ferry or boat schedule"
+		description = selectedTransportDescription(option, "Confirm schedule, reservation, weather conditions, and boarding location.")
+	case aggregate.TransportModeHiking:
+		offset = -2
+		title = "Check selected hiking route"
+		description = selectedTransportDescription(option, "Review trail conditions, weather, safety gear, and offline maps.")
+		category = entity.ReminderCategoryRoute
+		source = entity.ReminderSourceRoute
+	case aggregate.TransportModeBike:
+		offset = -2
+		title = "Prepare selected bike route"
+		description = selectedTransportDescription(option, "Check bike or rental details, helmet, lights, and route safety.")
+		category = entity.ReminderCategoryRoute
+		priority = entity.ReminderPriorityMedium
+		source = entity.ReminderSourceRoute
+	default:
+		return entity.TripReminder{}, false
+	}
+	metadata := map[string]any{
+		"reason":                    "Generated from selected route transport option",
+		"routeLegId":                leg.ID,
+		"transportMode":             mode,
+		"selectedTransportOptionId": option.ID,
+		"operatorName":              option.OperatorName,
+	}
+	reminder := reminderWithOffset(trip, title, description, category, priority, source, offset, metadata)
+	if trigger, relative, ok := selectedTransportTrigger(trip, option.DepartureDate, offset); ok {
+		reminder.TriggerDate = trigger
+		reminder.RelativeOffsetDays = &relative
+	}
+	return reminder, true
+}
+
+func selectedTransportDescription(option *aggregate.SelectedTransportOption, fallback string) string {
+	parts := []string{fallback}
+	if option.DepartureDate != "" || option.DepartureTime != "" {
+		departure := strings.TrimSpace(strings.TrimSpace(option.DepartureDate) + " " + strings.TrimSpace(option.DepartureTime))
+		parts = append(parts, "Departure: "+departure+".")
+	}
+	if len(option.Warnings) > 0 {
+		parts = append(parts, "Provider warning: "+option.Warnings[0])
+	}
+	return strings.Join(parts, " ")
+}
+
+func selectedTransportTrigger(trip *entity.Trip, departureDate string, offset int) (time.Time, int, bool) {
+	departureDate = strings.TrimSpace(departureDate)
+	if departureDate == "" {
+		return time.Time{}, 0, false
+	}
+	departure, err := time.Parse("2006-01-02", departureDate)
+	if err != nil {
+		return time.Time{}, 0, false
+	}
+	trigger := dateOnly(departure.AddDate(0, 0, offset))
+	if trip.StartDate == nil {
+		return trigger, offset, true
+	}
+	relative := int(trigger.Sub(dateOnly(*trip.StartDate)).Hours() / 24)
+	return trigger, relative, true
 }
 
 func itineraryTransferReminderCandidates(trip *entity.Trip) []entity.TripReminder {

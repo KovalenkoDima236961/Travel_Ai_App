@@ -1,4 +1,5 @@
 import type { EstimatedCost } from "@/entities/budget/model";
+import type { SelectedTransportOption } from "@/types/transport";
 
 export type TransportMode =
   | "walk"
@@ -131,8 +132,10 @@ export type TripRouteLeg = {
   estimatedDurationMinutes?: number | null;
   estimatedDistanceKm?: number | null;
   estimatedCost?: EstimatedCost | null;
+  selectedTransportOption?: SelectedTransportOption | null;
   notes?: string | null;
   providerMetadata?: Record<string, unknown> | null;
+  warnings?: string[];
 };
 
 export type TripRoutePreferences = {

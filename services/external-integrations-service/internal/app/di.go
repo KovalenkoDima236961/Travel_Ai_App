@@ -21,6 +21,7 @@ import (
 	routeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/routes"
 	weatherprovider "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/providers/weather"
 	calendarrepo "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/repository/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/transport"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/closer"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/storage/postgres"
 )
@@ -76,6 +77,10 @@ func buildContainer(
 	if err != nil {
 		return nil, fmt.Errorf("init price provider: %w", err)
 	}
+	transportSvc, err := transport.New(cfg, guard, routeProvider, log)
+	if err != nil {
+		return nil, fmt.Errorf("init transport provider: %w", err)
+	}
 	availabilitySvc, err := availability.New(cfg, guard, log)
 	if err != nil {
 		return nil, fmt.Errorf("init availability provider: %w", err)
@@ -90,6 +95,7 @@ func buildContainer(
 	weatherHandler := handler.NewWeatherHandler(weatherSvc, log)
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateSvc, log)
 	priceHandler := prices.NewHandler(priceSvc, log, cfg.PriceProvider.DefaultCurrency)
+	transportHandler := transport.NewHandler(transportSvc, log, cfg.TransportProvider.DefaultCurrency)
 	availabilityHandler := availability.NewHandler(availabilitySvc, log, cfg.Availability.DefaultCurrency)
 	cipher, err := tokencrypto.NewStringCipher(cfg.Calendar.EncryptionKey)
 	if err != nil {
@@ -122,6 +128,7 @@ func buildContainer(
 		weatherHandler,
 		exchangeRateHandler,
 		priceHandler,
+		transportHandler,
 		availabilityHandler,
 		calendarHandler,
 		internalCalendarHandler,

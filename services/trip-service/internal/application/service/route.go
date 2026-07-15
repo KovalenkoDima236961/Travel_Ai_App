@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -207,6 +208,9 @@ func validateAndNormalizeRoute(route *aggregate.TripRoute, startDate string, day
 		if leg.EstimatedCost != nil && leg.EstimatedCost.Category == "" {
 			leg.EstimatedCost.Category = "transport"
 		}
+		if err := validateAndNormalizeSelectedTransportOption(leg.SelectedTransportOption, index); err != nil {
+			return err
+		}
 		leg.Notes = strings.TrimSpace(leg.Notes)
 	}
 
@@ -246,6 +250,134 @@ func validateAndNormalizeRoute(route *aggregate.TripRoute, startDate string, day
 	}
 	prefs.TripStyles = styles
 	return validateRouteDatesAgainstTrip(route, startDate, days)
+}
+
+func validateAndNormalizeSelectedTransportOption(option *aggregate.SelectedTransportOption, legIndex int) error {
+	if option == nil {
+		return nil
+	}
+	option.ID = strings.TrimSpace(option.ID)
+	if option.ID == "" {
+		return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.id is required", legIndex)
+	}
+	option.Mode = aggregate.NormalizeRouteToken(option.Mode)
+	if _, ok := aggregate.SupportedTransportModes[option.Mode]; !ok {
+		return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.mode is unsupported", legIndex)
+	}
+	option.Provider = aggregate.NormalizeRouteToken(option.Provider)
+	if option.Provider == "" {
+		option.Provider = "manual"
+	}
+	option.OperatorName = strings.TrimSpace(option.OperatorName)
+	option.ServiceName = strings.TrimSpace(option.ServiceName)
+	option.OriginName = strings.TrimSpace(option.OriginName)
+	option.DestinationName = strings.TrimSpace(option.DestinationName)
+	option.DepartureDate = strings.TrimSpace(option.DepartureDate)
+	option.ArrivalDate = strings.TrimSpace(option.ArrivalDate)
+	for _, value := range []struct {
+		label string
+		raw   string
+	}{
+		{"departureDate", option.DepartureDate},
+		{"arrivalDate", option.ArrivalDate},
+	} {
+		if value.raw == "" {
+			continue
+		}
+		if _, err := time.Parse("2006-01-02", value.raw); err != nil {
+			return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.%s must be in YYYY-MM-DD format", legIndex, value.label)
+		}
+	}
+	option.DepartureTime = strings.TrimSpace(option.DepartureTime)
+	option.ArrivalTime = strings.TrimSpace(option.ArrivalTime)
+	for _, value := range []struct {
+		label string
+		raw   string
+	}{
+		{"departureTime", option.DepartureTime},
+		{"arrivalTime", option.ArrivalTime},
+	} {
+		if value.raw == "" {
+			continue
+		}
+		if _, err := time.Parse("15:04", value.raw); err != nil {
+			return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.%s must be in HH:mm format", legIndex, value.label)
+		}
+	}
+	if option.DurationMinutes < 0 {
+		return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.durationMinutes must be >= 0", legIndex)
+	}
+	if option.Transfers < 0 {
+		return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.transfers must be >= 0", legIndex)
+	}
+	option.Status = aggregate.NormalizeRouteToken(option.Status)
+	if option.Status == "" {
+		option.Status = "unknown"
+	}
+	switch option.Status {
+	case "available", "limited", "unknown", "unavailable":
+	default:
+		return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.status is unsupported", legIndex)
+	}
+	option.Confidence = aggregate.NormalizeRouteToken(option.Confidence)
+	if option.Confidence == "" {
+		option.Confidence = budget.ConfidenceLow
+	}
+	switch option.Confidence {
+	case budget.ConfidenceLow, budget.ConfidenceMedium, budget.ConfidenceHigh:
+	default:
+		return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.confidence is unsupported", legIndex)
+	}
+	if option.EstimatedPrice != nil {
+		option.EstimatedPrice.Currency = strings.ToUpper(strings.TrimSpace(option.EstimatedPrice.Currency))
+		if option.EstimatedPrice.Amount < 0 {
+			return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.estimatedPrice.amount must be >= 0", legIndex)
+		}
+		if option.EstimatedPrice.Currency == "" {
+			option.EstimatedPrice.Currency = defaultCurrency
+		}
+		if len(option.EstimatedPrice.Currency) != 3 {
+			return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.estimatedPrice.currency must be a 3-letter code", legIndex)
+		}
+	}
+	if err := validateOptionalURL(option.BookingURL, "bookingUrl", legIndex); err != nil {
+		return err
+	}
+	if err := validateOptionalURL(option.ProviderURL, "providerUrl", legIndex); err != nil {
+		return err
+	}
+	option.SelectedAt = strings.TrimSpace(option.SelectedAt)
+	option.SelectedByUserID = strings.TrimSpace(option.SelectedByUserID)
+	option.Warnings = cleanStringList(option.Warnings)
+	return nil
+}
+
+func validateOptionalURL(value *string, field string, legIndex int) error {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		*value = ""
+		return nil
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return apperrs.NewInvalidInput("route.legs[%d].selectedTransportOption.%s must be an http or https URL", legIndex, field)
+	}
+	*value = trimmed
+	return nil
+}
+
+func cleanStringList(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func normalizeSupportedTransportList(values []string, label string) ([]string, error) {

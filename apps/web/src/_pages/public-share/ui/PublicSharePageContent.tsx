@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/shared/api/client";
+import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
 import {
   getPublicShareStatus,
   getPublicTrip,
@@ -208,6 +209,15 @@ export function PublicSharePageContent() {
           </aside>
 
           <section className="flex min-w-0 flex-col gap-5">
+            {trip.route ? (
+              <RouteSummaryCard
+                canEditTransport={false}
+                currency={trip.itinerary?.currency ?? "EUR"}
+                online={false}
+                route={trip.route}
+                travelers={trip.travelers ?? 1}
+              />
+            ) : null}
             {itinerary ? (
               <PublicShareItinerary itinerary={itinerary} />
             ) : (

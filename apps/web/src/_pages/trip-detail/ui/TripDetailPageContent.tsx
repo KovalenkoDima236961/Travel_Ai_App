@@ -2153,8 +2153,13 @@ export function TripDetailPageContent() {
                 <section id="route" className="scroll-mt-24 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <RouteSummaryCard
+                      canEditTransport={canMutateTrip}
                       route={trip.route}
                       currency={trip.budgetCurrency}
+                      expectedItineraryRevision={trip.itineraryRevision}
+                      online={onlineActionsEnabled}
+                      travelers={trip.travelers}
+                      tripId={trip.id}
                     />
                     {canMutateTrip ? (
                       <Button
@@ -2446,7 +2451,15 @@ export function TripDetailPageContent() {
               <div className="flex flex-col gap-4">
                 <section id="route" className="scroll-mt-24 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <RouteSummaryCard route={trip.route} currency={trip.budgetCurrency} />
+                    <RouteSummaryCard
+                      canEditTransport={canMutateTrip}
+                      currency={trip.budgetCurrency}
+                      expectedItineraryRevision={trip.itineraryRevision}
+                      online={onlineActionsEnabled}
+                      route={trip.route}
+                      travelers={trip.travelers}
+                      tripId={trip.id}
+                    />
                     {canMutateTrip ? (
                       <Button
                         type="button"

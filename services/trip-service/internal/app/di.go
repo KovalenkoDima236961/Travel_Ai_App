@@ -33,6 +33,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/transportclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/tripdiscovery"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
@@ -254,6 +255,21 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			exchangeRateClient,
 			cfg.BudgetConversion.Enabled,
 			cfg.BudgetConversion.FailOpen,
+		))
+	}
+	if cfg.TransportSearch.Enabled {
+		transportClient, err := transportclient.New(transportclient.Config{
+			BaseURL:        cfg.TransportSearch.ExternalIntegrationsServiceURL,
+			Token:          cfg.TransportSearch.InternalServiceToken,
+			TimeoutSeconds: cfg.TransportSearch.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init transport search client: %w", err)
+		}
+		opts = append(opts, service.WithTransportSearch(
+			transportClient,
+			cfg.TransportSearch.Enabled,
+			cfg.TransportSearch.FailOpen,
 		))
 	}
 	receiptStorage, err := receipts.NewLocalStorage(cfg.Receipts.LocalDir)

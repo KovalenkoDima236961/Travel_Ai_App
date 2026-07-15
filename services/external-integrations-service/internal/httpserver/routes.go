@@ -16,6 +16,7 @@ import (
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/httpserver/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/transport"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
 
@@ -27,6 +28,7 @@ func NewRouter(
 	weatherHandler *handler.WeatherHandler,
 	exchangeRateHandler *handler.ExchangeRateHandler,
 	priceHandler *prices.Handler,
+	transportHandler *transport.Handler,
 	availabilityHandler *availability.Handler,
 	calendarHandler *handler.CalendarHandler,
 	internalCalendarHandler *handler.InternalCalendarHandler,
@@ -62,6 +64,12 @@ func NewRouter(
 		r.Group(func(r chi.Router) {
 			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
 			priceHandler.RegisterRoutes(r)
+		})
+	}
+	if transportHandler != nil {
+		r.Group(func(r chi.Router) {
+			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+			transportHandler.RegisterRoutes(r)
 		})
 	}
 	if availabilityHandler != nil {

@@ -69,6 +69,35 @@ type UpdateTripRouteInput struct {
 	ExpectedItineraryRevision *int
 }
 
+type TransportSearchConstraintsInput struct {
+	MaxDurationMinutes *int
+	MaxPriceAmount     *float64
+	AvoidFlights       bool
+	PreferredModes     []string
+	AccessibilityNotes *string
+}
+
+type SearchRouteLegTransportInput struct {
+	Date           string
+	Time           string
+	TimePreference string
+	Modes          []string
+	Travelers      int
+	Currency       string
+	Constraints    TransportSearchConstraintsInput
+}
+
+type AttachRouteLegTransportOptionInput struct {
+	ExpectedItineraryRevision *int
+	Option                    aggregate.SelectedTransportOption
+	UpdateLegMode             bool
+}
+
+type RemoveRouteLegTransportOptionInput struct {
+	ExpectedItineraryRevision *int
+	ResetLegMode              bool
+}
+
 // GenerateItineraryInput is the application-level payload for full itinerary
 // generation.
 type GenerateItineraryInput struct {

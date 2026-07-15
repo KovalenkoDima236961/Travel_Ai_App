@@ -177,6 +177,28 @@ function appendRouteSummary(lines: TripPdfLine[], exportTrip: ExportTrip) {
       costBadge ? `est. ${costBadge}` : null
     ].filter(Boolean);
     lines.push({ text: details.join(" · "), variant: "small", indent: 28 });
+    if (leg.selectedTransportOption) {
+      const option = leg.selectedTransportOption;
+      const selectedDetails = [
+        `Selected: ${option.operatorName || option.serviceName || formatRouteToken(option.provider)}`,
+        option.departureDate || option.departureTime
+          ? `depart ${[option.departureDate, option.departureTime].filter(Boolean).join(" ")}`
+          : null,
+        option.arrivalDate || option.arrivalTime
+          ? `arrive ${[option.arrivalDate, option.arrivalTime].filter(Boolean).join(" ")}`
+          : null,
+        option.durationMinutes ? `~${option.durationMinutes} min` : null,
+        option.estimatedPrice
+          ? formatBudgetMoney(option.estimatedPrice.amount, option.estimatedPrice.currency)
+          : null,
+        option.confidence ? `${option.confidence} confidence` : null
+      ].filter(Boolean);
+      lines.push({ text: selectedDetails.join(" | "), variant: "small", indent: 42 });
+      if (option.warnings?.length) {
+        lines.push({ text: option.warnings.join("; "), variant: "small", indent: 42 });
+      }
+      lines.push({ text: "Selected transport is not a booking confirmation.", variant: "small", indent: 42 });
+    }
   });
   lines.push({
     text: "Transfer durations and costs are planning estimates; verify schedules before travel.",

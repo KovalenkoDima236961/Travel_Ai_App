@@ -16,6 +16,7 @@ type TripBudget struct {
 	Currency      string
 	Days          int
 	Accommodation *aggregate.Accommodation
+	Route         *aggregate.TripRoute
 }
 
 // CurrencyConverter is the exchange-rate client port used by converted budget
@@ -156,6 +157,9 @@ func CalculateBudgetSummaryWithConversion(
 	if err := addAccommodationCost(ctx, &summary, trip, currency, converter, conversionEnabled, options.FailOpen, originalTotals, categoryTotals, categoryCounts); err != nil {
 		return Summary{}, err
 	}
+	if err := addRouteTransportCosts(ctx, &summary, trip, itinerary, currency, converter, conversionEnabled, options.FailOpen, originalTotals, categoryTotals, categoryCounts); err != nil {
+		return Summary{}, err
+	}
 
 	summary.EstimatedTotal = round2(summary.EstimatedTotal)
 	summary.OriginalCurrencyTotals = buildOriginalCurrencyTotals(originalTotals)
@@ -215,6 +219,93 @@ func addAccommodationCost(
 	return nil
 }
 
+func addRouteTransportCosts(
+	ctx context.Context,
+	summary *Summary,
+	trip TripBudget,
+	itinerary aggregate.Itinerary,
+	currency string,
+	converter CurrencyConverter,
+	conversionEnabled bool,
+	failOpen bool,
+	originalTotals map[string]float64,
+	categoryTotals map[string]float64,
+	categoryCounts map[string]int,
+) error {
+	if trip.Route == nil {
+		return nil
+	}
+	itineraryLegCosts := itineraryTransportCostLegIDs(itinerary)
+	for i := range trip.Route.Legs {
+		if _, exists := itineraryLegCosts[trip.Route.Legs[i].ID]; exists {
+			continue
+		}
+		cost := routeLegTransportCost(trip.Route.Legs[i], currency)
+		if !hasUsableAmount(cost) {
+			continue
+		}
+		originalCurrency := costCurrency(cost.Currency, currency)
+		amount := *cost.Amount
+		addOriginalTotal(originalTotals, originalCurrency, amount)
+
+		convertedAmount, converted, ok, reason, err := convertAmount(ctx, converter, conversionEnabled, failOpen, amount, originalCurrency, currency)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			summary.UnsupportedCurrencyCount++
+			summary.UnconvertedItemCount++
+			summary.ConversionWarnings = append(summary.ConversionWarnings, ConversionWarning{
+				Currency: originalCurrency,
+				Amount:   floatPtr(amount),
+				Reason:   reason,
+			})
+			continue
+		}
+		if converted != nil {
+			summary.ConvertedItemCount++
+			mergeExchangeRateInfo(summary, converted)
+		}
+
+		summary.EstimatedTotal += convertedAmount
+		summary.EstimatedItemCount++
+		categoryTotals[CategoryTransport] += convertedAmount
+		categoryCounts[CategoryTransport]++
+	}
+	return nil
+}
+
+func itineraryTransportCostLegIDs(itinerary aggregate.Itinerary) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, day := range itinerary.Days {
+		for _, item := range day.Items {
+			if item.Transfer == nil || strings.TrimSpace(item.Transfer.LegID) == "" || !hasUsableAmount(item.EstimatedCost) {
+				continue
+			}
+			category := itemCategory(item.EstimatedCost, item.Type)
+			if category != CategoryTransport {
+				continue
+			}
+			out[strings.TrimSpace(item.Transfer.LegID)] = struct{}{}
+		}
+	}
+	return out
+}
+
+func routeLegTransportCost(leg aggregate.RouteLeg, summaryCurrency string) *aggregate.EstimatedCost {
+	if leg.SelectedTransportOption != nil && leg.SelectedTransportOption.EstimatedPrice != nil {
+		amount := leg.SelectedTransportOption.EstimatedPrice.Amount
+		return &aggregate.EstimatedCost{
+			Amount:     &amount,
+			Currency:   costCurrency(leg.SelectedTransportOption.EstimatedPrice.Currency, summaryCurrency),
+			Category:   CategoryTransport,
+			Confidence: leg.SelectedTransportOption.Confidence,
+			Source:     SourceProvider,
+		}
+	}
+	return leg.EstimatedCost
+}
+
 // applyBudget fills the budget-relative fields. When the trip has no budget,
 // tripBudget/remaining/overBudgetBy stay nil and the per-day share is omitted.
 func applyBudget(summary *Summary, trip TripBudget) {
@@ -267,6 +358,17 @@ func resolveSummaryCurrency(trip TripBudget, itinerary aggregate.Itinerary) stri
 	if trip.Accommodation != nil && trip.Accommodation.EstimatedCost != nil {
 		if c := strings.ToUpper(strings.TrimSpace(trip.Accommodation.EstimatedCost.Currency)); c != "" {
 			return c
+		}
+	}
+	if trip.Route != nil {
+		for _, leg := range trip.Route.Legs {
+			cost := routeLegTransportCost(leg, "")
+			if cost == nil {
+				continue
+			}
+			if c := strings.ToUpper(strings.TrimSpace(cost.Currency)); c != "" {
+				return c
+			}
 		}
 	}
 	for _, day := range itinerary.Days {

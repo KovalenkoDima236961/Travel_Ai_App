@@ -45,6 +45,7 @@ type Config struct {
 	GenerationJobs     GenerationJobsConfig     `yaml:"generation_jobs"`
 	CalendarSync       CalendarSyncConfig       `yaml:"calendar_sync"`
 	BudgetConversion   BudgetConversionConfig   `yaml:"budget_conversion"`
+	TransportSearch    TransportSearchConfig    `yaml:"transport_search"`
 	Receipts           ReceiptsConfig           `yaml:"receipts"`
 	Ops                OpsConfig                `yaml:"ops"`
 	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
@@ -154,6 +155,14 @@ type BudgetConversionConfig struct {
 	ExternalIntegrationsServiceURL string `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
 	InternalServiceToken           string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
 	TimeoutSeconds                 int    `yaml:"timeout_seconds" env:"EXCHANGE_RATE_CLIENT_TIMEOUT_SECONDS" env-default:"8" validate:"min=1"`
+}
+
+type TransportSearchConfig struct {
+	Enabled                        bool   `yaml:"enabled" env:"TRANSPORT_SEARCH_ENABLED" env-default:"true"`
+	FailOpen                       bool   `yaml:"fail_open" env:"TRANSPORT_SEARCH_FAIL_OPEN" env-default:"true"`
+	ExternalIntegrationsServiceURL string `yaml:"external_integrations_service_url" env:"EXTERNAL_INTEGRATIONS_SERVICE_URL" env-default:"http://external-integrations-service:8084"`
+	InternalServiceToken           string `yaml:"internal_service_token" env:"EXTERNAL_INTEGRATIONS_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	TimeoutSeconds                 int    `yaml:"timeout_seconds" env:"TRANSPORT_SEARCH_TIMEOUT_SECONDS" env-default:"10" validate:"min=1"`
 }
 
 // OpsConfig controls the internal allowlisted operations dashboard endpoints.
@@ -464,6 +473,7 @@ func (c *Config) validateServiceURLs() error {
 		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.PriceEnrichment.ExternalIntegrationsServiceURL, c.PriceEnrichment.Enabled, false},
 		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.CalendarSync.ExternalIntegrationsServiceURL, c.CalendarSync.Enabled, false},
 		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.BudgetConversion.ExternalIntegrationsServiceURL, c.BudgetConversion.Enabled, false},
+		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.TransportSearch.ExternalIntegrationsServiceURL, c.TransportSearch.Enabled, false},
 		{"NOTIFICATION_SERVICE_URL", c.Notifications.NotificationServiceURL, c.Notifications.Enabled, false},
 		{"AUTH_SERVICE_URL", c.UserLookup.AuthServiceURL, true, false},
 		{"PUBLIC_WEB_BASE_URL", c.PublicSharing.PublicWebBaseURL, c.PublicSharing.Enabled, c.IsProduction()},
@@ -522,6 +532,7 @@ func (c *Config) validateInternalTokens() error {
 		{"INTERNAL_SERVICE_TOKEN", c.PriceEnrichment.InternalServiceToken, c.PriceEnrichment.Enabled},
 		{"INTERNAL_SERVICE_TOKEN", c.CalendarSync.InternalServiceToken, c.CalendarSync.Enabled},
 		{"INTERNAL_SERVICE_TOKEN", c.BudgetConversion.InternalServiceToken, c.BudgetConversion.Enabled},
+		{"EXTERNAL_INTEGRATIONS_SERVICE_TOKEN", c.TransportSearch.InternalServiceToken, c.TransportSearch.Enabled},
 		{"NOTIFICATION_SERVICE_TOKEN", c.Notifications.NotificationServiceToken, c.Notifications.Enabled},
 		{"INTERNAL_SERVICE_TOKEN", c.Workspaces.ServiceToken, c.Workspaces.Enabled},
 		{"INTERNAL_SERVICE_TOKEN", c.Auth.InternalServiceToken, true},
