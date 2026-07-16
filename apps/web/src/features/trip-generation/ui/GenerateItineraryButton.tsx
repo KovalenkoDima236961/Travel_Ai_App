@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { ButtonSpinner, ErrorState } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
 import { isItineraryConflictError } from "@/shared/api/client";
 import { createGenerationJob, generationJobKeys } from "@/lib/api/generation-jobs";
 import { tripKeys } from "@/lib/api/trips";
-import { getErrorMessage } from "@/lib/utils";
 import type { GenerationJob } from "@/entities/generation-job/model";
 
 type GenerateItineraryButtonProps = {
@@ -21,6 +22,9 @@ export function GenerateItineraryButton({
   disabled = false,
   onJobCreated
 }: GenerateItineraryButtonProps) {
+  const tripsT = useTranslations("trips");
+  const qualityT = useTranslations("generationQuality");
+  const errorsT = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -45,18 +49,25 @@ export function GenerateItineraryButton({
 
   return (
     <div className="flex flex-col items-start gap-2 sm:items-end">
-      <Button disabled={disabled || mutation.isPending} onClick={() => mutation.mutate()}>
-        {mutation.isPending ? "Queueing..." : "Generate itinerary"}
+      <Button data-generate-itinerary disabled={disabled || mutation.isPending} onClick={() => mutation.mutate()}>
+        {mutation.isPending ? <ButtonSpinner className="mr-2" /> : null}
+        {mutation.isPending ? qualityT("queueing") : tripsT("generate")}
       </Button>
       <p className="max-w-xs text-left text-xs leading-5 text-slate-500 sm:text-right">
-        Your saved travel preferences will be used when generating this itinerary.
+        {qualityT("preferencesUsed")}
       </p>
       {mutation.isError ? (
-        <p className="max-w-xs text-sm text-red-700" role="alert">
-          {isItineraryConflictError(mutation.error)
-            ? "This itinerary changed. Reload latest version before trying again."
-            : getErrorMessage(mutation.error, "Could not generate itinerary.")}
-        </p>
+        <ErrorState
+          className="max-w-sm text-left"
+          compact
+          description={
+            isItineraryConflictError(mutation.error)
+              ? errorsT("itineraryConflict")
+              : errorsT("itineraryGenerationDescription")
+          }
+          retryAction={{ onRetry: () => mutation.mutate(), pending: mutation.isPending }}
+          title={errorsT("itineraryGenerationTitle")}
+        />
       ) : null}
     </div>
   );

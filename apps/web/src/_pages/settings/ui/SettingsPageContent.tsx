@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { ErrorState } from "@/components/ui";
 import { cn } from "@/shared/lib/cn";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PushNotificationSettings } from "@/components/notifications/PushNotificationSettings";
@@ -81,15 +82,19 @@ export function SettingsPageContent() {
         {isLoading ? <div className="mt-9"><SettingsSkeleton /></div> : null}
 
         {loadError ? (
-          <div
-            className="mt-9 rounded-[20px] border border-clay/30 bg-clay-tint/50 p-7 text-[14.5px] text-clay-deep"
-            role="alert"
-          >
-            {getErrorMessage(
-              loadError,
-              translate("loadFailed")
-            )}
-          </div>
+          <ErrorState
+            className="mt-9 rounded-[20px]"
+            description={translate("loadFailed")}
+            developmentDetails={loadError instanceof Error ? loadError.message : undefined}
+            retryAction={{
+              onRetry: () => {
+                void profileQuery.refetch();
+                void preferencesQuery.refetch();
+              },
+              pending: profileQuery.isFetching || preferencesQuery.isFetching
+            }}
+            title={translate("loadErrorTitle")}
+          />
         ) : null}
 
         {profileQuery.data && preferencesQuery.data ? (
@@ -120,12 +125,12 @@ export function SettingsPageContent() {
             <PreferencesForm
               errorMessage={
                 preferencesMutation.isError
-                  ? getErrorMessage(preferencesMutation.error, "Could not save preferences.")
+                  ? translate("preferencesSaveFailed")
                   : null
               }
               isSaving={preferencesMutation.isPending}
               preferences={preferencesQuery.data}
-              successMessage={preferencesMutation.isSuccess ? "Preferences saved." : null}
+              successMessage={preferencesMutation.isSuccess ? translate("preferencesSaved") : null}
               onSubmit={(values) => preferencesMutation.mutate(values)}
             />
 

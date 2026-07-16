@@ -87,7 +87,10 @@ function ActivityRow({
 }) {
   const formatted = formatActivityEvent(event, currentUserId);
   return (
-    <div className="flex items-start gap-2.5">
+    <div
+      className="scroll-mt-28 flex items-start gap-2.5 rounded-sm outline-none transition-shadow"
+      id={`activity-event-${event.id}`}
+    >
       <span
         aria-hidden="true"
         className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-clay"

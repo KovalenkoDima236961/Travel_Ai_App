@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { ErrorState, SectionLoadingState } from "@/components/ui";
 import { BudgetConfidenceBadge } from "./BudgetConfidenceBadge";
 import { BudgetCoverageBreakdown } from "./BudgetCoverageBreakdown";
 import { BudgetImprovementActions } from "./BudgetImprovementActions";
@@ -11,34 +15,44 @@ type BudgetConfidenceCardProps = {
   confidence?: BudgetConfidence | null;
   isLoading?: boolean;
   error?: string | null;
+  onRetry?: () => void;
+  retrying?: boolean;
 };
 
 export function BudgetConfidenceCard({
   confidence,
   isLoading = false,
-  error = null
+  error = null,
+  onRetry,
+  retrying = false
 }: BudgetConfidenceCardProps) {
+  const errorsT = useTranslations("errors");
+  const loadingT = useTranslations("loading");
+
   if (isLoading) {
-    return (
-      <section className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-        Loading budget confidence…
-      </section>
-    );
+    return <SectionLoadingState compact label={loadingT("budget")} />;
   }
 
   if (error) {
     return (
-      <section className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-        {error}
-      </section>
+      <ErrorState
+        compact
+        description={errorsT("budgetConfidenceDescription")}
+        developmentDetails={error}
+        retryAction={onRetry ? { onRetry, pending: retrying } : undefined}
+        title={errorsT("budgetConfidenceTitle")}
+      />
     );
   }
 
   if (!confidence) {
     return (
-      <section className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-        Budget confidence is unavailable.
-      </section>
+      <ErrorState
+        compact
+        description={errorsT("budgetConfidenceDescription")}
+        retryAction={onRetry ? { onRetry, pending: retrying } : undefined}
+        title={errorsT("budgetConfidenceTitle")}
+      />
     );
   }
 

@@ -29,6 +29,32 @@ The automated counterpart is `./scripts/security-smoke-test.sh`.
 
 Manual browser flow for the local full stack.
 
+## Frontend UX Polish & Usability Hardening v1
+
+1. Log in, open a private trip, and confirm the initial page uses a labeled skeleton rather than a blank area or full-page spinner.
+2. Confirm the trip header renders before slower Trip Health, Group Readiness, Budget Confidence, activity, and expense data settles.
+3. Open a DRAFT trip without an itinerary. Confirm “No itinerary yet” explains the outcome and Generate itinerary starts once even after repeated taps.
+4. Trigger a generation failure. Confirm the error explains validation/constraints, offers Retry, and does not expose a stack trace or raw provider message.
+5. Watch a generation job move through queued/running/completed. Confirm progress has an accessible label and a completed-with-warnings job keeps its warning state visible.
+6. Open Route edit at a mobile viewport. Confirm Save/Cancel remain visible above the safe area and leaving with changes opens the unsaved-changes dialog.
+7. Open `?tab=route&legId=<valid-id>` and confirm the leg scrolls into view, receives focus, and is highlighted briefly. Repeat for a stop.
+8. Open valid Budget category, Trip Health issue, Expense, and Activity event deep links. Confirm each target is focused/highlighted. Use an invalid target and confirm friendly feedback appears at the parent section.
+9. Open Budget with no saved budget. Confirm editors see Set budget and viewers see explanation without an edit action.
+10. Enter a negative budget or invalid currency code. Confirm the field is marked invalid, its inline message is associated with it, and entered data remains after errors.
+11. Open Expenses with no entries. Confirm Add expense and Upload receipt are visible only when permitted.
+12. Select an invalid receipt file and an oversized file. Confirm validation happens before upload. Select a valid file and confirm filename, type/size guidance, and privacy warning are visible.
+13. Delete an expense and a receipt. Confirm each dialog explains what remains and the mutation runs only after confirmation.
+14. Open an empty checklist. Confirm editors can Generate checklist, viewers receive permission-aware copy, and loading/failure states offer progressive feedback/Retry.
+15. Restore an itinerary version. Confirm the dialog states that comments, expenses, receipts, and collaborators remain and focus returns to the trigger.
+16. Disable a public share. Confirm the dialog explains immediate access loss and that a new link can be created later.
+17. Open public shares in loading, password, wrong-password, expired, disabled, and no-itinerary states. Confirm all copy is localized and the page is clearly read-only.
+18. Verify public share source/network calls do not include command center, group readiness, budget confidence, expenses, receipts, approval, policy, private activity, or comments.
+19. Open Settings with profile/preferences APIs unavailable. Confirm the existing skeleton is followed by contextual Retry UI with no raw service error.
+20. Clear offline data from Settings and Offline trips. Confirm the dialog states cached/pending device data is removed while synced cloud data remains.
+21. Switch among English, Spanish, Ukrainian, and French and repeat representative loading, empty, error, confirmation, offline, and public-share states.
+22. Navigate major pages with keyboard only. Confirm dialog focus containment/return, visible focus rings, labeled fields/buttons, text status badges, and announced progress/loading/errors.
+23. At 320–390 px widths, verify no accidental page-level horizontal overflow on Trip Command Center, Route, Budget, Expenses/Receipts, Checklist, Group Readiness, Trip Health, and public share.
+
 ## Start The Stack
 
 From the repository root:

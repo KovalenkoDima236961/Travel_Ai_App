@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { ButtonSpinner, FieldHint, InlineError } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
@@ -45,6 +46,7 @@ export function UploadReceiptDialog({
 }) {
   const t = useTranslations("receipts");
   const expensesT = useTranslations("expenses");
+  const errorsT = useTranslations("errors");
   const uploadMutation = useUploadReceipt(tripId);
   const createMutation = useCreateExpenseFromReceipt(tripId);
   const [file, setFile] = useState<File | null>(null);
@@ -101,8 +103,8 @@ export function UploadReceiptDialog({
     try {
       const uploaded = await uploadMutation.mutateAsync({ file, runOcr: true });
       setReceipt(uploaded);
-    } catch (err) {
-      setError(getErrorMessage(err, t("uploadFailed")));
+    } catch {
+      setError(errorsT("receiptUploadDescription"));
     }
   }
 
@@ -151,21 +153,38 @@ export function UploadReceiptDialog({
         </Button>
       </div>
 
-      {error ? (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </div>
-      ) : null}
+      {error ? <InlineError className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3" id="receipt-upload-error" message={error} /> : null}
 
       {!receipt ? (
         <form className="mt-4 space-y-4" onSubmit={upload}>
-          <Input
-            accept={RECEIPT_ALLOWED_TYPES.join(",")}
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            required
-            type="file"
-          />
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="receipt-file">
+              {t("fileLabel")}
+            </label>
+            <Input
+              accept={RECEIPT_ALLOWED_TYPES.join(",")}
+              aria-describedby={`receipt-file-hint${error ? " receipt-upload-error" : ""}`}
+              id="receipt-file"
+              onChange={(event) => {
+                const selected = event.target.files?.[0] ?? null;
+                setFile(selected);
+                setError(selected ? validateReceiptFile(selected, t) : null);
+              }}
+              required
+              type="file"
+            />
+            <FieldHint id="receipt-file-hint">
+              {t("supportedFiles", {
+                maxSize: Math.round(RECEIPT_MAX_FILE_SIZE_BYTES / (1024 * 1024))
+              })}
+            </FieldHint>
+            {file ? <p className="text-sm font-medium text-slate-700">{t("selectedFile", { name: file.name })}</p> : null}
+            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+              {t("privacyNotice")}
+            </p>
+          </div>
           <Button disabled={uploadMutation.isPending} type="submit">
+            {uploadMutation.isPending ? <ButtonSpinner className="mr-2" /> : null}
             {uploadMutation.isPending ? t("uploading") : t("uploadAndExtract")}
           </Button>
         </form>
@@ -259,7 +278,7 @@ export function UploadReceiptDialog({
   );
 }
 
-function validateReceiptFile(
+export function validateReceiptFile(
   file: File,
   t: (key: "unsupportedFileType" | "fileTooLarge") => string
 ) {

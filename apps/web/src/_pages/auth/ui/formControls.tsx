@@ -15,20 +15,22 @@ export const AuthField = forwardRef<HTMLInputElement, AuthFieldProps>(function A
   { label, error, id, ...props },
   ref
 ) {
+  const errorId = id ? `${id}-error` : undefined;
   return (
     <label className="block" htmlFor={id}>
       <span className="block text-[13.5px] font-semibold text-cocoa-700">{label}</span>
       <input
+        {...props}
         ref={ref}
         id={id}
+        aria-describedby={error ? errorId : props["aria-describedby"]}
         aria-invalid={error ? true : undefined}
         className={cn(
           "mt-2 h-[50px] w-full rounded-[14px] border bg-[#FFFDFA] px-4 text-[15px] text-cocoa-900 outline-none transition placeholder:text-cocoa-400 focus:ring-[3px] focus:ring-clay-tint",
           error ? "border-[#C0553B] focus:border-[#C0553B]" : "border-sand-400 focus:border-clay"
         )}
-        {...props}
       />
-      {error ? <span className="mt-2 block text-[13px] text-[#B4442B]">{error}</span> : null}
+      {error ? <span className="mt-2 block text-[13px] text-[#B4442B]" id={errorId} role="alert">{error}</span> : null}
     </label>
   );
 });

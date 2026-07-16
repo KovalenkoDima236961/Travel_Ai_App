@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { ConfirmDialog } from "@/components/ui";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { IosInstallInstructionsDialog } from "@/components/pwa/IosInstallInstructionsDialog";
 import {
@@ -33,6 +35,8 @@ type OfflineSummary = {
 };
 
 export function PwaSettingsSection() {
+  const confirmationsT = useTranslations("confirmations");
+  const offlineT = useTranslations("offline");
   const { user } = useAuth();
   const install = usePwaInstall();
   const push = useWebPushNotifications();
@@ -43,6 +47,8 @@ export function PwaSettingsSection() {
   });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const refreshOfflineSummary = useCallback(async () => {
     if (!user?.id) {
@@ -107,19 +113,18 @@ export function PwaSettingsSection() {
     if (!user?.id) {
       return;
     }
-
-    const confirmed = window.confirm(
-      offlineSummary.pendingChangesCount > 0
-        ? "You have unsynced changes. Clearing offline data will delete them."
-        : "This removes cached trips and pending offline changes stored on this device."
-    );
-    if (!confirmed) {
-      return;
+    setClearing(true);
+    setError(null);
+    try {
+      await clearOfflineDataForUser(user.id);
+      setMessage(offlineT("dataCleared"));
+      setClearDialogOpen(false);
+      await refreshOfflineSummary();
+    } catch {
+      setError(offlineT("clearFailed"));
+    } finally {
+      setClearing(false);
     }
-
-    await clearOfflineDataForUser(user.id);
-    setMessage("Offline data cleared.");
-    await refreshOfflineSummary();
   }
 
   return (
@@ -201,7 +206,7 @@ export function PwaSettingsSection() {
             disabled={
               offlineSummary.cachedTripsCount === 0 && offlineSummary.pendingChangesCount === 0
             }
-            onClick={() => void handleClearOfflineData()}
+            onClick={() => setClearDialogOpen(true)}
             className="inline-flex h-11 items-center justify-center rounded-full border border-clay/40 bg-white px-[22px] text-[14.5px] font-semibold text-clay-deep transition hover:bg-clay-tint/50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Clear offline data
@@ -224,6 +229,16 @@ export function PwaSettingsSection() {
       <IosInstallInstructionsDialog
         open={iosInstructionsOpen}
         onClose={() => setIosInstructionsOpen(false)}
+      />
+      <ConfirmDialog
+        confirmLabel={confirmationsT("clearOffline.action")}
+        description={confirmationsT("clearOffline.description")}
+        onCancel={() => setClearDialogOpen(false)}
+        onConfirm={() => void handleClearOfflineData()}
+        open={clearDialogOpen}
+        pending={clearing}
+        title={confirmationsT("clearOffline.title")}
+        tone="danger"
       />
     </>
   );

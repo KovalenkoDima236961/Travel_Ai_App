@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { StickyMobileActionBar, UnsavedChangesDialog } from "@/components/ui";
 import { ApiError } from "@/shared/api/client";
 import { TransportModeSelector } from "@/components/routes/TransportModeSelector";
 import type { TransportMode, TripRoute, TripRouteStop } from "@/entities/route/model";
@@ -50,6 +51,8 @@ export function RouteBuilderPanel({
   const [editingStopId, setEditingStopId] = useState<string | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [pendingNavigationHref, setPendingNavigationHref] = useState<string | null>(null);
   const mutation = useUpdateTripRoute(trip.id);
 
   useEffect(() => {
@@ -58,7 +61,10 @@ export function RouteBuilderPanel({
     }
   }, [baseline, trip.itinerary, trip.itineraryRevision]);
 
-  useUnsavedRouteWarning(draft.dirty);
+  useUnsavedRouteWarning(draft.dirty, (href) => {
+    setPendingNavigationHref(href);
+    setDiscardDialogOpen(true);
+  });
 
   const visibleRoute = editing ? draft.draftRoute : trip.route;
   const issues = useMemo(
@@ -191,7 +197,9 @@ export function RouteBuilderPanel({
       return;
     }
     if (issue.action?.href) {
-      if (draft.dirty && !window.confirm("Discard unsaved route changes and leave this page?")) {
+      if (draft.dirty) {
+        setPendingNavigationHref(issue.action.href);
+        setDiscardDialogOpen(true);
         return;
       }
       window.location.assign(issue.action.href);
@@ -317,12 +325,12 @@ export function RouteBuilderPanel({
       <div id="route-validation" className="scroll-mt-28"><RouteValidationPanel issues={issues} onAction={handleIssueAction} /></div>
 
       {editing ? (
-        <div className="sticky bottom-3 z-30 flex flex-col gap-2 rounded-[16px] border border-sand-300 bg-white/95 p-3 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-3 z-30 hidden flex-col gap-2 rounded-[16px] border border-sand-300 bg-white/95 p-3 shadow-xl backdrop-blur md:flex md:flex-row md:items-center md:justify-between">
           <p className="text-[12.5px] font-medium text-cocoa-500">
             {draft.dirty ? t("unsavedChanges") : t("noUnsavedChanges")}
           </p>
           <div className="flex gap-2">
-            <button className="h-10 flex-1 rounded-full border border-sand-400 px-4 text-[13px] font-semibold text-cocoa-700 sm:flex-none" onClick={discardChanges} type="button">
+            <button className="h-10 flex-1 rounded-full border border-sand-400 px-4 text-[13px] font-semibold text-cocoa-700 sm:flex-none" onClick={() => draft.dirty ? setDiscardDialogOpen(true) : discardChanges()} type="button">
               {t("discardChanges")}
             </button>
             <button
@@ -336,6 +344,34 @@ export function RouteBuilderPanel({
           </div>
         </div>
       ) : null}
+
+      {editing ? (
+        <StickyMobileActionBar
+          cancelLabel={t("discardChanges")}
+          onCancel={() => draft.dirty ? setDiscardDialogOpen(true) : discardChanges()}
+          onPrimary={previewSave}
+          pending={mutation.isPending}
+          primaryDisabled={!draft.dirty}
+          primaryLabel={t("reviewAndSave")}
+        />
+      ) : null}
+
+      <UnsavedChangesDialog
+        onDiscard={() => {
+          const href = pendingNavigationHref;
+          discardChanges();
+          setDiscardDialogOpen(false);
+          setPendingNavigationHref(null);
+          if (href) {
+            window.location.assign(href);
+          }
+        }}
+        onKeepEditing={() => {
+          setDiscardDialogOpen(false);
+          setPendingNavigationHref(null);
+        }}
+        open={discardDialogOpen}
+      />
 
       <RouteImpactPreviewDialog
         error={saveError}
@@ -376,7 +412,7 @@ function initialRouteForTrip(trip: Trip): TripRoute {
   );
 }
 
-function useUnsavedRouteWarning(dirty: boolean) {
+function useUnsavedRouteWarning(dirty: boolean, onNavigationAttempt: (href: string) => void) {
   useEffect(() => {
     if (!dirty) {
       return;
@@ -398,10 +434,9 @@ function useUnsavedRouteWarning(dirty: boolean) {
       ) {
         return;
       }
-      if (!window.confirm("Discard unsaved route changes and leave this page?")) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      event.preventDefault();
+      event.stopPropagation();
+      onNavigationAttempt(targetUrl.href);
     };
     window.addEventListener("beforeunload", beforeUnload);
     document.addEventListener("click", interceptLink, true);
@@ -409,5 +444,5 @@ function useUnsavedRouteWarning(dirty: boolean) {
       window.removeEventListener("beforeunload", beforeUnload);
       document.removeEventListener("click", interceptLink, true);
     };
-  }, [dirty]);
+  }, [dirty, onNavigationAttempt]);
 }

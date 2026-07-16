@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import {
   GenerationQualityBadge,
   GenerationWarningsPanel
@@ -19,8 +22,20 @@ export function GenerationJobStatusCard({
   isCancelling = false,
   onCancel
 }: GenerationJobStatusCardProps) {
-  const copy = getStatusCopy(job);
+  const qualityT = useTranslations("generationQuality");
+  const errorsT = useTranslations("errors");
+  const commonT = useTranslations("common");
+  const accessibilityT = useTranslations("accessibility");
   const generationQuality = job.generationQuality ?? job.resultPayload?.generationQuality ?? null;
+  const completedWithWarnings =
+    job.status === "completed" &&
+    (generationQuality?.status === "validated_with_warnings" ||
+      generationQuality?.status === "repaired_with_warnings");
+  const baseCopy = getStatusCopy(job);
+  const copy = completedWithWarnings
+    ? { ...baseCopy, title: qualityT("completedWithWarnings"), message: qualityT("reviewWarnings") }
+    : baseCopy;
+  const progress = progressForStatus(job.status);
 
   return (
     <div className={copy.className}>
@@ -31,13 +46,27 @@ export function GenerationJobStatusCard({
             <GenerationQualityBadge quality={generationQuality} />
           </div>
           <p className="mt-1 text-sm leading-6">{copy.message}</p>
-          {job.status === "failed" && job.errorMessage ? (
-            <p className="mt-2 text-sm leading-6">{job.errorMessage}</p>
+          {job.status === "running" ? (
+            <p className="mt-2 text-xs leading-5 opacity-80">{qualityT("jobRunningStages")}</p>
+          ) : null}
+          {job.status === "failed" && job.errorCode ? (
+            <p className="mt-2 text-xs leading-5">{errorsT("reference", { code: job.errorCode })}</p>
           ) : null}
           <GenerationWarningsPanel quality={generationQuality} />
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-current/15">
+            <div
+              aria-label={accessibilityT("progress", { value: progress })}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={progress}
+              className={`h-full rounded-full bg-current transition-all ${job.status === "running" ? "animate-pulse" : ""}`}
+              role="progressbar"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
           <p className="mt-2 text-xs opacity-80">
-            Started {job.startedAt ? formatDate(job.startedAt, dateTimeFormat) : "not yet"} -
-            Queued {formatDate(job.createdAt, dateTimeFormat)}
+            {qualityT("jobStarted")} {job.startedAt ? formatDate(job.startedAt, dateTimeFormat) : qualityT("notYet")} ·
+            {" "}{qualityT("jobQueuedAt")} {formatDate(job.createdAt, dateTimeFormat)}
           </p>
         </div>
         {canCancel && job.status === "queued" && onCancel ? (
@@ -48,12 +77,25 @@ export function GenerationJobStatusCard({
             type="button"
             variant="secondary"
           >
-            {isCancelling ? "Cancelling..." : "Cancel"}
+            {isCancelling ? qualityT("cancelling") : commonT("cancel")}
           </Button>
         ) : null}
       </div>
     </div>
   );
+}
+
+function progressForStatus(status: GenerationJob["status"]) {
+  switch (status) {
+    case "queued":
+      return 10;
+    case "running":
+      return 60;
+    case "completed":
+    case "failed":
+    case "cancelled":
+      return 100;
+  }
 }
 
 const dateTimeFormat: Intl.DateTimeFormatOptions = {

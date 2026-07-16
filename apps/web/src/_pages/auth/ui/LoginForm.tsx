@@ -6,7 +6,6 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { getErrorMessage } from "@/lib/utils";
 import { loginSchema, safeNextPath, type LoginValues } from "../model/authModel";
 import { AuthErrorBanner, AuthField, AuthSubmitButton } from "./formControls";
 
@@ -31,8 +30,8 @@ export function LoginForm() {
     try {
       await login({ email: values.email.trim().toLowerCase(), password: values.password });
       router.push(safeNextPath(searchParams.get("next")) ?? "/trips");
-    } catch (error) {
-      setApiError(getErrorMessage(error, "Could not log in."));
+    } catch {
+      setApiError(translate("loginFailed"));
     }
   }
 

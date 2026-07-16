@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { ConfirmDialog, EmptyState, SectionLoadingState } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
@@ -80,6 +81,10 @@ export function ExpensesPanel({
 }: ExpensesPanelProps) {
   const t = useTranslations("expenses");
   const settlementsT = useTranslations("settlements");
+  const emptyExpensesT = useTranslations("emptyStates.expenses");
+  const emptyReceiptsT = useTranslations("emptyStates.receipts");
+  const loadingT = useTranslations("loading");
+  const confirmationsT = useTranslations("confirmations");
   const [addOpen, setAddOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [attachExpenseId, setAttachExpenseId] = useState<string | null>(null);
@@ -88,6 +93,8 @@ export function ExpensesPanel({
   const [settlementNotes, setSettlementNotes] = useState("");
   const [panelError, setPanelError] = useState<string | null>(null);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
+  const [deleteExpenseTarget, setDeleteExpenseTarget] = useState<TripExpense | null>(null);
+  const [deleteReceiptTarget, setDeleteReceiptTarget] = useState<string | null>(null);
   const [offlineExpenses, setOfflineExpenses] = useState<TripExpense[] | null>(null);
   const [offlineSummary, setOfflineSummary] = useState<ExpenseSummary | null>(null);
   const [offlineSettlements, setOfflineSettlements] = useState<SettlementsResponse | null>(null);
@@ -445,9 +452,36 @@ export function ExpensesPanel({
         <Card>
           <h3 className="text-base font-semibold text-slate-950">{t("expenses")}</h3>
           {expensesQuery.isLoading ? (
-            <p className="mt-4 text-sm text-slate-500">{t("loading")}</p>
+            <SectionLoadingState className="mt-4" compact label={loadingT("expenses")} />
           ) : expenses.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">{t("empty")}</p>
+            <EmptyState
+              className="mt-4"
+              compact
+              description={canMutateExpenses ? emptyExpensesT("description") : emptyExpensesT("viewerDescription")}
+              primaryAction={
+                canMutateExpenses
+                  ? {
+                      label: emptyExpensesT("action"),
+                      onClick: () => {
+                        setAddOpen(true);
+                        setUploadOpen(false);
+                      }
+                    }
+                  : undefined
+              }
+              secondaryAction={
+                canMutateExpenses
+                  ? {
+                      label: emptyReceiptsT("action"),
+                      onClick: () => {
+                        setUploadOpen(true);
+                        setAddOpen(false);
+                      }
+                    }
+                  : undefined
+              }
+              title={emptyExpensesT("title")}
+            />
           ) : (
             <div className="mt-4 divide-y divide-slate-100">
               {expenses.map((expense) => (
@@ -459,8 +493,8 @@ export function ExpensesPanel({
                   expense={expense}
                   onAttachReceipt={(item) => setAttachExpenseId(item.id)}
                   key={expense.id}
-                  onDelete={removeExpense}
-                  onDeleteReceipt={removeReceipt}
+                  onDelete={setDeleteExpenseTarget}
+                  onDeleteReceipt={setDeleteReceiptTarget}
                   onViewReceipt={setViewReceiptId}
                 />
               ))}
@@ -595,6 +629,37 @@ export function ExpensesPanel({
       </div>
 
       <p className="text-xs leading-5 text-slate-500">{t("disclaimer")}</p>
+
+      <ConfirmDialog
+        confirmLabel={confirmationsT("deleteExpense.action")}
+        description={confirmationsT("deleteExpense.description")}
+        onCancel={() => setDeleteExpenseTarget(null)}
+        onConfirm={() => {
+          if (!deleteExpenseTarget) {
+            return;
+          }
+          void removeExpense(deleteExpenseTarget).finally(() => setDeleteExpenseTarget(null));
+        }}
+        open={Boolean(deleteExpenseTarget)}
+        pending={deleteMutation.isPending}
+        title={confirmationsT("deleteExpense.title")}
+        tone="danger"
+      />
+      <ConfirmDialog
+        confirmLabel={confirmationsT("deleteReceipt.action")}
+        description={confirmationsT("deleteReceipt.description")}
+        onCancel={() => setDeleteReceiptTarget(null)}
+        onConfirm={() => {
+          if (!deleteReceiptTarget) {
+            return;
+          }
+          void removeReceipt(deleteReceiptTarget).finally(() => setDeleteReceiptTarget(null));
+        }}
+        open={Boolean(deleteReceiptTarget)}
+        pending={deleteReceiptMutation.isPending}
+        title={confirmationsT("deleteReceipt.title")}
+        tone="danger"
+      />
     </section>
   );
 }
@@ -880,7 +945,10 @@ function ExpenseRow({
 }) {
   const t = useTranslations("expenses");
   return (
-    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+    <div
+      className="scroll-mt-28 flex flex-col gap-3 rounded-sm py-4 outline-none transition-shadow sm:flex-row sm:items-start sm:justify-between"
+      id={`expense-${expense.id}`}
+    >
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-medium text-slate-950">{expense.title}</p>

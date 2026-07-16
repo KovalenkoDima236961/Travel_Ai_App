@@ -2,11 +2,67 @@
   "common": {
     "save": "Enregistrer", "cancel": "Annuler", "close": "Fermer", "delete": "Supprimer",
     "edit": "Modifier", "create": "Créer", "update": "Mettre à jour", "apply": "Appliquer",
-    "discard": "Ignorer", "retry": "Réessayer", "loading": "Chargement…", "error": "Erreur",
+    "discard": "Ignorer", "retry": "Réessayer", "retrying": "Nouvelle tentative…", "saving": "Enregistrement…", "loading": "Chargement…", "error": "Erreur",
     "success": "Réussi", "warning": "Avertissement", "confirm": "Confirmer", "back": "Retour",
     "next": "Suivant", "previous": "Précédent", "search": "Rechercher", "filter": "Filtrer",
     "clear": "Effacer", "yes": "Oui", "no": "Non", "enabled": "Activé",
     "disabled": "Désactivé", "optional": "Facultatif", "required": "Obligatoire"
+  },
+  "loading": {
+    "page": "Chargement de la page…", "section": "Chargement de la section…", "trip": "Chargement du voyage…",
+    "savedTrip": "Chargement du voyage enregistré…", "publicShare": "Chargement du voyage partagé…",
+    "route": "Chargement du trajet…", "budget": "Chargement du budget…",
+    "tripHealth": "Évaluation de l’état du voyage…", "groupReadiness": "Vérification de la préparation du groupe…",
+    "expenses": "Chargement des dépenses…", "checklist": "Chargement de la liste…"
+  },
+  "emptyStates": {
+    "itinerary": { "title": "Aucun itinéraire pour le moment", "description": "Générez un programme jour par jour à partir du trajet, des préférences, du budget et des dates.", "action": "Générer l’itinéraire" },
+    "route": { "title": "Aucun trajet pour le moment", "description": "Ajoutez des étapes pour plusieurs destinations ou conservez une seule destination.", "primaryAction": "Ajouter des étapes", "secondaryAction": "Garder une destination" },
+    "transport": { "title": "Aucun transport sélectionné", "description": "Recherchez des transports pour rendre les estimations de temps et de budget plus précises.", "action": "Rechercher un transport" },
+    "budget": { "title": "Aucun budget défini", "description": "Définissez un budget pour suivre les dépenses estimées et réelles.", "action": "Définir le budget", "viewerDescription": "Aucun budget n’est défini. Demandez à un éditeur d’en ajouter un." },
+    "expenses": { "title": "Aucune dépense pour le moment", "description": "Ajoutez les dépenses réelles pendant ou après le voyage pour les comparer au plan.", "action": "Ajouter une dépense", "viewerDescription": "Aucune dépense n’a encore été ajoutée." },
+    "receipts": { "title": "Aucun reçu importé", "description": "Importez des reçus pour conserver les justificatifs et créer les dépenses plus vite.", "action": "Importer un reçu" },
+    "checklist": { "title": "Aucune liste pour le moment", "description": "Générez une liste de préparation à partir de l’itinéraire, de la météo, du trajet et du transport.", "action": "Générer la liste", "viewerDescription": "Aucune liste pour le moment. Demandez à un éditeur de la générer." },
+    "reminders": { "title": "Aucun rappel pour le moment", "description": "Créez des rappels pour les documents, le transport, les bagages et les échéances.", "action": "Générer les rappels" },
+    "collaborators": { "title": "Aucun collaborateur pour le moment", "description": "Invitez des proches ou des collègues à planifier ce voyage avec vous.", "action": "Inviter un collaborateur" },
+    "polls": { "title": "Aucune décision de groupe", "description": "Créez un sondage pour choisir les dates, trajets, activités ou transports.", "action": "Créer un sondage" },
+    "comments": { "title": "Aucun commentaire", "description": "Lancez une discussion sur ce voyage ou un élément de l’itinéraire." },
+    "activity": { "title": "Aucune activité", "description": "Les modifications et l’activité de collaboration apparaîtront ici." },
+    "health": { "title": "Le voyage semble prêt", "description": "Aucun problème critique n’a été détecté. Vérifiez l’itinéraire avant le départ." },
+    "groupReadiness": { "title": "Tout le monde semble prêt", "description": "Aucun problème de préparation ne nécessite votre attention." },
+    "offline": { "title": "Aucun voyage hors ligne", "description": "Ouvrez un voyage en ligne pour rendre ses données accessibles hors connexion." },
+    "templates": { "title": "Aucun modèle", "description": "Enregistrez un plan réutilisable pour démarrer plus vite la prochaine fois." },
+    "notifications": { "title": "Aucune notification", "description": "Vous êtes à jour." },
+    "workspaceTrips": { "title": "Aucun voyage dans cet espace", "description": "Créez ou déplacez un voyage dans cet espace pour collaborer." }
+  },
+  "confirmations": {
+    "unsaved": { "title": "Ignorer les modifications non enregistrées ?", "description": "Les modifications de cet écran seront perdues. Les données déjà enregistrées ne seront pas affectées.", "keepEditing": "Continuer la modification", "discard": "Ignorer les modifications" },
+    "restoreVersion": { "title": "Restaurer cette version de l’itinéraire ?", "description": "L’itinéraire actuel sera remplacé et une nouvelle version sera créée. Les commentaires, dépenses, reçus et collaborateurs ne seront pas supprimés.", "action": "Restaurer la version" },
+    "disableShare": { "title": "Désactiver le lien public ?", "description": "Toute personne disposant du lien actuel perdra immédiatement l’accès. Vous pourrez créer un nouveau lien plus tard.", "action": "Désactiver le lien" },
+    "deleteReceipt": { "title": "Supprimer ce reçu ?", "description": "Le fichier sera retiré du voyage. La dépense liée ne sera pas supprimée.", "action": "Supprimer le reçu" },
+    "deleteExpense": { "title": "Supprimer cette dépense ?", "description": "La dépense sera retirée des totaux. Les reçus joints resteront disponibles.", "action": "Supprimer la dépense" },
+    "clearOffline": { "title": "Effacer les données hors ligne ?", "description": "Les voyages en cache et brouillons hors ligne seront supprimés de cet appareil. Les données synchronisées ne seront pas supprimées.", "action": "Effacer les données hors ligne" }
+  },
+  "forms": {
+    "errorSummaryTitle": "Corrigez les champs suivants", "endDateAfterStart": "La date de fin doit être postérieure à la date de début.",
+    "amountRequired": "Saisissez un montant.", "amountNonNegative": "Le montant doit être supérieur ou égal à 0.",
+    "currencyCode": "La devise doit être un code de 3 lettres, comme EUR.", "requiredHint": "Les champs obligatoires sont indiqués."
+  },
+  "accessibility": {
+    "loading": "Chargement", "mobileActions": "Actions du formulaire",
+    "deepLinkTargetOpened": "Élément lié ouvert et mis en évidence.", "dialogClose": "Fermer la boîte de dialogue",
+    "progress": "Progression : {value} pour cent"
+  },
+  "publicShare": {
+    "readOnly": "Voyage partagé en lecture seule", "loading": "Chargement du voyage partagé…",
+    "expiredTitle": "Ce lien de partage a expiré", "expiredDescription": "Demandez au propriétaire de créer un nouveau lien.",
+    "unavailableTitle": "Voyage partagé indisponible", "unavailableDescription": "Ce voyage partagé est indisponible ou a été désactivé.",
+    "wrongPassword": "Ce mot de passe ne fonctionne pas. Vérifiez-le et réessayez.",
+    "noItineraryTitle": "Aucun itinéraire partagé", "noItineraryDescription": "Le propriétaire n’a pas encore créé d’itinéraire pour ce voyage.",
+    "disclaimer": "Cette vue partagée est en lecture seule. Les estimations sont approximatives ; vérifiez les prix, horaires et disponibilités avant de réserver.",
+    "goHome": "Aller à l’accueil", "passwordTitle": "Ce voyage partagé est protégé par un mot de passe",
+    "passwordDescription": "Saisissez le mot de passe pour voir l’itinéraire.", "password": "Mot de passe",
+    "unlock": "Déverrouiller le voyage", "unlocking": "Déverrouillage…"
   },
   "generationQuality": {
     "validated": "Validé",
@@ -18,7 +74,10 @@
     "blockedByValidation": "Bloqué par la validation",
     "schemaInvalid": "Schéma invalide",
     "aiOutputInvalid": "Sortie IA invalide",
-    "reviewWarnings": "Consultez les avertissements de validation"
+    "reviewWarnings": "Consultez les avertissements de validation", "completedWithWarnings": "Terminé avec avertissements",
+    "jobRunningStages": "Génération, validation, réparation si nécessaire et enregistrement de l’itinéraire.",
+    "jobStarted": "Démarré", "jobQueuedAt": "En attente", "notYet": "pas encore", "cancelling": "Annulation…",
+    "queueing": "Mise en attente…", "preferencesUsed": "Vos préférences enregistrées seront utilisées pour générer cet itinéraire."
   },
   "transport": {
     "findTransport": "Rechercher un transport", "transportOptions": "Options de transport",
@@ -69,7 +128,8 @@
     "loginDescription": "Connectez-vous pour reprendre où vous en étiez.",
     "alreadyRegistered": "Déjà inscrit ?", "noAccount": "Pas encore de compte ?",
     "confirmPassword": "Confirmer le mot de passe", "loggingIn": "Connexion…",
-    "creatingAccount": "Création du compte…"
+    "creatingAccount": "Création du compte…", "loginFailed": "Impossible de vous connecter. Vérifiez l’adresse e-mail et le mot de passe.",
+    "registerFailed": "Impossible de créer le compte. Vérifiez les informations et réessayez."
   },
   "settings": {
     "title": "Profil et préférences",
@@ -83,7 +143,9 @@
     "homeCurrency": "Devise habituelle", "changePhoto": "Changer la photo",
     "photoComingSoon": "L’ajout de photos sera bientôt disponible",
     "saveProfile": "Enregistrer le profil", "saving": "Enregistrement…", "profileSaved": "Profil enregistré.",
-    "loadFailed": "Impossible de charger les paramètres.", "saveFailed": "Impossible d’enregistrer le profil."
+    "loadErrorTitle": "Impossible de charger vos paramètres", "loadFailed": "Vos paramètres enregistrés n’ont pas changé. Vérifiez la connexion et réessayez.",
+    "saveFailed": "Impossible d’enregistrer le profil.", "preferencesSaved": "Préférences enregistrées.",
+    "preferencesSaveFailed": "Impossible d’enregistrer les préférences. Les réglages précédents n’ont pas changé."
   },
   "profile": {},
   "trips": {
@@ -98,7 +160,10 @@
     "creating": "Création…"
   },
   "itinerary": { "day": "Jour", "time": "Heure", "item": "Élément", "cost": "Coût" },
-  "templates": {}, "workspaces": {}, "budgets": {}, "analytics": {}, "costSplitting": {},
+  "templates": {}, "workspaces": {}, "budgets": {
+    "amount": "Montant", "currency": "Devise", "currencyHint": "Utilisez un code de devise à 3 lettres, comme EUR ou USD.",
+    "save": "Enregistrer le budget", "clear": "Effacer le budget"
+  }, "analytics": {}, "costSplitting": {},
   "expenses": {
     "title": "Dépenses partagées",
     "subtitle": "Suivez les dépenses réelles, répartissez les coûts et soldez les balances.",
@@ -189,6 +254,8 @@
     "rawText": "Texte brut",
     "warnings": "Avertissements",
     "selectFile": "Choisissez d'abord un fichier de reçu.",
+    "fileLabel": "Fichier du reçu", "supportedFiles": "JPG, PNG, WebP ou PDF, jusqu’à {maxSize} Mo.",
+    "selectedFile": "Fichier sélectionné : {name}", "privacyNotice": "Les reçus peuvent contenir des données personnelles ou de paiement. Vérifiez le fichier avant l’importation et ne partagez que les informations utiles au voyage.",
     "unsupportedFileType": "Type de fichier non pris en charge.",
     "fileTooLarge": "Fichier trop volumineux.",
     "uploadFailed": "L'import du reçu a échoué.",
@@ -354,7 +421,13 @@
     "accountingDisclaimer": "Ceci n’est pas un document comptable ou de paiement.",
     "aiDisclaimer": "Les brouillons générés par l’IA doivent être vérifiés."
   },
-  "offline": {}, "pwa": {},
+  "offline": {
+    "dataCleared": "Données hors ligne effacées.", "clearFailed": "Impossible d’effacer les données hors ligne. Réessayez.",
+    "banner": "Vous êtes hors ligne. Vous pouvez consulter les voyages enregistrés et modifier les éléments compatibles.",
+    "changesPending": "Ces modifications seront synchronisées lorsque vous serez de nouveau en ligne.",
+    "transportRequiresInternet": "La recherche de transport nécessite internet.",
+    "otherUserDraft": "Ce brouillon appartient à un autre utilisateur et ne sera pas synchronisé."
+  }, "pwa": {},
   "tripDiscovery": {
     "modeLabel": "Mode de création du voyage", "knownDestination": "Je sais où je veux aller", "knownDestinationHint": "Créer un voyage avec le formulaire",
     "helpMeChoose": "Aidez-moi à choisir", "helpMeChooseHint": "Découvrir des destinations avec l’IA",
@@ -618,7 +691,23 @@
     "unsavedChanges": "Des modifications ne sont pas enregistrées.", "noUnsavedChanges": "Aucune modification non enregistrée.", "discardChanges": "Abandonner", "reviewAndSave": "Vérifier et enregistrer"
   },
   "errors": {
-    "generic": "Une erreur est survenue. Réessayez.", "unauthorized": "Connectez-vous pour continuer.",
+    "generic": "Une erreur est survenue. Réessayez.",
+    "technicalDetails": "Détails techniques", "reference": "Référence : {code}",
+    "tripLoadTitle": "Impossible de charger ce voyage", "tripLoadDescription": "Les données du voyage sont en sécurité. Vérifiez votre connexion et réessayez.",
+    "tripHealthTitle": "L’état du voyage est indisponible", "tripHealthDescription": "Impossible de vérifier ce voyage pour le moment. Le reste du voyage reste accessible.",
+    "groupReadinessTitle": "La préparation du groupe est indisponible", "groupReadinessDescription": "Impossible de calculer la préparation du groupe. Réessayez dans un instant.",
+    "budgetConfidenceTitle": "La fiabilité du budget est indisponible", "budgetConfidenceDescription": "Impossible de vérifier la qualité des estimations. Votre budget enregistré n’a pas changé.",
+    "itineraryGenerationTitle": "Impossible de générer cet itinéraire", "itineraryGenerationDescription": "La sortie de l’IA n’a pas pu être validée avec votre trajet et vos contraintes.",
+    "transportTitle": "Impossible de charger les transports", "transportDescription": "Votre trajet est toujours enregistré. Réessayez ou utilisez une estimation.",
+    "currencyTitle": "La conversion de devises est indisponible", "currencyDescription": "Certains totaux peuvent apparaître dans leur devise d’origine.",
+    "receiptUploadTitle": "Échec de l’importation du reçu", "receiptUploadDescription": "Vérifiez le type et la taille du fichier. Les formats JPG, PNG, WebP et PDF sont acceptés.",
+    "offlineSyncTitle": "Impossible de synchroniser les modifications", "offlineSyncDescription": "Vos modifications locales sont toujours enregistrées sur cet appareil. Résolvez le conflit avant de réessayer.",
+    "permissionTitle": "Vous n’avez pas accès à cette action", "permissionDescription": "Votre rôle actuel n’autorise pas cette modification.",
+    "calendarTitle": "Échec de la connexion au calendrier", "calendarDescription": "Vérifiez les autorisations et réessayez.",
+    "deepLinkMissing": "L’élément lié est introuvable. Il a peut-être été supprimé ou modifié.",
+    "checklistLoadTitle": "Impossible de charger la liste", "checklistLoadDescription": "Le voyage reste accessible. Essayez de charger à nouveau la liste.",
+    "offlineTripsTitle": "Impossible de charger les voyages hors ligne", "offlineTripsDescription": "Les données enregistrées sont toujours sur cet appareil. Essayez de les charger à nouveau.",
+    "unauthorized": "Connectez-vous pour continuer.",
     "forbidden": "Vous n’avez pas l’autorisation.", "notFound": "L’élément demandé est introuvable.",
     "validationError": "Vérifiez les champs indiqués.", "itineraryConflict": "L’itinéraire a changé. Actualisez la page.",
     "editLockConflict": "Une autre personne modifie ce voyage.", "workspacePolicyBlockingViolation": "La politique de l’espace bloque cette modification.",

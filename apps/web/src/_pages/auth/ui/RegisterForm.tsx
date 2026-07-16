@@ -6,7 +6,6 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { getErrorMessage } from "@/lib/utils";
 import { registerSchema, type RegisterValues } from "../model/authModel";
 import { AuthErrorBanner, AuthField, AuthSubmitButton } from "./formControls";
 
@@ -30,8 +29,8 @@ export function RegisterForm() {
     try {
       await registerAccount({ email: values.email.trim().toLowerCase(), password: values.password });
       router.push("/trips");
-    } catch (error) {
-      setApiError(getErrorMessage(error, "Could not create account."));
+    } catch {
+      setApiError(translate("registerFailed"));
     }
   }
 

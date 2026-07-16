@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { ConfirmDialog } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
@@ -24,6 +26,7 @@ type ShareTripPanelProps = {
 type ExpirationPreset = "never" | "7_days" | "30_days" | "custom";
 
 export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
+  const confirmationsT = useTranslations("confirmations");
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -33,6 +36,7 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
   const [requirePassword, setRequirePassword] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [disableDialogOpen, setDisableDialogOpen] = useState(false);
 
   const shareQuery = useQuery({
     queryKey: tripKeys.share(tripId),
@@ -78,6 +82,7 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
       await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       setMessage("Share link disabled.");
       setError(null);
+      setDisableDialogOpen(false);
     },
     onError: (err) => {
       setError(getErrorMessage(err, "Could not disable share link."));
@@ -157,10 +162,7 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
   }
 
   function disableShareLink() {
-    if (!window.confirm("Disable this public share link?")) {
-      return;
-    }
-    disableMutation.mutate();
+    setDisableDialogOpen(true);
   }
 
   function buildSettingsPayload(
@@ -396,6 +398,17 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
         {message ? <p className="text-sm font-medium text-emerald-700">{message}</p> : null}
         {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
       </div>
+      <ConfirmDialog
+        confirmLabel={confirmationsT("disableShare.action")}
+        description={confirmationsT("disableShare.description")}
+        error={disableDialogOpen ? error : null}
+        onCancel={() => setDisableDialogOpen(false)}
+        onConfirm={() => disableMutation.mutate()}
+        open={disableDialogOpen}
+        pending={disableMutation.isPending}
+        title={confirmationsT("disableShare.title")}
+        tone="danger"
+      />
     </Card>
   );
 }

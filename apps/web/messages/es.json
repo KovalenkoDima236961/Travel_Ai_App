@@ -2,11 +2,67 @@
   "common": {
     "save": "Guardar", "cancel": "Cancelar", "close": "Cerrar", "delete": "Eliminar",
     "edit": "Editar", "create": "Crear", "update": "Actualizar", "apply": "Aplicar",
-    "discard": "Descartar", "retry": "Reintentar", "loading": "Cargando…", "error": "Error",
+    "discard": "Descartar", "retry": "Reintentar", "retrying": "Reintentando…", "saving": "Guardando…", "loading": "Cargando…", "error": "Error",
     "success": "Éxito", "warning": "Aviso", "confirm": "Confirmar", "back": "Atrás",
     "next": "Siguiente", "previous": "Anterior", "search": "Buscar", "filter": "Filtrar",
     "clear": "Limpiar", "yes": "Sí", "no": "No", "enabled": "Activado",
     "disabled": "Desactivado", "optional": "Opcional", "required": "Obligatorio"
+  },
+  "loading": {
+    "page": "Cargando página…", "section": "Cargando sección…", "trip": "Cargando viaje…",
+    "savedTrip": "Cargando viaje guardado…", "publicShare": "Cargando viaje compartido…",
+    "route": "Cargando ruta…", "budget": "Cargando presupuesto…",
+    "tripHealth": "Evaluando el estado del viaje…", "groupReadiness": "Comprobando la preparación del grupo…",
+    "expenses": "Cargando gastos…", "checklist": "Cargando lista…"
+  },
+  "emptyStates": {
+    "itinerary": { "title": "Aún no hay itinerario", "description": "Genera un plan día a día a partir de la ruta, las preferencias, el presupuesto y las fechas.", "action": "Generar itinerario" },
+    "route": { "title": "Aún no hay ruta", "description": "Añade paradas para planificar varios destinos o mantén un único destino.", "primaryAction": "Añadir paradas", "secondaryAction": "Mantener un destino" },
+    "transport": { "title": "No hay transporte seleccionado", "description": "Busca opciones de transporte para mejorar los cálculos de tiempo y presupuesto.", "action": "Buscar transporte" },
+    "budget": { "title": "No hay presupuesto", "description": "Define un presupuesto para controlar el gasto estimado y real.", "action": "Definir presupuesto", "viewerDescription": "Aún no hay presupuesto. Pide a un editor que añada uno." },
+    "expenses": { "title": "Aún no hay gastos", "description": "Añade gastos reales durante o después del viaje para compararlos con el plan.", "action": "Añadir gasto", "viewerDescription": "Aún no se han añadido gastos." },
+    "receipts": { "title": "No hay recibos", "description": "Sube recibos para conservar los justificantes y crear gastos más rápido.", "action": "Subir recibo" },
+    "checklist": { "title": "Aún no hay lista", "description": "Genera una lista de equipaje y preparación a partir del itinerario, el tiempo, la ruta y el transporte.", "action": "Generar lista", "viewerDescription": "Aún no hay lista. Pide a un editor que la genere." },
+    "reminders": { "title": "Aún no hay recordatorios", "description": "Crea recordatorios para documentos, transporte, equipaje y fechas importantes.", "action": "Generar recordatorios" },
+    "collaborators": { "title": "Aún no hay colaboradores", "description": "Invita a otras personas a planificar el viaje contigo.", "action": "Invitar colaborador" },
+    "polls": { "title": "Aún no hay decisiones de grupo", "description": "Crea una encuesta para elegir fechas, rutas, actividades o transporte.", "action": "Crear encuesta" },
+    "comments": { "title": "Aún no hay comentarios", "description": "Inicia una conversación sobre el viaje o un elemento del itinerario." },
+    "activity": { "title": "Aún no hay actividad", "description": "Los cambios y la actividad de colaboración aparecerán aquí." },
+    "health": { "title": "El viaje está bien", "description": "No se encontraron problemas críticos. Revisa el itinerario antes de viajar." },
+    "groupReadiness": { "title": "Todo el grupo parece preparado", "description": "No hay problemas de preparación que requieran atención." },
+    "offline": { "title": "Aún no hay viajes sin conexión", "description": "Abre un viaje con conexión para guardar sus datos y usarlos sin internet." },
+    "templates": { "title": "Aún no hay plantillas", "description": "Guarda un plan reutilizable para empezar más rápido la próxima vez." },
+    "notifications": { "title": "No hay notificaciones", "description": "Estás al día." },
+    "workspaceTrips": { "title": "Aún no hay viajes en el espacio", "description": "Crea o mueve un viaje a este espacio para colaborar." }
+  },
+  "confirmations": {
+    "unsaved": { "title": "¿Descartar cambios sin guardar?", "description": "Se perderán los cambios de esta pantalla. Los datos ya guardados no se verán afectados.", "keepEditing": "Seguir editando", "discard": "Descartar cambios" },
+    "restoreVersion": { "title": "¿Restaurar esta versión del itinerario?", "description": "Sustituirá el itinerario actual y creará una versión nueva. No se eliminarán comentarios, gastos, recibos ni colaboradores.", "action": "Restaurar versión" },
+    "disableShare": { "title": "¿Desactivar el enlace público?", "description": "Quienes tengan el enlace actual perderán el acceso de inmediato. Podrás crear otro más adelante.", "action": "Desactivar enlace" },
+    "deleteReceipt": { "title": "¿Eliminar este recibo?", "description": "Se eliminará el archivo del viaje. El gasto vinculado no se eliminará.", "action": "Eliminar recibo" },
+    "deleteExpense": { "title": "¿Eliminar este gasto?", "description": "Se quitará el gasto de los totales. Los recibos adjuntos se conservarán.", "action": "Eliminar gasto" },
+    "clearOffline": { "title": "¿Borrar los datos sin conexión?", "description": "Se eliminarán los viajes en caché y borradores pendientes de este dispositivo. Los datos sincronizados no se borrarán.", "action": "Borrar datos sin conexión" }
+  },
+  "forms": {
+    "errorSummaryTitle": "Corrige los siguientes campos", "endDateAfterStart": "La fecha final debe ser posterior a la inicial.",
+    "amountRequired": "Introduce un importe.", "amountNonNegative": "El importe debe ser 0 o mayor.",
+    "currencyCode": "La moneda debe ser un código de 3 letras, como EUR.", "requiredHint": "Los campos obligatorios están marcados como tales."
+  },
+  "accessibility": {
+    "loading": "Cargando", "mobileActions": "Acciones del formulario",
+    "deepLinkTargetOpened": "Elemento enlazado abierto y resaltado.", "dialogClose": "Cerrar diálogo",
+    "progress": "Progreso: {value} por ciento"
+  },
+  "publicShare": {
+    "readOnly": "Viaje compartido de solo lectura", "loading": "Cargando viaje compartido…",
+    "expiredTitle": "Este enlace ha caducado", "expiredDescription": "Pide al propietario que cree un enlace nuevo.",
+    "unavailableTitle": "Viaje compartido no disponible", "unavailableDescription": "Este viaje compartido no está disponible o se ha desactivado.",
+    "wrongPassword": "La contraseña no es correcta. Revísala e inténtalo de nuevo.",
+    "noItineraryTitle": "Aún no hay itinerario compartido", "noItineraryDescription": "El propietario aún no ha creado un itinerario para este viaje.",
+    "disclaimer": "Esta vista compartida es de solo lectura. Las estimaciones son aproximadas; verifica precios, horarios y disponibilidad antes de reservar.",
+    "goHome": "Ir al inicio", "passwordTitle": "Este viaje compartido está protegido con contraseña",
+    "passwordDescription": "Introduce la contraseña para ver el itinerario.", "password": "Contraseña",
+    "unlock": "Desbloquear viaje", "unlocking": "Desbloqueando…"
   },
   "generationQuality": {
     "validated": "Validado",
@@ -18,7 +74,10 @@
     "blockedByValidation": "Bloqueado por validación",
     "schemaInvalid": "Esquema no válido",
     "aiOutputInvalid": "Salida de IA no válida",
-    "reviewWarnings": "Revisa los avisos de validación"
+    "reviewWarnings": "Revisa los avisos de validación", "completedWithWarnings": "Completado con avisos",
+    "jobRunningStages": "Generando, validando, reparando si es necesario y guardando el itinerario.",
+    "jobStarted": "Iniciado", "jobQueuedAt": "En cola", "notYet": "aún no", "cancelling": "Cancelando…",
+    "queueing": "Añadiendo a la cola…", "preferencesUsed": "Se usarán tus preferencias guardadas para generar este itinerario."
   },
   "transport": {
     "findTransport": "Buscar transporte", "transportOptions": "Opciones de transporte",
@@ -69,7 +128,8 @@
     "loginDescription": "Inicia sesión para continuar donde lo dejaste.",
     "alreadyRegistered": "¿Ya tienes cuenta?", "noAccount": "¿Aún no tienes cuenta?",
     "confirmPassword": "Confirmar contraseña", "loggingIn": "Iniciando sesión…",
-    "creatingAccount": "Creando cuenta…"
+    "creatingAccount": "Creando cuenta…", "loginFailed": "No pudimos iniciar sesión. Revisa el correo y la contraseña.",
+    "registerFailed": "No pudimos crear la cuenta. Revisa los datos e inténtalo de nuevo."
   },
   "settings": {
     "title": "Perfil y preferencias",
@@ -83,7 +143,9 @@
     "homeCurrency": "Moneda habitual", "changePhoto": "Cambiar foto",
     "photoComingSoon": "La subida de fotos estará disponible próximamente",
     "saveProfile": "Guardar perfil", "saving": "Guardando…", "profileSaved": "Perfil guardado.",
-    "loadFailed": "No se pudieron cargar los ajustes.", "saveFailed": "No se pudo guardar el perfil."
+    "loadErrorTitle": "No pudimos cargar tus ajustes", "loadFailed": "Los ajustes guardados no han cambiado. Comprueba la conexión e inténtalo de nuevo.",
+    "saveFailed": "No se pudo guardar el perfil.", "preferencesSaved": "Preferencias guardadas.",
+    "preferencesSaveFailed": "No se pudieron guardar las preferencias. Los ajustes anteriores no han cambiado."
   },
   "profile": {},
   "trips": {
@@ -98,7 +160,10 @@
     "creating": "Creando…"
   },
   "itinerary": { "day": "Día", "time": "Hora", "item": "Elemento", "cost": "Coste" },
-  "templates": {}, "workspaces": {}, "budgets": {}, "analytics": {}, "costSplitting": {},
+  "templates": {}, "workspaces": {}, "budgets": {
+    "amount": "Importe", "currency": "Moneda", "currencyHint": "Usa un código de moneda de 3 letras, como EUR o USD.",
+    "save": "Guardar presupuesto", "clear": "Borrar presupuesto"
+  }, "analytics": {}, "costSplitting": {},
   "expenses": {
     "title": "Gastos compartidos",
     "subtitle": "Registra gastos reales, divide costes y liquida saldos.",
@@ -189,6 +254,8 @@
     "rawText": "Texto sin procesar",
     "warnings": "Advertencias",
     "selectFile": "Elige primero un archivo de recibo.",
+    "fileLabel": "Archivo del recibo", "supportedFiles": "JPG, PNG, WebP o PDF, hasta {maxSize} MB.",
+    "selectedFile": "Archivo seleccionado: {name}", "privacyNotice": "Los recibos pueden contener datos personales o de pago. Revisa el archivo antes de subirlo y comparte solo lo necesario para el viaje.",
     "unsupportedFileType": "Tipo de archivo no compatible.",
     "fileTooLarge": "El archivo es demasiado grande.",
     "uploadFailed": "No se pudo subir el recibo.",
@@ -354,7 +421,13 @@
     "accountingDisclaimer": "Esto no es un registro contable ni de pago.",
     "aiDisclaimer": "Los borradores generados por IA deben revisarse."
   },
-  "offline": {}, "pwa": {},
+  "offline": {
+    "dataCleared": "Datos sin conexión borrados.", "clearFailed": "No se pudieron borrar los datos sin conexión. Inténtalo de nuevo.",
+    "banner": "Estás sin conexión. Puedes ver los viajes guardados y editar los elementos compatibles.",
+    "changesPending": "Estos cambios se sincronizarán cuando vuelvas a tener conexión.",
+    "transportRequiresInternet": "La búsqueda de transporte requiere internet.",
+    "otherUserDraft": "Este borrador pertenece a otra persona y no se sincronizará."
+  }, "pwa": {},
   "tripDiscovery": {
     "modeLabel": "Modo de creación del viaje", "knownDestination": "Sé adónde quiero ir", "knownDestinationHint": "Crea un viaje con el formulario",
     "helpMeChoose": "Ayúdame a elegir", "helpMeChooseHint": "Descubre destinos con IA",
@@ -619,7 +692,23 @@
     "unsavedChanges": "Hay cambios de ruta sin guardar.", "noUnsavedChanges": "No hay cambios sin guardar.", "discardChanges": "Descartar cambios", "reviewAndSave": "Revisar y guardar"
   },
   "errors": {
-    "generic": "Algo ha salido mal. Inténtalo de nuevo.", "unauthorized": "Inicia sesión para continuar.",
+    "generic": "Algo ha salido mal. Inténtalo de nuevo.",
+    "technicalDetails": "Detalles técnicos", "reference": "Referencia: {code}",
+    "tripLoadTitle": "No pudimos cargar este viaje", "tripLoadDescription": "Los datos del viaje están seguros. Comprueba la conexión e inténtalo de nuevo.",
+    "tripHealthTitle": "El estado del viaje no está disponible", "tripHealthDescription": "No pudimos comprobar el viaje ahora. El resto del viaje sigue disponible.",
+    "groupReadinessTitle": "La preparación del grupo no está disponible", "groupReadinessDescription": "No pudimos calcular la preparación del grupo. Inténtalo dentro de un momento.",
+    "budgetConfidenceTitle": "La confianza del presupuesto no está disponible", "budgetConfidenceDescription": "No pudimos comprobar la calidad de la estimación. El presupuesto guardado no ha cambiado.",
+    "itineraryGenerationTitle": "No pudimos generar este itinerario", "itineraryGenerationDescription": "No se pudo validar el resultado de la IA con la ruta y las restricciones.",
+    "transportTitle": "No pudimos cargar las opciones de transporte", "transportDescription": "La ruta sigue guardada. Reinténtalo o usa una opción estimada.",
+    "currencyTitle": "La conversión de moneda no está disponible", "currencyDescription": "Algunos totales pueden aparecer en su moneda original.",
+    "receiptUploadTitle": "Error al subir el recibo", "receiptUploadDescription": "Comprueba el tipo y el tamaño. Se admiten JPG, PNG, WebP y PDF.",
+    "offlineSyncTitle": "No se pudieron sincronizar los cambios", "offlineSyncDescription": "Los cambios locales siguen guardados en este dispositivo. Resuelve el conflicto antes de volver a sincronizar.",
+    "permissionTitle": "No tienes acceso a esta acción", "permissionDescription": "Tu rol actual no permite este cambio.",
+    "calendarTitle": "Error de conexión con el calendario", "calendarDescription": "No pudimos conectar el calendario. Revisa los permisos e inténtalo de nuevo.",
+    "deepLinkMissing": "No se encontró el elemento enlazado. Puede que se haya eliminado o cambiado.",
+    "checklistLoadTitle": "No pudimos cargar la lista", "checklistLoadDescription": "El viaje sigue disponible. Intenta cargar la lista de nuevo.",
+    "offlineTripsTitle": "No pudimos cargar los viajes sin conexión", "offlineTripsDescription": "Los datos guardados siguen en este dispositivo. Intenta cargarlos de nuevo.",
+    "unauthorized": "Inicia sesión para continuar.",
     "forbidden": "No tienes permiso para hacer eso.", "notFound": "No se encontró el elemento solicitado.",
     "validationError": "Revisa los campos marcados.", "itineraryConflict": "El itinerario cambió. Actualiza e inténtalo de nuevo.",
     "editLockConflict": "Otra persona está editando este viaje.", "workspacePolicyBlockingViolation": "La política del espacio bloquea este cambio.",

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { EmptyState, ErrorState, PageLoadingState } from "@/components/ui";
 import { AiAdaptedTripBanner } from "@/components/trips/AiAdaptedTripBanner";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { AccommodationPanel } from "@/features/trip-accommodation";
@@ -205,6 +207,10 @@ import {
 } from "../model/tripDetailPageModel";
 
 export function TripDetailPageContent() {
+  const loadingT = useTranslations("loading");
+  const errorsT = useTranslations("errors");
+  const navigationT = useTranslations("navigation");
+  const emptyItineraryT = useTranslations("emptyStates.itinerary");
   const params = useParams<{ id: string }>();
   const tripId = params.id;
   const queryClient = useQueryClient();
@@ -229,6 +235,7 @@ export function TripDetailPageContent() {
   const [mergeRecovery, setMergeRecovery] = useState<MergeRecoveryState | null>(null);
   const [mergeApplyError, setMergeApplyError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [deepLinkMessage, setDeepLinkMessage] = useState<string | null>(null);
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
   const [activeGenerationJobId, setActiveGenerationJobId] = useState<string | null>(null);
   const [optimizingDayNumber, setOptimizingDayNumber] = useState<number | null>(null);
@@ -853,9 +860,18 @@ export function TripDetailPageContent() {
     if (!displayedTrip || typeof window === "undefined") {
       return;
     }
+    setDeepLinkMessage(null);
     const tab = new URLSearchParams(window.location.search).get("tab");
-    scrollToTabAnchor(tab);
+    return scrollToTabAnchor(tab);
   }, [displayedTrip?.id]);
+
+  useEffect(() => {
+    function handleMissingDeepLink() {
+      setDeepLinkMessage(errorsT("deepLinkMissing"));
+    }
+    window.addEventListener("travel-ai:deep-link-missing", handleMissingDeepLink);
+    return () => window.removeEventListener("travel-ai:deep-link-missing", handleMissingDeepLink);
+  }, [errorsT]);
 
   useEffect(() => {
     const shouldLoadCachedTrip =
@@ -968,9 +984,10 @@ export function TripDetailPageContent() {
   if (!displayedTrip && (tripQuery.isPending || offlineCacheLoading)) {
     return (
       <DetailShell>
-        <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
-          {offlineCacheLoading ? "Loading saved trip…" : "Loading trip…"}
-        </div>
+        <PageLoadingState
+          cardCount={5}
+          label={offlineCacheLoading ? loadingT("savedTrip") : loadingT("trip")}
+        />
       </DetailShell>
     );
   }
@@ -989,10 +1006,17 @@ export function TripDetailPageContent() {
   if (!displayedTrip && tripQuery.isError) {
     return (
       <DetailShell>
-        <div className="rounded-[18px] border border-[#E5C3B6] bg-[#FBF0EB] p-6 text-[14px] text-[#B3402E]">
-          {tripQuery.error instanceof Error ? tripQuery.error.message : "Could not load trip."}
-        </div>
-        <BackToTripsLink />
+        <ErrorState
+          className="rounded-[18px]"
+          description={errorsT("tripLoadDescription")}
+          developmentDetails={tripQuery.error instanceof Error ? tripQuery.error.message : undefined}
+          retryAction={{
+            onRetry: () => void tripQuery.refetch(),
+            pending: tripQuery.isFetching
+          }}
+          secondaryAction={{ href: "/trips", label: navigationT("trips") }}
+          title={errorsT("tripLoadTitle")}
+        />
       </DetailShell>
     );
   }
@@ -1000,9 +1024,12 @@ export function TripDetailPageContent() {
   if (!displayedTrip) {
     return (
       <DetailShell>
-        <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
-          Could not load trip.
-        </div>
+        <ErrorState
+          className="rounded-[18px]"
+          description={errorsT("tripLoadDescription")}
+          secondaryAction={{ href: "/trips", label: navigationT("trips") }}
+          title={errorsT("tripLoadTitle")}
+        />
       </DetailShell>
     );
   }
@@ -2296,6 +2323,12 @@ export function TripDetailPageContent() {
               </div>
             ) : null}
 
+            {deepLinkMessage ? (
+              <div className="rounded-[14px] border border-[#EAD9B8] bg-[#FDF7E8] p-4 text-[14px] text-[#7A5727]" role="status">
+                {deepLinkMessage}
+              </div>
+            ) : null}
+
             {activeGenerationJob ? (
               <GenerationJobStatusCard
                 canCancel={
@@ -2339,6 +2372,8 @@ export function TripDetailPageContent() {
                 error={tripHealthQuery.error instanceof Error ? tripHealthQuery.error : null}
                 health={tripHealthQuery.data ?? null}
                 loading={tripHealthQuery.isLoading}
+                onRetry={() => void tripHealthQuery.refetch()}
+                retrying={tripHealthQuery.isFetching}
               />
             ) : null}
 
@@ -2347,7 +2382,9 @@ export function TripDetailPageContent() {
                 canNudge={Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled}
                 error={groupReadinessQuery.error instanceof Error ? groupReadinessQuery.error : null}
                 loading={groupReadinessQuery.isLoading}
+                onRetry={() => void groupReadinessQuery.refetch()}
                 readiness={groupReadinessQuery.data ?? null}
+                retrying={groupReadinessQuery.isFetching}
                 tripId={trip.id}
               />
             ) : null}
@@ -2675,9 +2712,11 @@ export function TripDetailPageContent() {
           ) : null}
 
             {trip.status === "COMPLETED" && !trip.itinerary ? (
-              <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
-                This trip is completed, but no itinerary was returned.
-              </div>
+              <ErrorState
+                className="rounded-[18px]"
+                description={errorsT("itineraryGenerationDescription")}
+                title={errorsT("itineraryGenerationTitle")}
+              />
             ) : null}
 
             {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
@@ -2718,14 +2757,22 @@ export function TripDetailPageContent() {
                     />
                   ) : null}
                 </section>
-                <div className="rounded-[18px] border border-sand-300 bg-white p-6">
-                  <h2 className="font-newsreader text-[20px] font-semibold text-cocoa-900">
-                    No itinerary yet
-                  </h2>
-                  <p className="mt-2 text-[14px] leading-[1.6] text-cocoa-500">
-                    Generate an itinerary when the Trip Service and AI Planning Service are running.
-                  </p>
-                </div>
+                <EmptyState
+                  className="rounded-[18px] border-sand-300 bg-white"
+                  description={emptyItineraryT("description")}
+                  primaryAction={
+                    canGenerate
+                      ? {
+                          label: emptyItineraryT("action"),
+                          onClick: () =>
+                            document
+                              .querySelector<HTMLButtonElement>("[data-generate-itinerary]")
+                              ?.click()
+                        }
+                      : undefined
+                  }
+                  title={emptyItineraryT("title")}
+                />
               </div>
             ) : null}
 

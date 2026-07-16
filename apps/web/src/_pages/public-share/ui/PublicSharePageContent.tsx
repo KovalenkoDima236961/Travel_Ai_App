@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { ApiError } from "@/shared/api/client";
+import { EmptyState, PageLoadingState } from "@/components/ui";
 import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
 import {
   getPublicShareStatus,
@@ -20,7 +21,7 @@ import {
   type ExportTrip
 } from "@/lib/export/trip-export-adapter";
 import { getDayDistanceSummaries } from "@/entities/itinerary/model/distance-utils";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   clearStoredPublicShareToken,
   publicShareTokenExpiryKey,
@@ -32,9 +33,11 @@ import { PublicShareHero } from "./PublicShareHero";
 import { PublicShareItinerary } from "./PublicShareItinerary";
 import { PublicShareMap } from "./PublicShareMap";
 import { PublicShareUnlock } from "./PublicShareUnlock";
+import { PublicShareUnavailableState } from "./PublicShareUnavailableState";
 import { instrumentSans, newsreader } from "./fonts";
 
 export function PublicSharePageContent() {
+  const t = useTranslations("publicShare");
   const params = useParams<{ shareToken: string }>();
   const shareToken = params.shareToken;
   const [publicShareAccessToken, setPublicShareAccessToken] = useState<string | null>(null);
@@ -137,10 +140,10 @@ export function PublicSharePageContent() {
       sessionStorage.setItem(publicShareTokenKey(shareToken), unlocked.accessToken);
       sessionStorage.setItem(publicShareTokenExpiryKey(shareToken), unlocked.expiresAt);
       setPublicShareAccessToken(unlocked.accessToken);
-    } catch (error) {
+    } catch {
       clearStoredPublicShareToken(shareToken);
       setPublicShareAccessToken(null);
-      setUnlockError(getErrorMessage(error, "Invalid password."));
+      setUnlockError(t("wrongPassword"));
     } finally {
       setUnlockLoading(false);
     }
@@ -154,16 +157,21 @@ export function PublicSharePageContent() {
     return (
       <PublicShareShell>
         <div className="mx-auto max-w-[1080px] px-6 py-10 sm:px-10">
-          <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
-            Loading shared itinerary…
-          </div>
+          <PageLoadingState cardCount={3} label={t("loading")} />
         </div>
       </PublicShareShell>
     );
   }
 
   if (publicShareStatusQuery.isError) {
-    return <PublicShareShell>{renderUnavailable()}</PublicShareShell>;
+    return (
+      <PublicShareShell>
+        <PublicShareUnavailableState
+          onRetry={() => void publicShareStatusQuery.refetch()}
+          retrying={publicShareStatusQuery.isFetching}
+        />
+      </PublicShareShell>
+    );
   }
 
   if (status?.passwordRequired && !publicShareAccessToken) {
@@ -186,7 +194,11 @@ export function PublicSharePageContent() {
         </PublicShareShell>
       );
     }
-    return <PublicShareShell>{renderUnavailable()}</PublicShareShell>;
+    return (
+      <PublicShareShell>
+        <PublicShareUnavailableState expired={status?.expired} />
+      </PublicShareShell>
+    );
   }
 
   const trip = publicTripQuery.data;
@@ -223,14 +235,13 @@ export function PublicSharePageContent() {
             {itinerary ? (
               <PublicShareItinerary itinerary={itinerary} />
             ) : (
-              <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
-                This shared trip does not have an itinerary yet.
-              </div>
+              <EmptyState
+                className="rounded-[18px] border-sand-300 bg-white"
+                description={t("noItineraryDescription")}
+                title={t("noItineraryTitle")}
+              />
             )}
-            <p className="text-[12.5px] text-[#A08D78]">
-              This is a read-only shared view. Estimates are approximate — verify prices, hours, and
-              availability before booking.
-            </p>
+            <p className="text-[12.5px] text-[#A08D78]">{t("disclaimer")}</p>
           </section>
         </div>
       </div>
@@ -255,25 +266,6 @@ function PublicShareShell({
     >
       <PublicShareHeader exportTrip={exportTrip} />
       {children}
-    </div>
-  );
-}
-
-function renderUnavailable() {
-  return (
-    <div className="mx-auto max-w-[560px] px-6 py-16 text-center sm:py-24">
-      <h1 className="font-newsreader text-[30px] font-medium tracking-[-0.01em] text-cocoa-900">
-        Shared trip unavailable
-      </h1>
-      <p className="mx-auto mt-3 max-w-[420px] text-[15px] leading-[1.65] text-cocoa-500">
-        This shared trip is unavailable, expired, or disabled.
-      </p>
-      <Link
-        href="/"
-        className="mt-7 inline-flex h-11 items-center rounded-full bg-clay px-6 text-[14.5px] font-semibold text-sand-100 transition hover:bg-clay-dark"
-      >
-        Go to home
-      </Link>
     </div>
   );
 }

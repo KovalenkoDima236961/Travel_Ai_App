@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { formatPaceLabel } from "@/lib/utils";
 import type { PublicTrip } from "@/entities/share/model";
 import { formatTripDateRange } from "./publicShareFormat";
@@ -7,6 +10,7 @@ type PublicShareHeroProps = {
 };
 
 export function PublicShareHero({ trip }: PublicShareHeroProps) {
+  const t = useTranslations("publicShare");
   const dateRange = formatTripDateRange(trip.startDate, trip.days);
   const paceLabel = trip.pace ? `${formatPaceLabel(trip.pace)} pace` : null;
   const subtitle = [dateRange, paceLabel].filter(Boolean).join(" · ");
@@ -25,7 +29,7 @@ export function PublicShareHero({ trip }: PublicShareHeroProps) {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-cocoa-900/10 to-cocoa-900/[0.72]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 px-9 pb-8">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-[5px] text-[11.5px] font-bold uppercase tracking-[0.06em] text-clay-deep">
-          Shared itinerary · read-only
+          {t("readOnly")}
         </span>
         <h1 className="mt-3.5 font-newsreader text-[52px] font-medium leading-none tracking-[-0.02em] text-[#F6EDE2]">
           {trip.destination}

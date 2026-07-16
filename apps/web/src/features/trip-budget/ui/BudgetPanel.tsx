@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BudgetEditForm } from "./BudgetEditForm";
 import { BudgetConfidenceCard } from "@/components/budget-confidence";
+import { EmptyState } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
@@ -36,6 +38,7 @@ export function BudgetPanel({
   optimizationDisabled = false,
   onOpenBudgetOptimization
 }: BudgetPanelProps) {
+  const emptyT = useTranslations("emptyStates.budget");
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -106,6 +109,19 @@ export function BudgetPanel({
         </div>
       ) : (
         <>
+          {!currentBudget ? (
+            <EmptyState
+              className="mt-4"
+              compact
+              description={canEdit ? emptyT("description") : emptyT("viewerDescription")}
+              primaryAction={
+                canEdit
+                  ? { label: emptyT("action"), onClick: () => setIsEditing(true) }
+                  : undefined
+              }
+              title={emptyT("title")}
+            />
+          ) : null}
           <BudgetSummaryView
             currency={currency}
             isLoading={!offline && summaryQuery.isLoading}
@@ -124,6 +140,8 @@ export function BudgetPanel({
                     : null
                 }
                 isLoading={confidenceQuery.isLoading}
+                onRetry={() => void confidenceQuery.refetch()}
+                retrying={confidenceQuery.isFetching}
               />
             </div>
           ) : null}
@@ -310,7 +328,11 @@ function BudgetSummaryView({
           </p>
           <ul className="mt-2 space-y-1">
             {summary.byCategory.map((category) => (
-              <li className="flex items-center justify-between gap-3" key={category.category}>
+              <li
+                className="scroll-mt-28 rounded-sm outline-none transition-shadow flex items-center justify-between gap-3"
+                id={`budget-category-${category.category}`}
+                key={category.category}
+              >
                 <span className="capitalize text-slate-600">{category.category}</span>
                 <span className="text-slate-900">
                   {formatApproxMoney(category.estimatedTotal, currency)}

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { ConfirmDialog, EmptyState, ErrorState, SectionLoadingState } from "@/components/ui";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import {
@@ -29,6 +31,11 @@ type StorageEstimate = {
 };
 
 export function OfflineTripsList({ userId }: OfflineTripsListProps) {
+  const confirmationsT = useTranslations("confirmations");
+  const emptyT = useTranslations("emptyStates.offline");
+  const errorsT = useTranslations("errors");
+  const navigationT = useTranslations("navigation");
+  const offlineT = useTranslations("offline");
   const { online } = useNetworkStatus();
   const offlineSync = useOfflineSync({ userId, enabled: Boolean(userId) });
   const [cachedTrips, setCachedTrips] = useState<CachedTripRecord[]>([]);
@@ -36,6 +43,8 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -47,12 +56,12 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
       ]);
       setCachedTrips(records);
       setStorageEstimate(estimate);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load offline trips.");
+    } catch {
+      setError(errorsT("offlineTripsDescription"));
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [errorsT, userId]);
 
   useEffect(() => {
     void refresh();
@@ -104,19 +113,18 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
   }
 
   async function handleClearOfflineData() {
-    const hasPendingChanges = offlineSync.pendingCount > 0;
-    const confirmed = window.confirm(
-      hasPendingChanges
-        ? "You have unsynced changes. Clearing offline data will delete them."
-        : "This removes cached trips and pending offline changes stored on this device."
-    );
-    if (!confirmed) {
-      return;
+    setClearing(true);
+    setError(null);
+    try {
+      await clearOfflineDataForUser(userId);
+      setMessage(offlineT("dataCleared"));
+      setClearDialogOpen(false);
+      await Promise.all([offlineSync.refresh(), refresh()]);
+    } catch {
+      setError(offlineT("clearFailed"));
+    } finally {
+      setClearing(false);
     }
-
-    await clearOfflineDataForUser(userId);
-    setMessage("Offline data cleared.");
-    await Promise.all([offlineSync.refresh(), refresh()]);
   }
 
   return (
@@ -134,7 +142,7 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
           </div>
           <Button
             disabled={cachedTrips.length === 0 && offlineSync.pendingCount === 0}
-            onClick={() => void handleClearOfflineData()}
+            onClick={() => setClearDialogOpen(true)}
             variant="danger"
           >
             Clear offline data
@@ -149,27 +157,24 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
       ) : null}
 
       {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-          {error}
-        </div>
+        <ErrorState
+          compact
+          description={error}
+          retryAction={{ onRetry: () => void refresh(), pending: loading }}
+          title={errorsT("offlineTripsTitle")}
+        />
       ) : null}
 
       {loading ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
-          Loading offline trips...
-        </div>
+        <SectionLoadingState cards={2} label={emptyT("title")} />
       ) : null}
 
       {!loading && cachedTrips.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center">
-          <h2 className="text-lg font-semibold text-slate-950">No offline trips yet</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            No offline trips yet. Open a trip while online to save it for offline access.
-          </p>
-          <Link className={buttonStyles({ className: "mt-5" })} href="/trips">
-            Go to trips
-          </Link>
-        </div>
+        <EmptyState
+          description={emptyT("description")}
+          primaryAction={{ href: "/trips", label: navigationT("trips") }}
+          title={emptyT("title")}
+        />
       ) : null}
 
       {!loading && cachedTrips.length > 0 ? (
@@ -188,6 +193,16 @@ export function OfflineTripsList({ userId }: OfflineTripsListProps) {
           ))}
         </div>
       ) : null}
+      <ConfirmDialog
+        confirmLabel={confirmationsT("clearOffline.action")}
+        description={confirmationsT("clearOffline.description")}
+        onCancel={() => setClearDialogOpen(false)}
+        onConfirm={() => void handleClearOfflineData()}
+        open={clearDialogOpen}
+        pending={clearing}
+        title={confirmationsT("clearOffline.title")}
+        tone="danger"
+      />
     </div>
   );
 }

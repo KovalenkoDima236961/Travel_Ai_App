@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useTranslations } from "next-intl";
 import { LockClosedIcon } from "./icons";
 
 type PublicShareUnlockProps = {
@@ -15,6 +16,7 @@ type PublicShareUnlockProps = {
  * only presents the form in the shared screen's palette.
  */
 export function PublicShareUnlock({ onUnlock, loading = false, error }: PublicShareUnlockProps) {
+  const t = useTranslations("publicShare");
   const [password, setPassword] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -28,14 +30,14 @@ export function PublicShareUnlock({ onUnlock, loading = false, error }: PublicSh
         <LockClosedIcon className="h-6 w-6" />
       </span>
       <h1 className="mt-6 text-center font-newsreader text-[28px] font-medium leading-tight tracking-[-0.01em] text-cocoa-900">
-        This shared trip is password protected
+        {t("passwordTitle")}
       </h1>
       <p className="mt-2.5 text-center text-[14.5px] leading-[1.6] text-cocoa-500">
-        Enter the password to view the itinerary.
+        {t("passwordDescription")}
       </p>
       <form className="mt-7 w-full" onSubmit={submit}>
         <label className="block text-[13px] font-medium text-cocoa-700" htmlFor="share-password">
-          Password
+          {t("password")}
         </label>
         <input
           autoComplete="current-password"
@@ -54,7 +56,7 @@ export function PublicShareUnlock({ onUnlock, loading = false, error }: PublicSh
           disabled={loading || !password}
           className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full bg-clay text-[14.5px] font-semibold text-sand-100 transition hover:bg-clay-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Unlocking…" : "Unlock"}
+          {loading ? t("unlocking") : t("unlock")}
         </button>
       </form>
     </div>

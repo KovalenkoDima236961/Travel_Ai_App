@@ -24,6 +24,28 @@ Existing trip text, comments, notes, template names, and other user content are
 never translated automatically. Some legacy screens and email/backend fallback
 messages can still be English in v1.
 
+## UX Primitives
+
+Frontend UX Polish & Usability Hardening v1 standardizes repeated states in
+`src/components/ui`. Use `PageLoadingState` before page identity is available,
+`SectionLoadingState`/`CardSkeleton` for progressive card loading, `EmptyState`
+for valid no-data states, and `ErrorState`/`InlineError` for recoverable failures.
+Mutation buttons can use `ButtonSpinner`; mobile editors use
+`StickyMobileActionBar`.
+
+Use `ConfirmDialog` for destructive or important changes and
+`UnsavedChangesDialog` for local draft loss. Confirmation copy must explain
+what changes, what remains, and whether the action is reversible. Forms connect
+`FieldHint` and errors to fields, and long forms use `FormErrorSummary` with
+stable field IDs.
+
+Trip-detail deep links are mapped in
+`src/lib/trip-command-center/navigation.ts`. New targets need a stable DOM ID,
+scroll margin, keyboard focus, a temporary highlight, and friendly missing-target
+feedback. Add every new user-facing key to all four message catalogs. See
+`docs/frontend/ux-guidelines.md` and `docs/frontend/ux-polish-audit.md` for the
+full patterns and migration status.
+
 ## Frontend Boundary
 
 ```mermaid

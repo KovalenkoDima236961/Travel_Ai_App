@@ -5,7 +5,10 @@ import type { TripHealthIssue } from "@/types/trip-health";
 
 export function TripHealthIssueCard({ issue }: { issue: TripHealthIssue }) {
   return (
-    <article className="rounded-[14px] border border-sand-200 bg-white p-4">
+    <article
+      className="scroll-mt-28 rounded-[14px] border border-sand-200 bg-white p-4 outline-none transition-shadow"
+      id={`trip-health-issue-${issue.id}`}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           <HealthCategoryIcon category={issue.category} />

@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { EmptyState } from "@/components/ui";
 import { TripHealthIssueCard } from "./TripHealthIssueCard";
 import { categoryLabel, severityRank } from "./health-ui";
 import type { TripHealthCategory, TripHealthIssue } from "@/types/trip-health";
@@ -8,6 +10,7 @@ import type { TripHealthCategory, TripHealthIssue } from "@/types/trip-health";
 type FilterMode = "all" | "high" | "actionable";
 
 export function TripHealthIssueList({ issues }: { issues: TripHealthIssue[] }) {
+  const emptyT = useTranslations("emptyStates.health");
   const [mode, setMode] = useState<FilterMode>("all");
   const [category, setCategory] = useState<TripHealthCategory | "all">("all");
   const categories = useMemo(
@@ -71,7 +74,14 @@ export function TripHealthIssueList({ issues }: { issues: TripHealthIssue[] }) {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {issues.length === 0 ? (
+        <EmptyState
+          className="mt-4 border-sand-300 bg-sand-50"
+          compact
+          description={emptyT("description")}
+          title={emptyT("title")}
+        />
+      ) : filtered.length === 0 ? (
         <div className="mt-4 rounded-[14px] border border-sand-200 bg-sand-50 p-4 text-[14px] text-cocoa-500">
           No issues match this filter.
         </div>

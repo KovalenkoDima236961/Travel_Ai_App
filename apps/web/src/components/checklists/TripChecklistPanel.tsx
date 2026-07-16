@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { EmptyState, ErrorState, SectionLoadingState } from "@/components/ui";
 import { useAppLanguage } from "@/components/i18n/I18nProvider";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
@@ -81,6 +82,9 @@ export function TripChecklistPanel({
   userId
 }: TripChecklistPanelProps) {
   const t = useTranslations("checklist");
+  const emptyT = useTranslations("emptyStates.checklist");
+  const errorsT = useTranslations("errors");
+  const loadingT = useTranslations("loading");
   const { language } = useAppLanguage();
   const query = useTripChecklist(tripId, { enabled: enabled && !offline });
   const mutations = useChecklistMutations(tripId);
@@ -441,12 +445,16 @@ export function TripChecklistPanel({
         </div>
 
         {query.isLoading ? (
-          <p className="text-sm text-slate-500">{t("loading")}</p>
+          <SectionLoadingState compact label={loadingT("checklist")} />
         ) : null}
         {query.isError ? (
-          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            {getErrorMessage(query.error, t("errors.load"))}
-          </p>
+          <ErrorState
+            compact
+            description={errorsT("checklistLoadDescription")}
+            developmentDetails={query.error instanceof Error ? query.error.message : undefined}
+            retryAction={{ onRetry: () => void query.refetch(), pending: query.isFetching }}
+            title={errorsT("checklistLoadTitle")}
+          />
         ) : null}
         {localError ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -469,7 +477,16 @@ export function TripChecklistPanel({
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
             <div
+              aria-label={t("progress", {
+                checked: summary.checkedItems,
+                total: summary.totalItems,
+                percent: progress
+              })}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={progress}
               className="h-full rounded-full bg-emerald-600 transition-all"
+              role="progressbar"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -554,9 +571,21 @@ export function TripChecklistPanel({
         </div>
 
         {!query.isLoading && items.length === 0 ? (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            {canEdit ? t("emptyEditable") : t("emptyReadonly")}
-          </div>
+          <EmptyState
+            compact
+            description={canEdit ? emptyT("description") : emptyT("viewerDescription")}
+            primaryAction={
+              canEdit
+                ? {
+                    disabled: busy || offline,
+                    disabledReason: offline ? t("onlineOnly") : undefined,
+                    label: emptyT("action"),
+                    onClick: () => generateChecklist(false)
+                  }
+                : undefined
+            }
+            title={emptyT("title")}
+          />
         ) : null}
 
         {filteredItems.length > 0 ? (

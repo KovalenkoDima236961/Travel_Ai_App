@@ -7,6 +7,13 @@ Prometheus/Grafana observability stack.
 
 The default development stack runs at `http://localhost:3000`.
 
+Frontend UX Polish & Usability Hardening v1 adds shared localized
+loading/empty/error/form/confirmation primitives, progressive trip and public
+share states, safer destructive actions, focused deep links, accessible progress,
+and mobile sticky edit actions without changing the existing visual design
+system. Implementation guidance and the audit live in
+`docs/frontend/ux-guidelines.md` and `docs/frontend/ux-polish-audit.md`.
+
 Internationalization v1 supports English (`en`), Spanish (`es`), Ukrainian
 (`uk`), and French (`fr`). The web UI uses English as its catalog fallback,
 User Service persists the preference, and Trip Service forwards the requested

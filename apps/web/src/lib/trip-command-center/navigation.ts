@@ -97,18 +97,89 @@ export function scrollToTabAnchor(tab: string | null | undefined) {
   if (!anchor) {
     return;
   }
-  window.requestAnimationFrame(() => {
-    const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(window.location.search);
+  const target = getDeepLinkTarget(tab, params);
+  const targetId = target?.targetId ?? anchor;
+  const sectionId = target?.sectionId ?? anchor;
+  const delays = [0, 250, 750, 1500];
+  const timers: number[] = [];
+  let resolved = false;
+
+  for (const [index, delay] of delays.entries()) {
+    const timer = window.setTimeout(() => {
+      if (resolved) {
+        return;
+      }
+      const element = document.getElementById(targetId);
+      if (element) {
+        resolved = true;
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (target?.targetId) {
+          highlightDeepLinkTarget(element);
+        }
+        return;
+      }
+      if (index === delays.length - 1) {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.dispatchEvent(
+          new CustomEvent("travel-ai:deep-link-missing", { detail: { tab, targetId } })
+        );
+      }
+    }, delay);
+    timers.push(timer);
+  }
+  return () => timers.forEach((timer) => window.clearTimeout(timer));
+}
+
+export type DeepLinkTarget = {
+  sectionId: string;
+  targetId?: string;
+};
+
+export function getDeepLinkTarget(
+  tab: string,
+  params: Pick<URLSearchParams, "get">
+): DeepLinkTarget | null {
+  const sectionId = TAB_TO_ANCHOR[tab];
+  if (!sectionId) {
+    return null;
+  }
+  if (tab === "route" || tab === "transport") {
     const legId = params.get("legId");
     const stopId = params.get("stopId");
-    const focusedRouteAnchor =
-      tab === "route" || tab === "transport"
-        ? legId
-          ? `route-leg-${legId}`
-          : stopId
-            ? `route-stop-${stopId}`
-            : null
-        : null;
-    document.getElementById(focusedRouteAnchor ?? anchor)?.scrollIntoView({ block: "start" });
-  });
+    return {
+      sectionId,
+      targetId: legId
+        ? `route-leg-${legId}`
+        : stopId
+          ? `route-stop-${stopId}`
+          : undefined
+    };
+  }
+  const targetByTab: Record<string, [string, string]> = {
+    budget: ["category", "budget-category-"],
+    health: ["issueId", "trip-health-issue-"],
+    expenses: ["expenseId", "expense-"],
+    activity: ["eventId", "activity-event-"],
+    comments: ["commentId", "comment-"]
+  };
+  const targetConfig = targetByTab[tab];
+  if (!targetConfig) {
+    return { sectionId };
+  }
+  const value = params.get(targetConfig[0]);
+  return { sectionId, targetId: value ? `${targetConfig[1]}${value}` : undefined };
+}
+
+function highlightDeepLinkTarget(element: HTMLElement) {
+  element.dataset.deepLinkHighlighted = "true";
+  element.classList.add("ring-2", "ring-primary-600", "ring-offset-2");
+  if (!element.hasAttribute("tabindex")) {
+    element.setAttribute("tabindex", "-1");
+  }
+  element.focus({ preventScroll: true });
+  window.setTimeout(() => {
+    element.classList.remove("ring-2", "ring-primary-600", "ring-offset-2");
+    delete element.dataset.deepLinkHighlighted;
+  }, 2400);
 }

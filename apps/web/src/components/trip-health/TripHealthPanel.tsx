@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { ErrorState, SectionLoadingState } from "@/components/ui";
 import { ReadinessChecklist } from "./ReadinessChecklist";
 import { TopFixesCard } from "./TopFixesCard";
 import { TripHealthCategoryGrid } from "./TripHealthCategoryGrid";
@@ -11,25 +13,37 @@ type TripHealthPanelProps = {
   health?: TripHealth | null;
   loading?: boolean;
   error?: Error | null;
+  onRetry?: () => void;
+  retrying?: boolean;
 };
 
-export function TripHealthPanel({ health, loading = false, error = null }: TripHealthPanelProps) {
+export function TripHealthPanel({
+  health,
+  loading = false,
+  error = null,
+  onRetry,
+  retrying = false
+}: TripHealthPanelProps) {
+  const loadingT = useTranslations("loading");
+  const errorsT = useTranslations("errors");
+
   if (loading && !health) {
     return (
-      <section id="health" className="scroll-mt-24 rounded-[18px] border border-sand-300 bg-white p-6">
-        <p className="text-[14px] text-cocoa-500">Evaluating trip health...</p>
+      <section id="health" className="scroll-mt-24">
+        <SectionLoadingState cards={2} label={loadingT("tripHealth")} />
       </section>
     );
   }
   if (error && !health) {
     return (
-      <section id="health" className="scroll-mt-24 rounded-[18px] border border-[#E5C3B6] bg-[#FBF0EB] p-6">
-        <h2 className="font-newsreader text-[22px] font-semibold text-[#B3402E]">
-          Trip health unavailable
-        </h2>
-        <p className="mt-2 text-[14px] leading-[1.6] text-[#9A4A3A]">
-          {error.message || "Could not evaluate trip health."}
-        </p>
+      <section id="health" className="scroll-mt-24">
+        <ErrorState
+          className="rounded-[18px]"
+          description={errorsT("tripHealthDescription")}
+          developmentDetails={error.message}
+          retryAction={onRetry ? { onRetry, pending: retrying } : undefined}
+          title={errorsT("tripHealthTitle")}
+        />
       </section>
     );
   }

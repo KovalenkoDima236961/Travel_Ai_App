@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { ConfirmDialog } from "@/components/ui";
 import {
   GenerationQualityBadge,
   GenerationWarningsPanel
@@ -53,11 +55,13 @@ export function ItineraryVersionHistory({
   restoreDisabled = false,
   onRestored
 }: ItineraryVersionHistoryProps) {
+  const confirmationsT = useTranslations("confirmations");
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [preview, setPreview] = useState<ItineraryVersionDetail | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<ItineraryVersionSummary | null>(null);
 
   const versionsQuery = useQuery({
     queryKey: tripKeys.itineraryVersions(tripId),
@@ -86,13 +90,6 @@ export function ItineraryVersionHistory({
   }
 
   async function restoreVersion(version: ItineraryVersionSummary) {
-    const confirmed = window.confirm(
-      `Restore Version ${version.versionNumber}? Your current itinerary will be replaced, but a new version will be created so you can undo this later.`
-    );
-    if (!confirmed) {
-      return;
-    }
-
     try {
       setErrorMessage(null);
       setSuccessMessage(null);
@@ -100,6 +97,7 @@ export function ItineraryVersionHistory({
       queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
       await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
       setPreview(null);
+      setRestoreTarget(null);
       setSuccessMessage(`Version ${version.versionNumber} restored.`);
       onRestored?.(updatedTrip);
     } catch (error) {
@@ -216,7 +214,10 @@ export function ItineraryVersionHistory({
                     {canRestore ? (
                       <Button
                         disabled={restoreDisabled || restoreMutation.isPending}
-                        onClick={() => restoreVersion(version)}
+                        onClick={() => {
+                          setErrorMessage(null);
+                          setRestoreTarget(version);
+                        }}
                         size="sm"
                         type="button"
                         variant="secondary"
@@ -251,7 +252,10 @@ export function ItineraryVersionHistory({
                 {canRestore ? (
                   <Button
                     disabled={restoreDisabled || restoreMutation.isPending}
-                    onClick={() => restoreVersion(preview)}
+                    onClick={() => {
+                      setErrorMessage(null);
+                      setRestoreTarget(preview);
+                    }}
                     type="button"
                     variant="secondary"
                   >
@@ -270,6 +274,24 @@ export function ItineraryVersionHistory({
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        confirmLabel={confirmationsT("restoreVersion.action")}
+        description={confirmationsT("restoreVersion.description")}
+        error={restoreTarget ? errorMessage : null}
+        onCancel={() => {
+          setRestoreTarget(null);
+          setErrorMessage(null);
+        }}
+        onConfirm={() => {
+          if (restoreTarget) {
+            void restoreVersion(restoreTarget);
+          }
+        }}
+        open={Boolean(restoreTarget)}
+        pending={restoreMutation.isPending}
+        title={confirmationsT("restoreVersion.title")}
+      />
     </section>
   );
 }

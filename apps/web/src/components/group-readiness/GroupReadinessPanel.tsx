@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { ErrorState, SectionLoadingState } from "@/components/ui";
 import { CollaboratorReadinessRow } from "./CollaboratorReadinessRow";
 import { ReadinessCategoryBadge } from "./ReadinessCategoryBadge";
 import { ReadinessScoreBadge } from "./ReadinessScoreBadge";
@@ -11,6 +15,8 @@ type GroupReadinessPanelProps = {
   loading?: boolean;
   error?: Error | null;
   canNudge?: boolean;
+  onRetry?: () => void;
+  retrying?: boolean;
 };
 
 export function GroupReadinessPanel({
@@ -18,24 +24,30 @@ export function GroupReadinessPanel({
   readiness,
   loading = false,
   error = null,
-  canNudge = false
+  canNudge = false,
+  onRetry,
+  retrying = false
 }: GroupReadinessPanelProps) {
+  const loadingT = useTranslations("loading");
+  const errorsT = useTranslations("errors");
+
   if (loading && !readiness) {
     return (
-      <section id="group-readiness" className="scroll-mt-24 rounded-[18px] border border-sand-300 bg-white p-6">
-        <p className="text-[14px] text-cocoa-500">Checking group readiness...</p>
+      <section id="group-readiness" className="scroll-mt-24">
+        <SectionLoadingState cards={2} label={loadingT("groupReadiness")} />
       </section>
     );
   }
   if (error && !readiness) {
     return (
-      <section id="group-readiness" className="scroll-mt-24 rounded-[18px] border border-[#E5C3B6] bg-[#FBF0EB] p-6">
-        <h2 className="font-newsreader text-[22px] font-semibold text-[#B3402E]">
-          Group readiness unavailable
-        </h2>
-        <p className="mt-2 text-[14px] leading-[1.6] text-[#9A4A3A]">
-          {error.message || "Could not calculate group readiness."}
-        </p>
+      <section id="group-readiness" className="scroll-mt-24">
+        <ErrorState
+          className="rounded-[18px]"
+          description={errorsT("groupReadinessDescription")}
+          developmentDetails={error.message}
+          retryAction={onRetry ? { onRetry, pending: retrying } : undefined}
+          title={errorsT("groupReadinessTitle")}
+        />
       </section>
     );
   }
@@ -155,4 +167,3 @@ export function GroupReadinessPanel({
     </section>
   );
 }
-
