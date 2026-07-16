@@ -9,15 +9,19 @@ import (
 )
 
 type Config struct {
-	StorageProvider string
-	LocalDir        string
-	MaxFileSizeMB   int
-	AllowedMIMEs    []string
-	OCREnabled      bool
-	OCRProvider     entity.ReceiptOCRProvider
-	OCRTimeout      time.Duration
-	OCRFailOpen     bool
-	StoreRawText    bool
+	StorageProvider   string
+	LocalDir          string
+	MaxFileSizeMB     int
+	MaxFileSizeBytes  int64
+	AllowedMIMEs      []string
+	AllowedExtensions []string
+	ScanningEnabled   bool
+	ScanningFailOpen  bool
+	OCREnabled        bool
+	OCRProvider       entity.ReceiptOCRProvider
+	OCRTimeout        time.Duration
+	OCRFailOpen       bool
+	StoreRawText      bool
 }
 
 type StorageSaveInput struct {
@@ -42,6 +46,31 @@ type Storage interface {
 	Delete(ctx context.Context, storageKey string) error
 }
 
+// LocalPathProvider is implemented only by private local storage. It exposes a
+// validated server-controlled path to the optional scanner, never to HTTP
+// callers or API responses.
+type LocalPathProvider interface {
+	PathForScanning(storageKey string) (string, error)
+}
+
+type ScanResult struct {
+	Available bool
+	Clean     bool
+	Threat    string
+}
+
+type FileScanner interface {
+	Scan(ctx context.Context, filePath string) (ScanResult, error)
+}
+
+// NoopFileScanner keeps local development dependency-free. When scanning is
+// enabled it reports itself unavailable so production can fail closed.
+type NoopFileScanner struct{}
+
+func (NoopFileScanner) Scan(context.Context, string) (ScanResult, error) {
+	return ScanResult{Available: false, Clean: false}, nil
+}
+
 type OCRMetadata struct {
 	OriginalFilename string
 	ContentType      string
@@ -59,19 +88,23 @@ type OCRProvider interface {
 
 func DefaultConfig() Config {
 	return Config{
-		StorageProvider: "local",
-		LocalDir:        "./data/receipts",
-		MaxFileSizeMB:   10,
+		StorageProvider:  "local",
+		LocalDir:         "./data/receipts",
+		MaxFileSizeMB:    10,
+		MaxFileSizeBytes: 10 * 1024 * 1024,
 		AllowedMIMEs: []string{
 			"image/jpeg",
 			"image/png",
 			"image/webp",
 			"application/pdf",
 		},
-		OCREnabled:   true,
-		OCRProvider:  entity.ReceiptOCRProviderMock,
-		OCRTimeout:   30 * time.Second,
-		OCRFailOpen:  true,
-		StoreRawText: true,
+		AllowedExtensions: []string{".jpg", ".jpeg", ".png", ".webp", ".pdf"},
+		ScanningEnabled:   false,
+		ScanningFailOpen:  false,
+		OCREnabled:        true,
+		OCRProvider:       entity.ReceiptOCRProviderMock,
+		OCRTimeout:        30 * time.Second,
+		OCRFailOpen:       true,
+		StoreRawText:      true,
 	}
 }

@@ -1,4 +1,4 @@
-import { isItineraryConflictError } from "@/shared/api/client";
+import { ApiError, isItineraryConflictError } from "@/shared/api/client";
 import {
   checkChecklistItem,
   createChecklistItem,
@@ -20,6 +20,7 @@ import {
   cacheTripSnapshot,
   cloneOfflineValue,
   createOfflineId,
+  deleteOfflineReceiptDraft,
   getOfflineReceiptDraft,
   updateOfflineReceiptDraft
 } from "@/lib/offline/trip-cache";
@@ -302,6 +303,23 @@ export async function syncPendingMutations(userId: string): Promise<SyncResult[]
           continue;
         }
 
+        if (error instanceof ApiError && error.status === 403) {
+          const deniedMutation =
+            (await markMutationFailed(syncingMutation.mutationId, {
+              code: "permission_denied",
+              message:
+                "You no longer have permission to sync this change. Review or discard it."
+            })) ?? syncingMutation;
+          results.push({
+            status: "failed",
+            mutation: deniedMutation,
+            retryable: false,
+            errorCode: deniedMutation.errorCode,
+            errorMessage: deniedMutation.errorMessage
+          });
+          continue;
+        }
+
         if (isOfflineLikeError(error)) {
           const retryableMutation =
             (await updateMutationRecord(syncingMutation.mutationId, {
@@ -492,6 +510,9 @@ async function syncMutation(
       if (!draft) {
         throw new Error("Receipt draft no longer exists.");
       }
+      if (draft.userId !== userId || draft.tripId !== mutation.tripId) {
+        throw new Error("Receipt draft belongs to a different user or trip.");
+      }
       const linkedExpenseId =
         mutation.payload.linkedExpenseId ??
         draft.linkedExpenseId ??
@@ -508,11 +529,7 @@ async function syncMutation(
         expenseId: linkedExpenseId,
         runOcr: true
       });
-      await updateOfflineReceiptDraft(draft.id, {
-        status: "uploaded",
-        linkedExpenseId,
-        error: null
-      });
+      await deleteOfflineReceiptDraft(draft.id, userId);
       const syncedMutation = await updateMutationRecord(mutation.mutationId, {
         status: "synced",
         entityId: receipt.id,

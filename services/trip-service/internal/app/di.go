@@ -149,6 +149,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 	userLookupClient, err := users.New(users.Config{
 		BaseURL:        cfg.UserLookup.AuthServiceURL,
+		Token:          cfg.UserLookup.InternalServiceToken,
 		TimeoutSeconds: cfg.UserLookup.TimeoutSeconds,
 	})
 	if err != nil {
@@ -327,17 +328,22 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		receiptStorage,
 		receiptOCRProvider,
 		receipts.Config{
-			StorageProvider: cfg.Receipts.StorageProvider,
-			LocalDir:        cfg.Receipts.LocalDir,
-			MaxFileSizeMB:   cfg.Receipts.MaxFileSizeMB,
-			AllowedMIMEs:    splitCSV(cfg.Receipts.AllowedMIMETypes),
-			OCREnabled:      cfg.Receipts.OCREnabled,
-			OCRProvider:     receiptOCRProvider.Name(),
-			OCRTimeout:      time.Duration(cfg.Receipts.OCRTimeoutSeconds) * time.Second,
-			OCRFailOpen:     cfg.Receipts.OCRFailOpen,
-			StoreRawText:    cfg.Receipts.OCRStoreRawText,
+			StorageProvider:   cfg.Receipts.StorageProvider,
+			LocalDir:          cfg.Receipts.LocalDir,
+			MaxFileSizeMB:     cfg.Receipts.MaxFileSizeMB,
+			MaxFileSizeBytes:  cfg.Receipts.UploadMaxBytes,
+			AllowedMIMEs:      splitCSV(cfg.Receipts.UploadAllowedMIME),
+			AllowedExtensions: splitCSV(cfg.Receipts.UploadAllowedExt),
+			ScanningEnabled:   cfg.Receipts.FileScanningEnabled,
+			ScanningFailOpen:  cfg.Receipts.FileScanningFailOpen,
+			OCREnabled:        cfg.Receipts.OCREnabled,
+			OCRProvider:       receiptOCRProvider.Name(),
+			OCRTimeout:        time.Duration(cfg.Receipts.OCRTimeoutSeconds) * time.Second,
+			OCRFailOpen:       cfg.Receipts.OCRFailOpen,
+			StoreRawText:      cfg.Receipts.OCRStoreRawText,
 		},
 	))
+	opts = append(opts, service.WithFileScanner(receipts.NoopFileScanner{}))
 	svc := service.New(repo, gen, log, opts...)
 	reliability := aivalidation.NewPipeline(
 		aivalidation.NewValidator(aiValidationCfg),
@@ -431,6 +437,11 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	closer.Add("trip-edit-lock-cleanup", editlocks.StartCleanupLoop(context.Background(), editLockManager, editLocksCfg, log))
 
 	tripHandler := handler.New(svc, validator, log).
+		EnableSecurityLimits(
+			cfg.PublicSharing.UnlockRateLimitPerMinute,
+			cfg.PublicSharing.AccessRateLimitPerMinute,
+			cfg.Receipts.UploadRateLimitPerMinute,
+		).
 		EnablePresence(presenceManager, presenceCfg).
 		EnableActivityStream(activityStreamManager, activityStreamCfg).
 		EnableEditLocks(editLockManager, editLocksCfg).

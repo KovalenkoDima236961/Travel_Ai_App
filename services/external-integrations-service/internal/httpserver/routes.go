@@ -62,13 +62,13 @@ func NewRouter(
 	}
 	if priceHandler != nil {
 		r.Group(func(r chi.Router) {
-			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+			r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 			priceHandler.RegisterRoutes(r)
 		})
 	}
 	if transportHandler != nil {
 		r.Group(func(r chi.Router) {
-			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+			r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 			transportHandler.RegisterRoutes(r)
 		})
 	}
@@ -100,7 +100,7 @@ func NewRouter(
 
 	if internalCalendarHandler != nil {
 		r.Group(func(r chi.Router) {
-			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+			r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 			r.Post("/internal/calendar/google/events/sync", internalCalendarHandler.SyncGoogleEvents)
 			r.Post("/internal/calendar/google/events/delete", internalCalendarHandler.DeleteGoogleEvents)
 		})

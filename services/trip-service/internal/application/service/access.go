@@ -10,6 +10,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	tripsecurity "github.com/KovalenkoDima236961/Travel_Ai_App/internal/security"
 )
 
 type AccessLevel string
@@ -28,19 +29,19 @@ type TripAccess struct {
 }
 
 func (a TripAccess) CanView() bool {
-	return a.Level == AccessLevelOwner || a.Level == AccessLevelEditor || a.Level == AccessLevelViewer
+	return a.Allows(tripsecurity.PermissionTripView)
 }
 
 func (a TripAccess) CanEdit() bool {
-	return a.Level == AccessLevelOwner || a.Level == AccessLevelEditor
+	return a.Allows(tripsecurity.PermissionTripEdit)
 }
 
 func (a TripAccess) CanManageCollaborators() bool {
-	return a.Level == AccessLevelOwner
+	return a.Allows(tripsecurity.PermissionCollaboratorsManage)
 }
 
 func (a TripAccess) CanManageShare() bool {
-	return a.Level == AccessLevelOwner
+	return a.Allows(tripsecurity.PermissionShareManage)
 }
 
 func (a TripAccess) CanRestoreVersion() bool {
@@ -48,7 +49,16 @@ func (a TripAccess) CanRestoreVersion() bool {
 }
 
 func (a TripAccess) CanDelete() bool {
-	return a.Level == AccessLevelOwner
+	return a.Allows(tripsecurity.PermissionTripDelete)
+}
+
+func (a TripAccess) Allows(permission tripsecurity.TripPermission) bool {
+	return tripsecurity.Authorize(tripsecurity.TripAccessContext{
+		Principal:     tripsecurity.Principal{Type: tripsecurity.PrincipalAuthenticatedUser},
+		Role:          string(a.Level),
+		WorkspaceRole: a.WorkspaceRole,
+		Accepted:      a.Level != AccessLevelNone,
+	}, permission).Allowed
 }
 
 func (a TripAccess) Role() string {

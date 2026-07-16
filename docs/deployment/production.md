@@ -74,6 +74,24 @@ limited to `PUBLIC_WEB_BASE_URL`.
 - Not public: Postgres, RabbitMQ, RabbitMQ management, Worker, AI Planning,
   Prometheus, Grafana, metrics endpoints.
 
+The reverse proxy must route only documented browser APIs. In particular, deny
+`/internal/*`, `/metrics`, and ops routes externally even though application
+middleware also authenticates them. Set HTTPS at the edge and preserve HSTS.
+
+## Security profile
+
+- Keep AI prompt/body logging disabled. The AI service refuses prompt logging in
+  staging and production.
+- Configure the receipt byte/type/extension limits. V1 ships only a no-op file
+  scanner, so keep scanning disabled until a real scanner is wired; never enable
+  scanning with fail-open in production.
+- Review the instance-local auth/share/upload rate limits before scaling. Add a
+  shared backend for consistent limits across multiple replicas.
+- Build the Web App with `OFFLINE_CACHE_MAX_AGE_DAYS`; private IndexedDB records
+  remain device data and users should clear them on shared devices.
+- CSP is report-only in v1. Collect reports and remove unsafe directives before
+  switching it to enforcement.
+
 ## Verification
 
 ```sh

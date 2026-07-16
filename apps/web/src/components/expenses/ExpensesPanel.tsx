@@ -1037,7 +1037,12 @@ function OfflineReceiptDraftUploader({
     }
     setSaving(true);
     try {
-      const draft = await saveOfflineReceiptDraft({ tripId, userId: currentUserId, file });
+      const draft = await saveOfflineReceiptDraft({
+        tripId,
+        userId: currentUserId,
+        file,
+        consentGranted: confirmed
+      });
       await enqueueCompanionMutation({
         tripId,
         userId: currentUserId,
@@ -1077,7 +1082,7 @@ function OfflineReceiptDraftUploader({
 
       <form className="mt-4 space-y-4" onSubmit={submit}>
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
-          This receipt will be stored locally on this device until it can be uploaded. Receipt files may contain sensitive data.
+              Receipt files may contain sensitive information and will be stored locally on this device until synced or deleted.
         </div>
         <Input
           accept={RECEIPT_ALLOWED_TYPES.join(",")}

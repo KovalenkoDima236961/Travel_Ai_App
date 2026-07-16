@@ -1040,3 +1040,11 @@ booking/reservation action happens.
   budget optimization, edit, notification, settings, or calendar-sync controls.
 - The browser never receives third-party provider API keys, SMTP credentials,
   VAPID private keys, OAuth secrets, internal service tokens, or raw AI prompts.
+- Authenticated IndexedDB keys include the user ID; public-share responses never
+  enter the private trip cache. Logout clears that user's cached trips, pending
+  changes, receipt blobs, settings, and sync logs.
+- Offline receipt blobs require explicit confirmation, show a sensitive-data
+  warning, and can be deleted before sync. A server 403 stops automatic retry.
+- `OFFLINE_CACHE_MAX_AGE_DAYS` defaults to 30 through the public build variable.
+- Next emits anti-sniffing, frame, referrer, permissions, report-only CSP, and
+  production-only HSTS headers. CSP remains report-only for the v1 rollout.

@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -31,6 +33,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
+	tripsecurity "github.com/KovalenkoDima236961/Travel_Ai_App/internal/security"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -38,22 +41,39 @@ import (
 
 // Handler wires the trip use case to HTTP.
 type Handler struct {
-	svc               *service.Service
-	validator         validation.Validator
-	log               *zap.Logger
-	presence          presence.Manager
-	presenceCfg       presence.Config
-	activityStream    activitystream.Manager
-	activityStreamCfg activitystream.Config
-	editLocks         editlocks.Manager
-	editLockCfg       editlocks.Config
-	generationJobs    *generationjobs.Service
-	workspacePolicies *workspacepolicies.Service
+	svc                  *service.Service
+	validator            validation.Validator
+	log                  *zap.Logger
+	presence             presence.Manager
+	presenceCfg          presence.Config
+	activityStream       activitystream.Manager
+	activityStreamCfg    activitystream.Config
+	editLocks            editlocks.Manager
+	editLockCfg          editlocks.Config
+	generationJobs       *generationjobs.Service
+	workspacePolicies    *workspacepolicies.Service
+	shareUnlockLimiter   *tripsecurity.RateLimiter
+	publicShareLimiter   *tripsecurity.RateLimiter
+	receiptUploadLimiter *tripsecurity.RateLimiter
 }
 
 // New constructs the trip HTTP handler.
 func New(svc *service.Service, validator validation.Validator, log *zap.Logger) *Handler {
-	return &Handler{svc: svc, validator: validator, log: log}
+	return &Handler{
+		svc:                  svc,
+		validator:            validator,
+		log:                  log,
+		shareUnlockLimiter:   tripsecurity.NewRateLimiter(5, time.Minute),
+		publicShareLimiter:   tripsecurity.NewRateLimiter(120, time.Minute),
+		receiptUploadLimiter: tripsecurity.NewRateLimiter(20, time.Minute),
+	}
+}
+
+func (h *Handler) EnableSecurityLimits(shareUnlock, publicShare, receiptUpload int) *Handler {
+	h.shareUnlockLimiter = tripsecurity.NewRateLimiter(shareUnlock, time.Minute)
+	h.publicShareLimiter = tripsecurity.NewRateLimiter(publicShare, time.Minute)
+	h.receiptUploadLimiter = tripsecurity.NewRateLimiter(receiptUpload, time.Minute)
+	return h
 }
 
 // EnablePresence wires optional trip presence endpoints onto the handler.
@@ -1039,10 +1059,17 @@ func (h *Handler) ListCollaborationInvitations(w http.ResponseWriter, r *http.Re
 // GetPublicTrip handles GET /public/trips/{shareToken}.
 func (h *Handler) GetPublicTrip(w http.ResponseWriter, r *http.Request) {
 	shareToken := strings.TrimSpace(chi.URLParam(r, "shareToken"))
+	shareRef := safeShareRef(shareToken)
+	if !h.publicShareLimiter.Allow(shareRef + ":" + requestClientKey(r)) {
+		h.auditSecurity("share_access", "trip_share", shareRef, "rate_limited")
+		writeRateLimited(w)
+		return
+	}
 	shareAccessToken, _ := bearerToken(r.Header.Get("Authorization"))
 
 	t, share, err := h.svc.GetPublicTripByShareToken(r.Context(), shareToken, shareAccessToken)
 	if err != nil {
+		h.auditSecurity("share_access", "trip_share", shareRef, "denied")
 		if errors.Is(err, domainerrs.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "shared trip not found")
 			return
@@ -1055,6 +1082,7 @@ func (h *Handler) GetPublicTrip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.auditSecurity("share_access", "trip_share", shareRef, "success")
 	writeJSON(w, http.StatusOK, response.NewPublicTrip(t, share.CreatedAt))
 }
 
@@ -1078,6 +1106,13 @@ func (h *Handler) GetPublicShareStatus(w http.ResponseWriter, r *http.Request) {
 // UnlockPublicShare handles POST /public/trips/{shareToken}/unlock.
 func (h *Handler) UnlockPublicShare(w http.ResponseWriter, r *http.Request) {
 	shareToken := strings.TrimSpace(chi.URLParam(r, "shareToken"))
+	shareRef := safeShareRef(shareToken)
+	if !h.shareUnlockLimiter.Allow(shareRef + ":" + requestClientKey(r)) {
+		tripsecurity.ShareUnlockAttempts.WithLabelValues("rate_limited").Inc()
+		h.auditSecurity("share_unlock", "trip_share", shareRef, "rate_limited")
+		writeRateLimited(w)
+		return
+	}
 
 	var req request.PublicShareUnlock
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1085,21 +1120,60 @@ func (h *Handler) UnlockPublicShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: add per-share rate limiting before enabling password protection in production.
 	unlock, err := h.svc.UnlockPublicTripShare(r.Context(), shareToken, req.Password)
 	if err != nil {
+		tripsecurity.ShareUnlockAttempts.WithLabelValues("failure").Inc()
+		h.auditSecurity("share_unlock", "trip_share", shareRef, "failure")
 		switch {
 		case errors.Is(err, domainerrs.ErrNotFound):
-			writeError(w, http.StatusNotFound, "shared trip not found")
+			writeError(w, http.StatusUnauthorized, "Invalid or expired share link.")
 		case errors.Is(err, service.ErrInvalidSharePassword):
-			writeError(w, http.StatusUnauthorized, "invalid password")
+			writeError(w, http.StatusUnauthorized, "Incorrect password.")
 		default:
 			h.writeServiceError(w, err)
 		}
 		return
 	}
 
+	tripsecurity.ShareUnlockAttempts.WithLabelValues("success").Inc()
+	h.auditSecurity("share_unlock", "trip_share", shareRef, "success")
 	writeJSON(w, http.StatusOK, response.NewPublicShareUnlockResponse(unlock))
+}
+
+func safeShareRef(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return fmt.Sprintf("%x", sum[:6])
+}
+
+func requestClientKey(r *http.Request) string {
+	value := strings.TrimSpace(r.RemoteAddr)
+	if host, _, err := net.SplitHostPort(value); err == nil && host != "" {
+		return host
+	}
+	if value != "" {
+		return value
+	}
+	return "unknown"
+}
+
+func (h *Handler) auditSecurity(action, resourceType, resourceID, outcome string) {
+	tripsecurity.SecurityAuditEvents.WithLabelValues(action, outcome).Inc()
+	h.log.Info("security_audit",
+		zap.String("action", action),
+		zap.String("resource_type", resourceType),
+		zap.String("resource_id", resourceID),
+		zap.String("outcome", outcome),
+	)
+}
+
+func writeRateLimited(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "60")
+	writeJSON(w, http.StatusTooManyRequests, map[string]any{
+		"error": map[string]string{
+			"code":    "rate_limited",
+			"message": "Too many attempts. Please try again later.",
+		},
+	})
 }
 
 // Generate handles POST /trips/{id}/generate.

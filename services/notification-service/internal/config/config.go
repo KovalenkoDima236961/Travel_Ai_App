@@ -142,7 +142,15 @@ type JWTConfig struct {
 // This is a deliberately simple v1 scheme. It can be replaced later by mTLS,
 // signed service tokens, or an event bus without touching callers.
 type InternalConfig struct {
-	ServiceToken string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
+	ServiceToken  string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
+	ServiceTokens string `yaml:"service_tokens" env:"INTERNAL_SERVICE_TOKENS"`
+}
+
+func (c InternalConfig) ActiveServiceTokens() string {
+	if tokens := strings.TrimSpace(c.ServiceTokens); tokens != "" {
+		return tokens
+	}
+	return c.ServiceToken
 }
 
 // CORSConfig controls browser access to the Notification Service API.
@@ -298,6 +306,15 @@ func (c *Config) validateInternalToken() error {
 		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must be at least %d characters in %s", MinProductionTokenLength, c.Env)
 	}
 	c.Internal.ServiceToken = token
+	for _, raw := range strings.Split(c.Internal.ServiceTokens, ",") {
+		rotatingToken := strings.TrimSpace(raw)
+		if rotatingToken == "" {
+			continue
+		}
+		if c.IsStrictEnv() && (isUnsafeSecret(rotatingToken, DefaultDevelopmentInternalToken) || len(rotatingToken) < MinProductionTokenLength) {
+			return fmt.Errorf("INTERNAL_SERVICE_TOKENS contains an unsafe token in %s", c.Env)
+		}
+	}
 	return nil
 }
 

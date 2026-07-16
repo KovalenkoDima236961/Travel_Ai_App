@@ -85,15 +85,21 @@ type BudgetConfidenceConfig struct {
 }
 
 type ReceiptsConfig struct {
-	StorageProvider   string `yaml:"storage_provider" env:"RECEIPT_STORAGE_PROVIDER" env-default:"local" validate:"oneof=local"`
-	LocalDir          string `yaml:"local_dir" env:"RECEIPT_STORAGE_LOCAL_DIR" env-default:"./data/receipts"`
-	MaxFileSizeMB     int    `yaml:"max_file_size_mb" env:"RECEIPT_MAX_FILE_SIZE_MB" env-default:"10" validate:"min=1,max=50"`
-	AllowedMIMETypes  string `yaml:"allowed_mime_types" env:"RECEIPT_ALLOWED_MIME_TYPES" env-default:"image/jpeg,image/png,image/webp,application/pdf"`
-	OCREnabled        bool   `yaml:"ocr_enabled" env:"RECEIPT_OCR_ENABLED" env-default:"true"`
-	OCRProvider       string `yaml:"ocr_provider" env:"RECEIPT_OCR_PROVIDER" env-default:"mock" validate:"oneof=mock local"`
-	OCRTimeoutSeconds int    `yaml:"ocr_timeout_seconds" env:"RECEIPT_OCR_TIMEOUT_SECONDS" env-default:"30" validate:"min=1,max=300"`
-	OCRFailOpen       bool   `yaml:"ocr_fail_open" env:"RECEIPT_OCR_FAIL_OPEN" env-default:"true"`
-	OCRStoreRawText   bool   `yaml:"ocr_store_raw_text" env:"RECEIPT_OCR_STORE_RAW_TEXT" env-default:"true"`
+	StorageProvider          string `yaml:"storage_provider" env:"RECEIPT_STORAGE_PROVIDER" env-default:"local" validate:"oneof=local"`
+	LocalDir                 string `yaml:"local_dir" env:"RECEIPT_STORAGE_LOCAL_DIR" env-default:"./data/receipts"`
+	MaxFileSizeMB            int    `yaml:"max_file_size_mb" env:"RECEIPT_MAX_FILE_SIZE_MB" env-default:"10" validate:"min=1,max=50"`
+	AllowedMIMETypes         string `yaml:"allowed_mime_types" env:"RECEIPT_ALLOWED_MIME_TYPES" env-default:"image/jpeg,image/png,image/webp,application/pdf"`
+	UploadMaxBytes           int64  `yaml:"upload_max_bytes" env:"RECEIPT_UPLOAD_MAX_BYTES" env-default:"10485760" validate:"min=1,max=52428800"`
+	UploadAllowedMIME        string `yaml:"upload_allowed_mime" env:"RECEIPT_UPLOAD_ALLOWED_MIME"`
+	UploadAllowedExt         string `yaml:"upload_allowed_ext" env:"RECEIPT_UPLOAD_ALLOWED_EXT" env-default:".jpg,.jpeg,.png,.webp,.pdf"`
+	FileScanningEnabled      bool   `yaml:"file_scanning_enabled" env:"FILE_SCANNING_ENABLED" env-default:"false"`
+	FileScanningFailOpen     bool   `yaml:"file_scanning_fail_open" env:"FILE_SCANNING_FAIL_OPEN" env-default:"false"`
+	UploadRateLimitPerMinute int    `yaml:"upload_rate_limit_per_minute" env:"RECEIPT_UPLOAD_RATE_LIMIT_PER_MINUTE" env-default:"20" validate:"min=1,max=10000"`
+	OCREnabled               bool   `yaml:"ocr_enabled" env:"RECEIPT_OCR_ENABLED" env-default:"true"`
+	OCRProvider              string `yaml:"ocr_provider" env:"RECEIPT_OCR_PROVIDER" env-default:"mock" validate:"oneof=mock local"`
+	OCRTimeoutSeconds        int    `yaml:"ocr_timeout_seconds" env:"RECEIPT_OCR_TIMEOUT_SECONDS" env-default:"30" validate:"min=1,max=300"`
+	OCRFailOpen              bool   `yaml:"ocr_fail_open" env:"RECEIPT_OCR_FAIL_OPEN" env-default:"true"`
+	OCRStoreRawText          bool   `yaml:"ocr_store_raw_text" env:"RECEIPT_OCR_STORE_RAW_TEXT" env-default:"true"`
 }
 
 type TripDiscoveryConfig struct {
@@ -220,11 +226,19 @@ type HTTPServer struct {
 
 // AuthConfig controls local JWT validation for protected trip endpoints.
 type AuthConfig struct {
-	Required             bool   `yaml:"required" env:"AUTH_REQUIRED" env-default:"true"`
-	JWTAccessSecret      string `yaml:"jwt_access_secret" env:"JWT_ACCESS_SECRET" env-default:"change-me-in-development" validate:"required"`
-	HeaderName           string `yaml:"header_name" env:"AUTH_HEADER_NAME" env-default:"Authorization" validate:"required"`
-	DevUserID            string `yaml:"dev_user_id" env:"DEV_USER_ID" env-default:"00000000-0000-0000-0000-000000000001" validate:"required,uuid"`
-	InternalServiceToken string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	Required              bool   `yaml:"required" env:"AUTH_REQUIRED" env-default:"true"`
+	JWTAccessSecret       string `yaml:"jwt_access_secret" env:"JWT_ACCESS_SECRET" env-default:"change-me-in-development" validate:"required"`
+	HeaderName            string `yaml:"header_name" env:"AUTH_HEADER_NAME" env-default:"Authorization" validate:"required"`
+	DevUserID             string `yaml:"dev_user_id" env:"DEV_USER_ID" env-default:"00000000-0000-0000-0000-000000000001" validate:"required,uuid"`
+	InternalServiceToken  string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	InternalServiceTokens string `yaml:"internal_service_tokens" env:"INTERNAL_SERVICE_TOKENS"`
+}
+
+func (c AuthConfig) ActiveInternalServiceTokens() string {
+	if tokens := strings.TrimSpace(c.InternalServiceTokens); tokens != "" {
+		return tokens
+	}
+	return c.InternalServiceToken
 }
 
 // CORSConfig controls browser access to the Trip Service API.
@@ -289,8 +303,9 @@ type PriceEnrichmentConfig struct {
 // UserLookupConfig controls exact-email registered-user lookup for trip invites.
 // The endpoint is internal to the compose network in v1.
 type UserLookupConfig struct {
-	AuthServiceURL string `yaml:"auth_service_url" env:"AUTH_SERVICE_URL" env-default:"http://auth-service:8081"`
-	TimeoutSeconds int    `yaml:"timeout_seconds" env:"USER_LOOKUP_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
+	AuthServiceURL       string `yaml:"auth_service_url" env:"AUTH_SERVICE_URL" env-default:"http://auth-service:8081"`
+	InternalServiceToken string `yaml:"internal_service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	TimeoutSeconds       int    `yaml:"timeout_seconds" env:"USER_LOOKUP_TIMEOUT_SECONDS" env-default:"5" validate:"min=1"`
 }
 
 // PublicSharingConfig controls read-only public trip share links.
@@ -300,6 +315,8 @@ type PublicSharingConfig struct {
 	ShareTokenBytes             int    `yaml:"share_token_bytes" env:"SHARE_TOKEN_BYTES" env-default:"32" validate:"min=32,max=128"`
 	PublicShareAccessSecret     string `yaml:"public_share_access_secret" env:"PUBLIC_SHARE_ACCESS_SECRET" env-default:"dev-public-share-secret-change-me" validate:"required"`
 	PublicShareAccessTTLMinutes int    `yaml:"public_share_access_ttl_minutes" env:"PUBLIC_SHARE_ACCESS_TTL_MINUTES" env-default:"60" validate:"min=1"`
+	UnlockRateLimitPerMinute    int    `yaml:"unlock_rate_limit_per_minute" env:"SHARE_UNLOCK_RATE_LIMIT_PER_MINUTE" env-default:"5" validate:"min=1,max=1000"`
+	AccessRateLimitPerMinute    int    `yaml:"access_rate_limit_per_minute" env:"PUBLIC_SHARE_ACCESS_RATE_LIMIT_PER_MINUTE" env-default:"120" validate:"min=1,max=10000"`
 }
 
 // IsProduction reports whether the service runs in a production profile.
@@ -393,6 +410,11 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) applyDefaults() {
+	// Keep the legacy receipt MIME setting working while allowing the more
+	// explicit upload-specific setting to override it.
+	if strings.TrimSpace(c.Receipts.UploadAllowedMIME) == "" {
+		c.Receipts.UploadAllowedMIME = c.Receipts.AllowedMIMETypes
+	}
 	if strings.TrimSpace(c.CORS.AllowedOrigins) == "" && isLocalEnv(c.Env) {
 		c.CORS.AllowedOrigins = "http://localhost:3000"
 	}
@@ -428,6 +450,9 @@ func (c *Config) validateStrictConfig() error {
 	}
 	if err := c.validateOps(); err != nil {
 		return err
+	}
+	if c.IsProduction() && c.Receipts.FileScanningEnabled && c.Receipts.FileScanningFailOpen {
+		return fmt.Errorf("FILE_SCANNING_FAIL_OPEN must be false when scanning is enabled in production")
 	}
 	return nil
 }
@@ -579,6 +604,13 @@ func (c *Config) validateInternalTokens() error {
 		}
 		if err := validateTokenValue(token.name, token.value, c.Env, c.IsStrictEnv()); err != nil {
 			return err
+		}
+	}
+	if strings.TrimSpace(c.Auth.InternalServiceTokens) != "" {
+		for _, token := range strings.Split(c.Auth.InternalServiceTokens, ",") {
+			if err := validateTokenValue("INTERNAL_SERVICE_TOKENS", token, c.Env, c.IsStrictEnv()); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

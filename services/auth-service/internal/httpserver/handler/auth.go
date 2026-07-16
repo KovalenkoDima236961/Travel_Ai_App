@@ -35,8 +35,11 @@ const maxInternalUserBatch = 200
 
 // Handler wires the auth use case to HTTP.
 type Handler struct {
-	svc authService
-	log *zap.Logger
+	svc             authService
+	log             *zap.Logger
+	loginLimiter    *authRateLimiter
+	registerLimiter *authRateLimiter
+	refreshLimiter  *authRateLimiter
 }
 
 // New constructs the auth HTTP handler.
@@ -44,15 +47,22 @@ func New(svc authService, log *zap.Logger) *Handler {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Handler{svc: svc, log: log}
+	return &Handler{
+		svc: svc, log: log,
+		loginLimiter:    newAuthRateLimiter(10),
+		registerLimiter: newAuthRateLimiter(10),
+		refreshLimiter:  newAuthRateLimiter(30),
+	}
+}
+
+func (h *Handler) EnableRateLimits(login, register, refresh int) *Handler {
+	h.loginLimiter = newAuthRateLimiter(login)
+	h.registerLimiter = newAuthRateLimiter(register)
+	h.refreshLimiter = newAuthRateLimiter(refresh)
+	return h
 }
 
 // RegisterRoutes mounts the auth routes onto the given chi router.
-//
-// NOTE: /internal/users/by-email predates the internal service-token scheme and
-// is still called by Trip Service without a token, so it stays unprotected for
-// now (see its TODO). New internal endpoints are registered via
-// RegisterInternalRoutes behind the internal service-token middleware.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", h.Register)
@@ -61,7 +71,6 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/logout", h.Logout)
 		r.Get("/me", h.Me)
 	})
-	r.Get("/internal/users/by-email", h.InternalUserByEmail)
 }
 
 // RegisterInternalRoutes mounts service-to-service endpoints that require the
@@ -69,11 +78,15 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 // middleware; they must never be exposed to browsers and never require a user
 // JWT.
 func (h *Handler) RegisterInternalRoutes(r chi.Router) {
+	r.Get("/internal/users/by-email", h.InternalUserByEmail)
 	r.Post("/internal/users/batch", h.InternalUsersBatch)
 }
 
 // Register handles POST /auth/register.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	if !h.allowSensitive(w, r, "register", h.registerLimiter) {
+		return
+	}
 	var req request.Register
 	if !decodeJSON(w, r, &req) {
 		recordAuthRegister("invalid_request")
@@ -93,6 +106,9 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 // Login handles POST /auth/login.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	if !h.allowSensitive(w, r, "login", h.loginLimiter) {
+		return
+	}
 	var req request.Login
 	if !decodeJSON(w, r, &req) {
 		recordAuthLogin("invalid_request")
@@ -112,6 +128,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Refresh handles POST /auth/refresh.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	if !h.allowSensitive(w, r, "refresh", h.refreshLimiter) {
+		return
+	}
 	var req request.Refresh
 	if !decodeJSON(w, r, &req) {
 		recordAuthRefresh("invalid_request")
@@ -164,9 +183,8 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response.NewUser(resp))
 }
 
-// InternalUserByEmail handles exact registered-user lookup for service-to-service
-// calls. TODO: protect this route with internal service auth before exposing
-// auth-service outside the private service network.
+// InternalUserByEmail handles exact registered-user lookup behind the internal
+// service-token middleware.
 func (h *Handler) InternalUserByEmail(w http.ResponseWriter, r *http.Request) {
 	email := strings.TrimSpace(r.URL.Query().Get("email"))
 	user, err := h.svc.UserByEmail(r.Context(), email)

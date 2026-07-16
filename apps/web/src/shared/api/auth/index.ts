@@ -5,7 +5,8 @@ export type { AuthResponse, AuthUser, TokenResponse } from "./types";
 export { clearTokens, getAccessToken, getRefreshToken, saveTokens } from "./token-storage";
 
 type AuthApiErrorPayload = {
-  error?: string;
+  error?: string | { code?: string; message?: string };
+  message?: string;
 };
 
 export class AuthApiError extends Error {
@@ -86,10 +87,17 @@ async function authFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const payload = await readJson<AuthApiErrorPayload>(response);
+    const structuredError =
+      payload?.error && typeof payload.error === "object" ? payload.error : null;
     const message =
-      typeof payload?.error === "string" && payload.error.trim().length > 0
-        ? payload.error
-        : `Request failed with status ${response.status}`;
+      typeof payload?.message === "string" && payload.message.trim().length > 0
+        ? payload.message
+        : typeof structuredError?.message === "string" &&
+            structuredError.message.trim().length > 0
+          ? structuredError.message
+          : typeof payload?.error === "string" && payload.error.trim().length > 0
+            ? payload.error
+            : `Request failed with status ${response.status}`;
 
     throw new AuthApiError(message, response.status);
   }

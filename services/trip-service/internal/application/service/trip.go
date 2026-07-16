@@ -422,6 +422,14 @@ func WithReceipts(storage receipts.Storage, ocr receipts.OCRProvider, cfg receip
 	}
 }
 
+func WithFileScanner(scanner receipts.FileScanner) Option {
+	return func(s *Service) {
+		if scanner != nil {
+			s.receiptFileScanner = scanner
+		}
+	}
+}
+
 // WithPublicSharing configures owner-managed public read-only trip links.
 func WithPublicSharing(
 	enabled bool,
@@ -479,6 +487,7 @@ type Service struct {
 	workspacesEnabled                  bool
 	receiptStorage                     receipts.Storage
 	receiptOCRProvider                 receipts.OCRProvider
+	receiptFileScanner                 receipts.FileScanner
 	receiptConfig                      receipts.Config
 	activity                           activityService
 	notifier                           notifier
@@ -506,6 +515,7 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		budgetConversionFailOpen: true,
 		transportSearchFailOpen:  true,
 		receiptConfig:            receipts.DefaultConfig(),
+		receiptFileScanner:       receipts.NoopFileScanner{},
 		tripHealthConfig:         triphealth.DefaultConfig(),
 		budgetConfidenceConfig:   budgetconfidence.DefaultConfig(),
 		log:                      log,

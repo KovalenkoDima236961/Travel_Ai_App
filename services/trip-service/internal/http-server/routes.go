@@ -46,7 +46,7 @@ func NewRouter(
 	tripHandler.RegisterPublicRoutes(r)
 
 	r.Group(func(r chi.Router) {
-		r.Use(internalmw.InternalServiceToken(authCfg.InternalServiceToken))
+		r.Use(internalmw.InternalServiceToken(authCfg.ActiveInternalServiceTokens(), log))
 		tripHandler.RegisterInternalRoutes(r)
 	})
 

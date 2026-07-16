@@ -19,8 +19,8 @@ import (
 //
 // Route groups:
 //   - /health, /ready are open (no auth).
-//   - /auth/* and the legacy /internal/users/by-email are mounted directly.
-//   - new /internal/* service-to-service routes require the internal service
+//   - /auth/* is mounted directly.
+//   - all /internal/* service-to-service routes require the internal service
 //     token (no user JWT) and are intended for the private service network only.
 func NewRouter(
 	log *zap.Logger,
@@ -48,7 +48,7 @@ func NewRouter(
 
 	// Internal service-to-service routes: require the internal token only.
 	r.Group(func(r chi.Router) {
-		r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+		r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 		authHandler.RegisterInternalRoutes(r)
 	})
 

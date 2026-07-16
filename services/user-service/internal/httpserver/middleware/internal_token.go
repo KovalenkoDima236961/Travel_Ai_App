@@ -5,24 +5,69 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 // InternalServiceTokenHeader is the shared header for service-to-service calls.
 const InternalServiceTokenHeader = "X-Internal-Service-Token"
+const InternalServiceNameHeader = "X-Internal-Service-Name"
+
+var (
+	internalAuthFailures  = prometheus.NewCounter(prometheus.CounterOpts{Name: "internal_auth_failures_total", Help: "Rejected internal service authentication attempts."})
+	internalAuthSuccesses = prometheus.NewCounter(prometheus.CounterOpts{Name: "internal_auth_success_total", Help: "Successful internal service authentication attempts."})
+)
+
+func init() { prometheus.MustRegister(internalAuthFailures, internalAuthSuccesses) }
 
 // InternalServiceToken guards internal endpoints behind the shared service token.
-func InternalServiceToken(expectedToken string) func(http.Handler) http.Handler {
-	expected := strings.TrimSpace(expectedToken)
+func InternalServiceToken(expectedToken string, loggers ...*zap.Logger) func(http.Handler) http.Handler {
+	expected := activeTokens(expectedToken)
+	log := zap.NewNop()
+	if len(loggers) > 0 && loggers[0] != nil {
+		log = loggers[0]
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			provided := strings.TrimSpace(r.Header.Get(InternalServiceTokenHeader))
-			if expected == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			if !matchesAnyToken(provided, expected) {
+				internalAuthFailures.Inc()
+				log.Warn("security_audit",
+					zap.String("action", "internal_auth"),
+					zap.String("service_name", strings.TrimSpace(r.Header.Get(InternalServiceNameHeader))),
+					zap.String("endpoint", r.URL.Path),
+					zap.String("request_id", strings.TrimSpace(r.Header.Get("X-Request-ID"))),
+					zap.String("outcome", "denied"),
+				)
 				writeUnauthorized(w)
 				return
 			}
+			internalAuthSuccesses.Inc()
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func activeTokens(value string) []string {
+	items := make([]string, 0)
+	for _, raw := range strings.Split(value, ",") {
+		if token := strings.TrimSpace(raw); token != "" {
+			items = append(items, token)
+		}
+	}
+	return items
+}
+
+func matchesAnyToken(provided string, expected []string) bool {
+	if provided == "" || len(expected) == 0 {
+		return false
+	}
+	matched := 0
+	for _, token := range expected {
+		matched |= subtle.ConstantTimeCompare([]byte(provided), []byte(token))
+	}
+	return matched == 1
 }
 
 func writeUnauthorized(w http.ResponseWriter) {

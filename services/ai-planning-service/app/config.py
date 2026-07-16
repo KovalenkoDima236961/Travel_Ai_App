@@ -24,6 +24,8 @@ class Settings(BaseModel):
     ollama_repair_enabled: bool = True
     ollama_repair_attempts: int = Field(default=1, ge=0)
     log_llm_payloads: bool = False
+    ai_prompt_logging_enabled: bool = False
+    ai_prompt_logging_redacted_only: bool = True
     destination_context_enabled: bool = True
     destination_context_dir: str = "app/data/destinations"
     rag_enabled: bool = False
@@ -56,7 +58,12 @@ class Settings(BaseModel):
 
     @property
     def allow_llm_payload_logging(self) -> bool:
-        return self.log_llm_payloads and self.app_env in {"local", "development", "test"}
+        enabled = self.ai_prompt_logging_enabled or self.log_llm_payloads
+        return (
+            enabled
+            and self.ai_prompt_logging_redacted_only
+            and self.app_env in {"local", "development", "test"}
+        )
 
     @property
     def is_strict_env(self) -> bool:
@@ -132,6 +139,8 @@ def get_settings() -> Settings:
         ollama_repair_enabled=_env_bool("OLLAMA_REPAIR_ENABLED", True),
         ollama_repair_attempts=_env_int("OLLAMA_REPAIR_ATTEMPTS", 1),
         log_llm_payloads=_env_bool("LOG_LLM_PAYLOADS", False),
+        ai_prompt_logging_enabled=_env_bool("AI_PROMPT_LOGGING_ENABLED", False),
+        ai_prompt_logging_redacted_only=_env_bool("AI_PROMPT_LOGGING_REDACTED_ONLY", True),
         destination_context_enabled=_env_bool("DESTINATION_CONTEXT_ENABLED", True),
         destination_context_dir=_env_string("DESTINATION_CONTEXT_DIR", "app/data/destinations"),
         rag_enabled=_env_bool("RAG_ENABLED", False),
@@ -157,8 +166,14 @@ def _validate_startup_settings(settings: Settings) -> None:
         raise ValueError("AI_TEMPLATE_ADAPTATION_MODE must be mock or ollama")
     if adaptation_mode == "ollama":
         _validate_http_url("OLLAMA_BASE_URL", settings.ollama_base_url)
-    if settings.is_strict_env and settings.log_llm_payloads:
-        raise ValueError("LOG_LLM_PAYLOADS must be false in staging or production")
+    if settings.is_strict_env and (settings.log_llm_payloads or settings.ai_prompt_logging_enabled):
+        raise ValueError("AI prompt logging must be false in staging or production")
+    if (
+        settings.ai_prompt_logging_enabled or settings.log_llm_payloads
+    ) and not settings.ai_prompt_logging_redacted_only:
+        raise ValueError(
+            "AI_PROMPT_LOGGING_REDACTED_ONLY must be true when prompt logging is enabled"
+        )
     if mode == "ollama":
         _validate_http_url("OLLAMA_BASE_URL", settings.ollama_base_url)
     if settings.rag_enabled and not settings.rag_chroma_dir.strip():

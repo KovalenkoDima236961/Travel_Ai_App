@@ -8,6 +8,7 @@ from app.api.dependencies import (
     get_configured_settings,
 )
 from app.config import Settings
+from app.privacy import redact_text
 from app.schemas.destination_context import (
     DestinationContext,
     DestinationContextListResponse,
@@ -112,13 +113,14 @@ def preview_destination_context_prompt(
     logger.info("Destination context prompt preview completed", extra=log_context)
     if settings.allow_llm_payload_logging:
         logger.info(
-            "Destination context prompt preview payload", extra={**log_context, "prompt": prompt}
+            "Destination context prompt preview payload",
+            extra={**log_context, "prompt": redact_text(prompt, max_chars=2_000)},
         )
 
     return DestinationContextPromptPreviewResponse(
         destination_context_found=context is not None,
         destination_context=context,
-        prompt=prompt,
+        prompt=redact_text(prompt, max_chars=10_000),
     )
 
 

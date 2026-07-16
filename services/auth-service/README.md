@@ -89,6 +89,10 @@ make migrate-down
 | `ACCESS_TOKEN_TTL_MINUTES` | `15` | Access token lifetime. |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | Refresh token lifetime. |
 | `INTERNAL_SERVICE_TOKEN` | `dev-internal-service-token` | Required by `POST /internal/users/batch`. |
+| `INTERNAL_SERVICE_TOKENS` | empty | Comma-separated receiver tokens during rotation. |
+| `AUTH_LOGIN_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP login limit (instance-local). |
+| `AUTH_REGISTER_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP registration limit. |
+| `AUTH_REFRESH_RATE_LIMIT_PER_MINUTE` | `30` | Per-IP refresh limit. |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Browser origin allowlist. |
 
 ## Development Checks
@@ -123,3 +127,6 @@ curl -sS http://localhost:8082/auth/me \
 - Metrics use bounded labels for method, route, status, and auth result.
 - Never log passwords, refresh tokens, access tokens, cookies, authorization
   headers, internal service tokens, or full request bodies.
+- All `/internal/*` routes, including exact-email lookup, use constant-time
+  multi-token internal authentication. Production rejects default/short
+  JWT/internal secrets and wildcard CORS.

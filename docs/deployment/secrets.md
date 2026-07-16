@@ -51,3 +51,13 @@ Rotate one secret class at a time:
 2. Deploy services that can use it.
 3. Expire old sessions or tokens if the rotated value signs user credentials.
 4. Remove the old secret after verification.
+
+For internal tokens, use the overlap mechanism instead of an immediate replace:
+
+1. Deploy receivers with `INTERNAL_SERVICE_TOKENS=old,new`.
+2. Change callers' `INTERNAL_SERVICE_TOKEN` to `new`.
+3. Remove `old` from receivers after metrics show no old callers remain.
+
+Strict environments validate every active rotation token. Do not expose any
+`/internal/*`, `/metrics`, or ops route at the public reverse proxy, and do not
+place a secret in a `NEXT_PUBLIC_*` variable.

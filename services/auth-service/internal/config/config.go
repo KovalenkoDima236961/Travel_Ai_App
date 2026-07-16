@@ -25,12 +25,19 @@ const (
 )
 
 type Config struct {
-	Env        string          `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
-	HTTPServer HTTPServer      `yaml:"http_server" validate:"required"`
-	Postgres   postgres.Config `yaml:"postgres" validate:"required"`
-	JWT        JWTConfig       `yaml:"jwt" validate:"required"`
-	Internal   InternalConfig  `yaml:"internal" validate:"required"`
-	CORS       CORSConfig      `yaml:"cors" validate:"required"`
+	Env        string               `yaml:"env" env:"APP_ENV" env-default:"local" validate:"required,oneof=local staging production development test"`
+	HTTPServer HTTPServer           `yaml:"http_server" validate:"required"`
+	Postgres   postgres.Config      `yaml:"postgres" validate:"required"`
+	JWT        JWTConfig            `yaml:"jwt" validate:"required"`
+	Internal   InternalConfig       `yaml:"internal" validate:"required"`
+	RateLimits AuthRateLimitsConfig `yaml:"rate_limits" validate:"required"`
+	CORS       CORSConfig           `yaml:"cors" validate:"required"`
+}
+
+type AuthRateLimitsConfig struct {
+	LoginPerMinute    int `yaml:"login_per_minute" env:"AUTH_LOGIN_RATE_LIMIT_PER_MINUTE" env-default:"10" validate:"min=1,max=10000"`
+	RegisterPerMinute int `yaml:"register_per_minute" env:"AUTH_REGISTER_RATE_LIMIT_PER_MINUTE" env-default:"10" validate:"min=1,max=10000"`
+	RefreshPerMinute  int `yaml:"refresh_per_minute" env:"AUTH_REFRESH_RATE_LIMIT_PER_MINUTE" env-default:"30" validate:"min=1,max=10000"`
 }
 
 // InternalConfig controls service-to-service authentication for internal
@@ -38,7 +45,15 @@ type Config struct {
 // token in the X-Internal-Service-Token header. This mirrors the v1 scheme used
 // by Notification Service and can be replaced later by mTLS or signed tokens.
 type InternalConfig struct {
-	ServiceToken string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
+	ServiceToken  string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
+	ServiceTokens string `yaml:"service_tokens" env:"INTERNAL_SERVICE_TOKENS"`
+}
+
+func (c InternalConfig) ActiveServiceTokens() string {
+	if tokens := strings.TrimSpace(c.ServiceTokens); tokens != "" {
+		return tokens
+	}
+	return c.ServiceToken
 }
 
 type HTTPServer struct {
@@ -166,6 +181,22 @@ func (c *Config) validateInternalToken() error {
 		return fmt.Errorf("INTERNAL_SERVICE_TOKEN must be at least %d characters in %s", MinProductionTokenLength, c.Env)
 	}
 	c.Internal.ServiceToken = token
+	if err := validateRotatingTokens(c.Internal.ServiceTokens, c.Env, c.IsStrictEnv()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRotatingTokens(value, env string, strict bool) error {
+	for _, raw := range strings.Split(value, ",") {
+		token := strings.TrimSpace(raw)
+		if token == "" {
+			continue
+		}
+		if strict && (isUnsafeSecret(token, DefaultDevelopmentInternalToken) || len(token) < MinProductionTokenLength) {
+			return fmt.Errorf("INTERNAL_SERVICE_TOKENS contains an unsafe token in %s", env)
+		}
+	}
 	return nil
 }
 

@@ -18,11 +18,13 @@ import (
 
 type Config struct {
 	BaseURL        string
+	Token          string
 	TimeoutSeconds int
 }
 
 type Client struct {
 	baseURL    string
+	token      string
 	httpClient *http.Client
 }
 
@@ -37,6 +39,7 @@ func New(cfg Config) (*Client, error) {
 	}
 	return &Client{
 		baseURL: baseURL,
+		token:   strings.TrimSpace(cfg.Token),
 		httpClient: observability.InstrumentHTTPClient(&http.Client{
 			Timeout: time.Duration(timeoutSeconds) * time.Second,
 		}),
@@ -50,6 +53,9 @@ func (c *Client) LookupByEmail(ctx context.Context, email string) (*appdto.UserL
 		return nil, fmt.Errorf("build user lookup request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	if c.token != "" {
+		req.Header.Set("X-Internal-Service-Token", c.token)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

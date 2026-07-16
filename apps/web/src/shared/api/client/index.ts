@@ -8,7 +8,7 @@ import {
 import { getTripApiBaseUrl } from "@/shared/config";
 
 type ApiErrorPayload = {
-  error?: string;
+  error?: string | { code?: string; message?: string };
   message?: string;
   fields?: Record<string, string>;
   currentItineraryRevision?: number;
@@ -145,18 +145,25 @@ async function apiFetchInternal<T>(
 
   if (!response.ok) {
     const payload = await readJson<ApiErrorPayload>(response);
+    const structuredError =
+      payload?.error && typeof payload.error === "object" ? payload.error : null;
     const message =
       typeof payload?.message === "string" && payload.message.trim().length > 0
         ? payload.message
-        : typeof payload?.error === "string" && payload.error.trim().length > 0
-          ? payload.error
-          : `Request failed with status ${response.status}`;
+        : typeof structuredError?.message === "string" &&
+            structuredError.message.trim().length > 0
+          ? structuredError.message
+          : typeof payload?.error === "string" && payload.error.trim().length > 0
+            ? payload.error
+            : `Request failed with status ${response.status}`;
+    const errorCode =
+      typeof payload?.error === "string" ? payload.error : structuredError?.code;
 
     throw new ApiError(
       message,
       response.status,
       payload?.fields,
-      payload?.error,
+      errorCode,
       payload?.currentItineraryRevision,
       payload
     );

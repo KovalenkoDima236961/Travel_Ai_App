@@ -13,6 +13,14 @@
 - Worker concurrency and shutdown timeout are reviewed.
 - `OPS_ADMIN_EMAILS` is set if the Ops Dashboard is enabled.
 - Metrics, RabbitMQ management, Postgres, and Grafana are not publicly exposed.
+- The reverse proxy denies `/internal/*`, `/metrics`, and ops routes.
+- JWT, internal-token, public-share, calendar, SMTP, VAPID, and provider secrets
+  are distinct and stored outside the repository.
+- `AI_PROMPT_LOGGING_ENABLED=false` and `LOG_LLM_PAYLOADS=false`.
+- Receipt size/MIME/extension limits are reviewed; scanner fail-open is false.
+- Auth/share/receipt rate limits are reviewed for the replica count.
+- HTTPS and production HSTS are enabled, and CSP report-only events are monitored.
+- `OFFLINE_CACHE_MAX_AGE_DAYS` is set and shared-device guidance is published.
 
 ## Post-deploy
 
@@ -27,3 +35,8 @@
 - Prometheus scrapes services over the internal network.
 - Logs show no secret values.
 - `./scripts/prod-smoke-test.sh` passes.
+- `./scripts/security-smoke-test.sh` passes against a disposable test account.
+- Public share output has no expense, receipt, collaborator, activity, policy,
+  approval, readiness, calendar, or budget-confidence fields.
+- Missing/invalid internal tokens return 401 and receipt downloads return
+  `nosniff` plus `private, no-store`.

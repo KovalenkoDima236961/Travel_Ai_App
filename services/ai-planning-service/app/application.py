@@ -27,6 +27,8 @@ from app.services.route_alternatives import (
 )
 from app.services.template_adapter import TemplateAdapter, get_template_adapter
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class ApplicationServices:
@@ -41,6 +43,12 @@ class ApplicationServices:
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
     logging.basicConfig(level=resolved_settings.log_level)
+    if resolved_settings.allow_llm_payload_logging:
+        logger.warning(
+            "AI prompt logging enabled for local diagnostics; payloads are redacted and truncated"
+        )
+    else:
+        logger.info("AI prompt logging disabled")
     services = build_application_services(resolved_settings)
 
     app = FastAPI(

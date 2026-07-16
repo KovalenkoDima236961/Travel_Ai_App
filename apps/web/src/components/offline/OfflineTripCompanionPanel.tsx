@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
-import { listOfflineReceiptDrafts } from "@/lib/offline/trip-cache";
+import {
+  deleteOfflineReceiptDraft,
+  listOfflineReceiptDrafts
+} from "@/lib/offline/trip-cache";
 import { OfflineReceiptDraftsList } from "@/components/offline/OfflineReceiptDraftsList";
 import { PendingChangesList } from "@/components/offline/PendingChangesList";
 import { SyncConflictDialog } from "@/components/offline/SyncConflictDialog";
@@ -60,6 +63,14 @@ export function OfflineTripCompanionPanel({
     };
   }, [mutations.length, tripId, userId]);
 
+  async function handleDeleteDraft(draft: OfflineReceiptDraftRecord) {
+    if (!userId) {
+      return;
+    }
+    await deleteOfflineReceiptDraft(draft.id, userId);
+    setDrafts((current) => current.filter((item) => item.id !== draft.id));
+  }
+
   return (
     <Card className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -90,7 +101,7 @@ export function OfflineTripCompanionPanel({
         mutation={reviewMutation}
         onClose={() => setDismissedConflictId(reviewMutation?.mutationId ?? null)}
       />
-      <OfflineReceiptDraftsList drafts={drafts} />
+      <OfflineReceiptDraftsList drafts={drafts} onDelete={handleDeleteDraft} />
       <PendingChangesList mutations={mutations} onDiscard={onDiscard} />
     </Card>
   );

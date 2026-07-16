@@ -6,7 +6,8 @@ import {
   clearOfflineDataForUser,
   deleteCachedTrip,
   getCachedTrip,
-  listCachedTrips
+  listCachedTrips,
+  saveOfflineReceiptDraft
 } from "@/lib/offline/trip-cache";
 import {
   discardMutation,
@@ -83,6 +84,19 @@ describe("offline trip cache", () => {
     await clearOfflineData("user-1");
 
     expect(await getCachedTrip("trip-1", "user-1")).toBeNull();
+  });
+
+  it("requires explicit consent before storing an offline receipt", async () => {
+    const file = new File(["receipt"], "receipt.pdf", { type: "application/pdf" });
+    await expect(
+      saveOfflineReceiptDraft({
+        tripId: "trip-1",
+        userId: "user-1",
+        file,
+        consentGranted: false
+      })
+    ).rejects.toThrow(/consent/i);
+    expect(dbState.stores.offlineReceiptDrafts.size).toBe(0);
   });
 
   it("lists and deletes cached trips only for the current user", async () => {
@@ -222,11 +236,34 @@ describe("offline itinerary queue", () => {
     }
     expect(pending.draftItinerary.days[0].items[0].name).toBe("Local");
   });
+
+  it("stops automatic retry and shows a permission error after a 403", async () => {
+    await enqueueItineraryUpdate({
+      tripId: "trip-1",
+      userId: "user-1",
+      baseRevision: 7,
+      baseItinerary: itinerary("Base"),
+      draftItinerary: itinerary("Local")
+    });
+    tripApi.updateTripItinerary.mockRejectedValue(new ApiError("Forbidden", 403));
+
+    const results = await syncPendingMutations("user-1");
+
+    expect(results[0]).toMatchObject({
+      status: "failed",
+      retryable: false,
+      errorCode: "permission_denied"
+    });
+    expect((await getPendingMutations("user-1"))[0].status).toBe("failed");
+    expect(tripApi.updateTripItinerary).toHaveBeenCalledTimes(1);
+    await syncPendingMutations("user-1");
+    expect(tripApi.updateTripItinerary).toHaveBeenCalledTimes(1);
+  });
 });
 
 function keyForStore(storeName: keyof typeof dbState.stores, value: Record<string, unknown>) {
   if (storeName === "cachedTrips") {
-    return String(value.tripId);
+    return String(value.cacheKey);
   }
   if (storeName === "pendingMutations") {
     return String(value.mutationId);

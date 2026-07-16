@@ -117,6 +117,10 @@ func (s *LocalStorage) Delete(ctx context.Context, storageKey string) error {
 	return nil
 }
 
+func (s *LocalStorage) PathForScanning(storageKey string) (string, error) {
+	return s.pathForKey(storageKey)
+}
+
 func (s *LocalStorage) pathForKey(storageKey string) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(strings.TrimSpace(storageKey)))
 	if clean == "." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {

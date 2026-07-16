@@ -1,5 +1,32 @@
 # Web Smoke Test
 
+## Security hardening checks
+
+After the baseline flow, verify in a private/incognito browser pair:
+
+1. A viewer can open the private trip but cannot edit itinerary, route, or
+   budget; editor/owner-only controls are absent.
+2. A pending invite has no trip access, and a removed collaborator immediately
+   loses trip, comment, activity, readiness, and receipt access.
+3. A public share renders itinerary/route only. Expenses, receipts, comments,
+   activity, command center, group readiness, budget confidence, approval,
+   policy, calendar, and offline controls are absent.
+4. Disabling a share invalidates both the link and an already-issued unlock
+   token. Repeated wrong-password attempts eventually show the 429 message.
+5. Receipt download works only while authenticated and authorized. Inspect the
+   response for `X-Content-Type-Options: nosniff` and
+   `Cache-Control: private, no-store`; invalid/mismatched uploads are rejected.
+6. Save an offline receipt only after its warning, delete a draft, log out, and
+   confirm the prior user's trips/drafts are gone. A second user must not see
+   them. The service worker may retain only the application shell/static files.
+7. Inspect Web response headers for frame denial, strict referrer and permissions
+   policy, report-only CSP, and production-only HSTS.
+8. Confirm production config starts only with explicit CORS/secrets, prompt
+   logging is off, and no raw prompt, token, password, OCR text, or calendar
+   detail appears in logs.
+
+The automated counterpart is `./scripts/security-smoke-test.sh`.
+
 Manual browser flow for the local full stack.
 
 ## Start The Stack

@@ -1395,3 +1395,27 @@ no per-hour trip scheduling, and no booking or leave approval workflow.
 is explicitly enabled, preview can degrade to an empty warning preview on
 dependency failures; apply remains fail-closed so missing calendar data cannot
 write misleading availability.
+
+## Security and privacy hardening v1
+
+Trip permissions are enumerated in `internal/security` and unknown decisions
+fail closed. Owners receive trip permissions, accepted editors receive the
+existing edit set, viewers remain read-only except existing own-contribution
+flows, and public-share principals can read only the sanitized trip/itinerary/
+route representation. Ops permissions require the ops allowlist and are never
+granted by trip ownership.
+
+Public-share tokens use at least 32 random bytes, password hashes use bcrypt,
+disabled/expired links are checked on every request, unlock attempts are limited
+per IP and token hash prefix, and logs never contain raw tokens or passwords.
+
+Receipt uploads enforce `RECEIPT_UPLOAD_MAX_BYTES`, detected MIME, declared MIME
+consistency, and matching extension. Files use generated private keys outside
+the web root; download reauthorizes and emits `nosniff` and `private, no-store`.
+`FileScanner` is optional; the bundled no-op scanner is development-only and an
+enabled unavailable scanner fails closed by default.
+
+AI-bound JSON passes through `internal/aiprivacy`, which removes receipt OCR,
+calendar details, secrets, share credentials, file paths, emails, phones, and
+unneeded user/workspace IDs. See `docs/security/` for the full matrix and known
+limitations.

@@ -12,13 +12,22 @@ import (
 	"github.com/google/uuid"
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
+	tripsecurity "github.com/KovalenkoDima236961/Travel_Ai_App/internal/security"
 )
 
 func (h *Handler) UploadReceipt(w http.ResponseWriter, r *http.Request) {
 	tripID, ok := h.parseID(w, r)
 	if !ok {
+		return
+	}
+	user, _ := auth.UserFromContext(r.Context())
+	if !h.receiptUploadLimiter.Allow(user.ID.String() + ":" + requestClientKey(r)) {
+		tripsecurity.ReceiptUploadRejected.WithLabelValues("rate_limited").Inc()
+		h.auditSecurity("receipt_upload", "trip", tripID.String(), "rate_limited")
+		writeRateLimited(w)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, h.svc.ReceiptMaxUploadBytes()+(1<<20))
@@ -59,9 +68,12 @@ func (h *Handler) UploadReceipt(w http.ResponseWriter, r *http.Request) {
 		File:             file,
 	})
 	if err != nil {
+		tripsecurity.ReceiptUploadRejected.WithLabelValues("validation_or_access").Inc()
+		h.auditSecurity("receipt_upload", "trip", tripID.String(), "denied")
 		h.writeServiceError(w, err)
 		return
 	}
+	h.auditSecurity("receipt_upload", "trip", tripID.String(), "success")
 	writeJSON(w, http.StatusCreated, receipt)
 }
 
@@ -102,13 +114,19 @@ func (h *Handler) GetReceiptFile(w http.ResponseWriter, r *http.Request) {
 	}
 	file, err := h.svc.OpenReceiptFile(r.Context(), tripID, receiptID)
 	if err != nil {
+		tripsecurity.ReceiptDownloadDenied.WithLabelValues("access_or_missing").Inc()
+		h.auditSecurity("receipt_download", "receipt", receiptID.String(), "denied")
 		h.writeServiceError(w, err)
 		return
 	}
 	defer file.Reader.Close()
+	h.auditSecurity("receipt_download", "receipt", receiptID.String(), "success")
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(file.SizeBytes, 10))
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": file.Filename}))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 	if _, err := io.Copy(w, file.Reader); err != nil {
 		h.log.Warn("stream receipt file failed")
 	}
@@ -193,9 +211,11 @@ func (h *Handler) DeleteReceipt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.DeleteReceipt(r.Context(), tripID, receiptID); err != nil {
+		h.auditSecurity("receipt_delete", "receipt", receiptID.String(), "denied")
 		h.writeServiceError(w, err)
 		return
 	}
+	h.auditSecurity("receipt_delete", "receipt", receiptID.String(), "success")
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 

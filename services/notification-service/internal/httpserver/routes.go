@@ -60,7 +60,7 @@ func NewRouter(
 
 	// Internal service-to-service routes: require the internal token only.
 	r.Group(func(r chi.Router) {
-		r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+		r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 		internalHandler.RegisterRoutes(r)
 	})
 

@@ -61,6 +61,9 @@ func (c *Client) LookupByEmail(ctx context.Context, email string) (*User, error)
 		return nil, fmt.Errorf("build user lookup request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	if c.token != "" {
+		req.Header.Set(internalServiceTokenHeader, c.token)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

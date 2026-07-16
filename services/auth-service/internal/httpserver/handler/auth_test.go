@@ -236,6 +236,26 @@ func TestHandlerInvalidLoginReturnsUnauthorized(t *testing.T) {
 	}
 }
 
+func TestHandlerLoginRateLimit(t *testing.T) {
+	h := New(stubAuthService{
+		login: func(context.Context, appdto.LoginInput) (*appdto.AuthResult, error) {
+			return nil, apperrs.ErrInvalidCredentials
+		},
+	}, zap.NewNop()).EnableRateLimits(1, 10, 10)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	for attempt, expected := range []int{http.StatusUnauthorized, http.StatusTooManyRequests} {
+		req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader([]byte(`{"email":"user@example.com","password":"WrongPassword123!"}`)))
+		req.RemoteAddr = "192.0.2.10:1234"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != expected {
+			t.Fatalf("attempt %d: expected %d, got %d: %s", attempt+1, expected, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestHandlerInvalidJSONErrorShape(t *testing.T) {
 	router := newTestRouter(stubAuthService{})
 	rec := httptest.NewRecorder()

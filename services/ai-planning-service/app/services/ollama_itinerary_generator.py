@@ -7,6 +7,7 @@ import httpx
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.observability import record_ai_repair_attempt
+from app.privacy import redact_text
 from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
 from app.schemas.destination_context import DestinationContext
 from app.schemas.generation_repair import (
@@ -40,8 +41,8 @@ from app.services.llm_response_parser import (
     parse_repair_itinerary_response,
 )
 from app.services.prompt_builder import (
-    build_generation_output_repair_prompt,
     build_checklist_prompt,
+    build_generation_output_repair_prompt,
     build_itinerary_prompt,
     build_optimize_budget_day_prompt,
     build_regenerate_day_prompt,
@@ -503,7 +504,9 @@ class OllamaItineraryGenerator:
         log_context: dict[str, Any],
     ) -> RepairGenerationOutputResponse:
         prompt = build_generation_output_repair_prompt(request)
-        self._log_llm_payload("Ollama generation output repair prompt", "prompt", prompt, log_context)
+        self._log_llm_payload(
+            "Ollama generation output repair prompt", "prompt", prompt, log_context
+        )
 
         llm_response = self._call_ollama(prompt)
         self._log_llm_payload(
@@ -882,7 +885,10 @@ class OllamaItineraryGenerator:
         if not self._settings.allow_llm_payload_logging:
             return
 
-        logger.info(message, extra={**log_context, field_name: payload})
+        logger.info(
+            message,
+            extra={**log_context, field_name: redact_text(payload, max_chars=2_000)},
+        )
 
     def _duration_ms(self, started_at: float) -> int:
         return int((time.monotonic() - started_at) * 1000)

@@ -49,7 +49,11 @@ func buildContainer(
 		cfg.RefreshTokenTTL(),
 	)
 	svc := auth.New(repo, password, tokens, log)
-	authHandler := handler.New(svc, log)
+	authHandler := handler.New(svc, log).EnableRateLimits(
+		cfg.RateLimits.LoginPerMinute,
+		cfg.RateLimits.RegisterPerMinute,
+		cfg.RateLimits.RefreshPerMinute,
+	)
 	readinessHandler := httpserver.NewReadinessHandler(db, log)
 	router := httpserver.NewRouter(log, authHandler, readinessHandler, cfg.CORS, cfg.Internal)
 

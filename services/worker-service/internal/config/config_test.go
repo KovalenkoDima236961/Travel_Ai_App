@@ -16,6 +16,7 @@ func setBaseEnv(t *testing.T) {
 	t.Setenv("POSTGRES_MIG_PATH", "../trip-service/migrations")
 	t.Setenv("JWT_ACCESS_SECRET", "a-strong-production-jwt-access-secret-value")
 	t.Setenv("INTERNAL_SERVICE_TOKEN", "a-strong-production-internal-token-value")
+	t.Setenv("EXTERNAL_INTEGRATIONS_SERVICE_TOKEN", "a-strong-production-internal-token-value")
 	t.Setenv("NOTIFICATION_SERVICE_TOKEN", "a-strong-production-internal-token-value")
 	t.Setenv("PUBLIC_SHARE_ACCESS_SECRET", "a-strong-public-share-token-value")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")

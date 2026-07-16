@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
+	tripsecurity "github.com/KovalenkoDima236961/Travel_Ai_App/internal/security"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +33,9 @@ type ReceiptFile struct {
 }
 
 func (s *Service) ReceiptMaxUploadBytes() int64 {
+	if s.receiptConfig.MaxFileSizeBytes > 0 {
+		return s.receiptConfig.MaxFileSizeBytes
+	}
 	maxMB := s.receiptConfig.MaxFileSizeMB
 	if maxMB <= 0 {
 		maxMB = receipts.DefaultConfig().MaxFileSizeMB
@@ -46,6 +51,9 @@ func (s *Service) UploadReceipt(ctx context.Context, tripID uuid.UUID, in appdto
 	trip, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
 	if err != nil {
 		return appdto.ExpenseReceipt{}, err
+	}
+	if !access.Allows(tripsecurity.PermissionReceiptsUpload) {
+		return appdto.ExpenseReceipt{}, apperrs.ErrForbidden
 	}
 	if in.File == nil {
 		return appdto.ExpenseReceipt{}, apperrs.NewInvalidInput("file is required")
@@ -75,6 +83,10 @@ func (s *Service) UploadReceipt(ctx context.Context, tripID uuid.UUID, in appdto
 	if saveResult.SizeBytes > s.ReceiptMaxUploadBytes() {
 		_ = s.receiptStorage.Delete(ctx, saveResult.StorageKey)
 		return appdto.ExpenseReceipt{}, apperrs.NewInvalidInput("file too large")
+	}
+	if err := s.scanReceiptFile(ctx, saveResult.StorageKey); err != nil {
+		_ = s.receiptStorage.Delete(ctx, saveResult.StorageKey)
+		return appdto.ExpenseReceipt{}, err
 	}
 	status := entity.ReceiptStatusUploaded
 	if expense != nil {
@@ -132,8 +144,10 @@ func (s *Service) ListReceipts(ctx context.Context, tripID uuid.UUID, filters ap
 	if err != nil {
 		return appdto.TripReceiptsResponse{}, err
 	}
-	if _, _, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
+	if _, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
 		return appdto.TripReceiptsResponse{}, err
+	} else if !access.Allows(tripsecurity.PermissionReceiptsView) {
+		return appdto.TripReceiptsResponse{}, apperrs.ErrForbidden
 	}
 	receiptsList, err := s.repo.ListTripExpenseReceipts(ctx, tripID, filters)
 	if err != nil {
@@ -155,8 +169,10 @@ func (s *Service) GetReceipt(ctx context.Context, tripID, receiptID uuid.UUID) (
 	if err != nil {
 		return appdto.ExpenseReceipt{}, err
 	}
-	if _, _, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
+	if _, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
 		return appdto.ExpenseReceipt{}, err
+	} else if !access.Allows(tripsecurity.PermissionReceiptsView) {
+		return appdto.ExpenseReceipt{}, apperrs.ErrForbidden
 	}
 	receipt, err := s.repo.GetTripExpenseReceiptByID(ctx, tripID, receiptID, false)
 	if err != nil {
@@ -341,8 +357,10 @@ func (s *Service) OpenReceiptFile(ctx context.Context, tripID, receiptID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	if _, _, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
+	if _, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID); err != nil {
 		return nil, err
+	} else if !access.Allows(tripsecurity.PermissionReceiptsView) {
+		return nil, apperrs.ErrForbidden
 	}
 	receipt, err := s.repo.GetTripExpenseReceiptByID(ctx, tripID, receiptID, false)
 	if err != nil {
@@ -492,10 +510,45 @@ func (s *Service) validateReceiptFile(in appdto.UploadReceiptInput) (string, io.
 	if !s.allowedReceiptMIME(contentType) {
 		return "", nil, apperrs.NewInvalidInput("unsupported file type")
 	}
-	if !validReceiptExtension(filename, contentType) {
+	declaredType := strings.ToLower(strings.TrimSpace(strings.Split(in.ContentType, ";")[0]))
+	if declaredType != "" && declaredType != "application/octet-stream" && declaredType != contentType {
+		return "", nil, apperrs.NewInvalidInput("declared and detected file types do not match")
+	}
+	if !validReceiptExtension(filename, contentType, s.receiptConfig.AllowedExtensions) {
 		return "", nil, apperrs.NewInvalidInput("unsupported file extension")
 	}
 	return contentType, io.MultiReader(bytes.NewReader(head[:n]), in.File), nil
+}
+
+func (s *Service) scanReceiptFile(ctx context.Context, storageKey string) error {
+	if !s.receiptConfig.ScanningEnabled {
+		return nil
+	}
+	pathProvider, ok := s.receiptStorage.(receipts.LocalPathProvider)
+	if !ok || s.receiptFileScanner == nil {
+		if s.receiptConfig.ScanningFailOpen {
+			s.log.Warn("receipt scanner unavailable; upload allowed by fail-open policy")
+			return nil
+		}
+		return apperrs.NewDependencyError("receipt file scanner is unavailable")
+	}
+	filePath, err := pathProvider.PathForScanning(storageKey)
+	if err != nil {
+		return apperrs.NewInvalidInput("invalid receipt storage key")
+	}
+	result, err := s.receiptFileScanner.Scan(ctx, filePath)
+	if err != nil || !result.Available {
+		if s.receiptConfig.ScanningFailOpen {
+			s.log.Warn("receipt scan unavailable; upload allowed by fail-open policy", zap.Error(err))
+			return nil
+		}
+		return apperrs.NewDependencyError("receipt file scan could not be completed")
+	}
+	if !result.Clean {
+		s.log.Warn("receipt upload rejected by file scanner")
+		return apperrs.NewInvalidInput("receipt file failed security scan")
+	}
+	return nil
 }
 
 func (s *Service) allowedReceiptMIME(contentType string) bool {
@@ -654,25 +707,30 @@ func canMutateReceipt(access TripAccess, actorID, createdBy uuid.UUID) bool {
 }
 
 func detectReceiptContentType(header []byte, declared string) string {
-	declared = strings.ToLower(strings.TrimSpace(strings.Split(declared, ";")[0]))
 	if len(header) >= 12 && string(header[0:4]) == "RIFF" && string(header[8:12]) == "WEBP" {
 		return "image/webp"
 	}
 	if len(header) >= 4 && string(header[:4]) == "%PDF" {
 		return "application/pdf"
 	}
-	detected := http.DetectContentType(header)
-	if detected == "application/octet-stream" && declared == "image/webp" {
-		return declared
-	}
-	if detected == "image/jpeg" || detected == "image/png" || detected == "application/pdf" {
-		return detected
-	}
-	return declared
+	return strings.ToLower(strings.TrimSpace(strings.Split(http.DetectContentType(header), ";")[0]))
 }
 
-func validReceiptExtension(filename, contentType string) bool {
+func validReceiptExtension(filename, contentType string, allowedExtensions []string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
+	if len(allowedExtensions) == 0 {
+		allowedExtensions = receipts.DefaultConfig().AllowedExtensions
+	}
+	extensionAllowed := false
+	for _, allowed := range allowedExtensions {
+		if ext == strings.ToLower(strings.TrimSpace(allowed)) {
+			extensionAllowed = true
+			break
+		}
+	}
+	if !extensionAllowed {
+		return false
+	}
 	switch contentType {
 	case "image/jpeg":
 		return ext == ".jpg" || ext == ".jpeg"
@@ -694,7 +752,16 @@ func validReceiptExtension(filename, contentType string) bool {
 }
 
 func cleanReceiptFilename(filename string) string {
+	filename = strings.ReplaceAll(filename, "\\", "/")
 	filename = strings.TrimSpace(filepath.Base(filename))
-	filename = strings.ReplaceAll(filename, "\x00", "")
+	filename = strings.Map(func(char rune) rune {
+		if unicode.IsControl(char) {
+			return -1
+		}
+		return char
+	}, filename)
+	if runes := []rune(filename); len(runes) > 255 {
+		filename = string(runes[len(runes)-255:])
+	}
 	return filename
 }

@@ -51,6 +51,7 @@ export type OfflineMutationEntity =
   | "receipt";
 
 export type CachedTripRecord = {
+  cacheKey: string;
   tripId: string;
   userId: string;
   trip: Trip;
@@ -175,7 +176,7 @@ export type CachedTripDetailsRecord = {
   accommodation?: TripAccommodation | null;
   itineraryRevision: number;
   cachedAt: string;
-  source: "trip_detail" | "public_share" | "manual";
+  source: "trip_detail" | "manual";
 };
 
 export type CachedChecklistRecord = {

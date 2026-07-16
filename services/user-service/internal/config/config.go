@@ -53,7 +53,15 @@ type AuthConfig struct {
 // InternalConfig controls service-to-service endpoints such as workspace access
 // checks consumed by Trip Service.
 type InternalConfig struct {
-	ServiceToken string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
+	ServiceToken  string `yaml:"service_token" env:"INTERNAL_SERVICE_TOKEN" env-default:"dev-internal-service-token" validate:"required"`
+	ServiceTokens string `yaml:"service_tokens" env:"INTERNAL_SERVICE_TOKENS"`
+}
+
+func (c InternalConfig) ActiveServiceTokens() string {
+	if tokens := strings.TrimSpace(c.ServiceTokens); tokens != "" {
+		return tokens
+	}
+	return c.ServiceToken
 }
 
 // AuthUsersConfig points at Auth Service for email/user lookup enrichment.
@@ -154,6 +162,15 @@ func (c *Config) validateInternalToken() error {
 		}
 	}
 	c.Internal.ServiceToken = token
+	for _, raw := range strings.Split(c.Internal.ServiceTokens, ",") {
+		rotatingToken := strings.TrimSpace(raw)
+		if rotatingToken == "" {
+			continue
+		}
+		if c.IsStrictEnv() && (isUnsafeSecret(rotatingToken, DefaultDevelopmentInternalToken) || len(rotatingToken) < MinProductionTokenLength) {
+			return fmt.Errorf("INTERNAL_SERVICE_TOKENS contains an unsafe token in %s", c.Env)
+		}
+	}
 	return nil
 }
 

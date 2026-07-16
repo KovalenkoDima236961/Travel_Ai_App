@@ -16,7 +16,7 @@ import type {
 } from "@/lib/offline/types";
 
 const DB_NAME = "travel-ai-offline-v1";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 interface TravelAIOfflineDB extends DBSchema {
   cachedTrips: {
@@ -119,9 +119,10 @@ export function getOfflineDb(): Promise<OfflineDatabase> {
 
   dbPromise ??= openDB<TravelAIOfflineDB>(DB_NAME, DB_VERSION, {
     upgrade(db) {
-      if (!db.objectStoreNames.contains("cachedTrips")) {
-        db.createObjectStore("cachedTrips", { keyPath: "tripId" });
+      if (db.objectStoreNames.contains("cachedTrips")) {
+        db.deleteObjectStore("cachedTrips");
       }
+      db.createObjectStore("cachedTrips", { keyPath: "cacheKey" });
 
       if (!db.objectStoreNames.contains("cachedTripDetails")) {
         const store = db.createObjectStore("cachedTripDetails", { keyPath: "cacheKey" });

@@ -53,6 +53,7 @@ export async function cacheTripSnapshot({
   sanitizedTrip.accommodation = sanitizedAccommodation;
 
   const record: CachedTripRecord = {
+    cacheKey: tripCacheKey(normalizedUserId, sanitizedTrip.id),
     tripId: sanitizedTrip.id,
     userId: normalizedUserId,
     trip: sanitizedTrip,
@@ -94,7 +95,7 @@ export async function getCachedTrip(
   }
 
   const db = await getOfflineDb();
-  const record = await db.get("cachedTrips", tripId);
+  const record = await db.get("cachedTrips", tripCacheKey(normalizedUserId, tripId));
   if (!record || record.userId !== normalizedUserId) {
     return null;
   }
@@ -123,13 +124,13 @@ export async function deleteCachedTrip(tripId: string, userId: string): Promise<
   }
 
   const db = await getOfflineDb();
-  const record = await db.get("cachedTrips", tripId);
+  const record = await db.get("cachedTrips", tripCacheKey(normalizedUserId, tripId));
   if (!record || record.userId !== normalizedUserId) {
     return;
   }
 
   await Promise.all([
-    db.delete("cachedTrips", tripId),
+    db.delete("cachedTrips", tripCacheKey(normalizedUserId, tripId)),
     db.delete("cachedTripDetails", tripCacheKey(normalizedUserId, tripId)),
     db.delete("cachedChecklists", tripCacheKey(normalizedUserId, tripId)),
     db.delete("cachedReminders", tripCacheKey(normalizedUserId, tripId)),
@@ -420,9 +421,13 @@ export async function saveOfflineReceiptDraft(input: {
   tripId: string;
   userId: string;
   file: File;
+  consentGranted: boolean;
   linkedExpenseLocalId?: string | null;
   linkedExpenseId?: string | null;
 }): Promise<OfflineReceiptDraftRecord> {
+  if (!input.consentGranted) {
+    throw new Error("Explicit consent is required before storing a receipt on this device.");
+  }
   const now = new Date().toISOString();
   const record: OfflineReceiptDraftRecord = {
     id: createOfflineId("receipt"),
@@ -487,6 +492,36 @@ export async function updateOfflineReceiptDraft(
   const updated = { ...current, ...patch };
   await db.put("offlineReceiptDrafts", updated);
   return cloneOfflineValue(updated);
+}
+
+export async function deleteOfflineReceiptDraft(draftId: string, userId: string): Promise<void> {
+  const normalizedUserId = userId.trim();
+  if (!draftId || !normalizedUserId) {
+    return;
+  }
+  const db = await getOfflineDb();
+  const draft = await db.get("offlineReceiptDrafts", draftId);
+  if (draft?.userId === normalizedUserId) {
+    await db.delete("offlineReceiptDrafts", draftId);
+  }
+}
+
+export async function purgeStaleOfflineData(
+  userId: string,
+  maxAgeDays = Number(process.env.NEXT_PUBLIC_OFFLINE_CACHE_MAX_AGE_DAYS ?? 30)
+): Promise<number> {
+  const normalizedUserId = userId.trim();
+  if (!normalizedUserId || !Number.isFinite(maxAgeDays) || maxAgeDays < 1) {
+    return 0;
+  }
+  const db = await getOfflineDb();
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const records = await db.getAll("cachedTrips");
+  const stale = records.filter(
+    (record) => record.userId === normalizedUserId && Date.parse(record.cachedAt) < cutoff
+  );
+  await Promise.all(stale.map((record) => deleteCachedTrip(record.tripId, normalizedUserId)));
+  return stale.length;
 }
 
 export async function getOfflineSettings(userId: string): Promise<OfflineSettingsRecord> {
@@ -575,7 +610,7 @@ export async function clearOfflineData(userId?: string | null): Promise<void> {
   await Promise.all([
     ...cachedTrips
       .filter((record) => record.userId === normalizedUserId)
-      .map((record) => db.delete("cachedTrips", record.tripId)),
+      .map((record) => db.delete("cachedTrips", record.cacheKey)),
     ...cachedDetails
       .filter((record) => record.userId === normalizedUserId)
       .map((record) => db.delete("cachedTripDetails", record.cacheKey)),
@@ -623,7 +658,7 @@ export function cloneOfflineValue<T>(value: T): T {
 }
 
 export function tripCacheKey(userId: string, tripId: string) {
-  return `${userId.trim()}:${tripId}`;
+  return `private:${userId.trim()}:${tripId}`;
 }
 
 export function createOfflineId(prefix: string) {

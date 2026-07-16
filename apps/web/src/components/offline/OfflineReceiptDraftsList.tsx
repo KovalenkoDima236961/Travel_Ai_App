@@ -1,12 +1,14 @@
 "use client";
 
 import type { OfflineReceiptDraftRecord } from "@/lib/offline/types";
+import { Button } from "@/shared/ui/button";
 
 type OfflineReceiptDraftsListProps = {
   drafts: OfflineReceiptDraftRecord[];
+  onDelete: (draft: OfflineReceiptDraftRecord) => Promise<void> | void;
 };
 
-export function OfflineReceiptDraftsList({ drafts }: OfflineReceiptDraftsListProps) {
+export function OfflineReceiptDraftsList({ drafts, onDelete }: OfflineReceiptDraftsListProps) {
   if (drafts.length === 0) {
     return null;
   }
@@ -16,8 +18,11 @@ export function OfflineReceiptDraftsList({ drafts }: OfflineReceiptDraftsListPro
       <h3 className="font-semibold">Receipt drafts waiting to upload</h3>
       <ul className="mt-2 space-y-1">
         {drafts.map((draft) => (
-          <li key={draft.id}>
-            {draft.filename} · {formatBytes(draft.sizeBytes)} · {draft.status}
+          <li className="flex flex-wrap items-center justify-between gap-2" key={draft.id}>
+            <span>{draft.filename} · {formatBytes(draft.sizeBytes)} · {draft.status}</span>
+            <Button onClick={() => void onDelete(draft)} size="sm" variant="danger">
+              Delete local copy
+            </Button>
           </li>
         ))}
       </ul>

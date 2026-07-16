@@ -23,7 +23,7 @@ import {
   getRefreshToken,
   saveTokens
 } from "@/shared/api/auth";
-import { clearOfflineData } from "@/lib/offline/trip-cache";
+import { clearOfflineData, purgeStaleOfflineData } from "@/lib/offline/trip-cache";
 import type { AuthUser, TokenResponse } from "@/shared/api/auth";
 
 type AuthContextValue = {
@@ -76,6 +76,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (mounted) {
           setUser(currentUser);
         }
+        await purgeStaleOfflineData(currentUser.id);
       } catch {
         const refreshToken = getRefreshToken();
         if (refreshToken) {
@@ -86,6 +87,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (mounted) {
               setUser(currentUser);
             }
+            await purgeStaleOfflineData(currentUser.id);
             return;
           } catch {
             clearTokens();
@@ -124,12 +126,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await loginRequest(credentials);
     saveTokens(response.accessToken, response.refreshToken);
     setUser(response.user);
+    await purgeStaleOfflineData(response.user.id);
   }, []);
 
   const register = useCallback(async (credentials: Credentials) => {
     const response = await registerRequest(credentials);
     saveTokens(response.accessToken, response.refreshToken);
     setUser(response.user);
+    await purgeStaleOfflineData(response.user.id);
   }, []);
 
   const logout = useCallback(async () => {

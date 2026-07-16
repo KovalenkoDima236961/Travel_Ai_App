@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiprivacy"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
@@ -884,8 +885,8 @@ func routeTripStyles(route *aggregate.TripRoute) []string {
 }
 
 func (g *AIPlanningHTTPGenerator) postJSON(ctx context.Context, tripID uuid.UUID, path string, payload, out any) error {
-	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(payload); err != nil {
+	rawBody, err := json.Marshal(payload)
+	if err != nil {
 		g.logger.Error("failed to encode ai planning request",
 			zap.String("trip_id", tripID.String()),
 			zap.String("path", path),
@@ -893,13 +894,31 @@ func (g *AIPlanningHTTPGenerator) postJSON(ctx context.Context, tripID uuid.UUID
 		)
 		return fmt.Errorf("encode ai planning request: %w", err)
 	}
+	cleanBody, redactionReport, err := aiprivacy.SanitizeJSON(rawBody)
+	if err != nil {
+		g.logger.Error("failed to apply ai privacy guard",
+			zap.String("trip_id", tripID.String()),
+			zap.String("path", path),
+			zap.Error(err),
+		)
+		return fmt.Errorf("sanitize ai planning request: %w", err)
+	}
+	if redactionReport.RemovedFields > 0 || redactionReport.RedactedText > 0 {
+		g.logger.Info("ai planning context redacted",
+			zap.String("trip_id", tripID.String()),
+			zap.String("path", path),
+			zap.Int("removed_fields", redactionReport.RemovedFields),
+			zap.Int("redacted_text_values", redactionReport.RedactedText),
+		)
+	}
+	body := bytes.NewReader(cleanBody)
 
 	endpoint, err := url.JoinPath(g.baseURL, path)
 	if err != nil {
 		return fmt.Errorf("build ai planning endpoint: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return fmt.Errorf("create ai planning request: %w", err)
 	}
@@ -927,7 +946,7 @@ func (g *AIPlanningHTTPGenerator) postJSON(ctx context.Context, tripID uuid.UUID
 			return fmt.Errorf("ai planning service returned status %d and error body could not be read: %w", resp.StatusCode, readErr)
 		}
 
-		responseBody := strings.TrimSpace(string(limitedBody))
+		responseBody, _ := aiprivacy.RedactText(strings.TrimSpace(string(limitedBody)))
 		err := fmt.Errorf("ai planning service returned status %d: %s", resp.StatusCode, responseBody)
 		g.logger.Error("ai planning service returned non-2xx response",
 			zap.String("trip_id", tripID.String()),

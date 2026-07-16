@@ -63,7 +63,7 @@ func NewRouter(
 
 	if workspaceHandler != nil {
 		r.Group(func(r chi.Router) {
-			r.Use(internalmw.InternalServiceToken(internalCfg.ServiceToken))
+			r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 			workspaceHandler.RegisterInternalRoutes(r)
 		})
 	}

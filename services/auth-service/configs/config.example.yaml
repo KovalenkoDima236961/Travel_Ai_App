@@ -36,3 +36,9 @@ jwt:
 # X-Internal-Service-Token header. Override in production; never commit a real one.
 internal:
   service_token: "dev-internal-service-token"
+  service_tokens: ""
+
+rate_limits:
+  login_per_minute: 10
+  register_per_minute: 10
+  refresh_per_minute: 30

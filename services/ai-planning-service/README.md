@@ -531,6 +531,12 @@ poetry run make check
 - Do not log full prompts, full user preferences, full private itinerary JSON,
   raw model output, tokens, or API keys by default.
 - `LOG_LLM_PAYLOADS=true` only logs payloads in development.
+- `AI_PROMPT_LOGGING_ENABLED=false` is the default and strict environments reject
+  prompt logging. Local diagnostic logging requires
+  `AI_PROMPT_LOGGING_REDACTED_ONLY=true`, and payloads are redacted and truncated.
+- Retrieved RAG text is explicitly untrusted. Injection-like instructions are
+  neutralized and flagged before insertion; request bodies and raw prompts are
+  not included in normal request or exception logs.
 
 ## Workspace Policy Constraints
 
