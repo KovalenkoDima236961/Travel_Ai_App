@@ -18,6 +18,7 @@ import (
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
@@ -401,6 +402,12 @@ func WithTripHealthConfig(cfg triphealth.Config) Option {
 	}
 }
 
+func WithBudgetConfidenceConfig(cfg budgetconfidence.Config) Option {
+	return func(s *Service) {
+		s.budgetConfidenceConfig = cfg
+	}
+}
+
 func WithGenerationReliability(pipeline aivalidation.GenerationReliabilityPipeline) Option {
 	return func(s *Service) {
 		s.generationReliability = pipeline
@@ -482,6 +489,7 @@ type Service struct {
 	shareTokenBytes                    int
 	publicShareTokens                  *sharing.PublicShareTokenManager
 	tripHealthConfig                   triphealth.Config
+	budgetConfidenceConfig             budgetconfidence.Config
 	generationReliability              aivalidation.GenerationReliabilityPipeline
 	log                                *zap.Logger
 }
@@ -499,6 +507,7 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		transportSearchFailOpen:  true,
 		receiptConfig:            receipts.DefaultConfig(),
 		tripHealthConfig:         triphealth.DefaultConfig(),
+		budgetConfidenceConfig:   budgetconfidence.DefaultConfig(),
 		log:                      log,
 	}
 	for _, opt := range opts {

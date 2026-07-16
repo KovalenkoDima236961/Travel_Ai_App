@@ -7,6 +7,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvalrisk"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -147,26 +148,28 @@ type ReceiptOCRSignal struct {
 }
 
 type Snapshot struct {
-	Trip                   *entity.Trip
-	Itinerary              aggregate.Itinerary
-	Budget                 *budget.Summary
-	BudgetLoadFailed       bool
-	Collaborators          []entity.TripCollaborator
-	AvailabilityResponses  []entity.TripAvailabilityResponse
-	Polls                  []entity.TripPoll
-	Checklist              *entity.TripChecklist
-	Reminders              []entity.TripReminder
-	Expenses               []entity.TripExpense
-	Settlements            []entity.TripSettlement
-	ExpenseReceiptSignals  []ExpenseReceiptSignal
-	ReceiptOCRSignals      []ReceiptOCRSignal
-	PolicyEvaluation       *workspacepolicies.Evaluation
-	PolicyLoadFailed       bool
-	ApprovalRisk           *approvalrisk.Response
-	ApprovalRiskLoadFailed bool
-	Approval               *entity.TripApprovalFields
-	ApprovalLoadFailed     bool
-	SubsystemFailures      []string
-	Now                    time.Time
-	Config                 Config
+	Trip                       *entity.Trip
+	Itinerary                  aggregate.Itinerary
+	Budget                     *budget.Summary
+	BudgetConfidence           *budgetconfidence.Response
+	BudgetLoadFailed           bool
+	BudgetConfidenceLoadFailed bool
+	Collaborators              []entity.TripCollaborator
+	AvailabilityResponses      []entity.TripAvailabilityResponse
+	Polls                      []entity.TripPoll
+	Checklist                  *entity.TripChecklist
+	Reminders                  []entity.TripReminder
+	Expenses                   []entity.TripExpense
+	Settlements                []entity.TripSettlement
+	ExpenseReceiptSignals      []ExpenseReceiptSignal
+	ReceiptOCRSignals          []ReceiptOCRSignal
+	PolicyEvaluation           *workspacepolicies.Evaluation
+	PolicyLoadFailed           bool
+	ApprovalRisk               *approvalrisk.Response
+	ApprovalRiskLoadFailed     bool
+	Approval                   *entity.TripApprovalFields
+	ApprovalLoadFailed         bool
+	SubsystemFailures          []string
+	Now                        time.Time
+	Config                     Config
 }

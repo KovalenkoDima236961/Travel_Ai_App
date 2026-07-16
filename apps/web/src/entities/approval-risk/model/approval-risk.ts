@@ -12,6 +12,7 @@ export type ApprovalRiskFactorSource =
   | "workspace_policy"
   | "approval_checklist"
   | "trip_budget"
+  | "budget_confidence"
   | "workspace_budget"
   | "cost_analytics"
   | "cost_splitting"
@@ -21,7 +22,8 @@ export type ApprovalRiskFactorSource =
   | "itinerary_quality"
   | "walking_distance"
   | "schedule"
-  | "accommodation";
+  | "accommodation"
+  | "route";
 
 export type ApprovalRiskActionPriority = "low" | "medium" | "high";
 
@@ -99,4 +101,3 @@ export interface ApprovalRiskResponse {
   warnings: string[];
   notApplicableReason: string | null;
 }
-

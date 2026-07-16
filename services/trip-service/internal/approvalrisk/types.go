@@ -51,6 +51,7 @@ const (
 	SourceWorkspacePolicy   FactorSource = "workspace_policy"
 	SourceApprovalChecklist FactorSource = "approval_checklist"
 	SourceTripBudget        FactorSource = "trip_budget"
+	SourceBudgetConfidence  FactorSource = "budget_confidence"
 	SourceWorkspaceBudget   FactorSource = "workspace_budget"
 	SourceCostAnalytics     FactorSource = "cost_analytics"
 	SourceCostSplitting     FactorSource = "cost_splitting"
@@ -155,6 +156,13 @@ type WorkspaceBudgetSignal struct {
 	UtilizationPercent float64
 }
 
+type BudgetConfidenceSignal struct {
+	Score     int
+	Level     string
+	RiskLevel string
+	TopIssues []string
+}
+
 type MetadataSignal struct {
 	Source               string
 	TemplateFallbackUsed bool
@@ -179,6 +187,7 @@ type Input struct {
 	PolicyEvaluation       *workspacepolicies.Evaluation
 	Itinerary              aggregate.Itinerary
 	WorkspaceBudget        *WorkspaceBudgetSignal
+	BudgetConfidence       *BudgetConfidenceSignal
 	Metadata               MetadataSignal
 	SignalUnavailableNames []string
 }

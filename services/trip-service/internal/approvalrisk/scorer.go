@@ -62,6 +62,7 @@ func Score(in Input) Response {
 	builder := factorBuilder{tripID: in.TripID, workspaceID: *in.WorkspaceID}
 	builder.add(policyFactors(in)...)
 	builder.add(budgetFactors(in)...)
+	builder.add(budgetConfidenceFactors(in)...)
 	builder.add(costEstimateFactors(in)...)
 	builder.add(costSplittingFactors(in)...)
 	builder.add(availabilityFactors(in)...)
@@ -353,6 +354,55 @@ func budgetFactors(in Input) []Factor {
 				Affected:         affected("budget", 1, nil),
 				SuggestedActions: []SuggestedAction{action("open_workspace_budget", "Open workspace budget", ActionPriorityMedium)},
 			})
+		}
+	}
+	return out
+}
+
+func budgetConfidenceFactors(in Input) []Factor {
+	signal := in.BudgetConfidence
+	if signal == nil {
+		return nil
+	}
+	out := make([]Factor, 0, 2)
+	if signal.Level == "very_low" || signal.Level == "low" || signal.RiskLevel == "high" || signal.RiskLevel == "critical" {
+		points := 8
+		severity := FactorSeverityMedium
+		if signal.Level == "very_low" || signal.RiskLevel == "critical" {
+			points = 16
+			severity = FactorSeverityHigh
+		}
+		out = append(out, Factor{
+			Type:     "budget_confidence_low",
+			Severity: severity,
+			Points:   points,
+			Title:    "Budget confidence needs review",
+			Message: fmt.Sprintf(
+				"Budget confidence is %s with %s risk.",
+				strings.ReplaceAll(signal.Level, "_", " "),
+				strings.ReplaceAll(signal.RiskLevel, "_", " "),
+			),
+			Source:   SourceBudgetConfidence,
+			Affected: affected("budget", 1, nil),
+			SuggestedActions: []SuggestedAction{
+				action("open_budget_confidence", "Improve budget confidence", ActionPriorityHigh),
+				action("open_budget_optimization", "Optimize budget", ActionPriorityMedium),
+			},
+		})
+	}
+	for _, issueID := range signal.TopIssues {
+		if issueID == "missing_accommodation_cost" || issueID == "missing_transport_prices" {
+			out = append(out, Factor{
+				Type:             "budget_confidence_missing_major_cost",
+				Severity:         FactorSeverityMedium,
+				Points:           8,
+				Title:            "Major cost is missing",
+				Message:          "Budget confidence found a missing major trip cost.",
+				Source:           SourceBudgetConfidence,
+				Affected:         affected("budget", 1, nil),
+				SuggestedActions: []SuggestedAction{action("open_budget_confidence", "Improve budget confidence", ActionPriorityHigh)},
+			})
+			break
 		}
 	}
 	return out

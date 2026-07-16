@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { budgetKeys } from "@/lib/api/budget";
+import { budgetConfidenceKeys } from "@/lib/api/budget-confidence";
 import { activityKeys } from "@/lib/api/activity";
 import { applyTripRepairProposal, tripRepairKeys } from "@/lib/api/trip-repair";
 import { tripKeys } from "@/lib/api/trips";
@@ -21,6 +22,7 @@ export function useApplyTripRepairProposal(tripId: string, expectedItineraryRevi
         queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+        queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),

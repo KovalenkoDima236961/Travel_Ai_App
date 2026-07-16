@@ -5,6 +5,7 @@ import type { BudgetSummary } from "@/entities/budget/model";
 import type { ChecklistViewResponse } from "@/entities/checklist/model";
 import type { ExpenseSummary, SettlementsResponse } from "@/entities/expense/model";
 import type { GenerationJob } from "@/entities/generation-job/model";
+import type { BudgetConfidence } from "@/types/budget-confidence";
 import type { ReminderViewResponse } from "@/entities/trip-reminder/model";
 import type { Trip } from "@/entities/trip/model";
 import type { TripPoll } from "@/types/trip-decisions";
@@ -132,6 +133,7 @@ export type TripCommandCenterInput = {
   trip: Trip;
   health?: TripHealth | null;
   budgetSummary?: BudgetSummary | null;
+  budgetConfidence?: BudgetConfidence | null;
   availability?: TripAvailabilityList | null;
   checklist?: ChecklistViewResponse | null;
   reminders?: ReminderViewResponse | null;

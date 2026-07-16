@@ -12,6 +12,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvalrisk"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvals"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -880,7 +881,84 @@ func (b *issueBuilder) evaluateBudget(snapshot Snapshot, now time.Time) {
 			map[string]any{"actualTotal": actual, "estimatedTotal": summary.EstimatedTotal},
 		)
 	}
+	b.evaluateBudgetConfidence(snapshot)
 	_ = now
+}
+
+func (b *issueBuilder) evaluateBudgetConfidence(snapshot Snapshot) {
+	confidence := snapshot.BudgetConfidence
+	if confidence == nil {
+		return
+	}
+	if confidence.Level == budgetconfidence.LevelVeryLow || confidence.Level == budgetconfidence.LevelLow {
+		severity := SeverityWarning
+		if confidence.Level == budgetconfidence.LevelVeryLow {
+			severity = SeverityHigh
+		}
+		b.issue(
+			"budget_confidence_low",
+			CategoryBudget,
+			severity,
+			"Budget confidence is low",
+			confidence.Summary,
+			"The budget may be missing major costs or relying on low-quality estimates.",
+			"Open Budget Confidence and confirm the largest uncertain costs.",
+			action(b.tripID, "open_budget_confidence", "Open Budget Confidence", "budget"),
+			map[string]any{
+				"score":     confidence.Score,
+				"level":     confidence.Level,
+				"riskLevel": confidence.RiskLevel,
+			},
+		)
+	}
+	for _, issue := range confidence.Issues {
+		if issue.Severity != budgetconfidence.SeverityCritical && issue.Severity != budgetconfidence.SeverityHigh {
+			continue
+		}
+		if budgetConfidenceIssueAlreadyCovered(issue.ID) {
+			continue
+		}
+		severity := SeverityHigh
+		if issue.Severity == budgetconfidence.SeverityCritical {
+			severity = SeverityCritical
+		}
+		category := CategoryBudget
+		if issue.Category == budgetconfidence.IssueCategoryTransport {
+			category = CategoryTransport
+		} else if issue.Category == budgetconfidence.IssueCategoryAccommodation {
+			category = CategoryAccommodation
+		} else if issue.Category == budgetconfidence.IssueCategoryActualSpend {
+			category = CategoryExpenses
+		}
+		b.issue(
+			"budget_confidence:"+issue.ID,
+			category,
+			severity,
+			issue.Title,
+			issue.Description,
+			"Budget reliability is affected by this issue.",
+			issue.Recommendation,
+			action(b.tripID, "open_budget_confidence", "Open Budget Confidence", "budget"),
+			map[string]any{"budgetConfidenceIssueId": issue.ID},
+		)
+	}
+}
+
+func budgetConfidenceIssueAlreadyCovered(id string) bool {
+	if strings.HasPrefix(id, "planned_actual_gap:") {
+		return true
+	}
+	switch id {
+	case "budget_exceeded_estimated",
+		"budget_exceeded_actual",
+		"missing_transport_prices",
+		"missing_activity_prices",
+		"missing_food_budget",
+		"currency_conversion_unavailable":
+		return true
+	default:
+		return false
+	}
 }
 
 func (b *issueBuilder) evaluateAvailability(snapshot Snapshot, now time.Time) {

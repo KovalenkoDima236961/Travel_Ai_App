@@ -2240,6 +2240,28 @@ if ! jq -e --arg id "${TRIP_ID}" '
   exit 1
 fi
 
+echo "Checking budget confidence summary..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${ACCESS_TOKEN}"
+assert_2xx "Get budget confidence"
+if ! jq -e --arg id "${TRIP_ID}" '
+  .tripId == $id
+  and (.score | type == "number")
+  and .score >= 0
+  and .score <= 100
+  and (.level as $level | ["very_low", "low", "medium", "high", "very_high"] | index($level) != null)
+  and (.riskLevel as $risk | ["low", "medium", "high", "critical"] | index($risk) != null)
+  and (.coverage.overall | type == "number")
+  and (.sourceQuality | type == "array")
+  and (.plannedVsActual.categories | type == "array")
+  and (.issues | type == "array")
+  and (.recommendations | type == "array")
+  and (.computedAt | type == "string")
+' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Budget confidence response was not shaped as expected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Generating smart packing checklist..."
 CHECKLIST_GENERATE_PAYLOAD="$(jq -nc '{mode:"full",outputLanguage:"en",instructions:"Include hiking and rainy weather preparation.",replaceAiItems:true,preserveCheckedItems:true,preserveManualItems:true}')"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/generate" "${ACCESS_TOKEN}" "${CHECKLIST_GENERATE_PAYLOAD}"
@@ -3066,6 +3088,8 @@ assert_2xx "Accepted viewer presence state"
 echo "Checking accepted viewer can read the budget summary but cannot update the budget..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer get budget summary"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer get budget confidence"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${COLLAB_ACCESS_TOKEN}" '{"budget":{"amount":1000,"currency":"EUR"}}'
 assert_status "Viewer update budget" "403"
 
@@ -3869,6 +3893,8 @@ request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/$
 assert_status "Public share checklist check access" "401"
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/health" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_status "Public share trip health access" "401"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share budget confidence access" "401"
 
 PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${PUBLIC_TRIP_BODY}")"
 PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${PUBLIC_TRIP_BODY}")"
@@ -4342,6 +4368,8 @@ assert_status "Second user check first user's checklist item" "404"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/health" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's trip health" "404"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user fetch first user's budget confidence" "404"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's activity" "404"

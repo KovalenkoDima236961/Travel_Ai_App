@@ -51,6 +51,15 @@ trip_health:
   default_max_walking_km_per_day: 12
   default_max_transfer_minutes_per_day: 480
 
+budget_confidence:
+  enabled: true
+  cache_ttl_seconds: 60
+  fail_open: true
+  large_expense_receipt_threshold: 100
+  actual_spend_high_threshold_percent: 80
+  planned_actual_gap_warning_percent: 20
+  planned_actual_gap_high_percent: 40
+
 ai_validation:
   enabled: true
   repair_enabled: true

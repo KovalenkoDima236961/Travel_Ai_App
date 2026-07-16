@@ -58,7 +58,7 @@ export function buildCommandCenterNavigation(input: TripCommandCenterInput): Nav
       expenses: input.expenseSummary?.conversionWarnings.length ?? 0,
       settlements: pendingSettlements,
       offline: input.offlineStatus.failedCount || input.offlineStatus.pendingCount,
-      budget: input.budgetSummary?.overBudgetBy ? "over" : null,
+      budget: budgetNavigationBadge(input),
       policy: blockingPolicy,
       approval: approvalBadge
     }
@@ -159,7 +159,38 @@ export function buildRouteReadinessCard(input: TripCommandCenterInput): Readines
 }
 
 export function buildBudgetReadinessCard(input: TripCommandCenterInput): ReadinessCard {
+  const confidence = input.budgetConfidence;
   const summary = input.budgetSummary;
+  if (confidence) {
+    const topIssue = confidence.issues[0] ?? null;
+    const status: ReadinessCardStatus =
+      confidence.riskLevel === "critical"
+        ? "blocked"
+        : confidence.riskLevel === "high"
+          ? "needs_attention"
+          : confidence.riskLevel === "medium" || confidence.level === "medium"
+            ? "almost_ready"
+            : confidence.level === "low" || confidence.level === "very_low"
+              ? "needs_attention"
+              : "ready";
+    return {
+      id: "budget",
+      title: "Budget",
+      status,
+      score: confidence.score,
+      summary: confidence.summary,
+      detail: topIssue ? `${topIssue.title}: ${topIssue.recommendation}` : null,
+      metrics: [
+        { label: "Confidence", value: `${confidence.score}/100` },
+        { label: "Coverage", value: `${confidence.coverage.overall}%` },
+        { label: "Risk", value: confidence.riskLevel.replaceAll("_", " ") }
+      ],
+      primaryAction: {
+        label: status === "ready" ? "Open Budget" : "Review budget confidence",
+        href: "#budget"
+      }
+    };
+  }
   if (!summary) {
     return {
       id: "budget",
@@ -203,6 +234,20 @@ export function buildBudgetReadinessCard(input: TripCommandCenterInput): Readine
       href: "#budget"
     }
   };
+}
+
+function budgetNavigationBadge(input: TripCommandCenterInput) {
+  const confidence = input.budgetConfidence;
+  if (confidence?.riskLevel === "critical" || confidence?.riskLevel === "high") {
+    return "risk";
+  }
+  if (confidence?.level === "low" || confidence?.level === "very_low") {
+    return "low";
+  }
+  if (input.budgetSummary?.overBudgetBy) {
+    return "over";
+  }
+  return null;
 }
 
 export function buildGroupReadinessCard(input: TripCommandCenterInput): ReadinessCard {

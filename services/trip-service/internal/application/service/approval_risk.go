@@ -11,6 +11,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvalrisk"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -99,6 +100,7 @@ func (s *Service) calculateApprovalRiskForTrip(
 	if includeHeavySignals {
 		metadata = s.approvalRiskMetadataSignal(ctx, trip.ID, &signalsUnavailable)
 	}
+	budgetConfidenceSignal := s.approvalRiskBudgetConfidenceSignal(ctx, trip, includeHeavySignals, &signalsUnavailable)
 
 	return approvalrisk.Score(approvalrisk.Input{
 		TripID:      trip.ID,
@@ -115,9 +117,48 @@ func (s *Service) calculateApprovalRiskForTrip(
 		PolicyEvaluation:       policyEvaluationPtr,
 		Itinerary:              itinerary,
 		WorkspaceBudget:        workspaceBudgetSignal,
+		BudgetConfidence:       budgetConfidenceSignal,
 		Metadata:               metadata,
 		SignalUnavailableNames: dedupeSignalNames(signalsUnavailable),
 	})
+}
+
+func (s *Service) approvalRiskBudgetConfidenceSignal(
+	ctx context.Context,
+	trip *entity.Trip,
+	includeHeavySignals bool,
+	signalsUnavailable *[]string,
+) *approvalrisk.BudgetConfidenceSignal {
+	if trip == nil || !includeHeavySignals || !s.budgetConfidenceConfig.Enabled {
+		return nil
+	}
+	response := s.budgetConfidenceForTrip(ctx, trip, budgetconfidence.Options{
+		Currency: trip.BudgetCurrency,
+	})
+	topIssues := make([]string, 0, minInt(len(response.Issues), 5))
+	for _, issue := range response.Issues {
+		if len(topIssues) == 5 {
+			break
+		}
+		topIssues = append(topIssues, issue.ID)
+	}
+	if response.Score == 0 && len(response.Issues) == 0 && len(response.SourceQuality) == 0 {
+		*signalsUnavailable = append(*signalsUnavailable, "budget confidence")
+		return nil
+	}
+	return &approvalrisk.BudgetConfidenceSignal{
+		Score:     response.Score,
+		Level:     string(response.Level),
+		RiskLevel: string(response.RiskLevel),
+		TopIssues: topIssues,
+	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (s *Service) approvalRiskWorkspaceBudgetSignal(

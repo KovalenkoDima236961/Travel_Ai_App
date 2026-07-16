@@ -206,6 +206,44 @@ checklist, reminder, expense, policy, or approval state, and they do not
 represent booking, legal, visa, medical, weather, payment, or compliance
 guarantees.
 
+## Budget Accuracy & Confidence
+
+Budget Accuracy & Confidence Engine v1 exposes a deterministic, read-only
+confidence summary for private trips through:
+
+- `GET /trips/{id}/budget-confidence`
+
+Owners, editors, and accepted viewers can read it. Public share tokens, pending
+collaborators, removed collaborators, and unrelated users cannot access it.
+Query parameters:
+
+- `currency=EUR` requests a target currency; otherwise the trip budget or
+  itinerary currency is used.
+- `includeDebug=true` includes score component counts for diagnostics.
+
+The response includes `score` (`0`-`100`), `level`, `riskLevel`, coverage by
+major travel category, source-quality rollups, estimated and actual totals,
+planned-vs-actual category deltas, ordered issues, recommendations, warnings,
+and `computedAt`. The engine combines itinerary estimates, accommodation,
+selected route transport costs, actual expenses, receipts/OCR metadata, budget
+summary conversion warnings, and trip budget limits. Currency conversion and
+optional expense/receipt loads are fail-soft by default; warnings are included
+instead of mutating trip state.
+
+Configuration:
+
+- `BUDGET_CONFIDENCE_ENABLED=true`
+- `BUDGET_CONFIDENCE_CACHE_TTL_SECONDS=60`
+- `BUDGET_CONFIDENCE_FAIL_OPEN=true`
+- `BUDGET_CONFIDENCE_LARGE_EXPENSE_RECEIPT_THRESHOLD=100`
+- `BUDGET_CONFIDENCE_ACTUAL_SPEND_HIGH_THRESHOLD_PERCENT=80`
+- `BUDGET_CONFIDENCE_PLANNED_ACTUAL_GAP_WARNING_PERCENT=20`
+- `BUDGET_CONFIDENCE_PLANNED_ACTUAL_GAP_HIGH_PERCENT=40`
+
+Trip Health and Approval Risk consume this signal to surface low-confidence
+budget states, missing major costs, and high-risk approval factors. The score is
+advisory only: it does not book, pay, enforce policy, or guarantee final prices.
+
 ## Shared Expenses & Settlement
 
 Shared Expenses & Settlement v1 uses migration

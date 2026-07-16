@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BudgetEditForm } from "./BudgetEditForm";
+import { BudgetConfidenceCard } from "@/components/budget-confidence";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
+import { budgetConfidenceKeys } from "@/lib/api/budget-confidence";
 import { budgetKeys, getTripBudgetSummary, updateTripBudget } from "@/lib/api/budget";
 import { tripHealthKeys } from "@/lib/api/trip-health";
 import { tripKeys } from "@/lib/api/trips";
+import { useBudgetConfidence } from "@/hooks/useBudgetConfidence";
 import { formatApproxMoney, formatMoney } from "@/entities/budget/model";
 import { getErrorMessage } from "@/lib/utils";
 import type { Budget, BudgetSummary } from "@/entities/budget/model";
@@ -52,6 +55,7 @@ export function BudgetPanel({
       setIsEditing(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(trip.id) }),
+        queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(trip.id) }),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(trip.id) }),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(trip.id) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(trip.id) })
@@ -66,6 +70,11 @@ export function BudgetPanel({
   const summary = offline ? offlineSummary : summaryQuery.data;
   const currency = summary?.currency ?? trip.budget?.currency ?? trip.budgetCurrency ?? "EUR";
   const currentBudget: Budget | null = trip.budget ?? null;
+  const confidenceQuery = useBudgetConfidence({
+    tripId: trip.id,
+    currency,
+    enabled: !offline
+  });
 
   return (
     <Card>
@@ -96,14 +105,29 @@ export function BudgetPanel({
           />
         </div>
       ) : (
-        <BudgetSummaryView
-          currency={currency}
-          isLoading={!offline && summaryQuery.isLoading}
-          onOpenBudgetOptimization={canEdit ? onOpenBudgetOptimization : undefined}
-          optimizationDisabled={optimizationDisabled}
-          perPersonAverage={perPersonAverage}
-          summary={summary ?? null}
-        />
+        <>
+          <BudgetSummaryView
+            currency={currency}
+            isLoading={!offline && summaryQuery.isLoading}
+            onOpenBudgetOptimization={canEdit ? onOpenBudgetOptimization : undefined}
+            optimizationDisabled={optimizationDisabled}
+            perPersonAverage={perPersonAverage}
+            summary={summary ?? null}
+          />
+          {!offline ? (
+            <div className="mt-4">
+              <BudgetConfidenceCard
+                confidence={confidenceQuery.data ?? null}
+                error={
+                  confidenceQuery.isError
+                    ? getErrorMessage(confidenceQuery.error, "Budget confidence is unavailable.")
+                    : null
+                }
+                isLoading={confidenceQuery.isLoading}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </Card>
   );

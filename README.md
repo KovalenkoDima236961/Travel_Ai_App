@@ -38,6 +38,13 @@ budget, availability, collaboration, checklist, reminders, accommodation,
 expenses, workspace policy, approval, and data-quality signals. The Web App
 surfaces the score in trip detail and refreshes it after related trip mutations.
 
+Budget Accuracy & Confidence Engine v1 scores private trip budget reliability
+from planned estimates, selected transport, accommodation, actual expenses,
+receipts/OCR, currency conversion, and budget limits. Trip Service exposes
+`GET /trips/{id}/budget-confidence`; the Web App surfaces the score in the
+Budget panel and Trip Command Center, and approval risk uses it as an advisory
+factor.
+
 AI Generation Reliability & Repair Pipeline v1 validates AI-created itineraries
 before Trip Service persists them. Critical schema, route, selected-transport,
 budget, and workspace-policy issues block saves; repairable issues can be sent
@@ -150,8 +157,8 @@ Key product capabilities:
 
 - Authenticated trip planning with private ownership and collaborator roles.
 - Trip Command Center & UX Simplification v1: private trip detail opens on an
-  Overview that summarizes health, top fixes, route/transport readiness, budget,
-  group readiness, checklist/reminder progress, expenses/settlements,
+  Overview that summarizes health, top fixes, route/transport readiness, budget
+  confidence, group readiness, checklist/reminder progress, expenses/settlements,
   approval/policy, activity, offline sync, and grouped Plan/Prepare/Money/Team/
   Control navigation while preserving existing deep links.
 - Multi-Tenant / Team Workspace v1: users can create workspaces, invite members,
@@ -210,7 +217,8 @@ Key product capabilities:
   locks for private trips.
 - Public read-only share links with optional expiration and password unlock.
 - Budget summaries with multi-currency conversion, accommodation cost support,
-  provider ticket estimates, and reviewable AI budget proposals.
+  provider ticket estimates, budget confidence scoring, and reviewable AI budget
+  proposals.
 - Cost Splitting Between Travelers v1: trip traveler roster, per-item and
   accommodation allocation rules, per-traveler summaries, and CSV/PDF exports
   for planning estimates.
@@ -266,10 +274,10 @@ Key product capabilities:
   signatures, or compliance workflow.
 - Smart Approval Risk Scoring v1: Trip Service computes deterministic,
   explainable 0-100 risk scores for workspace trip approvals from policy,
-  budget, cost-splitting, availability, AI/template fallback, and itinerary
-  structure signals. The Web App shows risk badges in trip headers and approval
-  queues, adds factor breakdowns to the approval panel, and requires explicit
-  acknowledgement for critical-risk submissions.
+  budget, budget confidence, cost-splitting, availability, AI/template fallback,
+  and itinerary structure signals. The Web App shows risk badges in trip
+  headers and approval queues, adds factor breakdowns to the approval panel, and
+  requires explicit acknowledgement for critical-risk submissions.
 - AI Policy-Aware Trip Repair v1: workspace trip editors can start a
   `policy_repair` job from approval risk or the trip tools panel. Trip Service
   sends the current itinerary, policy evaluation, approval risk, selected

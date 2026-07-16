@@ -57,6 +57,7 @@ import { activityKeys, listTripActivity } from "@/lib/api/activity";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
 import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
+import { budgetConfidenceKeys } from "@/lib/api/budget-confidence";
 import {
   costSplittingKeys,
   updateAccommodationCostSplit,
@@ -104,6 +105,7 @@ import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
 import { useTripHealth } from "@/hooks/useTripHealth";
+import { useBudgetConfidence } from "@/hooks/useBudgetConfidence";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
 import { useTripExpenseSummary } from "@/hooks/useTripExpenseSummary";
 import { useTripSettlements } from "@/hooks/useTripSettlements";
@@ -207,6 +209,8 @@ export function TripDetailPageContent() {
   const { workspaces } = useWorkspaces();
   const currentUserId = user?.id;
   const networkStatus = useNetworkStatus();
+  const invalidateBudgetConfidence = () =>
+    queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) });
   const [isEditing, setIsEditing] = useState(false);
   const [commentTarget, setCommentTarget] = useState<{
     dayNumber: number;
@@ -530,6 +534,15 @@ export function TripDetailPageContent() {
   const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
   const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
   const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
+  const budgetConfidenceQuery = useBudgetConfidence({
+    tripId,
+    currency: budgetSummaryQuery.data?.currency ?? displayedTrip?.budgetCurrency ?? "EUR",
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      Boolean(tripAccess) &&
+      canUsePrivateCollaboration
+  });
   const tripHealthQuery = useTripHealth(tripId, {
     enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess) && canUsePrivateCollaboration
   });
@@ -634,6 +647,7 @@ export function TripDetailPageContent() {
     onActivityCreated: () => {
       void queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
       void queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) });
+      void invalidateBudgetConfidence();
       void queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     }
   });
@@ -763,6 +777,7 @@ export function TripDetailPageContent() {
             trip: displayedTrip,
             health: tripHealthQuery.data ?? null,
             budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null,
+            budgetConfidence: budgetConfidenceQuery.data ?? null,
             availability: availabilitySummaryQuery.data ?? null,
             checklist: checklistQuery.data ?? null,
             reminders: remindersQuery.data ?? null,
@@ -786,6 +801,7 @@ export function TripDetailPageContent() {
     [
       approvalRiskQuery.data,
       availabilitySummaryQuery.data,
+      budgetConfidenceQuery.data,
       budgetSummaryQuery.data,
       cachedBudgetSummary,
       canUsePrivateCollaboration,
@@ -1243,6 +1259,7 @@ export function TripDetailPageContent() {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+        invalidateBudgetConfidence(),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
@@ -1257,6 +1274,7 @@ export function TripDetailPageContent() {
         queryClient.invalidateQueries({ queryKey: ["trip-checklists"] }),
         queryClient.invalidateQueries({ queryKey: ["trip-reminders"] }),
         queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+        invalidateBudgetConfidence(),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
       ]);
@@ -1557,6 +1575,7 @@ export function TripDetailPageContent() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+      invalidateBudgetConfidence(),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] }),
@@ -1574,6 +1593,7 @@ export function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+      invalidateBudgetConfidence(),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: costSplittingKeys.all }),
       queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
@@ -1728,6 +1748,7 @@ export function TripDetailPageContent() {
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+        invalidateBudgetConfidence(),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
@@ -1809,6 +1830,7 @@ export function TripDetailPageContent() {
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
         queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+        invalidateBudgetConfidence(),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: workspacePolicyKeys.evaluation(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
@@ -2012,6 +2034,7 @@ export function TripDetailPageContent() {
       queryClient.invalidateQueries({ queryKey: tripRepairKeys.all(tripId) }),
       queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+      invalidateBudgetConfidence(),
       queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
     ]);
@@ -2065,6 +2088,7 @@ export function TripDetailPageContent() {
   async function handleVersionRestored(updatedTrip: Trip) {
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
     await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
+    await invalidateBudgetConfidence();
     await queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) });
     await queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });
@@ -2078,6 +2102,7 @@ export function TripDetailPageContent() {
     queryClient.setQueryData(tripKeys.detail(tripId), updatedTrip);
     await queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) });
     await queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) });
+    await invalidateBudgetConfidence();
     await queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) });
     await queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) });
     await queryClient.invalidateQueries({ queryKey: ["route-estimate", "walking"] });

@@ -50,6 +50,7 @@ type Config struct {
 	Ops                OpsConfig                `yaml:"ops"`
 	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
 	TripHealth         TripHealthConfig         `yaml:"trip_health"`
+	BudgetConfidence   BudgetConfidenceConfig   `yaml:"budget_confidence"`
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
 }
 
@@ -71,6 +72,16 @@ type TripHealthConfig struct {
 	LargeExpenseReceiptThreshold    float64 `yaml:"large_expense_receipt_threshold" env:"TRIP_HEALTH_LARGE_EXPENSE_RECEIPT_THRESHOLD" env-default:"100" validate:"min=0"`
 	DefaultMaxWalkingKmPerDay       float64 `yaml:"default_max_walking_km_per_day" env:"TRIP_HEALTH_DEFAULT_MAX_WALKING_KM_PER_DAY" env-default:"12" validate:"min=1,max=100"`
 	DefaultMaxTransferMinutesPerDay int     `yaml:"default_max_transfer_minutes_per_day" env:"TRIP_HEALTH_DEFAULT_MAX_TRANSFER_MINUTES_PER_DAY" env-default:"480" validate:"min=30,max=2880"`
+}
+
+type BudgetConfidenceConfig struct {
+	Enabled                         bool    `yaml:"enabled" env:"BUDGET_CONFIDENCE_ENABLED" env-default:"true"`
+	CacheTTLSeconds                 int     `yaml:"cache_ttl_seconds" env:"BUDGET_CONFIDENCE_CACHE_TTL_SECONDS" env-default:"60" validate:"min=0,max=3600"`
+	FailOpen                        bool    `yaml:"fail_open" env:"BUDGET_CONFIDENCE_FAIL_OPEN" env-default:"true"`
+	LargeExpenseReceiptThreshold    float64 `yaml:"large_expense_receipt_threshold" env:"BUDGET_CONFIDENCE_LARGE_EXPENSE_RECEIPT_THRESHOLD" env-default:"100" validate:"min=0"`
+	ActualSpendHighThresholdPercent float64 `yaml:"actual_spend_high_threshold_percent" env:"BUDGET_CONFIDENCE_ACTUAL_SPEND_HIGH_THRESHOLD_PERCENT" env-default:"80" validate:"min=1,max=1000"`
+	PlannedActualGapWarningPercent  float64 `yaml:"planned_actual_gap_warning_percent" env:"BUDGET_CONFIDENCE_PLANNED_ACTUAL_GAP_WARNING_PERCENT" env-default:"20" validate:"min=1,max=1000"`
+	PlannedActualGapHighPercent     float64 `yaml:"planned_actual_gap_high_percent" env:"BUDGET_CONFIDENCE_PLANNED_ACTUAL_GAP_HIGH_PERCENT" env-default:"40" validate:"min=1,max=1000"`
 }
 
 type ReceiptsConfig struct {

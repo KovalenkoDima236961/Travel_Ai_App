@@ -48,11 +48,11 @@
   "commandCenter": {
     "overview": "Огляд", "commandCenter": "Центр керування", "nextBestAction": "Наступна найкраща дія",
     "whyThisMatters": "Чому це важливо", "topFixes": "Головні виправлення", "tripReadiness": "Готовність подорожі",
-    "routeTransport": "Маршрут і транспорт", "budget": "Бюджет", "groupReadiness": "Готовність групи",
+    "routeTransport": "Маршрут і транспорт", "budget": "Бюджет", "budgetConfidence": "Надійність бюджету", "groupReadiness": "Готовність групи",
     "checklistReminders": "Список і нагадування", "expensesSettlements": "Витрати й розрахунки",
     "approvalPolicy": "Погодження й політика", "recentActivity": "Остання активність", "offlineStatus": "Офлайн-статус",
     "ready": "Готово", "almostReady": "Майже готово", "needsAttention": "Потребує уваги", "blocked": "Заблоковано",
-    "openItinerary": "Відкрити маршрут", "fixTransport": "Виправити транспорт", "reviewBudget": "Переглянути бюджет",
+    "openItinerary": "Відкрити маршрут", "fixTransport": "Виправити транспорт", "reviewBudget": "Переглянути бюджет", "reviewBudgetConfidence": "Переглянути надійність бюджету",
     "requestAvailability": "Запросити доступність", "completeChecklist": "Завершити список", "openExpenses": "Відкрити витрати",
     "syncNow": "Синхронізувати", "tripLooksReady": "Подорож виглядає готовою", "noUrgentActions": "Немає термінових дій",
     "viewAllIssues": "Усі проблеми", "plan": "План", "prepare": "Підготовка", "money": "Гроші",

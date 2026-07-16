@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/accommodation";
 import { activityKeys } from "@/lib/api/activity";
 import { budgetKeys } from "@/lib/api/budget";
+import { budgetConfidenceKeys } from "@/lib/api/budget-confidence";
 import { tripHealthKeys } from "@/lib/api/trip-health";
 import { tripKeys } from "@/lib/api/trips";
 import { formatMoney } from "@/entities/budget/model";
@@ -206,6 +207,7 @@ async function invalidateAccommodationDependents(
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: accommodationKeys.detail(tripId) }),
     queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
+    queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) }),
     queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
     queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
     queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),

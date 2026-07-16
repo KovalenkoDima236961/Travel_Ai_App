@@ -60,7 +60,7 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
-| Trip Command Center | Default trip overview that summarizes health, next best action, route/transport, budget, group readiness, checklist/reminders, expenses/settlements, approval/policy, recent activity, offline sync, and grouped navigation. |
+| Trip Command Center | Default trip overview that summarizes health, next best action, route/transport, budget confidence, group readiness, checklist/reminders, expenses/settlements, approval/policy, recent activity, offline sync, and grouped navigation. |
 | Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, route-leg transport option search/compare/attach, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
 | Route alternatives | AI route alternatives panel with cards, comparison table, route-order preview, refinement controls, create-trip/apply dialogs, and route-poll creation. |
 | Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
@@ -72,7 +72,7 @@ notification streams, and calendar OAuth calls.
 | Concurrency | `itineraryRevision` conflict recovery, advisory presence, soft edit locks. |
 | Jobs | Async full generation, partial regeneration, quality improvement, budget optimization, and generation reliability badges/warnings. |
 | Reminders | Private Reminders/Timeline panel with rule-based generation, manual reminders, filters, completion/disable actions, stale warnings, and notification preferences. |
-| Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, selected transport estimates, summaries, traveler cost splitting, cost analytics dashboards, optimization proposals. |
+| Budget | Trip budget, workspace shared budgets, item costs, accommodation cost, selected transport estimates, summaries, budget confidence, traveler cost splitting, cost analytics dashboards, optimization proposals. |
 | Receipts | Receipt upload for private trip expenses, mock OCR review, authenticated image/PDF preview, create-expense-from-receipt, attach/delete receipt actions. |
 | AI repair | Workspace trip repair jobs, pending repair proposals, before/after itinerary diff preview, revision-safe apply/discard, and approval risk integration. |
 | Places | Manual place attachment, auto-match review, map markers, opening-hours warnings. |
@@ -154,14 +154,30 @@ Health output is advisory. The UI links users back to existing trip sections to
 fix issues, but it does not auto-apply route, budget, checklist, reminder,
 expense, policy, or approval changes.
 
+## Budget Confidence
+
+Private trip detail pages call `GET /trips/{id}/budget-confidence` through
+`src/lib/api/budget-confidence.ts` and `useBudgetConfidence`. The Budget panel
+shows the score, confidence level, risk level, category coverage, source
+quality, planned-vs-actual deltas, risk issues, and recommended actions.
+
+The Trip Command Center uses the same query to make the Budget card and next
+best action prefer confidence risk over a plain budget-summary overrun. Cache
+invalidations are wired to budget edits, itinerary/repair/optimization changes,
+accommodation, route/selected transport, expenses, receipts, and offline sync
+events that can change the score.
+
+Budget confidence is advisory. It helps users find missing or weak cost data,
+but it does not create bookings, payments, settlements, or policy enforcement.
+
 ## Trip Command Center
 
 Private trip detail pages now open on an Overview / Trip Command Center section.
 It is a Web App orchestration layer over existing trip data, not a new backend
-workflow or scoring model. It reuses Trip Health, budget, availability, polls,
-checklist, reminders, expenses, settlements, approval, policy, activity, and
-offline-sync state to answer what changed, whether the trip is ready, and what
-the user should do next.
+workflow or scoring model. It reuses Trip Health, budget confidence, budget
+summary, availability, polls, checklist, reminders, expenses, settlements,
+approval, policy, activity, and offline-sync state to answer what changed,
+whether the trip is ready, and what the user should do next.
 
 The command center includes:
 
@@ -171,7 +187,7 @@ The command center includes:
   viewers are routed to actions they can perform, such as availability, voting,
   assigned checklist/reminder work, or expense review.
 - Top fixes from Trip Health, without duplicating health scoring logic.
-- Readiness cards for health, route/transport, budget, group readiness,
+- Readiness cards for health, route/transport, budget confidence, group readiness,
   checklist/reminders, expenses/settlements, approval/policy, recent activity,
   and offline status.
 - A grouped navigation model: Plan, Prepare, Money, Team, and Control. Existing
@@ -535,7 +551,7 @@ traveler management and split-rule writes require the online private API.
 | Presence and locks | `/trips/{id}/presence/*`, `/trips/{id}/edit-lock` |
 | Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |
-| Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, `/workspaces/{workspaceId}/budgets*`, budget optimization job/proposal routes |
+| Budget | `/trips/{id}/budget`, `/trips/{id}/budget-summary`, `/trips/{id}/budget-confidence`, `/workspaces/{workspaceId}/budgets*`, budget optimization job/proposal routes |
 | AI repair | `/trips/{id}/repair-jobs`, `/trips/{id}/repair-proposals*`, apply/discard repair proposal routes |
 | Cost splitting | `/trips/{id}/travelers`, `/trips/{id}/cost-splitting/summary`, item/accommodation cost-split update routes |
 | Cost analytics | `/trips/{id}/analytics/costs`, `/workspaces/{workspaceId}/analytics/costs`; browser-generated CSV/PDF reports |
@@ -852,7 +868,8 @@ readiness checklist, role-aware actions, risk scoring, and approval history:
 - Workspace approval risk comes from `GET /trips/{id}/approval-risk` via
   `src/lib/api/approval-risk.ts` and `useTripApprovalRisk`. Trip headers and
   workspace approval queues show compact risk badges; the approval panel expands
-  medium/high/critical factors with suggested actions that route to budget,
+  medium/high/critical factors with suggested actions that route to budget
+  confidence, budget,
   analytics, cost-splitting, availability, accommodation, policy, or itinerary
   editing surfaces.
 - Critical risk must be explicitly acknowledged in the submit dialog before an

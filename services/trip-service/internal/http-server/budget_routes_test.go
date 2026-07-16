@@ -13,6 +13,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
@@ -61,6 +62,21 @@ func getBudgetSummary(t *testing.T, router http.Handler, token string, tripID uu
 	t.Helper()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/trips/"+tripID.String()+"/budget-summary", nil)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+func getBudgetConfidence(t *testing.T, router http.Handler, token string, tripID uuid.UUID, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	path := "/trips/" + tripID.String() + "/budget-confidence"
+	if query != "" {
+		path += "?" + query
+	}
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -154,6 +170,80 @@ func TestBudgetSummaryOwnerReflectsItineraryCosts(t *testing.T) {
 	}
 	if summary.Remaining == nil || *summary.Remaining != 488 {
 		t.Fatalf("expected remaining 488, got %v", summary.Remaining)
+	}
+}
+
+func TestBudgetConfidenceOwnerReflectsItineraryCosts(t *testing.T) {
+	router, _ := newAuthTestRouter(t, budgetTestAuthConfig())
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	tripID := createBudgetTestTrip(t, router, ownerToken)
+	putItinerary(t, router, ownerToken, tripID, 0)
+
+	rec := getBudgetConfidence(t, router, ownerToken, tripID, "includeDebug=true")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	var response budgetconfidence.Response
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode budget confidence response: %v", err)
+	}
+	if response.TripID != tripID {
+		t.Fatalf("expected trip ID %s, got %s", tripID, response.TripID)
+	}
+	if response.Currency != "EUR" {
+		t.Fatalf("expected currency EUR, got %s", response.Currency)
+	}
+	if response.EstimatedTotal.Amount != 12 {
+		t.Fatalf("expected estimated total 12, got %+v", response.EstimatedTotal)
+	}
+	if response.TripBudget == nil || response.TripBudget.Amount != 500 {
+		t.Fatalf("expected trip budget 500, got %+v", response.TripBudget)
+	}
+	if response.Coverage.Overall <= 0 {
+		t.Fatalf("expected positive coverage, got %+v", response.Coverage)
+	}
+	if response.Debug == nil {
+		t.Fatalf("expected debug payload when includeDebug=true")
+	}
+}
+
+func TestBudgetConfidenceRequiresAuthAndHonorsPermissions(t *testing.T) {
+	router, repo := newAuthTestRouter(t, budgetTestAuthConfig())
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	viewerID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	strangerID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	viewerToken := signAccessToken(t, viewerID, "viewer@example.com", testJWTSecret, time.Hour)
+	strangerToken := signAccessToken(t, strangerID, "stranger@example.com", testJWTSecret, time.Hour)
+
+	tripID := createBudgetTestTrip(t, router, ownerToken)
+	seedAcceptedCollaborator(repo, tripID, viewerID, entity.CollaboratorRoleViewer)
+
+	if rec := getBudgetConfidence(t, router, "", tripID, ""); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthenticated HTTP 401, got %d with %s", rec.Code, rec.Body.String())
+	}
+	if rec := getBudgetConfidence(t, router, viewerToken, tripID, ""); rec.Code != http.StatusOK {
+		t.Fatalf("expected viewer HTTP 200, got %d with %s", rec.Code, rec.Body.String())
+	}
+	if rec := getBudgetConfidence(t, router, strangerToken, tripID, ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("expected stranger HTTP 404, got %d with %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBudgetConfidenceDisabled(t *testing.T) {
+	router, _ := newAuthTestRouterWithOptions(
+		t,
+		budgetTestAuthConfig(),
+		service.WithBudgetConfidenceConfig(budgetconfidence.Config{Enabled: false}),
+	)
+	ownerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ownerToken := signAccessToken(t, ownerID, "owner@example.com", testJWTSecret, time.Hour)
+	tripID := createBudgetTestTrip(t, router, ownerToken)
+
+	rec := getBudgetConfidence(t, router, ownerToken, tripID, "")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected disabled endpoint HTTP 503, got %d with %s", rec.Code, rec.Body.String())
 	}
 }
 

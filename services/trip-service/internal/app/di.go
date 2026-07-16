@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
@@ -230,6 +231,14 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			LargeExpenseReceiptThreshold:    cfg.TripHealth.LargeExpenseReceiptThreshold,
 			DefaultMaxWalkingKmPerDay:       cfg.TripHealth.DefaultMaxWalkingKmPerDay,
 			DefaultMaxTransferMinutesPerDay: cfg.TripHealth.DefaultMaxTransferMinutesPerDay,
+		}),
+		service.WithBudgetConfidenceConfig(budgetconfidence.Config{
+			Enabled:                         cfg.BudgetConfidence.Enabled,
+			FailOpen:                        cfg.BudgetConfidence.FailOpen,
+			LargeExpenseReceiptThreshold:    cfg.BudgetConfidence.LargeExpenseReceiptThreshold,
+			ActualSpendHighThresholdPercent: cfg.BudgetConfidence.ActualSpendHighThresholdPercent,
+			PlannedActualGapWarningPercent:  cfg.BudgetConfidence.PlannedActualGapWarningPercent,
+			PlannedActualGapHighPercent:     cfg.BudgetConfidence.PlannedActualGapHighPercent,
 		}),
 	}
 	aiValidationCfg := aivalidation.Config{

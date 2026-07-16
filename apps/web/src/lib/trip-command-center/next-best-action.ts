@@ -193,6 +193,28 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
     });
   }
 
+  const budgetConfidenceIssue = topBudgetConfidenceIssue(input);
+  if (budgetConfidenceIssue) {
+    candidates.push({
+      id: `budget_confidence:${budgetConfidenceIssue.id}`,
+      title: budgetConfidenceIssue.title,
+      description: budgetConfidenceIssue.description,
+      reason: budgetConfidenceIssue.recommendation || "Budget confidence needs review",
+      severity:
+        budgetConfidenceIssue.severity === "critical"
+          ? "critical"
+          : budgetConfidenceIssue.severity === "info"
+            ? "info"
+            : budgetConfidenceIssue.severity,
+      category: "budget",
+      actionLabel: budgetConfidenceIssue.action?.label ?? "Review budget confidence",
+      href: `/trips/${tripId}?tab=budget`,
+      source: "budget",
+      capability: "edit",
+      priority: 9
+    });
+  }
+
   if ((input.budgetSummary?.overBudgetBy ?? 0) > 0) {
     candidates.push({
       id: "budget_exceeded",
@@ -205,7 +227,7 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
       href: `/trips/${tripId}?tab=budget`,
       source: "budget",
       capability: "edit",
-      priority: 9
+      priority: 10
     });
   }
 
@@ -332,6 +354,35 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
   });
 
   return candidates;
+}
+
+function topBudgetConfidenceIssue(input: TripCommandCenterInput) {
+  const confidence = input.budgetConfidence;
+  if (!confidence) {
+    return null;
+  }
+  const severe = confidence.issues.find(
+    (issue) => issue.severity === "critical" || issue.severity === "high"
+  );
+  if (severe) {
+    return severe;
+  }
+  if (
+    confidence.riskLevel === "critical" ||
+    confidence.riskLevel === "high" ||
+    confidence.level === "low" ||
+    confidence.level === "very_low"
+  ) {
+    return confidence.issues[0] ?? {
+      id: "low_score",
+      title: "Budget confidence is low",
+      description: confidence.summary,
+      recommendation: "Review budget confidence before approval or booking.",
+      severity: confidence.riskLevel === "critical" ? "critical" : "high",
+      category: "budget"
+    };
+  }
+  return null;
 }
 
 function actionFromHealthIssue(issue: TripHealthIssue, priority: number): ActionCandidate {

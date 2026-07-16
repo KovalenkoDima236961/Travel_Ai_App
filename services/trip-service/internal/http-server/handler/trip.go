@@ -19,6 +19,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
@@ -143,6 +144,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/date-options/create-poll", h.CreateDateOptionsPoll)
 		r.Patch("/{id}/accommodation/cost-split", h.UpdateAccommodationCostSplit)
 		r.Get("/{id}/budget-summary", h.GetBudgetSummary)
+		r.Get("/{id}/budget-confidence", h.GetBudgetConfidence)
 		r.Get("/{id}/analytics/costs", h.GetTripCostAnalytics)
 		r.Get("/{id}/cost-splitting/summary", h.GetCostSplittingSummary)
 		r.Get("/{id}/expenses", h.ListTripExpenses)
@@ -598,6 +600,35 @@ func (h *Handler) GetBudgetSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, summary)
+}
+
+// GetBudgetConfidence handles GET /trips/{id}/budget-confidence. Private
+// owner/editor/viewer access is required because the response can include actual
+// expense and receipt-derived signals.
+func (h *Handler) GetBudgetConfidence(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	currency, ok := parseCurrencyQuery(w, r)
+	if !ok {
+		return
+	}
+	includeDebug, ok := parseBoolQuery(w, r, "includeDebug")
+	if !ok {
+		return
+	}
+
+	result, err := h.svc.GetBudgetConfidence(r.Context(), id, budgetconfidence.Options{
+		Currency:     currency,
+		IncludeDebug: includeDebug,
+	})
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }
 
 // GetTripHealth handles GET /trips/{id}/health. Health is computed live for
@@ -1781,6 +1812,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadGateway, dependency.Error())
 	case errors.Is(err, service.ErrTripHealthDisabled):
 		writeError(w, http.StatusServiceUnavailable, "trip health is disabled")
+	case errors.Is(err, service.ErrBudgetConfidenceDisabled):
+		writeError(w, http.StatusServiceUnavailable, "budget confidence is disabled")
 	case errors.Is(err, apperrs.ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, service.ErrRegisteredUserNotFound):

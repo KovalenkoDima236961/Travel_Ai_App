@@ -273,7 +273,7 @@ Use local Grafana credentials `admin` / `admin`.
 2. Confirm the Overview / Trip Command Center is the first trip detail section.
 3. Confirm the health score, approval/offline badges when applicable, and the
    Next best action are visible.
-4. Confirm readiness cards are visible for health, route/transport, budget,
+4. Confirm readiness cards are visible for health, route/transport, budget confidence,
    group readiness, checklist/reminders, expenses/settlements, approval/policy
    for workspace trips, recent activity, and offline status.
 5. Click a top fix and confirm it opens the correct existing section.
@@ -282,8 +282,9 @@ Use local Grafana credentials `admin` / `admin`.
 7. Create or leave a high-priority checklist item incomplete and confirm the
    Checklist & Reminders card updates; then complete it and confirm progress
    changes.
-8. Add or simulate a budget issue and confirm the Budget card shows attention
-   and links to the Budget section.
+8. Add or simulate a budget confidence issue, such as missing accommodation cost
+   or weak transport prices, and confirm the Budget card shows attention and
+   links to the Budget section.
 9. Switch through grouped navigation sections: Plan, Prepare, Money, Team, and
    Control.
 10. Open legacy links such as `?tab=budget`, `?tab=route`, `?tab=health`, and
@@ -670,45 +671,49 @@ on (`OPS_DASHBOARD_ENABLED=true`, `OPS_ADMIN_EMAILS` includes your login,
 2. On the trip detail page, confirm the `Budget` panel appears in the sidebar.
 3. Confirm it shows the trip budget, an estimated total, and remaining amount,
    plus daily and category totals.
-4. Confirm itinerary item cards show cost badges (for example `€18 ticket`), with
+4. Confirm the Budget Confidence section shows a score, level, risk level,
+   coverage, source quality, planned-vs-actual data, issues, and recommended
+   actions.
+5. Confirm itinerary item cards show cost badges (for example `€18 ticket`), with
    `(approx.)` on low-confidence costs and `provider estimate` on provider-filled
    ticket/activity costs when price enrichment matched.
-5. Click `Edit` in the `Budget` panel, change the amount, and `Save budget`.
-6. Confirm the panel refreshes with the new budget and the itinerary revision is
+6. Click `Edit` in the `Budget` panel, change the amount, and `Save budget`.
+7. Confirm the panel refreshes with the new budget, Budget Confidence refetches,
+   and the itinerary revision is
    unchanged (no conflict warning, version history not affected).
-7. Open the itinerary editor, expand an item's `Estimated cost`, change the
+8. Open the itinerary editor, expand an item's `Estimated cost`, change the
    amount/category, set currency to `JPY`, and save the itinerary.
-8. Confirm the saved cost shows a `manual` marker and the budget panel shows an
+9. Confirm the saved cost shows a `manual` marker and the budget panel shows an
    approximate converted total plus `JPY` under original currency totals.
-9. If you intentionally enter an unsupported currency code through API/devtools,
+10. If you intentionally enter an unsupported currency code through API/devtools,
    confirm the Budget panel shows a conversion warning and Trip Quality Checks
    reports a conversion issue without inventing an exchange rate.
-10. Edit the budget to an amount **below** the estimated total and save.
-11. Confirm the `Budget` panel switches to an over-budget warning style.
-12. Open `Trip Quality Checks` and confirm budget issues appear (over budget,
+11. Edit the budget to an amount **below** the estimated total and save.
+12. Confirm the `Budget` panel switches to an over-budget warning style.
+13. Open `Trip Quality Checks` and confirm budget issues appear (over budget,
     day over budget, expensive item, missing cost estimates, missing ticket
     prices, high ticket costs, or low-confidence provider estimates).
-13. Click `Optimize Day N for budget` from the Budget panel or a budget-related
+14. Click `Optimize Day N for budget` from the Budget panel or a budget-related
     Trip Quality Checks issue.
-14. In the dialog, confirm the day, target reduction, currency, constraints, max
+15. In the dialog, confirm the day, target reduction, currency, constraints, max
     walking increase, and optional instruction are prefilled with reasonable
     defaults.
-15. Start the optimization job and confirm the shared generation job status card
+16. Start the optimization job and confirm the shared generation job status card
     appears.
-16. Wait for the proposal card to appear.
-17. Confirm the proposal shows status, approximate savings, base/proposed day
+17. Wait for the proposal card to appear.
+18. Confirm the proposal shows status, approximate savings, base/proposed day
     totals, confidence, changes, tradeoffs/warnings, and a `Preview day` button.
-18. Preview the proposal and confirm it shows current and proposed day items.
-19. Click `Apply`.
-20. Confirm the itinerary day changes, the budget summary refetches, and version
+19. Preview the proposal and confirm it shows current and proposed day items.
+20. Click `Apply`.
+21. Confirm the itinerary day changes, the budget summary refetches, and version
     history/activity include budget optimization entries.
-21. Start a second optimization proposal and click `Discard`; confirm the
+22. Start a second optimization proposal and click `Discard`; confirm the
     itinerary does not change.
-22. Log in as an accepted viewer collaborator and confirm proposals are visible
+23. Log in as an accepted viewer collaborator and confirm proposals are visible
     but create/apply/discard controls are not available.
-23. Export a private PDF and confirm the budget summary uses approximate
+24. Export a private PDF and confirm the budget summary uses approximate
     converted totals and includes original currency totals when present.
-24. Create a public share link, open `/share/{shareToken}` in a logged-out
+25. Create a public share link, open `/share/{shareToken}` in a logged-out
     window, and confirm the private trip budget, optimization UI/proposals, and
     provider price review metadata are **not** shown (item cost badges may still
     appear).

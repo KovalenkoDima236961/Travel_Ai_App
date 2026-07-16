@@ -10,6 +10,7 @@ import (
 
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
@@ -43,6 +44,7 @@ func (s *Service) GetTripHealth(
 	}
 
 	s.loadHealthBudget(ctx, trip, &snapshot)
+	s.loadHealthBudgetConfidence(ctx, trip, &snapshot, options)
 	s.loadHealthCollaboration(ctx, tripID, &snapshot)
 	s.loadHealthChecklist(ctx, tripID, &snapshot)
 	s.loadHealthReminders(ctx, tripID, &snapshot)
@@ -75,6 +77,30 @@ func (s *Service) loadHealthBudget(ctx context.Context, trip *entity.Trip, snaps
 		return
 	}
 	snapshot.Budget = &summary
+}
+
+func (s *Service) loadHealthBudgetConfidence(
+	ctx context.Context,
+	trip *entity.Trip,
+	snapshot *triphealth.Snapshot,
+	options triphealth.Options,
+) {
+	if !s.budgetConfidenceConfig.Enabled {
+		return
+	}
+	response := s.budgetConfidenceForTrip(ctx, trip, budgetconfidenceOptions(trip, options))
+	snapshot.BudgetConfidence = &response
+}
+
+func budgetconfidenceOptions(trip *entity.Trip, options triphealth.Options) budgetconfidence.Options {
+	currency := ""
+	if trip != nil {
+		currency = trip.BudgetCurrency
+	}
+	return budgetconfidence.Options{
+		Currency:     currency,
+		IncludeDebug: options.IncludeDebug,
+	}
 }
 
 func (s *Service) loadHealthCollaboration(ctx context.Context, tripID uuid.UUID, snapshot *triphealth.Snapshot) {
