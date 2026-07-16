@@ -60,6 +60,7 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
+| Trip Command Center | Default trip overview that summarizes health, next best action, route/transport, budget, group readiness, checklist/reminders, expenses/settlements, approval/policy, recent activity, offline sync, and grouped navigation. |
 | Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, route-leg transport option search/compare/attach, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
 | Route alternatives | AI route alternatives panel with cards, comparison table, route-order preview, refinement controls, create-trip/apply dialogs, and route-poll creation. |
 | Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
@@ -152,6 +153,39 @@ evaluation, approval actions, and place review updates.
 Health output is advisory. The UI links users back to existing trip sections to
 fix issues, but it does not auto-apply route, budget, checklist, reminder,
 expense, policy, or approval changes.
+
+## Trip Command Center
+
+Private trip detail pages now open on an Overview / Trip Command Center section.
+It is a Web App orchestration layer over existing trip data, not a new backend
+workflow or scoring model. It reuses Trip Health, budget, availability, polls,
+checklist, reminders, expenses, settlements, approval, policy, activity, and
+offline-sync state to answer what changed, whether the trip is ready, and what
+the user should do next.
+
+The command center includes:
+
+- A trip summary header with route/destination, dates, health, approval, and
+  offline badges.
+- One permission-aware next best action. Owners/editors get editing actions;
+  viewers are routed to actions they can perform, such as availability, voting,
+  assigned checklist/reminder work, or expense review.
+- Top fixes from Trip Health, without duplicating health scoring logic.
+- Readiness cards for health, route/transport, budget, group readiness,
+  checklist/reminders, expenses/settlements, approval/policy, recent activity,
+  and offline status.
+- A grouped navigation model: Plan, Prepare, Money, Team, and Control. Existing
+  deep links such as `?tab=budget`, `?tab=route`, and `?tab=health` are mapped
+  to the matching anchored sections.
+
+Personal trips hide workspace-only approval/policy readiness. Single-destination
+trips simplify route readiness. Public share pages keep their existing read-only
+experience and do not expose private command-center data such as health,
+expenses, receipts, offline sync, approval, policy, or collaboration readiness.
+
+Limitations: readiness is advisory, some cards can be unavailable until their
+source data has been generated or loaded, and the overview summarizes data from
+other sections rather than replacing the underlying tools.
 
 ## Generation Reliability UI
 

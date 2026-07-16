@@ -51,6 +51,12 @@ and route-estimate providers plus future provider configuration; Trip Service ca
 attach selected transport options to route JSON; and the Web App can compare and
 store options without booking or payment.
 
+Trip Command Center & UX Simplification v1 makes the private trip Overview the
+default landing experience. The Web App aggregates existing readiness signals
+into one next best action, top fixes, readiness cards, recent activity, offline
+sync status, and grouped navigation without adding a new service or replacing
+Trip Health scoring.
+
 ## System Map
 
 ```mermaid
@@ -143,6 +149,11 @@ sequenceDiagram
 Key product capabilities:
 
 - Authenticated trip planning with private ownership and collaborator roles.
+- Trip Command Center & UX Simplification v1: private trip detail opens on an
+  Overview that summarizes health, top fixes, route/transport readiness, budget,
+  group readiness, checklist/reminder progress, expenses/settlements,
+  approval/policy, activity, offline sync, and grouped Plan/Prepare/Money/Team/
+  Control navigation while preserving existing deep links.
 - Multi-Tenant / Team Workspace v1: users can create workspaces, invite members,
   accept/decline invitations, switch between Personal/All/workspace scopes, and
   create workspace-owned trips governed by owner/admin/member/viewer roles.

@@ -45,6 +45,19 @@
     "logout": "Вийти", "account": "Обліковий запис", "signedInAs": "Ви увійшли як",
     "yourAccount": "Ваш обліковий запис"
   },
+  "commandCenter": {
+    "overview": "Огляд", "commandCenter": "Центр керування", "nextBestAction": "Наступна найкраща дія",
+    "whyThisMatters": "Чому це важливо", "topFixes": "Головні виправлення", "tripReadiness": "Готовність подорожі",
+    "routeTransport": "Маршрут і транспорт", "budget": "Бюджет", "groupReadiness": "Готовність групи",
+    "checklistReminders": "Список і нагадування", "expensesSettlements": "Витрати й розрахунки",
+    "approvalPolicy": "Погодження й політика", "recentActivity": "Остання активність", "offlineStatus": "Офлайн-статус",
+    "ready": "Готово", "almostReady": "Майже готово", "needsAttention": "Потребує уваги", "blocked": "Заблоковано",
+    "openItinerary": "Відкрити маршрут", "fixTransport": "Виправити транспорт", "reviewBudget": "Переглянути бюджет",
+    "requestAvailability": "Запросити доступність", "completeChecklist": "Завершити список", "openExpenses": "Відкрити витрати",
+    "syncNow": "Синхронізувати", "tripLooksReady": "Подорож виглядає готовою", "noUrgentActions": "Немає термінових дій",
+    "viewAllIssues": "Усі проблеми", "plan": "План", "prepare": "Підготовка", "money": "Гроші",
+    "team": "Команда", "control": "Контроль"
+  },
   "auth": {
     "email": "Електронна пошта", "password": "Пароль", "login": "Увійти",
     "register": "Створити обліковий запис", "tagline": "Кожна чудова подорож починається з однієї ідеї.",

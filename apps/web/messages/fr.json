@@ -45,6 +45,19 @@
     "logout": "Se déconnecter", "account": "Compte", "signedInAs": "Connecté en tant que",
     "yourAccount": "Votre compte"
   },
+  "commandCenter": {
+    "overview": "Vue d’ensemble", "commandCenter": "Centre de commande", "nextBestAction": "Prochaine meilleure action",
+    "whyThisMatters": "Pourquoi c’est important", "topFixes": "Corrections prioritaires", "tripReadiness": "Préparation du voyage",
+    "routeTransport": "Route et transport", "budget": "Budget", "groupReadiness": "Préparation du groupe",
+    "checklistReminders": "Checklist et rappels", "expensesSettlements": "Dépenses et remboursements",
+    "approvalPolicy": "Approbation et politique", "recentActivity": "Activité récente", "offlineStatus": "État hors ligne",
+    "ready": "Prêt", "almostReady": "Presque prêt", "needsAttention": "À traiter", "blocked": "Bloqué",
+    "openItinerary": "Ouvrir l’itinéraire", "fixTransport": "Corriger le transport", "reviewBudget": "Revoir le budget",
+    "requestAvailability": "Demander les disponibilités", "completeChecklist": "Terminer la checklist", "openExpenses": "Ouvrir les dépenses",
+    "syncNow": "Synchroniser", "tripLooksReady": "Le voyage semble prêt", "noUrgentActions": "Aucune action urgente",
+    "viewAllIssues": "Voir tous les problèmes", "plan": "Plan", "prepare": "Préparer", "money": "Argent",
+    "team": "Équipe", "control": "Contrôle"
+  },
   "auth": {
     "email": "E-mail", "password": "Mot de passe", "login": "Se connecter",
     "register": "Créer un compte", "tagline": "Chaque grand voyage commence par une seule idée.",

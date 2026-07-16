@@ -9,8 +9,9 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { AccommodationPanel } from "@/features/trip-accommodation";
 import { useTripApprovalRisk } from "@/features/approval-risk";
 import { CalendarSyncPanel } from "@/features/calendar-sync";
-import { TripApprovalPanel } from "@/features/trip-approval";
+import { TripApprovalPanel, useTripApproval } from "@/features/trip-approval";
 import { TripPolicyPanel } from "@/components/workspace-policy/TripPolicyPanel";
+import { TripCommandCenter } from "@/components/trip-command-center";
 import { BudgetPanel } from "@/features/trip-budget";
 import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
@@ -52,7 +53,7 @@ import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
 import { AvailabilityPanel } from "@/components/trip-availability";
 import { Button } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
-import { activityKeys } from "@/lib/api/activity";
+import { activityKeys, listTripActivity } from "@/lib/api/activity";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
 import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
@@ -104,7 +105,12 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
 import { useTripHealth } from "@/hooks/useTripHealth";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
+import { useTripExpenseSummary } from "@/hooks/useTripExpenseSummary";
+import { useTripSettlements } from "@/hooks/useTripSettlements";
 import { useTripReminders } from "@/hooks/useTripReminders";
+import { useTripAvailability } from "@/hooks/useTripAvailability";
+import { useTripPolls } from "@/hooks/useTripPolls";
+import { useTripPolicyEvaluation } from "@/hooks/useTripPolicyEvaluation";
 import { useItineraryReactions } from "@/hooks/useItineraryReactions";
 import { useCostSplittingSummary } from "@/features/cost-splitting";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -122,6 +128,8 @@ import {
 } from "@/lib/offline/trip-cache";
 import { rollbackOfflineCompanionMutation } from "@/lib/offline/cache-writer";
 import { recordPwaEngagement } from "@/lib/pwa/pwa-detection";
+import { buildTripCommandCenterData } from "@/lib/trip-command-center/readiness";
+import { scrollToTabAnchor } from "@/lib/trip-command-center/navigation";
 import {
   discardMutation,
   enqueueItineraryUpdate,
@@ -519,6 +527,9 @@ export function TripDetailPageContent() {
     tripAccess.role === "owner" ||
     tripAccess.role === "editor" ||
     tripAccess.role === "viewer";
+  const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
+  const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
+  const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
   const tripHealthQuery = useTripHealth(tripId, {
     enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess) && canUsePrivateCollaboration
   });
@@ -548,9 +559,46 @@ export function TripDetailPageContent() {
       canUsePrivateCollaboration &&
       displayedTrip?.status === "COMPLETED"
   });
-  const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
-  const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
-  const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
+  const expenseSummaryQuery = useTripExpenseSummary({
+    tripId,
+    currency: displayedTrip?.budgetCurrency ?? "EUR",
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      canUsePrivateCollaboration &&
+      displayedTrip?.status === "COMPLETED"
+  });
+  const settlementsQuery = useTripSettlements({
+    tripId,
+    currency: displayedTrip?.budgetCurrency ?? "EUR",
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      canUsePrivateCollaboration &&
+      displayedTrip?.status === "COMPLETED"
+  });
+  const availabilitySummaryQuery = useTripAvailability(tripId, decisionsEnabled);
+  const pollsSummaryQuery = useTripPolls(tripId, decisionsEnabled);
+  const tripApprovalQuery = useTripApproval(
+    tripId,
+    onlineActionsEnabled &&
+      Boolean(tripId) &&
+      canUsePrivateCollaboration &&
+      Boolean(displayedTrip?.workspaceId)
+  );
+  const policyEvaluation = useTripPolicyEvaluation(
+    tripId,
+    onlineActionsEnabled &&
+      Boolean(tripId) &&
+      canUsePrivateCollaboration &&
+      Boolean(displayedTrip?.workspaceId)
+  );
+  const recentActivityQuery = useQuery({
+    queryKey: [...activityKeys.all(tripId), "overview", 5] as const,
+    queryFn: () => listTripActivity(tripId, { limit: 5 }),
+    enabled: canComment && Boolean(tripId),
+    staleTime: 60 * 1000
+  });
   const commentsEnabled =
     onlineActionsEnabled &&
     Boolean(tripId) &&
@@ -689,6 +737,82 @@ export function TripDetailPageContent() {
       weatherForecastQuery.data
     ]
   );
+  const commandCenterOfflineStatus = useMemo(
+    () => ({
+      online: networkStatus.online,
+      availableOffline: Boolean(cachedTripRecord) || isUsingCachedTrip || offlineDataMode,
+      pendingCount: tripOfflineMutations.length,
+      failedCount: tripOfflineMutations.filter((mutation) => mutation.status === "failed").length,
+      conflictCount: tripOfflineMutations.filter((mutation) => mutation.status === "conflict").length,
+      syncing: offlineSync.syncing,
+      cachedAt: cachedTripRecord?.cachedAt ?? null
+    }),
+    [
+      cachedTripRecord,
+      isUsingCachedTrip,
+      networkStatus.online,
+      offlineDataMode,
+      offlineSync.syncing,
+      tripOfflineMutations
+    ]
+  );
+  const commandCenterData = useMemo(
+    () =>
+      displayedTrip
+        ? buildTripCommandCenterData({
+            trip: displayedTrip,
+            health: tripHealthQuery.data ?? null,
+            budgetSummary: budgetSummaryQuery.data ?? cachedBudgetSummary ?? null,
+            availability: availabilitySummaryQuery.data ?? null,
+            checklist: checklistQuery.data ?? null,
+            reminders: remindersQuery.data ?? null,
+            expenseSummary: expenseSummaryQuery.data ?? null,
+            settlements: settlementsQuery.data ?? null,
+            approval: tripApprovalQuery.data ?? null,
+            policyEvaluation: policyEvaluation.query.data ?? null,
+            approvalRisk: approvalRiskQuery.data ?? null,
+            activity: recentActivityQuery.data?.items ?? null,
+            polls: pollsSummaryQuery.data ?? null,
+            generationJobs: generationJobsQuery.data ?? null,
+            offlineStatus: commandCenterOfflineStatus,
+            userAccess: {
+              canEdit: Boolean(displayedTrip.access?.canEdit ?? true) && onlineActionsEnabled,
+              canCollaborate: canUsePrivateCollaboration,
+              canView: true,
+              currentUserId
+            }
+          })
+        : null,
+    [
+      approvalRiskQuery.data,
+      availabilitySummaryQuery.data,
+      budgetSummaryQuery.data,
+      cachedBudgetSummary,
+      canUsePrivateCollaboration,
+      checklistQuery.data,
+      commandCenterOfflineStatus,
+      currentUserId,
+      displayedTrip,
+      expenseSummaryQuery.data,
+      generationJobsQuery.data,
+      onlineActionsEnabled,
+      policyEvaluation.query.data,
+      pollsSummaryQuery.data,
+      recentActivityQuery.data?.items,
+      remindersQuery.data,
+      settlementsQuery.data,
+      tripApprovalQuery.data,
+      tripHealthQuery.data
+    ]
+  );
+
+  useEffect(() => {
+    if (!displayedTrip || typeof window === "undefined") {
+      return;
+    }
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    scrollToTabAnchor(tab);
+  }, [displayedTrip?.id]);
 
   useEffect(() => {
     const shouldLoadCachedTrip =
@@ -2075,6 +2199,7 @@ export function TripDetailPageContent() {
             budgetLoading={onlineActionsEnabled && budgetSummaryQuery.isLoading}
             budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
             canMutateTrip={canMutateTrip}
+            navigationGroups={commandCenterData?.navigationGroups}
             onOpenBudgetOptimization={openBudgetOptimization}
             optimizationDisabled={
               isEditing || createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
@@ -2142,6 +2267,19 @@ export function TripDetailPageContent() {
               <div className="rounded-[14px] border border-[#E5C3B6] bg-[#FBF0EB] p-4 text-[14px] text-[#B3402E]">
                 {availabilityApplyError}
               </div>
+            ) : null}
+
+            {commandCenterData ? (
+              <TripCommandCenter
+                approval={tripApprovalQuery.data ?? null}
+                data={commandCenterData}
+                health={tripHealthQuery.data ?? null}
+                offlineStatus={commandCenterOfflineStatus}
+                onSyncNow={offlineSync.syncNow}
+                syncing={offlineSync.syncing}
+                trip={trip}
+                workspaceName={workspaceName}
+              />
             ) : null}
 
             {canUsePrivateCollaboration && onlineActionsEnabled ? (

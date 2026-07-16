@@ -6,6 +6,7 @@ import { PlusIcon } from "./icons";
 import type { BudgetSummary } from "@/entities/budget/model";
 import type { TripTraveler } from "@/entities/cost-splitting/model";
 import type { Trip } from "@/entities/trip/model";
+import type { NavigationGroup } from "@/types/trip-command-center";
 
 const AVATAR_COLORS = [
   "bg-[#3E6B5A] text-[#EFF5F1]",
@@ -21,6 +22,7 @@ type TripDetailSidebarProps = {
   budgetCurrency: string;
   budgetLoading: boolean;
   canMutateTrip: boolean;
+  navigationGroups?: NavigationGroup[];
   optimizationDisabled: boolean;
   onOpenBudgetOptimization: (dayNumber: number) => void;
   perPersonAverage?: { amount: number; currency: string } | null;
@@ -40,6 +42,7 @@ export function TripDetailSidebar({
   budgetCurrency,
   budgetLoading,
   canMutateTrip,
+  navigationGroups,
   optimizationDisabled,
   onOpenBudgetOptimization,
   perPersonAverage,
@@ -59,7 +62,7 @@ export function TripDetailSidebar({
 
   return (
     <aside className="flex flex-col gap-6 lg:sticky lg:top-[84px]">
-      <SectionNav tripId={tripId} />
+      <SectionNav navigationGroups={navigationGroups} tripId={tripId} />
 
       <BudgetSummaryCard
         summary={budgetSummary}

@@ -45,6 +45,19 @@
     "logout": "Cerrar sesión", "account": "Cuenta", "signedInAs": "Sesión iniciada como",
     "yourAccount": "Tu cuenta"
   },
+  "commandCenter": {
+    "overview": "Resumen", "commandCenter": "Centro de control", "nextBestAction": "Siguiente mejor acción",
+    "whyThisMatters": "Por qué importa", "topFixes": "Correcciones principales", "tripReadiness": "Preparación del viaje",
+    "routeTransport": "Ruta y transporte", "budget": "Presupuesto", "groupReadiness": "Preparación del grupo",
+    "checklistReminders": "Lista y recordatorios", "expensesSettlements": "Gastos y liquidaciones",
+    "approvalPolicy": "Aprobación y política", "recentActivity": "Actividad reciente", "offlineStatus": "Estado sin conexión",
+    "ready": "Listo", "almostReady": "Casi listo", "needsAttention": "Requiere atención", "blocked": "Bloqueado",
+    "openItinerary": "Abrir itinerario", "fixTransport": "Corregir transporte", "reviewBudget": "Revisar presupuesto",
+    "requestAvailability": "Solicitar disponibilidad", "completeChecklist": "Completar lista", "openExpenses": "Abrir gastos",
+    "syncNow": "Sincronizar ahora", "tripLooksReady": "El viaje parece listo", "noUrgentActions": "Sin acciones urgentes",
+    "viewAllIssues": "Ver todos los problemas", "plan": "Plan", "prepare": "Preparar", "money": "Dinero",
+    "team": "Equipo", "control": "Control"
+  },
   "auth": {
     "email": "Correo electrónico", "password": "Contraseña", "login": "Iniciar sesión",
     "register": "Crear cuenta", "tagline": "Todo gran viaje empieza con una sola idea.",

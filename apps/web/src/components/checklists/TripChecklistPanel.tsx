@@ -162,7 +162,7 @@ export function TripChecklistPanel({
 
   if (!enabled && !offline) {
     return (
-      <Card>
+      <Card id="checklist" className="scroll-mt-24">
         <h2 className="text-lg font-semibold text-slate-950">{t("title")}</h2>
         <p className="mt-2 text-sm text-slate-600">{t("onlineOnly")}</p>
       </Card>
@@ -388,7 +388,7 @@ export function TripChecklistPanel({
   }
 
   return (
-    <Card>
+    <Card id="checklist" className="scroll-mt-24">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>

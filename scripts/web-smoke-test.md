@@ -267,6 +267,32 @@ Use local Grafana credentials `admin` / `admin`.
 13. Open the public share for the same trip and confirm receipt controls,
     receipt metadata, and receipt files are not exposed.
 
+## Trip Command Center Manual Flow
+
+1. Open a private trip detail page.
+2. Confirm the Overview / Trip Command Center is the first trip detail section.
+3. Confirm the health score, approval/offline badges when applicable, and the
+   Next best action are visible.
+4. Confirm readiness cards are visible for health, route/transport, budget,
+   group readiness, checklist/reminders, expenses/settlements, approval/policy
+   for workspace trips, recent activity, and offline status.
+5. Click a top fix and confirm it opens the correct existing section.
+6. For a trip with a missing route-leg transport option, attach a transport
+   option, return to Overview, and confirm the next action or route card updates.
+7. Create or leave a high-priority checklist item incomplete and confirm the
+   Checklist & Reminders card updates; then complete it and confirm progress
+   changes.
+8. Add or simulate a budget issue and confirm the Budget card shows attention
+   and links to the Budget section.
+9. Switch through grouped navigation sections: Plan, Prepare, Money, Team, and
+   Control.
+10. Open legacy links such as `?tab=budget`, `?tab=route`, `?tab=health`, and
+    `?tab=approval` and confirm they land on the matching section.
+11. Test a mobile viewport and confirm the grouped navigation and cards remain
+    readable without overlap.
+12. Open a public share for the same trip and confirm private command-center
+    data is not exposed.
+
 ## Queue Worker Recovery
 
 1. With the stack running, stop only the worker:
