@@ -117,6 +117,12 @@ var typeToCategory = map[string]string{
 	notifications.TypeReminderAssigned:            CategoryChecklistReminders,
 	notifications.TypeExpenseAdded:                CategoryCollaboration,
 	notifications.TypeSettlementPaid:              CategoryCollaboration,
+	notifications.TypeGroupReadinessNudge:         CategoryCollaboration,
+	notifications.TypeAvailabilityNudge:           CategoryCollaboration,
+	notifications.TypePollVoteNudge:               CategoryCollaboration,
+	notifications.TypeSettlementNudge:             CategoryCollaboration,
+	notifications.TypeChecklistNudge:              CategoryChecklistReminders,
+	notifications.TypeReminderTaskNudge:           CategoryChecklistReminders,
 }
 
 // CategoryForNotificationType maps a notification type to its preference

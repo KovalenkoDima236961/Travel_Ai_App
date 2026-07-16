@@ -66,6 +66,7 @@ notification streams, and calendar OAuth calls.
 | Trip discovery | Create Trip has known-destination and AI discovery modes with prompt chips, Surprise Me, refinements, route suggestions, confirmation, and optional itinerary generation. |
 | Decisions | Trip detail has a Decisions section for polls, editable votes, item reactions, group preference summaries, and trip-linked discovery suggestion voting. |
 | Trip health | Trip detail shows a private readiness badge, score panel, category summary, top fixes, and filterable consistency issues from Trip Service health checks. |
+| Group readiness | Trip detail shows private group readiness, per-collaborator blockers, category progress, top actions, and owner/editor nudge controls from Trip Service. |
 | Templates | Save trips as private/workspace templates, browse the template library, preview itinerary structure, create new trips from templates, and adapt templates to a new destination with AI. |
 | Workspaces | Workspace switcher, create/list/settings pages, member invites/roles/removal, pending invitations, workspace trip filtering. |
 | Collaboration | Invite registered users, viewer/editor roles, pending invitations, shared trips. |
@@ -153,6 +154,41 @@ evaluation, approval actions, and place review updates.
 Health output is advisory. The UI links users back to existing trip sections to
 fix issues, but it does not auto-apply route, budget, checklist, reminder,
 expense, policy, or approval changes.
+
+## Group Readiness
+
+Private trip detail pages call `GET /trips/{id}/group-readiness` through
+`src/lib/api/group-readiness.ts` and `useGroupReadiness`. The Group Readiness
+panel shows the group score, readiness level, category progress, top actions,
+and a collaborator table with each member's open items, completed items, and
+next action.
+
+Owners and editors can send nudges from the panel. The UI uses
+`useSendGroupReadinessNudge` and the Trip Service nudge routes for missing
+availability, assigned checklist/reminder work, pending votes, and pending
+settlements. Successful nudges invalidate group readiness, activity, and
+notification queries so the trip page and header bell update from backend
+state.
+
+Frontend contracts live in:
+
+- `src/types/group-readiness.ts`
+- `src/lib/api/group-readiness.ts`
+- `src/hooks/useGroupReadiness.ts`
+- `src/hooks/useSendGroupReadinessNudge.ts`
+- `src/components/group-readiness/*`
+
+The Trip Command Center consumes the same response for its group readiness card
+and can promote the backend top action into the next best action list. Readiness
+queries refresh after availability, poll, checklist, reminder, expense,
+settlement, and approval-related data changes. Public share pages do not call or
+render group readiness, and offline private views can show only previously
+cached surrounding trip data, not send nudges.
+
+Group readiness is advisory. It helps collaborators see who still needs to act,
+but it does not vote for users, complete assignments, settle payments, approve
+workspace trips, mutate itineraries, or expose private comments/calendar event
+details.
 
 ## Budget Confidence
 
@@ -548,6 +584,7 @@ traveler management and split-rule writes require the online private API.
 | Itinerary writes | `PUT /trips/{id}/itinerary`, version restore, day/item regeneration compatibility routes |
 | Collaboration | `/trips/{id}/collaborators`, `/collaboration/invitations` |
 | Decisions | `/trips/{id}/polls*`, `/trips/{id}/itinerary/reactions*`, `GET /trips/{id}/group-preferences`, `/trip-discovery/sessions/{sessionId}/votes` |
+| Group readiness | `GET /trips/{id}/group-readiness`, `POST /trips/{id}/group-readiness/nudge*` |
 | Presence and locks | `/trips/{id}/presence/*`, `/trips/{id}/edit-lock` |
 | Comments and activity | `/trips/{id}/comments*`, `/trips/{id}/activity*` |
 | Sharing | `/trips/{id}/share`, `/public/trips/{shareToken}/*` |

@@ -42,6 +42,7 @@ import { OptimizeDayOrderDialog } from "@/features/itinerary-optimization";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { ExpensesPanel } from "@/components/expenses";
+import { GroupReadinessPanel } from "@/components/group-readiness";
 import { TripHealthPanel } from "@/components/trip-health";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { TripChecklistPanel } from "@/components/checklists";
@@ -87,6 +88,7 @@ import { buildCommentCountMap } from "@/entities/comment/model";
 import { getWeatherForecast, weatherKeys } from "@/lib/api/weather";
 import { workspacePolicyKeys } from "@/lib/api/workspace-policies";
 import { tripHealthKeys } from "@/lib/api/trip-health";
+import { groupReadinessKeys } from "@/lib/api/group-readiness";
 import {
   toExportDistanceSummary,
   toExportTripFromPrivateTrip,
@@ -105,6 +107,7 @@ import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
 import { useTripHealth } from "@/hooks/useTripHealth";
+import { useGroupReadiness } from "@/hooks/useGroupReadiness";
 import { useBudgetConfidence } from "@/hooks/useBudgetConfidence";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
 import { useTripExpenseSummary } from "@/hooks/useTripExpenseSummary";
@@ -546,6 +549,10 @@ export function TripDetailPageContent() {
   const tripHealthQuery = useTripHealth(tripId, {
     enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess) && canUsePrivateCollaboration
   });
+  const groupReadinessQuery = useGroupReadiness(
+    tripId,
+    onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess) && canUsePrivateCollaboration
+  );
   const checklistQuery = useTripChecklist(tripId, {
     enabled:
       onlineActionsEnabled &&
@@ -612,6 +619,24 @@ export function TripDetailPageContent() {
     enabled: canComment && Boolean(tripId),
     staleTime: 60 * 1000
   });
+  useEffect(() => {
+    if (!tripId || !onlineActionsEnabled || !canUsePrivateCollaboration) {
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: groupReadinessKeys.detail(tripId) });
+  }, [
+    availabilitySummaryQuery.dataUpdatedAt,
+    checklistQuery.dataUpdatedAt,
+    expenseSummaryQuery.dataUpdatedAt,
+    onlineActionsEnabled,
+    pollsSummaryQuery.dataUpdatedAt,
+    queryClient,
+    remindersQuery.dataUpdatedAt,
+    settlementsQuery.dataUpdatedAt,
+    tripApprovalQuery.dataUpdatedAt,
+    tripId,
+    canUsePrivateCollaboration
+  ]);
   const commentsEnabled =
     onlineActionsEnabled &&
     Boolean(tripId) &&
@@ -788,6 +813,7 @@ export function TripDetailPageContent() {
             approvalRisk: approvalRiskQuery.data ?? null,
             activity: recentActivityQuery.data?.items ?? null,
             polls: pollsSummaryQuery.data ?? null,
+            groupReadiness: groupReadinessQuery.data ?? null,
             generationJobs: generationJobsQuery.data ?? null,
             offlineStatus: commandCenterOfflineStatus,
             userAccess: {
@@ -811,6 +837,7 @@ export function TripDetailPageContent() {
       displayedTrip,
       expenseSummaryQuery.data,
       generationJobsQuery.data,
+      groupReadinessQuery.data,
       onlineActionsEnabled,
       policyEvaluation.query.data,
       pollsSummaryQuery.data,
@@ -2312,6 +2339,16 @@ export function TripDetailPageContent() {
                 error={tripHealthQuery.error instanceof Error ? tripHealthQuery.error : null}
                 health={tripHealthQuery.data ?? null}
                 loading={tripHealthQuery.isLoading}
+              />
+            ) : null}
+
+            {canUsePrivateCollaboration && onlineActionsEnabled ? (
+              <GroupReadinessPanel
+                canNudge={Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled}
+                error={groupReadinessQuery.error instanceof Error ? groupReadinessQuery.error : null}
+                loading={groupReadinessQuery.isLoading}
+                readiness={groupReadinessQuery.data ?? null}
+                tripId={trip.id}
               />
             ) : null}
 

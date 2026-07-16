@@ -294,6 +294,28 @@ Use local Grafana credentials `admin` / `admin`.
 12. Open a public share for the same trip and confirm private command-center
     data is not exposed.
 
+## Group Readiness Manual Flow
+
+1. Open a private trip with at least one accepted collaborator.
+2. Confirm the Group Readiness panel appears on trip detail and the Overview
+   readiness card links back to it.
+3. Before all collaborators have responded, confirm the score, readiness level,
+   category summary, and per-collaborator rows show missing availability, open
+   required votes, assigned checklist/reminder work, or pending settlements when
+   those signals exist.
+4. As an owner/editor, send a missing availability nudge to one collaborator and
+   confirm the dialog shows sent/deduped feedback.
+5. Sign in as that collaborator and confirm an `Availability nudge` notification
+   appears without exposing private checklist, reminder, calendar, or settlement
+   details in notification metadata or copy.
+6. Try the same nudge as a viewer collaborator and confirm the action is hidden
+   or rejected by the API.
+7. Submit availability, vote on required polls, complete assigned work, and mark
+   settlements paid. Confirm the panel and Overview card refresh after each
+   related action.
+8. Open a public share for the same trip and confirm Group Readiness, nudge
+   controls, private notifications, and private activity details are not exposed.
+
 ## Queue Worker Recovery
 
 1. With the stack running, stop only the worker:

@@ -101,6 +101,23 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
     });
   }
 
+  const groupAction = input.groupReadiness?.topActions[0] ?? null;
+  if (groupAction && input.groupReadiness && input.groupReadiness.level !== "ready") {
+    candidates.push({
+      id: `group_readiness:${groupAction.id}`,
+      title: groupAction.label,
+      description: groupAction.description,
+      reason: "Group readiness needs attention",
+      severity: input.groupReadiness.level === "not_ready" ? "high" : "warning",
+      category: "group",
+      actionLabel: groupAction.label,
+      href: groupAction.href,
+      source: "group",
+      capability: groupAction.targetUserId ? "edit" : "collaborate",
+      priority: 4
+    });
+  }
+
   if (
     !trip.startDate &&
     (input.availability?.summary.totalCollaborators ?? 0) > 1
@@ -116,7 +133,7 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
       href: `/trips/${tripId}?tab=dates`,
       source: "group",
       capability: "edit",
-      priority: 4
+      priority: 5
     });
   }
 
@@ -132,7 +149,7 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
       href: `/trips/${tripId}?tab=itinerary`,
       source: "trip",
       capability: "edit",
-      priority: 5
+      priority: 6
     });
   }
 
@@ -152,7 +169,7 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
       href: `/trips/${tripId}?tab=health`,
       source: "trip_health",
       capability: "edit",
-      priority: 6
+      priority: 7
     });
   }
 
@@ -171,7 +188,7 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
       href: `/trips/${tripId}?tab=route`,
       source: "route",
       capability: "edit",
-      priority: 7
+      priority: 8
     });
   }
 
@@ -189,7 +206,7 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
       href: `/trips/${tripId}?tab=route&legId=${encodeURIComponent(missingTransportLeg.id)}`,
       source: "route",
       capability: "edit",
-      priority: 8
+      priority: 9
     });
   }
 
@@ -211,7 +228,7 @@ function buildActionCandidates(input: TripCommandCenterInput): ActionCandidate[]
       href: `/trips/${tripId}?tab=budget`,
       source: "budget",
       capability: "edit",
-      priority: 9
+      priority: 10
     });
   }
 

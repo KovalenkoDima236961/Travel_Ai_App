@@ -5,6 +5,7 @@ import type { BudgetSummary } from "@/entities/budget/model";
 import type { ChecklistViewResponse } from "@/entities/checklist/model";
 import type { ExpenseSummary, SettlementsResponse } from "@/entities/expense/model";
 import type { GenerationJob } from "@/entities/generation-job/model";
+import type { GroupReadiness } from "@/types/group-readiness";
 import type { BudgetConfidence } from "@/types/budget-confidence";
 import type { ReminderViewResponse } from "@/entities/trip-reminder/model";
 import type { Trip } from "@/entities/trip/model";
@@ -144,6 +145,7 @@ export type TripCommandCenterInput = {
   approvalRisk?: ApprovalRiskResponse | null;
   activity?: TripActivityEvent[] | null;
   polls?: TripPoll[] | null;
+  groupReadiness?: GroupReadiness | null;
   generationJobs?: GenerationJob[] | null;
   offlineStatus: OfflineCommandCenterStatus;
   userAccess: TripCommandCenterAccess;

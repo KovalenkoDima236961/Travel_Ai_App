@@ -206,6 +206,61 @@ checklist, reminder, expense, policy, or approval state, and they do not
 represent booking, legal, visa, medical, weather, payment, or compliance
 guarantees.
 
+## Collaboration Readiness & Accountability
+
+Collaboration Readiness & Accountability v1 exposes a private, deterministic
+group readiness summary through:
+
+- `GET /trips/{id}/group-readiness`
+- `POST /trips/{id}/group-readiness/nudge`
+- `POST /trips/{id}/group-readiness/nudge-missing-availability`
+- `POST /trips/{id}/group-readiness/nudge-assigned-tasks`
+- `POST /trips/{id}/group-readiness/nudge-pending-votes`
+- `POST /trips/{id}/group-readiness/nudge-pending-settlements`
+
+Owners, editors, and accepted viewers can read readiness. Only owners and
+editors can send nudges. Public share tokens, pending collaborators, removed
+collaborators, and unrelated users cannot access readiness or nudge routes.
+Query parameters:
+
+- `includeDetails=false` returns summarized issue/completion lists.
+- `includeDebug=true` includes safe subsystem failure and weight diagnostics
+  when the service allows debug output.
+
+The response includes `score` (`0`-`100`), `level` (`ready`, `almost_ready`,
+`needs_attention`, or `not_ready`), `summary`, per-member readiness, category
+summaries, top actions, and `generatedAt`. Per-member items are categorized as
+`availability`, `polls`, `checklist`, `reminders`, `settlements`, `approval`,
+or related future categories.
+
+The scoring model weights applicable signals as follows: availability 20,
+required polls 20, assigned checklist items 20, assigned reminders 15, no
+overdue assigned work 10, settlements 10, and activity 5. Activity is currently
+marked not applicable because server-side read markers do not exist in v1. Any
+not-applicable signal is removed from the denominator instead of counting
+against the member.
+
+The evaluator uses already-owned Trip Service data only. It checks missing
+availability for multi-member trips, required open polls that need votes,
+assigned incomplete or overdue checklist items, assigned pending or overdue
+reminders, pending settlements, and workspace approval changes requested from
+the owner. Optional polls are returned as informational items. Optional
+subsystem load failures are fail-soft: readiness still returns, and safe failure
+names are available only in debug output.
+
+Nudges create safe Notification Service rows using one of
+`group_readiness_nudge`, `availability_nudge`, `checklist_assignment_nudge`,
+`reminder_task_nudge`, `poll_vote_nudge`, or `settlement_nudge`. Metadata is
+limited to trip id, target user id, and categories. Trip Service records a
+single `group_readiness_nudge_sent` activity event with counts and target ids,
+dedupes repeated nudges for the same actor/target/category set for 24 hours by
+default, and caps custom dedupe windows at 168 hours.
+
+Readiness is advisory accountability, not approval or enforcement. It does not
+mutate trips, polls, availability, checklist items, reminders, settlements,
+expenses, itinerary revisions, approvals, bookings, payments, or legal/travel
+requirements.
+
 ## Budget Accuracy & Confidence
 
 Budget Accuracy & Confidence Engine v1 exposes a deterministic, read-only
@@ -758,6 +813,7 @@ or itinerary JSON.
 | Presence and locks | `/trips/{id}/presence*`, `/trips/{id}/edit-lock` |
 | Comments | `/trips/{id}/comments`, `/trips/{id}/comments/counts`, comment update/delete |
 | Decisions | `/trips/{id}/polls*`, `/trips/{id}/itinerary/reactions*`, `GET /trips/{id}/group-preferences`, trip-linked discovery suggestion vote routes |
+| Group readiness | `GET /trips/{id}/group-readiness`, `POST /trips/{id}/group-readiness/nudge*` |
 | Activity | `GET /trips/{id}/activity`, `GET /trips/{id}/activity/stream` |
 | Sharing | `GET/POST/PATCH/DELETE /trips/{id}/share`, public share status/unlock/read routes |
 | Calendar | `GET/POST/DELETE /trips/{id}/calendar-sync/google*` |

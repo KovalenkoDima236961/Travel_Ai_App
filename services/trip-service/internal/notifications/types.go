@@ -32,6 +32,12 @@ const (
 	TypeDateOptionApplied        = "date_option_applied"
 	TypeExpenseAdded             = "expense_added"
 	TypeSettlementPaid           = "settlement_paid"
+	TypeGroupReadinessNudge      = "group_readiness_nudge"
+	TypeAvailabilityNudge        = "availability_nudge"
+	TypeChecklistAssignmentNudge = "checklist_assignment_nudge"
+	TypeReminderTaskNudge        = "reminder_task_nudge"
+	TypePollVoteNudge            = "poll_vote_nudge"
+	TypeSettlementNudge          = "settlement_nudge"
 
 	// Approval workflow.
 	TypeTripSubmittedForApproval = "trip_submitted_for_approval"

@@ -251,6 +251,32 @@ function budgetNavigationBadge(input: TripCommandCenterInput) {
 }
 
 export function buildGroupReadinessCard(input: TripCommandCenterInput): ReadinessCard {
+  if (input.groupReadiness) {
+    const readiness = input.groupReadiness;
+    const readyMembers = readiness.members.filter((member) => member.level === "ready").length;
+    const attentionMembers = readiness.members.length - readyMembers;
+    const topAction = readiness.topActions[0] ?? null;
+    return {
+      id: "group",
+      title: "Group Readiness",
+      status: readiness.level === "not_ready" ? "blocked" : readiness.level,
+      score: readiness.score,
+      summary: readiness.summary,
+      detail:
+        topAction?.description ??
+        (attentionMembers > 0 ? `${attentionMembers} collaborator(s) need attention.` : null),
+      metrics: [
+        { label: "Ready", value: `${readyMembers}/${readiness.members.length}` },
+        { label: "Attention", value: String(attentionMembers) },
+        { label: "Actions", value: String(readiness.topActions.length) }
+      ],
+      primaryAction: {
+        label: topAction?.label ?? "Open Group Readiness",
+        href: topAction?.href ?? "#group-readiness"
+      },
+      secondaryAction: { label: "Open Group Readiness", href: "#group-readiness" }
+    };
+  }
   const collaborators = input.availability?.summary.totalCollaborators ?? input.trip.travelers;
   if (collaborators <= 1 && !input.trip.workspaceId) {
     return {

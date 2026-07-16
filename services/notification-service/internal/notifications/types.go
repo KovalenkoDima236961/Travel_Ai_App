@@ -29,6 +29,12 @@ const (
 	TypeReminderAssigned      = "reminder_assigned"
 	TypeExpenseAdded          = "expense_added"
 	TypeSettlementPaid        = "settlement_paid"
+	TypeGroupReadinessNudge   = "group_readiness_nudge"
+	TypeAvailabilityNudge     = "availability_nudge"
+	TypeChecklistNudge        = "checklist_assignment_nudge"
+	TypeReminderTaskNudge     = "reminder_task_nudge"
+	TypePollVoteNudge         = "poll_vote_nudge"
+	TypeSettlementNudge       = "settlement_nudge"
 
 	// Budget optimization.
 	TypeBudgetOptimizationReady  = "budget_optimization_ready"
@@ -97,6 +103,12 @@ var knownTypes = map[string]struct{}{
 	TypeReminderAssigned:            {},
 	TypeExpenseAdded:                {},
 	TypeSettlementPaid:              {},
+	TypeGroupReadinessNudge:         {},
+	TypeAvailabilityNudge:           {},
+	TypeChecklistNudge:              {},
+	TypeReminderTaskNudge:           {},
+	TypePollVoteNudge:               {},
+	TypeSettlementNudge:             {},
 	TypeBudgetOptimizationReady:     {},
 	TypeBudgetOptimizationFailed:    {},
 	TypeWorkspaceBudgetCreated:      {},

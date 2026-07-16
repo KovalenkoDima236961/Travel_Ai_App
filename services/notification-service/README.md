@@ -137,7 +137,9 @@ Preference categories:
 Default behavior enables in-app and push for all categories, enables email for
 collaboration/comments/role changes plus key workspace invitations/member
 changes plus due pre-trip reminders, and disables email for noisy trip updates
-and checklist assignment reminders by default.
+and checklist assignment reminders by default. Group readiness nudges use the
+collaboration category except checklist/reminder task nudges, which use
+`checklist_reminders`.
 
 ## Notification Types
 
@@ -154,6 +156,18 @@ Current known types include:
 - `item_regenerated`
 - `version_restored`
 - `generation_job_failed`
+- `date_option_applied`
+- `availability_requested`
+- `pre_trip_reminder_due`
+- `reminder_assigned`
+- `expense_added`
+- `settlement_paid`
+- `group_readiness_nudge`
+- `availability_nudge`
+- `checklist_assignment_nudge`
+- `reminder_task_nudge`
+- `poll_vote_nudge`
+- `settlement_nudge`
 - `budget_optimization_ready`
 - `budget_optimization_failed`
 - `workspace_budget_created`
@@ -172,8 +186,6 @@ Current known types include:
 - `trip_changes_requested`
 - `trip_approval_cancelled`
 - `trip_approval_reset_to_draft`
-- `pre_trip_reminder_due`
-- `reminder_assigned`
 
 Workspace invitations and accepted/declined events use the `collaboration`
 category, role/removal events use `role_changes`, and optional workspace trip
@@ -184,9 +196,10 @@ approval types (`trip_submitted_for_approval`, `trip_approved`,
 `tripId`, `workspaceId`, and `approvalStatus` in metadata. Email templates link
 workspace invites to `/workspace-invitations`, role changes to
 `/workspaces/{workspaceId}`, and never include secrets or full metadata.
-Reminder templates link back to the trip, include only the trip/reminder title
-and short safe message, and do not include full itineraries, private notes,
-legal/visa/medical guarantees, or booking confirmations.
+Reminder and group readiness nudge templates link back to the trip, include only
+the trip/reminder title and short safe message, and do not include full
+itineraries, private notes, calendar event details, legal/visa/medical
+guarantees, settlement payment data, or booking confirmations.
 
 Unknown types are accepted for forward compatibility. They are allowed in-app by
 default, but are not emailed or pushed unless policy explicitly allows them.

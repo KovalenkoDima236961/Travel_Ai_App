@@ -64,6 +64,14 @@ into one next best action, top fixes, readiness cards, recent activity, offline
 sync status, and grouped navigation without adding a new service or replacing
 Trip Health scoring.
 
+Collaboration Readiness & Accountability v1 adds a private group readiness score
+across collaborator availability, required polls, assigned checklist items,
+assigned reminders, overdue work, pending settlements, and workspace approval
+changes. Trip Service exposes `GET /trips/{id}/group-readiness` plus owner/editor
+nudge endpoints, the Web App shows per-collaborator accountability in trip
+detail and the Command Center, and Notification Service delivers safe readiness
+nudge notifications without exposing private trip content.
+
 ## System Map
 
 ```mermaid
@@ -175,6 +183,11 @@ Key product capabilities:
   trip polls; owners, editors, and accepted viewers can vote/react; group
   preferences guide regeneration, repair, budget optimization, discovery, and
   route planning without automatically applying winning choices.
+- Collaboration Readiness & Accountability v1: private trip users can see a
+  deterministic group readiness score, per-collaborator blockers, category
+  summaries, and top actions across availability, required votes, assignments,
+  reminders, settlements, and approval status. Owners/editors can send deduped
+  nudges to specific collaborators; viewers and public share visitors cannot.
 - Smart Packing & Preparation Checklist v1: owners/editors can generate an
   AI-assisted private trip checklist from itinerary, route, weather, budget,
   traveler, and preference context; add/manual-edit items; assign collaborators;

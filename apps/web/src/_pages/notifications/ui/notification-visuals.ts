@@ -45,6 +45,12 @@ const VISUALS: Record<NotificationType, NotificationVisual> = {
   collaboration_accepted: { Icon: UserGroupIcon, tileClassName: GREEN },
   collaborator_role_changed: { Icon: UserGroupIcon, tileClassName: GREEN },
   collaborator_removed: { Icon: UserGroupIcon, tileClassName: GREEN },
+  group_readiness_nudge: { Icon: UserGroupIcon, tileClassName: GREEN },
+  availability_nudge: { Icon: UserGroupIcon, tileClassName: GREEN },
+  checklist_assignment_nudge: { Icon: UserGroupIcon, tileClassName: GREEN },
+  reminder_task_nudge: { Icon: UserGroupIcon, tileClassName: GREEN },
+  poll_vote_nudge: { Icon: UserGroupIcon, tileClassName: GREEN },
+  settlement_nudge: { Icon: UserGroupIcon, tileClassName: GREEN },
 
   // Workspace membership.
   workspace_invited: { Icon: UserGroupIcon, tileClassName: CLAY },

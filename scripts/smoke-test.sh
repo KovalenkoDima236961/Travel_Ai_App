@@ -3093,6 +3093,70 @@ assert_2xx "Viewer get budget confidence"
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${COLLAB_ACCESS_TOKEN}" '{"budget":{"amount":1000,"currency":"EUR"}}'
 assert_status "Viewer update budget" "403"
 
+echo "Checking group readiness summary and owner/editor nudge flow..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness?includeDetails=true" "${ACCESS_TOKEN}"
+assert_2xx "Owner get group readiness"
+if ! jq -e --arg id "${TRIP_ID}" --arg owner "${OWNER_USER_ID}" --arg collab "${COLLAB_USER_ID}" '
+  .tripId == $id
+  and (.score | type == "number")
+  and .score >= 0
+  and .score <= 100
+  and (.level as $level | ["ready", "almost_ready", "needs_attention", "not_ready"] | index($level) != null)
+  and (.summary | type == "string")
+  and (.generatedAt | type == "string")
+  and (.members | length) >= 2
+  and (.members | any(.userId == $owner))
+  and (.members | any(.userId == $collab))
+  and (.categorySummary | any(.category == "availability" and .openIssueCount >= 1))
+  and (.topActions | type == "array")
+  and ([.members[].items[]? | select(.category == "availability" and .status == "missing")] | length) >= 1
+' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Group readiness response was not shaped as expected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness?includeDetails=false" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Viewer get group readiness"
+
+READINESS_NUDGE_PAYLOAD="$(
+  jq -nc --arg target "${COLLAB_USER_ID}" '{
+    targetUserIds:[$target],
+    message:"Please add availability for the smoke trip.",
+    dedupeWindowHours:24
+  }'
+)"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness/nudge-missing-availability" "${ACCESS_TOKEN}" "${READINESS_NUDGE_PAYLOAD}"
+assert_2xx "Owner nudge missing availability"
+if ! jq -e --arg target "${COLLAB_USER_ID}" '
+  .sentCount == 1
+  and .skippedCount == 0
+  and .dedupedCount == 0
+  and (.targetUserIds | index($target) != null)
+  and (.categories | index("availability") != null)
+  and .dedupeWindowHours == 24
+' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Readiness availability nudge response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Collaborator availability nudge notification" "${COLLAB_ACCESS_TOKEN}" "availability_nudge"
+
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness/nudge-missing-availability" "${ACCESS_TOKEN}" "${READINESS_NUDGE_PAYLOAD}"
+assert_2xx "Owner nudge missing availability deduped"
+if ! jq -e '.sentCount == 0 and .dedupedCount >= 1 and (.categories | index("availability") != null)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Readiness nudge dedupe response was unexpected." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/activity?limit=20" "${ACCESS_TOKEN}"
+assert_2xx "Group readiness nudge activity"
+assert_activity_has "Group readiness nudge activity" "group_readiness_nudge_sent"
+
+VIEWER_READINESS_NUDGE_PAYLOAD="$(jq -nc --arg target "${OWNER_USER_ID}" '{targetUserIds:[$target],categories:["availability"]}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness/nudge" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_READINESS_NUDGE_PAYLOAD}"
+assert_status "Viewer group readiness nudge" "403"
+
 echo "Checking accepted viewer can read but cannot mutate cost splitting..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/travelers" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer list cost-split travelers"
@@ -3893,6 +3957,8 @@ request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/items/$
 assert_status "Public share checklist check access" "401"
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/health" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_status "Public share trip health access" "401"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness" "${PUBLIC_SHARE_ACCESS_TOKEN}"
+assert_status "Public share group readiness access" "401"
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_status "Public share budget confidence access" "401"
 
@@ -4368,6 +4434,8 @@ assert_status "Second user check first user's checklist item" "404"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/health" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's trip health" "404"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user fetch first user's group readiness" "404"
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's budget confidence" "404"
 
