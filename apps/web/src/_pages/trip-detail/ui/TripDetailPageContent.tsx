@@ -48,7 +48,7 @@ import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { TripChecklistPanel } from "@/components/checklists";
 import { TripRemindersPanel } from "@/components/trip-reminders";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
-import { RouteSummaryCard } from "@/components/routes/RouteSummaryCard";
+import { RouteBuilderPanel } from "@/components/route-builder";
 import { RouteAlternativesPanel } from "@/components/route-alternatives";
 import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
 import { AvailabilityPanel } from "@/components/trip-availability";
@@ -2382,24 +2382,23 @@ export function TripDetailPageContent() {
             {trip.status === "COMPLETED" && trip.itinerary ? (
               <div className="flex flex-col gap-4">
                 <section id="route" className="scroll-mt-24 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <RouteSummaryCard
-                      canEditTransport={canMutateTrip}
-                      route={trip.route}
-                      currency={trip.budgetCurrency}
-                      expectedItineraryRevision={trip.itineraryRevision}
+                  <div className="space-y-3">
+                    <RouteBuilderPanel
+                      canEdit={canEditTripAccess}
+                      health={tripHealthQuery.data ?? null}
                       online={onlineActionsEnabled}
-                      travelers={trip.travelers}
-                      tripId={trip.id}
+                      trip={trip}
                     />
                     {canMutateTrip ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => setRouteAlternativesOpen((open) => !open)}
-                      >
-                        {routeAlternativesOpen ? "Hide route options" : "Find better routes"}
-                      </Button>
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setRouteAlternativesOpen((open) => !open)}
+                        >
+                          {routeAlternativesOpen ? "Hide route options" : "Find better routes"}
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
                   {routeAlternativesOpen ? (
@@ -2684,24 +2683,23 @@ export function TripDetailPageContent() {
             {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
               <div className="flex flex-col gap-4">
                 <section id="route" className="scroll-mt-24 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <RouteSummaryCard
-                      canEditTransport={canMutateTrip}
-                      currency={trip.budgetCurrency}
-                      expectedItineraryRevision={trip.itineraryRevision}
+                  <div className="space-y-3">
+                    <RouteBuilderPanel
+                      canEdit={canEditTripAccess}
+                      health={tripHealthQuery.data ?? null}
                       online={onlineActionsEnabled}
-                      route={trip.route}
-                      travelers={trip.travelers}
-                      tripId={trip.id}
+                      trip={trip}
                     />
                     {canMutateTrip ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => setRouteAlternativesOpen((open) => !open)}
-                      >
-                        {routeAlternativesOpen ? "Hide route options" : "Find better routes"}
-                      </Button>
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setRouteAlternativesOpen((open) => !open)}
+                        >
+                          {routeAlternativesOpen ? "Hide route options" : "Find better routes"}
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
                   {routeAlternativesOpen ? (

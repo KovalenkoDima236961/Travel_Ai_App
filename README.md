@@ -273,6 +273,13 @@ Key product capabilities:
   transfer days/items in mock and Ollama modes, trip detail shows route overview
   and approximate map lines, and budget/policy/risk/public-share paths consume
   route data where practical. Estimates are not live schedules or bookings.
+- Route Builder UX Polish v1: private and public trip views now use a visual
+  route timeline with stop/day mapping, inline route/transport/itinerary
+  warnings, selected transport summaries, route metrics, and sanitized
+  read-only public rendering. Owners/editors can reorder stops by drag or
+  keyboard controls, review deterministic route-change impacts before the
+  existing revision-aware save, and keep cached route/transport data visible
+  offline while all editing and search actions are disabled.
 - Route Alternatives & Comparison v1: the create trip flow and trip detail route
   overview can request AI route alternatives, compare scored options, refine the
   set, create/apply a selected route only after explicit confirmation, and create

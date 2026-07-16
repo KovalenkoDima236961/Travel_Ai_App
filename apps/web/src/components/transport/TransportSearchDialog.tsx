@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   SearchRouteLegTransportInput,
   TransportModeValue,
@@ -18,6 +18,8 @@ type Props = {
   currency: string;
   travelers?: number;
   defaultModes: TransportModeValue[];
+  defaultDate?: string;
+  defaultTime?: string;
   options: TransportOption[];
   summary?: TransportSearchSummary | null;
   loading?: boolean;
@@ -37,6 +39,8 @@ export function TransportSearchDialog({
   currency,
   travelers = 1,
   defaultModes,
+  defaultDate = "",
+  defaultTime = "",
   options,
   summary,
   loading = false,
@@ -51,8 +55,8 @@ export function TransportSearchDialog({
     [defaultModes]
   );
   const [modes, setModes] = useState<TransportModeValue[]>(initialModes);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [date, setDate] = useState(defaultDate);
+  const [time, setTime] = useState(defaultTime);
   const [timePreference, setTimePreference] = useState<TransportTimePreference | "">("depart_after");
   const [travelerCount, setTravelerCount] = useState(String(travelers));
   const [searchCurrency, setSearchCurrency] = useState(currency);
@@ -60,6 +64,15 @@ export function TransportSearchDialog({
   const [maxPrice, setMaxPrice] = useState("");
   const [sortBy, setSortBy] = useState<"recommended" | "fastest" | "cheapest" | "fewest_transfers">("recommended");
   const sortedOptions = useMemo(() => sortOptions(options, sortBy), [options, sortBy]);
+  const groupedOptions = useMemo(() => groupOptionsByMode(sortedOptions), [sortedOptions]);
+
+  useEffect(() => {
+    if (open) {
+      setDate(defaultDate);
+      setTime(defaultTime);
+      setModes(initialModes);
+    }
+  }, [defaultDate, defaultTime, initialModes, open]);
 
   if (!open) {
     return null;
@@ -89,8 +102,8 @@ export function TransportSearchDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 px-4 py-8" role="dialog" aria-modal="true">
-      <div className="w-full max-w-4xl rounded-lg bg-[#FFFDFA] p-5 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-0 sm:px-4 sm:py-8" role="dialog" aria-modal="true">
+      <div className="min-h-full w-full max-w-4xl bg-[#FFFDFA] p-5 shadow-xl sm:min-h-0 sm:rounded-lg">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#A08D78]">
@@ -226,7 +239,7 @@ export function TransportSearchDialog({
           </div>
         ) : null}
 
-        <div className="mt-4">
+        <div className="mt-4 hidden md:block">
           <CompareTransportModesTable options={options} />
         </div>
 
@@ -245,15 +258,24 @@ export function TransportSearchDialog({
           </div>
         ) : null}
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {sortedOptions.map((option) => (
-            <TransportOptionCard
-              disabled={Boolean(selectingOptionId)}
-              key={option.id}
-              option={option}
-              selecting={selectingOptionId === option.id}
-              onSelect={onSelect}
-            />
+        <div className="mt-4 space-y-5">
+          {groupedOptions.map((group) => (
+            <section key={group.mode}>
+              <h4 className="mb-2 text-[12.5px] font-semibold uppercase tracking-[0.08em] text-[#A08D78]">
+                {transportModeOptions.find((option) => option.value === group.mode)?.label ?? group.mode}
+              </h4>
+              <div className="grid gap-3 md:grid-cols-2">
+                {group.options.map((option) => (
+                  <TransportOptionCard
+                    disabled={Boolean(selectingOptionId)}
+                    key={option.id}
+                    option={option}
+                    selecting={selectingOptionId === option.id}
+                    onSelect={onSelect}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
         {!loading && options.length === 0 ? (
@@ -297,4 +319,12 @@ function confidenceRank(confidence: string) {
     default:
       return 1;
   }
+}
+
+function groupOptionsByMode(options: TransportOption[]) {
+  const groups = new Map<TransportModeValue, TransportOption[]>();
+  for (const option of options) {
+    groups.set(option.mode, [...(groups.get(option.mode) ?? []), option]);
+  }
+  return Array.from(groups, ([mode, grouped]) => ({ mode, options: grouped }));
 }

@@ -39,6 +39,10 @@ export function AttachTransportOptionDialog({ option, pending = false, error, on
         <div className="mt-4">
           <TransportOptionCard disabled selecting={pending} option={option} onSelect={onConfirm} />
         </div>
+        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] leading-5 text-amber-900">
+          Attaching this option updates route timing and transport estimates. Budget confidence,
+          reminders, approval risk, and Trip Health may be recalculated.
+        </p>
         {error ? (
           <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[13px] font-medium text-red-700">
             {error}

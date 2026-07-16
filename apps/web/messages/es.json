@@ -35,7 +35,9 @@
     "doesNotBook": "Esto no reserva nada", "requiresInternet": "Esta acción requiere internet",
     "noOptionsFound": "No se encontraron opciones de transporte", "cheapest": "Más barato",
     "fastest": "Más rápido", "recommended": "Recomendado",
-    "fewestTransfers": "Menos transbordos"
+    "fewestTransfers": "Menos transbordos", "estimated": "Estimado", "stale": "Desactualizado",
+    "staleWarning": "Es posible que la opción ya no coincida con este tramo.", "transferCount": "{count, plural, one {# transbordo} other {# transbordos}}",
+    "notBooked": "No reservado", "openProvider": "Abrir proveedor", "removing": "Eliminando…", "selecting": "Seleccionando…"
   },
   "navigation": {
     "trips": "Viajes", "templates": "Plantillas", "workspaces": "Espacios de trabajo",
@@ -584,6 +586,38 @@
     "completeAssignedItems": "Completar asignaciones",
     "noUrgentActions": "No hay acciones urgentes"
   },
+  "route": {
+    "builder": "Constructor de ruta", "builderDescription": "Consulta paradas, traslados, servicios seleccionados y avisos del itinerario en un solo lugar.",
+    "timeline": "Cronología de la ruta", "origin": "Origen", "stopNumber": "Parada {number}",
+    "warningCount": "{count, plural, one {# aviso} other {# avisos}}", "unnamedStop": "Parada sin nombre",
+    "edit": "Editar", "remove": "Eliminar", "editStop": "Editar parada", "editStopLabel": "Editar {name}", "removeStopLabel": "Eliminar {name}",
+    "dayNumber": "Día {number}", "dayRange": "Días {first}–{last}", "nightCount": "{count, plural, one {# noche} other {# noches}}",
+    "datesNotAssigned": "Fechas sin asignar", "itineraryItemCount": "{count, plural, one {# elemento} other {# elementos}} del itinerario",
+    "transferDayCount": "{count, plural, one {# día de traslado} other {# días de traslado}}", "routeLeg": "Tramo de ruta",
+    "missingLegData": "Falta el tramo", "missingLegBetween": "Añade el traslado de {from} a {to}.", "missingTransportOption": "Falta una opción de transporte",
+    "noRouteYet": "Aún no hay ruta", "noRouteDescription": "Crea una ruta para conectar destinos y transportes.",
+    "reorderStops": "Reordenar paradas", "sortableStop": "parada de ruta ordenable", "dragOrButtonsHint": "Arrastra o usa las flechas para ordenar con el teclado.",
+    "moveStopUp": "Subir {name}", "moveStopDown": "Bajar {name}", "movedStopAnnouncement": "{name} se movió a la posición {position}.",
+    "impactPreview": "Vista previa del impacto", "impactPreviewDescription": "Revisa los datos del viaje que necesitarán atención tras guardar la ruta.",
+    "thisChangeWill": "Este cambio:", "impactRemoveTransport": "eliminará {count, plural, one {# opción seleccionada} other {# opciones seleccionadas}}",
+    "impactStaleTransport": "marcará {count, plural, one {# opción} other {# opciones}} como posiblemente desactualizada",
+    "impactItinerary": "marcará el itinerario como posiblemente desactualizado", "impactBudget": "afectará las estimaciones de presupuesto",
+    "impactReminders": "requerirá revisar o regenerar recordatorios", "impactApproval": "puede restablecer una aprobación", "impactHealth": "puede cambiar la puntuación de salud del viaje",
+    "keepEditing": "Seguir editando", "saveRouteChanges": "Guardar cambios", "saving": "Guardando…",
+    "validation": "Validación de ruta", "routeLooksGood": "La ruta está bien", "issueCount": "{count, plural, one {# problema requiere atención} other {# problemas requieren atención}}",
+    "checksPassed": "Comprobaciones superadas", "validationAdvisory": "Las comprobaciones son orientativas. Verifica horarios, tiempos y precios.",
+    "stopDays": "Días por parada", "itineraryConnection": "Conexión entre ruta e itinerario", "noAssignedDays": "Sin días asignados",
+    "metrics": "Métricas de ruta", "atAGlance": "Ruta de un vistazo", "stops": "Paradas", "legs": "Tramos", "transferTime": "Tiempo de traslado",
+    "transportCost": "Coste de transporte", "transportCoverage": "Cobertura seleccionada", "longestTransfer": "Traslado más largo", "notEstimated": "Sin estimar",
+    "intensityLabel": "Ruta {intensity}", "relaxed": "Relajada", "balanced": "Equilibrada", "intense": "Intensa",
+    "lowConfidenceLegCount": "{count, plural, one {# tramo tiene transporte estimado o de baja confianza} other {# tramos tienen transporte estimado o de baja confianza}}.",
+    "editingRequiresInternet": "Editar la ruta requiere internet.", "offlineEditingDisabled": "La edición y la búsqueda de transporte requieren internet. La copia guardada está disponible en modo lectura.",
+    "editRoute": "Editar ruta", "createRoute": "Crear ruta", "readOnly": "Solo lectura", "addStop": "Añadir parada", "legModes": "Transporte entre paradas",
+    "destination": "Destino", "city": "Ciudad", "country": "País", "arrivalDate": "Fecha de llegada", "departureDate": "Fecha de salida", "nights": "Noches", "done": "Listo",
+    "resolveValidationBeforeSaving": "Resuelve los problemas estructurales antes de guardar.", "routeConflict": "El itinerario cambió en otro lugar. Actualiza y revisa la ruta.",
+    "saveFailed": "No se pudieron guardar los cambios.", "saveBeforeTransportSearch": "Guarda o descarta el borrador antes de buscar transporte.",
+    "unsavedChanges": "Hay cambios de ruta sin guardar.", "noUnsavedChanges": "No hay cambios sin guardar.", "discardChanges": "Descartar cambios", "reviewAndSave": "Revisar y guardar"
+  },
   "errors": {
     "generic": "Algo ha salido mal. Inténtalo de nuevo.", "unauthorized": "Inicia sesión para continuar.",
     "forbidden": "No tienes permiso para hacer eso.", "notFound": "No se encontró el elemento solicitado.",
@@ -591,6 +625,10 @@
     "editLockConflict": "Otra persona está editando este viaje.", "workspacePolicyBlockingViolation": "La política del espacio bloquea este cambio.",
     "providerRateLimited": "El proveedor está ocupado.", "providerQuotaExceeded": "Se alcanzó la cuota del proveedor.",
     "aiGenerationFailed": "No se pudo generar el itinerario.", "repairProposalConflict": "La propuesta se basa en un itinerario anterior."
+  },
+  "tripHealth": {
+    "routeIssue": "Problema de ruta", "routeItineraryMismatch": "La ruta y el itinerario no coinciden",
+    "activityOverlapsTransport": "La actividad se solapa con el transporte", "openRoute": "Abrir ruta", "openAffectedDay": "Abrir día afectado"
   },
   "validation": {
     "required": "Este campo es obligatorio.", "invalidEmail": "Introduce un correo válido.",

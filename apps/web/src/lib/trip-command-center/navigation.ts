@@ -98,6 +98,17 @@ export function scrollToTabAnchor(tab: string | null | undefined) {
     return;
   }
   window.requestAnimationFrame(() => {
-    document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+    const params = new URLSearchParams(window.location.search);
+    const legId = params.get("legId");
+    const stopId = params.get("stopId");
+    const focusedRouteAnchor =
+      tab === "route" || tab === "transport"
+        ? legId
+          ? `route-leg-${legId}`
+          : stopId
+            ? `route-stop-${stopId}`
+            : null
+        : null;
+    document.getElementById(focusedRouteAnchor ?? anchor)?.scrollIntoView({ block: "start" });
   });
 }

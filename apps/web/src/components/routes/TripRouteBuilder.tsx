@@ -8,6 +8,7 @@ import type {
   TripRouteStop,
   TripStyle
 } from "@/entities/route/model";
+import { rebuildRouteLegs } from "@/lib/route-builder/route-draft";
 import { RouteLegCard } from "./RouteLegCard";
 import { RouteStopCard } from "./RouteStopCard";
 import { RouteSummaryCard } from "./RouteSummaryCard";
@@ -265,29 +266,7 @@ function ensureRouteShape(route: TripRoute): TripRoute {
 }
 
 function syncLegs(route: TripRoute): TripRoute {
-  const existingByTarget = new Map((route.legs ?? []).map((leg) => [leg.toStopId, leg]));
-  const legs = route.stops.map((stop, index) => {
-    const previous = existingByTarget.get(stop.id);
-    const fromStopId = index === 0 ? "origin" : route.stops[index - 1]?.id ?? "origin";
-    const fromName = index === 0 ? route.origin?.name || "Origin" : route.stops[index - 1]?.destination || "";
-    return {
-      id: previous?.id ?? `leg_${index + 1}`,
-      fromStopId,
-      toStopId: stop.id,
-      fromName,
-      toName: stop.destination,
-      mode: (previous?.mode ?? route.preferences?.preferredModes?.[0] ?? "train") as TransportMode,
-      estimatedDurationMinutes: previous?.estimatedDurationMinutes ?? null,
-      estimatedDistanceKm: previous?.estimatedDistanceKm ?? null,
-      estimatedCost: previous?.estimatedCost ?? null,
-      selectedTransportOption: previous?.selectedTransportOption ?? null,
-      notes: previous?.notes ?? null,
-      providerMetadata: previous?.providerMetadata ?? null,
-      warnings: previous?.warnings ?? [],
-      departureDate: previous?.departureDate ?? null
-    };
-  });
-  return { ...route, legs };
+  return rebuildRouteLegs(route, route.stops ?? []);
 }
 
 function makeStopId(index: number) {

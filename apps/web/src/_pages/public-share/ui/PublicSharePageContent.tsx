@@ -213,8 +213,10 @@ export function PublicSharePageContent() {
               <RouteSummaryCard
                 canEditTransport={false}
                 currency={trip.itinerary?.currency ?? "EUR"}
+                itinerary={itinerary}
                 online={false}
                 route={trip.route}
+                totalDays={trip.days}
                 travelers={trip.travelers ?? 1}
               />
             ) : null}

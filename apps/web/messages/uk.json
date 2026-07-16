@@ -35,7 +35,9 @@
     "doesNotBook": "Це нічого не бронює", "requiresInternet": "Для цієї дії потрібен інтернет",
     "noOptionsFound": "Варіанти транспорту не знайдено", "cheapest": "Найдешевше",
     "fastest": "Найшвидше", "recommended": "Рекомендовано",
-    "fewestTransfers": "Найменше пересадок"
+    "fewestTransfers": "Найменше пересадок", "estimated": "Орієнтовно", "stale": "Застаріло",
+    "staleWarning": "Варіант транспорту може більше не відповідати цьому відрізку.", "transferCount": "Пересадок: {count}",
+    "notBooked": "Не заброньовано", "openProvider": "Відкрити провайдера", "removing": "Видалення…", "selecting": "Вибір…"
   },
   "navigation": {
     "trips": "Подорожі", "templates": "Шаблони", "workspaces": "Робочі простори",
@@ -584,6 +586,37 @@
     "completeAssignedItems": "Завершити призначені пункти",
     "noUrgentActions": "Немає термінових дій групи"
   },
+  "route": {
+    "builder": "Конструктор маршруту", "builderDescription": "Переглядайте всі зупинки, переїзди, вибраний транспорт і попередження маршруту в одному місці.",
+    "timeline": "Хронологія маршруту", "origin": "Початок", "stopNumber": "Зупинка {number}",
+    "warningCount": "Попереджень: {count}", "unnamedStop": "Зупинка без назви", "edit": "Редагувати", "remove": "Видалити",
+    "editStop": "Редагувати зупинку", "editStopLabel": "Редагувати {name}", "removeStopLabel": "Видалити {name}",
+    "dayNumber": "День {number}", "dayRange": "Дні {first}–{last}", "nightCount": "Ночей: {count}", "datesNotAssigned": "Дати не призначено",
+    "itineraryItemCount": "Елементів плану: {count}", "transferDayCount": "Днів переїзду: {count}", "routeLeg": "Відрізок маршруту",
+    "missingLegData": "Немає даних відрізка", "missingLegBetween": "Додайте переїзд з {from} до {to}.", "missingTransportOption": "Не вибрано транспорт",
+    "noRouteYet": "Маршруту ще немає", "noRouteDescription": "Створіть маршрут, щоб з’єднати напрямки й транспорт.",
+    "reorderStops": "Змінити порядок зупинок", "sortableStop": "зупинка зі змінним порядком", "dragOrButtonsHint": "Перетягніть або використовуйте стрілки на клавіатурі.",
+    "moveStopUp": "Перемістити {name} вгору", "moveStopDown": "Перемістити {name} вниз", "movedStopAnnouncement": "{name} переміщено на позицію {position}.",
+    "impactPreview": "Попередній перегляд впливу", "impactPreviewDescription": "Перевірте пов’язані дані подорожі, які потребуватимуть уваги після збереження.",
+    "thisChangeWill": "Ця зміна:", "impactRemoveTransport": "видалить вибрані варіанти транспорту: {count}",
+    "impactStaleTransport": "позначить варіанти транспорту як потенційно застарілі: {count}", "impactItinerary": "позначить план як потенційно застарілий",
+    "impactBudget": "вплине на оцінку бюджету", "impactReminders": "вимагатиме перегляду або оновлення нагадувань",
+    "impactApproval": "може скинути погодження", "impactHealth": "може змінити оцінку готовності подорожі",
+    "keepEditing": "Продовжити редагування", "saveRouteChanges": "Зберегти зміни", "saving": "Збереження…",
+    "validation": "Перевірка маршруту", "routeLooksGood": "Маршрут виглядає добре", "issueCount": "Проблем, що потребують уваги: {count}",
+    "checksPassed": "Перевірки пройдено", "validationAdvisory": "Перевірки мають рекомендаційний характер. Уточнюйте час, розклад і ціни.",
+    "stopDays": "Дні зупинок", "itineraryConnection": "Зв’язок маршруту з планом", "noAssignedDays": "Немає призначених днів",
+    "metrics": "Показники маршруту", "atAGlance": "Маршрут стисло", "stops": "Зупинки", "legs": "Відрізки", "transferTime": "Час у дорозі",
+    "transportCost": "Вартість транспорту", "transportCoverage": "Покриття вибраним транспортом", "longestTransfer": "Найдовший переїзд", "notEstimated": "Не оцінено",
+    "intensityLabel": "Маршрут: {intensity}", "relaxed": "Спокійний", "balanced": "Збалансований", "intense": "Насичений",
+    "lowConfidenceLegCount": "Відрізків з орієнтовним транспортом або низькою впевненістю: {count}.",
+    "editingRequiresInternet": "Для редагування потрібен інтернет.", "offlineEditingDisabled": "Редагування маршруту й пошук транспорту потребують інтернету. Збережена копія доступна лише для перегляду.",
+    "editRoute": "Редагувати маршрут", "createRoute": "Створити маршрут", "readOnly": "Лише перегляд", "addStop": "Додати зупинку", "legModes": "Транспорт між зупинками",
+    "destination": "Напрямок", "city": "Місто", "country": "Країна", "arrivalDate": "Дата прибуття", "departureDate": "Дата від’їзду", "nights": "Ночі", "done": "Готово",
+    "resolveValidationBeforeSaving": "Виправте структурні проблеми перед збереженням.", "routeConflict": "План змінився в іншому місці. Оновіть сторінку та перевірте маршрут.",
+    "saveFailed": "Не вдалося зберегти зміни.", "saveBeforeTransportSearch": "Збережіть або відкиньте чернетку перед пошуком транспорту.",
+    "unsavedChanges": "Є незбережені зміни маршруту.", "noUnsavedChanges": "Незбережених змін немає.", "discardChanges": "Відкинути зміни", "reviewAndSave": "Перевірити й зберегти"
+  },
   "errors": {
     "generic": "Сталася помилка. Спробуйте ще раз.", "unauthorized": "Увійдіть, щоб продовжити.",
     "forbidden": "У вас немає дозволу на цю дію.", "notFound": "Запитаний елемент не знайдено.",
@@ -591,6 +624,10 @@
     "editLockConflict": "Цю подорож зараз редагує інший користувач.", "workspacePolicyBlockingViolation": "Політика робочого простору блокує цю зміну.",
     "providerRateLimited": "Сервіс перевантажений.", "providerQuotaExceeded": "Квоту сервісу вичерпано.",
     "aiGenerationFailed": "Не вдалося створити маршрут.", "repairProposalConflict": "Пропозиція стосується попередньої версії маршруту."
+  },
+  "tripHealth": {
+    "routeIssue": "Проблема маршруту", "routeItineraryMismatch": "Маршрут і план не збігаються",
+    "activityOverlapsTransport": "Активність накладається на вибраний транспорт", "openRoute": "Відкрити маршрут", "openAffectedDay": "Відкрити відповідний день"
   },
   "validation": {
     "required": "Це поле обов’язкове.", "invalidEmail": "Введіть коректну електронну адресу.",

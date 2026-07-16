@@ -1147,6 +1147,49 @@ Workspace dashboard:
     `docker compose -f infra/docker-compose.yml start external-integrations-service`,
     refresh, and confirm the weather card returns.
 
+## Route Builder UX Polish v1
+
+1. Open a multi-destination trip and navigate to **Route & Transport**.
+2. Confirm the vertical timeline shows the origin, every stop, and every
+   connecting leg in order on desktop and a narrow mobile viewport.
+3. Confirm each stop shows its country/dates or day range and mapped itinerary
+   item count. Confirm mismatched stop/day assignments have a warning badge.
+4. Attach a transport option to a saved route leg. Confirm the timeline updates
+   immediately with mode, operator, departure/arrival, duration, price,
+   confidence, warnings, provider link when present, and `Not booked`.
+5. Open **Edit route** as an owner/editor. Drag a stop to a new position, then
+   use the up/down buttons to verify keyboard-accessible ordering.
+6. Confirm a viewer has no edit/reorder controls. Confirm the public share shows
+   the sanitized read-only timeline without search, attach, or provider metadata.
+7. Reorder stops so at least one origin/destination pair changes. Confirm the
+   draft rebuilds adjacent legs, preserves any genuinely unchanged leg and its
+   transport, and removes incompatible selected transport only from changed
+   pairs.
+8. Change a stop date or name. Confirm connected selected transport is marked
+   stale with re-search/remove guidance.
+9. Click **Review and save**. Confirm the impact preview lists removed/stale
+   transport and possible itinerary, budget, reminder, approval, and Trip Health
+   effects. Cancel once and confirm the draft remains intact.
+10. Save the route, then confirm the timeline refreshes and the Command Center,
+    Trip Health, budget confidence, reminders, and approval state reflect the
+    updated route. Repeat with a stale itinerary revision and confirm a readable
+    conflict message appears instead of overwriting newer work.
+11. Create duplicate/unnamed stops or a missing leg mode and confirm inline
+    validation blocks saving. Confirm advisory issues expose actions for the
+    affected leg, stop, itinerary day, or Trip Health.
+12. Confirm the route metrics card shows stops, legs, total transfer duration,
+    transport cost, selected coverage, low-confidence count, longest transfer,
+    and relaxed/balanced/intense intensity.
+13. Navigate to `?tab=route&legId=<leg-id>` and
+    `?tab=route&stopId=<stop-id>` and confirm the matching timeline item is
+    scrolled into view.
+14. Cache the trip, switch DevTools Network to **Offline**, and reload. Confirm
+    the timeline and selected transport remain visible while route editing,
+    saving, transport search, and attach actions are disabled with the
+    internet-required notice.
+15. Export the trip PDF and confirm route order, selected transport, duration,
+    estimated price, warnings, and the non-booking disclaimer are present.
+
 ## Route Optimization
 
 1. Log in and open a completed trip.

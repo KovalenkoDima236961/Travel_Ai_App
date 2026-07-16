@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { TripRouteLeg } from "@/entities/route/model";
 import { useAttachRouteLegTransportOption } from "@/hooks/useAttachRouteLegTransportOption";
 import { useRemoveRouteLegTransportOption } from "@/hooks/useRemoveRouteLegTransportOption";
 import { useRouteLegTransportSearch } from "@/hooks/useRouteLegTransportSearch";
 import { selectedOptionFromTransportOption } from "@/lib/api/transport";
+import { isLegTransportStale } from "@/lib/route-builder/route-draft";
 import type { SearchRouteLegTransportInput, TransportModeValue, TransportOption } from "@/types/transport";
 import { AttachTransportOptionDialog } from "./AttachTransportOptionDialog";
 import { SelectedTransportOptionCard } from "./SelectedTransportOptionCard";
@@ -50,7 +51,9 @@ export function RouteLegTransportOptions({
   const search = useRouteLegTransportSearch(tripId ?? "", leg.id);
   const attach = useAttachRouteLegTransportOption(tripId ?? "", leg.id);
   const remove = useRemoveRouteLegTransportOption(tripId ?? "", leg.id);
-  const defaultModes = defaultModesForLeg(leg);
+  const defaultModes = useMemo(() => defaultModesForLeg(leg), [leg.mode]);
+  const defaultDate = leg.departureDate || leg.selectedTransportOption?.departureDate || "";
+  const defaultTime = leg.selectedTransportOption?.departureTime || "";
   const disabledReason = !tripId
     ? "Save the trip before searching transport."
     : !online
@@ -65,7 +68,7 @@ export function RouteLegTransportOptions({
     }
     setSearchOpen(true);
     if (!search.data && !search.isPending) {
-      runSearch({});
+      runSearch({ date: defaultDate, time: defaultTime });
     }
   }
 
@@ -114,12 +117,14 @@ export function RouteLegTransportOptions({
         canEdit={canEdit && online}
         option={leg.selectedTransportOption}
         removing={remove.isPending}
+        stale={isLegTransportStale(leg)}
         onRemove={removeSelectedOption}
       />
       {canEdit ? (
         <div className="flex flex-wrap items-center gap-2">
           <button
             className="rounded-md border border-sand-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-cocoa-600 transition hover:bg-sand-50 disabled:opacity-60"
+            data-route-transport-trigger
             disabled={Boolean(disabledReason)}
             onClick={openSearch}
             title={disabledReason || "Compare transport options"}
@@ -134,7 +139,9 @@ export function RouteLegTransportOptions({
       ) : null}
       <TransportSearchDialog
         currency={currency}
+        defaultDate={defaultDate}
         defaultModes={defaultModes}
+        defaultTime={defaultTime}
         error={search.error?.message ?? null}
         loading={search.isPending}
         onClose={() => setSearchOpen(false)}

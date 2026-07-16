@@ -359,6 +359,45 @@ outdated and should be regenerated.
 Route labels are localized through the `routes`, `transportModes`, and
 `tripStyles` namespaces in `en`, `es`, `uk`, and `fr`.
 
+### Route Builder UX Polish v1
+
+Private trip detail pages now use the visual Route Builder in
+`src/components/route-builder`:
+
+- A vertical timeline renders the origin, ordered stops, route-leg mode,
+  duration, estimated price, selected operator/service, confidence, provider
+  warnings, and the explicit `Not booked` disclaimer.
+- Owners and editors can create a local route draft, reorder stops with native
+  drag-and-drop or accessible up/down buttons, edit stop dates/details, remove
+  stops, and change leg modes. Viewers and public shares remain read-only.
+- Leg reconciliation preserves IDs and selected transport only when an
+  origin/destination pair is unchanged. Changed pairs get local IDs and drop
+  incompatible selected options; stop/date edits visibly mark connected
+  selections stale.
+- Saving opens an impact preview covering removed/stale transport, itinerary,
+  budget, reminders, approval, and Trip Health. The existing revision-aware
+  `PUT /trips/{id}/route` endpoint remains authoritative, including `409`
+  conflict handling.
+- Route validation combines unsaved-draft checks with route, transport, and
+  itinerary issues from Trip Health. Stop/day mapping identifies missing or
+  mismatched assignments, missing transfers, and activities that overlap a
+  selected transport interval.
+- Route metrics summarize stop and leg counts, transfer time, estimated cost,
+  selected-transport coverage, low-confidence legs, longest transfer, and a
+  deterministic relaxed/balanced/intense label.
+- Route saves refresh trip, route, health, budget, budget confidence,
+  reminders, approval/risk, group readiness, planning constraints, and activity
+  query data. The existing trip snapshot cache then retains the saved route and
+  selected transport for offline viewing.
+- Offline trips show the cached timeline and transport details, but disable
+  reorder, save, search, and attach actions with an internet-required notice.
+  Public shares use the Trip Service's sanitized route and never render editing
+  or provider-search controls.
+
+Route Builder strings use the `route`, `transport`, and `tripHealth` namespaces
+in `en`, `es`, `uk`, and `fr`. Deep links can target
+`?tab=route&legId=<id>` or `?tab=route&stopId=<id>`.
+
 ## Route Alternatives
 
 `/trips/new` includes a Route Alternatives panel inside the multi-destination
@@ -703,6 +742,10 @@ sequenceDiagram
 - Route lines on maps may be straight-line approximations.
 - Changing a route does not automatically rewrite the full itinerary; regenerate
   affected days or the trip when needed.
+- Route validation and intensity labels are advisory, selected transport is not
+  a booking, and schedules and prices must be verified with the provider.
+- Offline route editing and transport search are not supported in v1; cached
+  route and selected-transport details remain viewable.
 
 Manual itinerary edits, version restores, budget proposal applies, and direct
 regeneration compatibility routes all rely on backend revision checks. Presence

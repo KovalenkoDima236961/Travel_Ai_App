@@ -35,7 +35,9 @@
     "doesNotBook": "Cela ne réserve rien", "requiresInternet": "Cette action nécessite internet",
     "noOptionsFound": "Aucune option de transport trouvée", "cheapest": "Moins cher",
     "fastest": "Plus rapide", "recommended": "Recommandé",
-    "fewestTransfers": "Moins de correspondances"
+    "fewestTransfers": "Moins de correspondances", "estimated": "Estimé", "stale": "Obsolète",
+    "staleWarning": "Ce transport peut ne plus correspondre à ce tronçon.", "transferCount": "{count, plural, one {# correspondance} other {# correspondances}}",
+    "notBooked": "Non réservé", "openProvider": "Ouvrir le fournisseur", "removing": "Suppression…", "selecting": "Sélection…"
   },
   "navigation": {
     "trips": "Voyages", "templates": "Modèles", "workspaces": "Espaces de travail",
@@ -584,6 +586,37 @@
     "completeAssignedItems": "Terminer les éléments assignés",
     "noUrgentActions": "Aucune action de groupe urgente"
   },
+  "route": {
+    "builder": "Créateur d’itinéraire", "builderDescription": "Consultez les étapes, transferts, transports sélectionnés et alertes de l’itinéraire au même endroit.",
+    "timeline": "Chronologie de l’itinéraire", "origin": "Départ", "stopNumber": "Étape {number}",
+    "warningCount": "{count, plural, one {# alerte} other {# alertes}}", "unnamedStop": "Étape sans nom", "edit": "Modifier", "remove": "Supprimer",
+    "editStop": "Modifier l’étape", "editStopLabel": "Modifier {name}", "removeStopLabel": "Supprimer {name}",
+    "dayNumber": "Jour {number}", "dayRange": "Jours {first}–{last}", "nightCount": "{count, plural, one {# nuit} other {# nuits}}", "datesNotAssigned": "Dates non attribuées",
+    "itineraryItemCount": "{count, plural, one {# élément} other {# éléments}} du programme", "transferDayCount": "{count, plural, one {# jour de transfert} other {# jours de transfert}}",
+    "routeLeg": "Tronçon", "missingLegData": "Tronçon manquant", "missingLegBetween": "Ajoutez le transfert de {from} à {to}.", "missingTransportOption": "Transport manquant",
+    "noRouteYet": "Aucun itinéraire", "noRouteDescription": "Créez un itinéraire pour relier destinations et transports.",
+    "reorderStops": "Réordonner les étapes", "sortableStop": "étape réordonnable", "dragOrButtonsHint": "Faites glisser ou utilisez les flèches du clavier.",
+    "moveStopUp": "Monter {name}", "moveStopDown": "Descendre {name}", "movedStopAnnouncement": "{name} déplacé en position {position}.",
+    "impactPreview": "Aperçu de l’impact", "impactPreviewDescription": "Vérifiez les données du voyage qui demanderont votre attention après l’enregistrement.",
+    "thisChangeWill": "Cette modification va :", "impactRemoveTransport": "supprimer {count, plural, one {# transport sélectionné} other {# transports sélectionnés}}",
+    "impactStaleTransport": "marquer {count, plural, one {# transport} other {# transports}} comme potentiellement obsolète",
+    "impactItinerary": "marquer le programme comme potentiellement obsolète", "impactBudget": "modifier les estimations du budget",
+    "impactReminders": "nécessiter la révision ou la régénération des rappels", "impactApproval": "peut réinitialiser une approbation", "impactHealth": "peut modifier le score de préparation",
+    "keepEditing": "Continuer la modification", "saveRouteChanges": "Enregistrer les modifications", "saving": "Enregistrement…",
+    "validation": "Validation de l’itinéraire", "routeLooksGood": "L’itinéraire est cohérent", "issueCount": "{count, plural, one {# problème nécessite votre attention} other {# problèmes nécessitent votre attention}}",
+    "checksPassed": "Vérifications réussies", "validationAdvisory": "Ces vérifications sont indicatives. Vérifiez toujours durées, horaires et prix.",
+    "stopDays": "Jours par étape", "itineraryConnection": "Lien entre itinéraire et programme", "noAssignedDays": "Aucun jour attribué",
+    "metrics": "Indicateurs", "atAGlance": "Itinéraire en bref", "stops": "Étapes", "legs": "Tronçons", "transferTime": "Temps de transfert",
+    "transportCost": "Coût du transport", "transportCoverage": "Couverture sélectionnée", "longestTransfer": "Transfert le plus long", "notEstimated": "Non estimé",
+    "intensityLabel": "Itinéraire {intensity}", "relaxed": "Détendu", "balanced": "Équilibré", "intense": "Intense",
+    "lowConfidenceLegCount": "{count, plural, one {# tronçon utilise un transport estimé ou peu fiable} other {# tronçons utilisent un transport estimé ou peu fiable}}.",
+    "editingRequiresInternet": "La modification nécessite internet.", "offlineEditingDisabled": "La modification et la recherche de transport nécessitent internet. La copie en cache reste disponible en lecture seule.",
+    "editRoute": "Modifier l’itinéraire", "createRoute": "Créer l’itinéraire", "readOnly": "Lecture seule", "addStop": "Ajouter une étape", "legModes": "Transport entre les étapes",
+    "destination": "Destination", "city": "Ville", "country": "Pays", "arrivalDate": "Date d’arrivée", "departureDate": "Date de départ", "nights": "Nuits", "done": "Terminé",
+    "resolveValidationBeforeSaving": "Corrigez les problèmes structurels avant d’enregistrer.", "routeConflict": "Le programme a changé ailleurs. Actualisez puis vérifiez l’itinéraire.",
+    "saveFailed": "Impossible d’enregistrer les modifications.", "saveBeforeTransportSearch": "Enregistrez ou abandonnez le brouillon avant de rechercher un transport.",
+    "unsavedChanges": "Des modifications ne sont pas enregistrées.", "noUnsavedChanges": "Aucune modification non enregistrée.", "discardChanges": "Abandonner", "reviewAndSave": "Vérifier et enregistrer"
+  },
   "errors": {
     "generic": "Une erreur est survenue. Réessayez.", "unauthorized": "Connectez-vous pour continuer.",
     "forbidden": "Vous n’avez pas l’autorisation.", "notFound": "L’élément demandé est introuvable.",
@@ -591,6 +624,10 @@
     "editLockConflict": "Une autre personne modifie ce voyage.", "workspacePolicyBlockingViolation": "La politique de l’espace bloque cette modification.",
     "providerRateLimited": "Le fournisseur est occupé.", "providerQuotaExceeded": "Le quota du fournisseur est atteint.",
     "aiGenerationFailed": "Impossible de générer l’itinéraire.", "repairProposalConflict": "Cette proposition repose sur une ancienne version."
+  },
+  "tripHealth": {
+    "routeIssue": "Problème d’itinéraire", "routeItineraryMismatch": "L’itinéraire et le programme ne correspondent pas",
+    "activityOverlapsTransport": "L’activité chevauche le transport sélectionné", "openRoute": "Ouvrir l’itinéraire", "openAffectedDay": "Ouvrir le jour concerné"
   },
   "validation": {
     "required": "Ce champ est obligatoire.", "invalidEmail": "Saisissez une adresse e-mail valide.",
