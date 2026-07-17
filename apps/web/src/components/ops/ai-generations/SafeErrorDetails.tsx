@@ -1,0 +1,2 @@
+import type { AIGenerationTrace } from "@/entities/ops/model";
+export function SafeErrorDetails({ trace }: { trace: AIGenerationTrace }) { if (!trace.errorCode && !trace.errorMessageSafe) return null; return <section className="rounded-xl border border-[#E5C3B6] bg-[#FBF0EB] p-4"><h3 className="text-[14px] font-semibold text-[#B3402E]">Safe failure details</h3><p className="mt-2 font-mono text-xs text-cocoa-700">{trace.errorCode ?? "unknown"}</p><p className="mt-1 text-[13px] text-cocoa-600">{trace.errorMessageSafe ?? "No safe failure message was retained."}</p></section>; }

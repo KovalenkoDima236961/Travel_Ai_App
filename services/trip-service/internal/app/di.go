@@ -12,6 +12,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
@@ -389,6 +390,22 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		generationJobOptions = append(generationJobOptions, generationjobs.WithPublisher(publisher))
 	}
 	generationJobSvc := generationjobs.NewService(repo, svc, generationJobsCfg, generationJobOptions...)
+	aiTraceService := aiobservability.New(db, aiobservability.Config{
+		Enabled:                   cfg.AIObservability.Enabled,
+		TraceEventsEnabled:        cfg.AIObservability.TraceEventsEnabled,
+		StoreRedactedPrompts:      cfg.AIObservability.StoreRedactedPrompts,
+		StoreRedactedResponses:    cfg.AIObservability.StoreRedactedResponses,
+		MaxPromptSnapshotChars:    cfg.AIObservability.MaxPromptSnapshotChars,
+		RetentionDays:             cfg.AIObservability.RetentionDays,
+		FailOpen:                  cfg.AIObservability.FailOpen,
+		DebugLocalOnly:            cfg.AIObservability.DebugLocalOnly,
+		PromptLoggingEnabled:      cfg.AIObservability.PromptLoggingEnabled,
+		PromptLoggingRedactedOnly: cfg.AIObservability.PromptLoggingRedactedOnly,
+		RedactionEnabled:          cfg.AIObservability.RedactionEnabled,
+		Provider:                  providerForAIMode(cfg.ItineraryGenerator.Mode),
+		Mode:                      cfg.ItineraryGenerator.Mode,
+	}, log)
+	closer.Add("ai-generation-trace-cleanup", aiobservability.StartCleanupLoop(context.Background(), aiTraceService, 24*time.Hour, log))
 	discoveryAIClient, err := tripdiscovery.NewHTTPAIClient(
 		cfg.ItineraryGenerator.AIPlanningServiceURL,
 		time.Duration(cfg.TripDiscovery.AITimeoutSeconds)*time.Second,
@@ -412,7 +429,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		log,
 	)
 	discoveryHandler := tripdiscovery.NewHandler(discoverySvc)
-	generationJobWorker := generationjobs.NewWorker(repo, svc, generationJobsCfg, log)
+	generationJobWorker := generationjobs.NewWorker(repo, svc, generationJobsCfg, log, generationjobs.WithTracer(aiTraceService))
 	closer.Add(
 		"generation-job-worker",
 		generationJobWorker.Start(context.Background()),
@@ -446,6 +463,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		EnableActivityStream(activityStreamManager, activityStreamCfg).
 		EnableEditLocks(editLockManager, editLocksCfg).
 		EnableGenerationJobs(generationJobSvc).
+		EnableAIObservability(aiTraceService).
 		EnableWorkspacePolicies(policySvc)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,
@@ -468,6 +486,19 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		db:     db,
 		router: router,
 	}, nil
+}
+
+func providerForAIMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "mock":
+		return "mock"
+	case "http", "ollama":
+		return "ollama"
+	case "disabled":
+		return "other"
+	default:
+		return "other"
+	}
 }
 
 func splitCSV(value string) []string {

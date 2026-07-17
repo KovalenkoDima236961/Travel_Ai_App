@@ -1070,3 +1070,11 @@ booking/reservation action happens.
 - `OFFLINE_CACHE_MAX_AGE_DAYS` defaults to 30 through the public build variable.
 - Next emits anti-sniffing, frame, referrer, permissions, report-only CSP, and
   production-only HSTS headers. CSP remains report-only for the v1 rollout.
+
+## Ops AI generations
+
+Allowlisted operators can open `/ops/ai-generations` and a trace detail page to
+inspect safe AI generation timelines, prompt versions, model metadata,
+validation/repair counts, and controlled errors. The UI deliberately never
+shows raw prompts; a clearly marked redacted snapshot is rendered only when
+the server has explicitly retained one. Non-ops users receive no trace data.

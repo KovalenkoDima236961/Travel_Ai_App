@@ -72,6 +72,19 @@ ai_validation:
   block_on_budget_errors: true
   fail_open: false
 
+ai_observability:
+  enabled: true
+  trace_events_enabled: true
+  store_redacted_prompts: false
+  store_redacted_responses: false
+  max_prompt_snapshot_chars: 12000
+  retention_days: 30
+  fail_open: true
+  debug_local_only: true
+  prompt_logging_enabled: false
+  prompt_logging_redacted_only: true
+  redaction_enabled: true
+
 user_context:
   enabled: true
   user_service_url: http://localhost:8083

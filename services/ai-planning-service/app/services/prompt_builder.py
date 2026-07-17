@@ -17,6 +17,43 @@ from app.schemas.knowledge import KnowledgeSearchResult
 from app.schemas.repair import RepairItineraryRequest
 from app.schemas.route_alternatives import RouteAlternativeRequest
 from app.schemas.template_adaptation import TemplateAdaptationRequest
+from app.schemas.observability import PromptBuildMetadata, PromptBuildResult
+
+
+_PROMPT_BUILD_VERSIONS = {
+    "itinerary": "itinerary_generation_v1",
+    "regenerate_day": "day_regeneration_v1",
+    "regenerate_item": "item_regeneration_v1",
+    "repair_generation_output": "repair_generation_output_v1",
+    "repair_itinerary": "policy_repair_v1",
+    "budget_optimization_day": "budget_optimization_day_v1",
+    "template_adaptation": "template_adaptation_v1",
+    "destination_suggestion": "trip_discovery_v1",
+    "route_alternatives": "route_alternatives_v1",
+    "checklist": "checklist_generation_v1",
+}
+
+
+def prompt_build_result(
+    prompt: str,
+    builder: str,
+    sections: list[str],
+    rag_chunk_count: int = 0,
+) -> PromptBuildResult:
+    """Return observable, prompt-safe build metadata without logging the prompt."""
+    normalized_builder = builder.strip().lower()
+    return PromptBuildResult(
+        prompt=prompt,
+        metadata=PromptBuildMetadata(
+            promptVersion=_PROMPT_BUILD_VERSIONS.get(normalized_builder, "unknown_v1"),
+            builder=normalized_builder,
+            sections=sections,
+            charCount=len(prompt),
+            tokenEstimate=max(0, len(prompt) // 4),
+            ragChunkCount=max(0, rag_chunk_count),
+            redactionApplied=True,
+        ),
+    )
 
 
 def build_destination_suggestion_prompt(request: DestinationSuggestionRequest) -> str:

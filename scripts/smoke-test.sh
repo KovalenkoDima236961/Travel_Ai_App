@@ -2179,6 +2179,7 @@ if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
   echo "Checking job and queue metrics after full generation..."
   assert_metrics_contains "Trip generation job metrics" "${TRIP_SERVICE_URL}/metrics" "generation_jobs_created_total"
   assert_metrics_contains "Trip RabbitMQ publish metrics" "${TRIP_SERVICE_URL}/metrics" "rabbitmq_messages_published_total"
+  assert_metrics_contains "AI generation trace metrics" "${TRIP_SERVICE_URL}/metrics" "ai_generation_traces_started_total"
   if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then
     assert_metrics_contains "Worker job start metrics" "${WORKER_SERVICE_URL}/metrics" "worker_jobs_started_total"
     if [[ "${LAST_BODY}" != *"worker_jobs_completed_total"* && "${LAST_BODY}" != *"worker_jobs_failed_total"* ]]; then

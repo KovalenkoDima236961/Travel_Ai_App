@@ -300,6 +300,26 @@ func TestProductionRejectsWildcardCORS(t *testing.T) {
 	}
 }
 
+func TestValidateAIObservabilityRejectsUnsafeProductionSettings(t *testing.T) {
+	cfg := Config{
+		Env: "production",
+		AIObservability: AIObservabilityConfig{
+			PromptLoggingEnabled:      true,
+			PromptLoggingRedactedOnly: false,
+		},
+	}
+	if err := cfg.validateAIObservability(); err == nil {
+		t.Fatal("expected non-redacted prompt logging to be rejected in production")
+	}
+
+	cfg.AIObservability.PromptLoggingRedactedOnly = true
+	cfg.AIObservability.StoreRedactedPrompts = true
+	cfg.AIObservability.RedactionEnabled = false
+	if err := cfg.validateAIObservability(); err == nil {
+		t.Fatal("expected prompt snapshots without redaction to be rejected in production")
+	}
+}
+
 func unsetEnv(t *testing.T, names ...string) {
 	t.Helper()
 

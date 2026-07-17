@@ -265,3 +265,11 @@ make build
 - Logs include job IDs, trip IDs, job type, attempt, duration, request ID, and
   correlation ID, but must not include tokens, full prompts, full preference
   payloads, or provider secrets.
+
+## AI trace propagation
+
+Generation messages preserve job, request, and correlation IDs. Trip Service's
+generation worker creates or updates its safe AI trace from those IDs, records
+high-level stage events, and marks the trace completed or failed with a
+controlled code. Trace persistence is fail-open and must never change AMQP
+ack/retry or DLQ behavior.

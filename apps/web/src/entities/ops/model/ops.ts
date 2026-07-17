@@ -56,6 +56,84 @@ export type OpsJobsResponse = {
   nextOffset?: number;
 };
 
+export type AIGenerationTraceStatus =
+  | "started"
+  | "completed"
+  | "completed_with_warnings"
+  | "failed"
+  | "cancelled"
+  | "blocked";
+
+export type AIGenerationTrace = {
+  id: string;
+  tripId?: string | null;
+  jobId?: string | null;
+  userId?: string | null;
+  workspaceId?: string | null;
+  requestId?: string | null;
+  correlationId?: string | null;
+  generationType: string;
+  source: string;
+  provider: string;
+  model?: string | null;
+  aiMode: string;
+  promptVersion?: string | null;
+  planningContextVersion?: string | null;
+  validatorVersion?: string | null;
+  status: AIGenerationTraceStatus | string;
+  qualityStatus?: string | null;
+  inputSummary?: Record<string, unknown> | null;
+  constraintsSummary?: Record<string, unknown> | null;
+  ragSummary?: Record<string, unknown> | null;
+  promptSummary?: Record<string, unknown> | null;
+  generationSummary?: Record<string, unknown> | null;
+  validationSummary?: Record<string, unknown> | null;
+  repairSummary?: Record<string, unknown> | null;
+  outputSummary?: Record<string, unknown> | null;
+  errorCode?: string | null;
+  errorMessageSafe?: string | null;
+  durationMs?: number | null;
+  queueWaitMs?: number | null;
+  aiCallDurationMs?: number | null;
+  validationDurationMs?: number | null;
+  repairDurationMs?: number | null;
+  createdAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+};
+
+export type AIGenerationTraceEvent = {
+  id: string;
+  traceId: string;
+  eventType: string;
+  eventStatus: string;
+  title: string;
+  message?: string | null;
+  metadata?: Record<string, unknown> | null;
+  durationMs?: number | null;
+  createdAt: string;
+};
+
+export type AIGenerationPromptSnapshot = {
+  id: string;
+  snapshotType: "redacted_prompt" | "redacted_ai_request" | "redacted_ai_response" | string;
+  contentRedacted: string;
+  contentHash: string;
+  tokenEstimate?: number | null;
+  createdAt: string;
+};
+
+export type AIGenerationTraceListResponse = {
+  items: AIGenerationTrace[];
+  nextCursor: string | null;
+};
+
+export type AIGenerationTraceDetail = {
+  trace: AIGenerationTrace;
+  events: AIGenerationTraceEvent[];
+  promptSnapshot?: AIGenerationPromptSnapshot | null;
+};
+
 export type WorkerStatus = {
   service: string;
   enabled: boolean;

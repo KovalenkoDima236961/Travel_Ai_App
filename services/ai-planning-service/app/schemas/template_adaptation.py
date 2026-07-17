@@ -23,6 +23,7 @@ from app.schemas.itinerary import (
     WorkspacePolicyConstraints,
     _normalize_string_list,
 )
+from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
 # Item types accepted in template days / adapted days. Kept in sync with the
@@ -264,3 +265,4 @@ class AdaptationSummary(APIModel):
 class TemplateAdaptationResponse(APIModel):
     itinerary: AdaptedItinerary
     adaptation_summary: AdaptationSummary = Field(alias="adaptationSummary")
+    metadata: AIResponseMetadata | None = None

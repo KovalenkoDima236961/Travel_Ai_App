@@ -425,7 +425,8 @@ def test_regenerate_day_success_returns_replacement_day_only() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"day"}
+    assert set(body.keys()) == {"day", "metadata"}
+    assert body["metadata"]["promptVersion"] == "day_regeneration_v1"
     assert body["day"]["day"] == 2
     assert body["day"]["title"]
     assert len(body["day"]["items"]) >= 1
@@ -440,7 +441,8 @@ def test_regenerate_item_success_returns_replacement_item_only() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"item"}
+    assert set(body.keys()) == {"item", "metadata"}
+    assert body["metadata"]["promptVersion"] == "item_regeneration_v1"
     assert body["item"]["time"]
     assert body["item"]["type"]
     assert body["item"]["name"]

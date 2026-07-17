@@ -12,7 +12,9 @@ import type {
   ProviderQuotasResponse,
   ProviderStatus,
   QueueStatus,
-  WorkerStatus
+  WorkerStatus,
+  AIGenerationTraceDetail,
+  AIGenerationTraceListResponse
 } from "@/entities/ops/model";
 
 type OpsJobEnvelope = { job: OpsJob };
@@ -28,6 +30,23 @@ export type OpsJobFilters = {
   createdBefore?: string;
 };
 
+export type AIGenerationTraceFilters = {
+  status?: string;
+  generationType?: string;
+  provider?: string;
+  model?: string;
+  qualityStatus?: string;
+  tripId?: string;
+  jobId?: string;
+  userId?: string;
+  workspaceId?: string;
+  from?: string;
+  to?: string;
+  errorOnly?: boolean;
+  limit?: number;
+  cursor?: string;
+};
+
 export const opsKeys = {
   summary: ["ops", "summary"] as const,
   jobs: (filters: OpsJobFilters) => ["ops", "jobs", filters] as const,
@@ -38,8 +57,32 @@ export const opsKeys = {
   providers: ["ops", "providers"] as const,
   providerQuotas: (date?: string) => ["ops", "provider-quotas", date ?? "today"] as const,
   providerQuotaDetail: (provider: string | null) =>
-    ["ops", "provider-quota", provider] as const
+    ["ops", "provider-quota", provider] as const,
+  aiGenerations: (filters: AIGenerationTraceFilters) =>
+    ["ops", "ai-generations", filters] as const,
+  aiGenerationDetail: (traceId: string | null) => ["ops", "ai-generation", traceId] as const
 };
+
+export async function getAIGenerationTraces(
+  filters: AIGenerationTraceFilters = {}
+): Promise<AIGenerationTraceListResponse> {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (typeof value === "boolean") {
+      if (value) params.set(key, "true");
+      return;
+    }
+    if (value != null && String(value).trim()) params.set(key, String(value).trim());
+  });
+  const query = params.toString();
+  return apiFetch<AIGenerationTraceListResponse>(
+    `/ops/ai-generations${query ? `?${query}` : ""}`
+  );
+}
+
+export async function getAIGenerationTrace(traceId: string): Promise<AIGenerationTraceDetail> {
+  return apiFetch<AIGenerationTraceDetail>(`/ops/ai-generations/${encodeURIComponent(traceId)}`);
+}
 
 export async function getOpsJobSummary(): Promise<OpsJobSummary> {
   return apiFetch<OpsJobSummary>("/ops/jobs/summary");

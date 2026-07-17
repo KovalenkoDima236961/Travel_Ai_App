@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
@@ -23,10 +24,11 @@ import (
 )
 
 type Worker struct {
-	repo  Repository
-	trips TripService
-	cfg   Config
-	log   *zap.Logger
+	repo   Repository
+	trips  TripService
+	cfg    Config
+	log    *zap.Logger
+	tracer *aiobservability.Service
 }
 
 type ProcessStatus string
@@ -46,16 +48,26 @@ type ProcessResult struct {
 	ResultItineraryRevision *int
 }
 
-func NewWorker(repo Repository, trips TripService, cfg Config, log *zap.Logger) *Worker {
+type WorkerOption func(*Worker)
+
+func WithTracer(tracer *aiobservability.Service) WorkerOption {
+	return func(worker *Worker) { worker.tracer = tracer }
+}
+
+func NewWorker(repo Repository, trips TripService, cfg Config, log *zap.Logger, opts ...WorkerOption) *Worker {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Worker{
+	worker := &Worker{
 		repo:  repo,
 		trips: trips,
 		cfg:   NormalizeConfig(cfg),
 		log:   log,
 	}
+	for _, opt := range opts {
+		opt(worker)
+	}
+	return worker
 }
 
 func (w *Worker) Start(parent context.Context) func(context.Context) error {
@@ -199,6 +211,7 @@ func (w *Worker) claimGenerationJob(ctx context.Context, jobID uuid.UUID) (*enti
 func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJob, failOnError bool) (result ProcessResult, err error) {
 	inProcess := !w.cfg.QueueMode()
 	metricsStartedAt := recordWorkerStart(job, inProcess)
+	trace := w.startTrace(ctx, job)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			fields := []zap.Field{
@@ -220,6 +233,7 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 			if failOnError {
 				err = w.failJob(ctx, job, result.ErrorCode, result.ErrorMessage)
 			}
+			w.failTrace(ctx, trace, result.ErrorCode, result.ErrorMessage)
 		}
 
 		switch result.Status {
@@ -235,6 +249,12 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 			}
 		}
 	}()
+	if trace.Active {
+		_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "planning_context_built", Status: "completed", Title: "Built planning context", Metadata: aiobservability.DefaultConstraintsSummary()})
+		_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "rag_retrieved", Status: "completed", Title: "RAG retrieval summary", Metadata: aiobservability.DefaultRAGSummary()})
+		_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "prompt_built", Status: "completed", Title: "Built versioned prompt", Metadata: aiobservability.DefaultPromptSummary(aiobservability.PromptVersionForGenerationType(string(job.JobType)))})
+		_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "ai_call_started", Status: "started", Title: "Started AI generation"})
+	}
 
 	processCtx, cancel := context.WithTimeout(ctx, w.cfg.MaxRunning)
 	defer cancel()
@@ -254,9 +274,16 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 			Retryable:    IsRetryableErrorCode(code),
 		}
 		if !failOnError {
+			w.failTrace(ctx, trace, code, message)
 			return result, nil
 		}
-		return result, w.failJob(ctx, job, code, message)
+		persistErr := w.failJob(ctx, job, code, message)
+		w.failTrace(ctx, trace, code, message)
+		return result, persistErr
+	}
+	processDuration := int(time.Since(metricsStartedAt).Milliseconds())
+	if trace.Active {
+		_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "ai_call_completed", Status: "completed", Title: "AI generation completed", DurationMS: &processDuration})
 	}
 
 	resultPayload = w.withLatestGenerationQuality(ctx, job, resultPayload)
@@ -275,6 +302,7 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 			zap.String("job_id", job.ID.String()),
 			zap.Error(err),
 		)
+		w.failTrace(ctx, trace, ErrorUnknown, "Generation result could not be persisted.")
 		return ProcessResult{}, err
 	}
 	recordGenerationJobStatus(completed.JobType, completed.Status)
@@ -286,12 +314,71 @@ func (w *Worker) processClaimedJob(ctx context.Context, job *entity.GenerationJo
 	fields = append(fields, observability.RequestIDFields(ctx)...)
 	w.log.Info("generation job completed", fields...)
 	revision := updatedTrip.ItineraryRevision
+	w.completeTrace(ctx, trace, job, updatedTrip, resultPayload, processDuration)
 	return ProcessResult{
 		Status:                  ProcessStatusCompleted,
 		Job:                     completed,
 		ResultItineraryRevision: &revision,
 	}, nil
 }
+
+func (w *Worker) startTrace(ctx context.Context, job *entity.GenerationJob) *aiobservability.TraceContext {
+	if w.tracer == nil || job == nil {
+		return &aiobservability.TraceContext{}
+	}
+	queueWait := int(time.Since(job.CreatedAt).Milliseconds())
+	if queueWait < 0 {
+		queueWait = 0
+	}
+	trace, err := w.tracer.StartTrace(ctx, aiobservability.StartTraceInput{
+		TripID: &job.TripID, JobID: &job.ID, UserID: &job.RequestedByUserID,
+		RequestID: job.RequestID, CorrelationID: job.CorrelationID,
+		GenerationType: string(job.JobType), Source: "worker",
+		PromptVersion:          aiobservability.PromptVersionForGenerationType(string(job.JobType)),
+		PlanningContextVersion: "v1", ValidatorVersion: aivalidation.ValidatorVersion,
+		InputSummary:       aiobservability.BuildJobInputSummary(job.TripID, job.ID, job.RequestedByUserID, string(job.JobType), job.DayNumber, job.ItemIndex, job.Instruction != nil && strings.TrimSpace(*job.Instruction) != "", len(job.Payload) > 0),
+		ConstraintsSummary: aiobservability.DefaultConstraintsSummary(), RAGSummary: aiobservability.DefaultRAGSummary(),
+		PromptSummary: aiobservability.DefaultPromptSummary(aiobservability.PromptVersionForGenerationType(string(job.JobType))), QueueWaitMS: &queueWait,
+	})
+	if err != nil {
+		w.log.Warn("failed to start AI generation trace", zap.String("job_id", job.ID.String()), zap.Error(err))
+		return &aiobservability.TraceContext{}
+	}
+	return trace
+}
+
+func (w *Worker) completeTrace(ctx context.Context, trace *aiobservability.TraceContext, job *entity.GenerationJob, trip *entity.Trip, payload json.RawMessage, processDuration int) {
+	if w.tracer == nil || trace == nil || !trace.Active || trip == nil {
+		return
+	}
+	quality, validation, repair, repairDuration := aiobservability.QualitySummaries(payload)
+	status := aiobservability.StatusCompleted
+	if strings.Contains(quality, "warnings") {
+		status = aiobservability.StatusCompletedWithWarnings
+	}
+	if len(validation) > 0 {
+		_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "validation_completed", Status: "completed", Title: "Validation completed", Metadata: validation})
+	}
+	if len(repair) > 0 {
+		_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "repair_completed", Status: "completed", Title: "Repair pipeline completed", Metadata: repair, DurationMS: repairDuration})
+	}
+	_ = w.tracer.RecordEvent(ctx, trace.TraceID, aiobservability.TraceEventInput{EventType: "save_completed", Status: "completed", Title: "Saved generation result"})
+	_ = w.tracer.CompleteTrace(ctx, trace.TraceID, aiobservability.CompleteTraceInput{
+		Status: status, QualityStatus: quality,
+		GenerationSummary: mustJSON(map[string]any{"provider": "configured", "mode": "configured", "attemptNumber": 1, "aiCallDurationMs": processDuration, "parseStatus": "completed", "fallbackUsed": false}),
+		ValidationSummary: validation, RepairSummary: repair,
+		OutputSummary: aiobservability.BuildOutputSummary(trip.Itinerary, true, ""), AICallDurationMS: &processDuration, RepairDurationMS: repairDuration,
+	})
+}
+
+func (w *Worker) failTrace(ctx context.Context, trace *aiobservability.TraceContext, code, message string) {
+	if w.tracer == nil || trace == nil || !trace.Active {
+		return
+	}
+	_ = w.tracer.FailTrace(ctx, trace.TraceID, aiobservability.FailTraceInput{Status: aiobservability.StatusFailed, ErrorCode: code, ErrorMessage: message})
+}
+
+func mustJSON(value any) json.RawMessage { raw, _ := json.Marshal(value); return raw }
 
 // process runs the job and returns the updated trip and an optional JSON result
 // payload (template adaptation returns its adaptation summary here; other job

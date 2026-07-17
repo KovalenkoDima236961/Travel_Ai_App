@@ -14,6 +14,7 @@ from app.schemas.itinerary import (
     TripRoute,
     _serialize_decimal,
 )
+from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
 RouteAlternativeDifficulty = Literal["relaxed", "balanced", "intense", "rushed"]
@@ -218,6 +219,7 @@ class RouteAlternativeResponse(APIModel):
         alias="followUpQuestions",
     )
     warnings: list[str] = Field(default_factory=list, max_length=8)
+    metadata: AIResponseMetadata | None = None
 
     @field_validator("follow_up_questions", "warnings", mode="before")
     @classmethod

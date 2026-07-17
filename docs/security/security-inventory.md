@@ -85,3 +85,10 @@ token hash and reveal the raw value once. The v1 rate limiters are per-process.
 Browser JWT storage should move from localStorage to secure httpOnly cookies in a
 separately scoped auth migration.
 
+## AI trace records
+
+`ai_generation_traces` is an ops-only, retained diagnostic record. It stores
+redacted summaries and controlled errors, never raw prompts, receipt OCR,
+calendar details, private comments, credentials, share tokens, or raw RAG
+chunks. Optional snapshots require explicit configuration, redaction, and an
+ops audit event on access.

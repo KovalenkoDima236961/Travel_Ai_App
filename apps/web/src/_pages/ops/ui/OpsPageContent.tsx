@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/shared/lib/cn";
 import { ApiError } from "@/shared/api/client";
@@ -224,9 +225,8 @@ export function OpsPageContent() {
         <h1 className="font-newsreader text-[34px] font-medium tracking-[-0.02em] text-cocoa-900">
           Jobs, queues &amp; providers
         </h1>
-        <p className="mt-2 text-[14.5px] text-cocoa-400">
-          Live status of generation jobs, message queues, the DLQ, workers, and external providers.
-        </p>
+        <p className="mt-2 text-[14.5px] text-cocoa-400">Live status of generation jobs, message queues, the DLQ, workers, and external providers.</p>
+        <Link href="/ops/ai-generations" className="mt-3 inline-flex text-[13px] font-semibold text-clay hover:text-cocoa-900">View AI generation traces →</Link>
       </div>
 
       <section className="mt-7 grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-6">

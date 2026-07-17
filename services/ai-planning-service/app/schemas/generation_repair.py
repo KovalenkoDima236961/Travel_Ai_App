@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import Field
 
 from app.schemas.itinerary import APIModel
+from app.schemas.observability import AIResponseMetadata
 
 
 class GenerationValidationIssue(APIModel):
@@ -73,3 +74,4 @@ class RepairGenerationOutputResponse(APIModel):
         alias="changesMade",
     )
     warnings: list[str] = Field(default_factory=list)
+    metadata: AIResponseMetadata | None = None

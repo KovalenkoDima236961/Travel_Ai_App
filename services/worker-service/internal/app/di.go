@@ -3,11 +3,13 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	tripconfig "github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/exchangerateclient"
@@ -132,7 +134,22 @@ func buildProcessor(
 		FailOpenNotifications: cfg.GenerationJobs.FailOpenNotifications,
 	})
 
-	processor := generationjobs.NewWorker(repo, tripSvc, jobCfg, log)
+	aiTraceService := aiobservability.New(db, aiobservability.Config{
+		Enabled:                   cfg.AIObservability.Enabled,
+		TraceEventsEnabled:        cfg.AIObservability.TraceEventsEnabled,
+		StoreRedactedPrompts:      cfg.AIObservability.StoreRedactedPrompts,
+		StoreRedactedResponses:    cfg.AIObservability.StoreRedactedResponses,
+		MaxPromptSnapshotChars:    cfg.AIObservability.MaxPromptSnapshotChars,
+		RetentionDays:             cfg.AIObservability.RetentionDays,
+		FailOpen:                  cfg.AIObservability.FailOpen,
+		DebugLocalOnly:            cfg.AIObservability.DebugLocalOnly,
+		PromptLoggingEnabled:      cfg.AIObservability.PromptLoggingEnabled,
+		PromptLoggingRedactedOnly: cfg.AIObservability.PromptLoggingRedactedOnly,
+		RedactionEnabled:          cfg.AIObservability.RedactionEnabled,
+		Provider:                  providerForAIMode(cfg.ItineraryGenerator.Mode),
+		Mode:                      cfg.ItineraryGenerator.Mode,
+	}, log)
+	processor := generationjobs.NewWorker(repo, tripSvc, jobCfg, log, generationjobs.WithTracer(aiTraceService))
 	if err := failStaleRunningJobs(ctx, repo, jobCfg, log); err != nil {
 		db.Close()
 		return nil, nil, nil, err
@@ -145,6 +162,17 @@ func buildProcessor(
 	}
 
 	return processor, db, publisher, nil
+}
+
+func providerForAIMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "mock":
+		return "mock"
+	case "http", "ollama":
+		return "ollama"
+	default:
+		return "other"
+	}
 }
 
 func tripServiceOptions(

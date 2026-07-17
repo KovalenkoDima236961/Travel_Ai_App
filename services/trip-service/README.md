@@ -1419,3 +1419,17 @@ AI-bound JSON passes through `internal/aiprivacy`, which removes receipt OCR,
 calendar details, secrets, share credentials, file paths, emails, phones, and
 unneeded user/workspace IDs. See `docs/security/` for the full matrix and known
 limitations.
+
+## AI generation observability
+
+`ai_generation_traces` and `ai_generation_trace_events` retain safe, ops-only
+generation history. The worker creates traces for queued itinerary, regeneration,
+quality, budget, template-adaptation, and policy-repair jobs; trace-write errors
+are fail-open by default. `GET /ops/ai-generations` and
+`GET /ops/ai-generations/{traceId}` use the existing ops allowlist and audit
+detail access.
+
+Raw prompts are never stored. Redacted snapshots are disabled by default and
+only available in explicitly configured local debugging environments. See
+[`docs/ai/observability.md`](../../docs/ai/observability.md) for retention,
+configuration, and the safe summary contract.

@@ -568,3 +568,10 @@ planning guidance only; it does not imply bookings or calendar confirmation.
 | RAG returns no results | Run the indexer and confirm `RAG_ENABLED=true`. |
 | Invalid JSON from model | Keep repair enabled, lower temperature, or allow mock fallback while developing. |
 | Generation timeout | Keep Trip Service timeout greater than AI timeout and AI timeout greater than expected Ollama latency. |
+
+## Response metadata
+
+Major generation endpoints include safe `metadata` with a prompt version,
+provider/model/mode, duration, and estimated token counts. The metadata is
+designed for Trip Service trace correlation and never contains a prompt,
+private request body, RAG chunk text, or provider secret.

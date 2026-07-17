@@ -19,6 +19,7 @@ from app.schemas.itinerary import (
     WorkspacePolicyConstraints,
     _serialize_decimal,
 )
+from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -190,3 +191,4 @@ class GeneratedChecklistResponse(APIModel):
     summary: str = Field(default="", max_length=500)
     items: list[GeneratedChecklistItem] = Field(default_factory=list, max_length=100)
     warnings: list[str] = Field(default_factory=list, max_length=12)
+    metadata: AIResponseMetadata | None = None

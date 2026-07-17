@@ -156,7 +156,8 @@ def test_returns_strict_itinerary_schema():
     response = client.post("/adapt-template", json=_payload())
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"itinerary", "adaptationSummary"}
+    assert set(body.keys()) == {"itinerary", "adaptationSummary", "metadata"}
+    assert body["metadata"]["promptVersion"] == "template_adaptation_v1"
     for day in body["itinerary"]["days"]:
         assert day["title"]
         assert len(day["items"]) >= 1

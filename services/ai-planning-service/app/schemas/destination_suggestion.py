@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from app.schemas.itinerary import APIModel, OutputLanguage, TripRoute, UserPreferences
+from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
 
@@ -194,3 +195,4 @@ class DestinationSuggestionResponse(APIModel):
         max_length=5,
     )
     warnings: list[str] = Field(default_factory=list, max_length=8)
+    metadata: AIResponseMetadata | None = None

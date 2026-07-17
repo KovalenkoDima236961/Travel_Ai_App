@@ -1,0 +1,65 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [
+        {"expr": "sum(rate(ai_generation_traces_started_total[5m])) by (generation_type, provider)", "legendFormat": "started {{generation_type}} / {{provider}}", "refId": "A"},
+        {"expr": "sum(rate(ai_generation_traces_completed_total[5m])) by (status, quality_status)", "legendFormat": "completed {{status}} / {{quality_status}}", "refId": "B"},
+        {"expr": "sum(rate(ai_generation_traces_failed_total[5m])) by (error_code)", "legendFormat": "failed {{error_code}}", "refId": "C"}
+      ],
+      "title": "Trace Throughput and Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(ai_generation_duration_seconds_bucket[5m])) by (generation_type, status, le))", "legendFormat": "end-to-end {{generation_type}} / {{status}}", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum(rate(ai_generation_ai_call_duration_seconds_bucket[5m])) by (generation_type, le))", "legendFormat": "AI call {{generation_type}}", "refId": "B"},
+        {"expr": "histogram_quantile(0.95, sum(rate(ai_generation_repair_duration_seconds_bucket[5m])) by (generation_type, le))", "legendFormat": "repair {{generation_type}}", "refId": "C"}
+      ],
+      "title": "p95 Generation Durations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [
+        {"expr": "sum(increase(ai_generation_traces_failed_total[30m])) by (generation_type, error_code)", "format": "table", "instant": true, "refId": "A"}
+      ],
+      "title": "Recent Failure Error Codes",
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [
+        {"expr": "sum(rate(ai_generation_prompt_tokens_estimated[5m])) by (generation_type, provider)", "legendFormat": "prompt {{generation_type}} / {{provider}}", "refId": "A"},
+        {"expr": "sum(rate(ai_generation_completion_tokens_estimated[5m])) by (generation_type, provider)", "legendFormat": "completion {{generation_type}} / {{provider}}", "refId": "B"},
+        {"expr": "sum(rate(ai_generation_trace_write_failures_total[5m]))", "legendFormat": "trace writes failed", "refId": "C"}
+      ],
+      "title": "Estimated Token Volume and Trace Write Failures",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["travel-ai", "ai", "generation", "observability"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "AI Generation Observability",
+  "uid": "travel-ai-generation-observability",
+  "version": 1
+}

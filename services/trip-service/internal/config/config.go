@@ -52,6 +52,23 @@ type Config struct {
 	TripHealth         TripHealthConfig         `yaml:"trip_health"`
 	BudgetConfidence   BudgetConfidenceConfig   `yaml:"budget_confidence"`
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
+	AIObservability    AIObservabilityConfig    `yaml:"ai_observability"`
+}
+
+// AIObservabilityConfig keeps persisted generation traces privacy-safe. Raw
+// prompts are never a supported storage mode; optional snapshots are redacted.
+type AIObservabilityConfig struct {
+	Enabled                   bool `yaml:"enabled" env:"AI_OBSERVABILITY_ENABLED" env-default:"true"`
+	TraceEventsEnabled        bool `yaml:"trace_events_enabled" env:"AI_OBSERVABILITY_TRACE_EVENTS_ENABLED" env-default:"true"`
+	StoreRedactedPrompts      bool `yaml:"store_redacted_prompts" env:"AI_OBSERVABILITY_STORE_REDACTED_PROMPTS" env-default:"false"`
+	StoreRedactedResponses    bool `yaml:"store_redacted_responses" env:"AI_OBSERVABILITY_STORE_REDACTED_RESPONSES" env-default:"false"`
+	MaxPromptSnapshotChars    int  `yaml:"max_prompt_snapshot_chars" env:"AI_OBSERVABILITY_MAX_PROMPT_SNAPSHOT_CHARS" env-default:"12000" validate:"min=1,max=50000"`
+	RetentionDays             int  `yaml:"retention_days" env:"AI_OBSERVABILITY_RETENTION_DAYS" env-default:"30" validate:"min=1,max=365"`
+	FailOpen                  bool `yaml:"fail_open" env:"AI_OBSERVABILITY_FAIL_OPEN" env-default:"true"`
+	DebugLocalOnly            bool `yaml:"debug_local_only" env:"AI_OBSERVABILITY_DEBUG_LOCAL_ONLY" env-default:"true"`
+	PromptLoggingEnabled      bool `yaml:"prompt_logging_enabled" env:"AI_PROMPT_LOGGING_ENABLED" env-default:"false"`
+	PromptLoggingRedactedOnly bool `yaml:"prompt_logging_redacted_only" env:"AI_PROMPT_LOGGING_REDACTED_ONLY" env-default:"true"`
+	RedactionEnabled          bool `yaml:"redaction_enabled" env:"AI_OBSERVABILITY_REDACTION_ENABLED" env-default:"true"`
 }
 
 type AIValidationConfig struct {
@@ -451,6 +468,9 @@ func (c *Config) validateStrictConfig() error {
 	if err := c.validateOps(); err != nil {
 		return err
 	}
+	if err := c.validateAIObservability(); err != nil {
+		return err
+	}
 	if c.IsProduction() && c.Receipts.FileScanningEnabled && c.Receipts.FileScanningFailOpen {
 		return fmt.Errorf("FILE_SCANNING_FAIL_OPEN must be false when scanning is enabled in production")
 	}
@@ -624,6 +644,23 @@ func (c *Config) validateOps() error {
 		return fmt.Errorf("OPS_ADMIN_EMAILS is required when OPS_DASHBOARD_ENABLED=true in %s", c.Env)
 	}
 	return validateTokenValue("OPS_INTERNAL_SERVICE_TOKEN", c.Ops.InternalServiceToken, c.Env, c.IsStrictEnv())
+}
+
+func (c *Config) validateAIObservability() error {
+	cfg := c.AIObservability
+	if c.IsProduction() && cfg.PromptLoggingEnabled && !cfg.PromptLoggingRedactedOnly {
+		return fmt.Errorf("AI_PROMPT_LOGGING_ENABLED requires AI_PROMPT_LOGGING_REDACTED_ONLY=true in production")
+	}
+	if c.IsProduction() && cfg.StoreRedactedPrompts && !cfg.RedactionEnabled {
+		return fmt.Errorf("AI_OBSERVABILITY_STORE_REDACTED_PROMPTS requires AI_OBSERVABILITY_REDACTION_ENABLED=true in production")
+	}
+	if c.IsProduction() && cfg.DebugLocalOnly && (cfg.StoreRedactedPrompts || cfg.StoreRedactedResponses) {
+		return fmt.Errorf("AI observability prompt/response snapshots are local-debug only in production")
+	}
+	if c.IsStrictEnv() && cfg.RetentionDays > 90 {
+		return fmt.Errorf("AI_OBSERVABILITY_RETENTION_DAYS must not exceed 90 in %s", c.Env)
+	}
+	return nil
 }
 
 func validateTokenValue(name, value, env string, strict bool) error {

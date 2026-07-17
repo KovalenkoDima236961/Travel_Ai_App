@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
@@ -51,6 +52,7 @@ type Handler struct {
 	editLocks            editlocks.Manager
 	editLockCfg          editlocks.Config
 	generationJobs       *generationjobs.Service
+	aiObservability      *aiobservability.Service
 	workspacePolicies    *workspacepolicies.Service
 	shareUnlockLimiter   *tripsecurity.RateLimiter
 	publicShareLimiter   *tripsecurity.RateLimiter
@@ -99,6 +101,11 @@ func (h *Handler) EnableEditLocks(manager editlocks.Manager, cfg editlocks.Confi
 
 func (h *Handler) EnableGenerationJobs(svc *generationjobs.Service) *Handler {
 	h.generationJobs = svc
+	return h
+}
+
+func (h *Handler) EnableAIObservability(svc *aiobservability.Service) *Handler {
+	h.aiObservability = svc
 	return h
 }
 

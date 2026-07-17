@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from typing import overload
@@ -22,6 +23,10 @@ from app.schemas.destination_suggestion import (
     DestinationSuggestionRequest,
     DestinationSuggestionResponse,
 )
+from app.schemas.generation_repair import (
+    RepairGenerationOutputRequest,
+    RepairGenerationOutputResponse,
+)
 from app.schemas.itinerary import (
     BudgetOptimizationProposalResponse,
     GenerateItineraryRequest,
@@ -32,10 +37,7 @@ from app.schemas.itinerary import (
     RegenerateItemRequest,
     RegenerateItemResponse,
 )
-from app.schemas.generation_repair import (
-    RepairGenerationOutputRequest,
-    RepairGenerationOutputResponse,
-)
+from app.schemas.observability import AIResponseMetadata, TokenEstimate
 from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.schemas.route_alternatives import RouteAlternativeRequest, RouteAlternativeResponse
 from app.schemas.template_adaptation import TemplateAdaptationRequest, TemplateAdaptationResponse
@@ -64,7 +66,7 @@ def suggest_destinations(
     try:
         response = generator.suggest(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -85,7 +87,7 @@ def suggest_route_alternatives(
     try:
         response = generator.suggest(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -129,7 +131,7 @@ def generate_itinerary(
     try:
         response = generator.generate(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -150,7 +152,7 @@ def generate_checklist(
     try:
         response = generator.generate_checklist(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -176,7 +178,7 @@ async def regenerate_day(
     try:
         response = generator.regenerate_day(parsed)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -202,7 +204,7 @@ async def regenerate_item(
     try:
         response = generator.regenerate_item(parsed)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -260,7 +262,7 @@ def optimize_budget_day(
     try:
         response = generator.optimize_budget_day(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -281,7 +283,7 @@ def repair_itinerary(
     try:
         response = generator.repair_itinerary(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -302,7 +304,7 @@ def repair_generation_output(
     try:
         response = generator.repair_generation_output(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -331,7 +333,7 @@ def adapt_template(
         # reject structurally-invalid output so a broken adaptation never returns.
         validate_adaptation(request, response)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return response
+        return _with_metadata(response, settings, operation, mode, started_at)
     except TemplateAdaptationValidationError as exc:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         record_ai_validation_failure(operation)
@@ -346,6 +348,44 @@ def adapt_template(
 
 def _generator_mode(settings: Settings) -> str:
     return settings.itinerary_generator_mode.strip().lower()
+
+
+_PROMPT_VERSIONS = {
+    "generate_itinerary": "itinerary_generation_v1",
+    "regenerate_day": "day_regeneration_v1",
+    "regenerate_item": "item_regeneration_v1",
+    "repair_generation_output": "repair_generation_output_v1",
+    "repair_itinerary": "policy_repair_v1",
+    "optimize_budget_day": "budget_optimization_day_v1",
+    "adapt_template": "template_adaptation_v1",
+    "suggest_destinations": "trip_discovery_v1",
+    "suggest_route_alternatives": "route_alternatives_v1",
+    "generate_checklist": "checklist_generation_v1",
+}
+
+
+def _with_metadata(
+    response: object, settings: Settings, operation: str, mode: str, started_at: float
+):
+    """Attach safe provider/timing metadata without returning prompts or input."""
+    if not hasattr(response, "model_copy") or not hasattr(response, "model_dump"):
+        return response
+    output = response.model_dump(by_alias=True, exclude_none=True, mode="json")
+    completion_tokens = max(0, len(json.dumps(output, ensure_ascii=False)) // 4)
+    normalized_mode = mode.strip().lower()
+    provider = "ollama" if normalized_mode == "ollama" else "mock"
+    model = settings.ollama_model if provider == "ollama" else "mock-v1"
+    metadata = AIResponseMetadata(
+        promptVersion=_PROMPT_VERSIONS.get(operation, "unknown_v1"),
+        provider=provider,
+        model=model,
+        mode=normalized_mode,
+        durationMs=max(0, int((time.monotonic() - started_at) * 1000)),
+        tokenEstimate=TokenEstimate(
+            prompt=0, completion=completion_tokens, total=completion_tokens
+        ),
+    )
+    return response.model_copy(update={"metadata": metadata})
 
 
 def _validation_error_message(exc: ValidationError) -> str:

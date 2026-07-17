@@ -27,6 +27,18 @@ After the baseline flow, verify in a private/incognito browser pair:
 
 The automated counterpart is `./scripts/security-smoke-test.sh`.
 
+## AI Generation Observability
+
+After an administrator completes at least one itinerary generation, open
+`/ops/ai-generations`. Confirm that the list exposes only operational summaries
+(no prompt text, itinerary text, email, or calendar detail), filters and cursor
+pagination work, and the trace detail shows its timeline, validation result, and
+repair attempt summaries. A non-operator must receive the access-denied view.
+
+Prompt snapshots are absent by default. If they are explicitly enabled for a
+local debugging environment, confirm the detail page labels the snapshot as
+redacted and the corresponding access appears in the ops audit log.
+
 Manual browser flow for the local full stack.
 
 ## Frontend UX Polish & Usability Hardening v1

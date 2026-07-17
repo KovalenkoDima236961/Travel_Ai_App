@@ -41,6 +41,8 @@ var removedKeys = map[string]string{
 	"expensenotes": "expense_notes", "privateexpensenotes": "expense_notes",
 	"eventtitle": "calendar_detail", "eventdescription": "calendar_detail",
 	"eventlocation": "calendar_detail", "attendees": "calendar_detail", "freebusyblocks": "calendar_detail",
+	"calendareventtitle": "calendar_detail", "calendareventdescription": "calendar_detail",
+	"calendareventlocation": "calendar_detail", "rawcomment": "comment", "rawcomments": "comment", "comments": "comment",
 	"sharetoken": "share_secret", "sharepassword": "share_secret", "password": "secret",
 	"accesstoken": "token", "refreshtoken": "token", "notificationtoken": "token",
 	"apikey": "secret", "secret": "secret", "filepath": "file_path", "storagekey": "file_path",

@@ -11,6 +11,7 @@ from app.services.prompt_builder import (
     build_regenerate_day_prompt,
     build_regenerate_item_prompt,
     build_repair_prompt,
+    prompt_build_result,
 )
 
 VALID_PAYLOAD = {
@@ -85,6 +86,21 @@ def test_itinerary_prompt_works_without_rag_chunks() -> None:
 
     assert "RAG CONTEXT:" not in prompt
     assert "Return ONLY valid JSON" in prompt
+
+
+def test_prompt_build_result_exposes_safe_versioned_metadata() -> None:
+    result = prompt_build_result(
+        "system instructions and sanitized context",
+        "itinerary",
+        ["system", "constraints", "output_schema"],
+        rag_chunk_count=2,
+    )
+
+    assert result.metadata.prompt_version == "itinerary_generation_v1"
+    assert result.metadata.sections == ["system", "constraints", "output_schema"]
+    assert result.metadata.char_count == len(result.prompt)
+    assert result.metadata.rag_chunk_count == 2
+    assert result.metadata.redaction_applied is True
 
 
 def test_itinerary_prompt_includes_user_context_when_provided() -> None:

@@ -124,3 +124,10 @@ not be touched.
 - The container filesystem is disposable.
 - Prometheus and Grafana are internal by default. Expose them only through a
   protected network, VPN, or reverse proxy authentication.
+
+## AI trace safety
+
+Set `AI_OBSERVABILITY_STORE_REDACTED_PROMPTS=false` and
+`AI_PROMPT_LOGGING_ENABLED=false` in production. Trace retention defaults to 30
+days via `AI_OBSERVABILITY_RETENTION_DAYS`; use the existing ops allowlist for
+trace access. Production startup rejects unsafe prompt logging or snapshots.

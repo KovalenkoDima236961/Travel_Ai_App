@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from datetime import date, date as Date
+from datetime import date
+from datetime import date as Date
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
@@ -17,6 +18,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
 NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -824,6 +826,7 @@ class ItineraryDay(APIModel):
 
 class ItineraryResponse(APIModel):
     days: list[ItineraryDay]
+    metadata: AIResponseMetadata | None = None
 
 
 class PartialTrip(APIModel):
@@ -947,10 +950,12 @@ class RegenerateItemRequest(RegenerateDayRequest):
 
 class RegenerateDayResponse(APIModel):
     day: ItineraryDay
+    metadata: AIResponseMetadata | None = None
 
 
 class RegenerateItemResponse(APIModel):
     item: ItineraryItem
+    metadata: AIResponseMetadata | None = None
 
 
 class BudgetOptimizationConstraints(APIModel):
@@ -1130,6 +1135,7 @@ class BudgetOptimizationProposalResponse(APIModel):
     tradeoffs: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     proposed_day: ItineraryDay = Field(alias="proposedDay")
+    metadata: AIResponseMetadata | None = None
 
     @field_validator("currency", mode="before")
     @classmethod

@@ -11,6 +11,7 @@ from app.schemas.itinerary import (
     UserPreferences,
     UserProfile,
 )
+from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
 RepairMode = Literal[
@@ -206,6 +207,7 @@ class RepairItineraryResponse(APIModel):
     repaired_itinerary: dict[str, Any] = Field(alias="repairedItinerary")
     repair_summary: RepairSummary = Field(alias="repairSummary")
     changes: list[RepairChange] = Field(default_factory=list)
+    metadata: AIResponseMetadata | None = None
 
     @model_validator(mode="after")
     def repaired_itinerary_must_have_days(self) -> "RepairItineraryResponse":

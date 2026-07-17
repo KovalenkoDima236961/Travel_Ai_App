@@ -61,3 +61,9 @@ For internal tokens, use the overlap mechanism instead of an immediate replace:
 Strict environments validate every active rotation token. Do not expose any
 `/internal/*`, `/metrics`, or ops route at the public reverse proxy, and do not
 place a secret in a `NEXT_PUBLIC_*` variable.
+
+## AI observability
+
+AI trace summaries must never contain a provider key, token, raw prompt, or
+unredacted response. Keep `AI_PROMPT_LOGGING_ENABLED=false` and do not make a
+redacted snapshot setting a substitute for secret handling.
