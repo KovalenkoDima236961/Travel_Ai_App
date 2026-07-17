@@ -1,5 +1,21 @@
 # Web Smoke Test
 
+## Onboarding & First-Run Experience v1
+
+1. Register a new user, log in, and confirm `/trips` shows “Plan your first trip” with destination, AI discovery, template, route, and demo choices.
+2. Open preference setup. Navigate all four steps with keyboard only, use Back, and confirm Skip for now never blocks navigation.
+3. Enter Bratislava/Slovakia, EUR, a supported language, travel styles, pace, a positive walking limit, food/dietary choices, transport, and accommodation. Save and confirm the choose-start screen appears.
+4. Choose “Help me choose a destination” and confirm `/trips/new?mode=discovery` opens with saved preferences available to the existing discovery context.
+5. Return and choose the known-destination option. Confirm `/trips/new?mode=destination` opens and prefills saved currency, language, pace, walking, transport, styles, and origin where relevant.
+6. Open `/trips/new?mode=route` and confirm the existing multi-destination builder is selected; open `/templates?firstRun=true` and confirm the existing library is used.
+7. Create the first trip and confirm its Command Center shows “Set up your trip” with links for itinerary, budget, route/transport, checklist, collaborators, and Trip Health.
+8. Generate an itinerary, set a budget, and generate a checklist. Confirm setup statuses refresh from existing data and the card disappears once most items are complete.
+9. Dismiss a contextual Trip Health, Budget Confidence, or Route/Transport tip. Refresh and confirm it stays dismissed for this user but remains independent for another account.
+10. Open `/demo-trip`. Confirm it is clearly labeled Demo/read-only, uses sample data, and has no mutation, public-sharing, expense, or persistence controls.
+11. Skip onboarding with no trips and confirm the normal trips page still offers helpful creation choices.
+12. Restart onboarding from Settings, the account menu, and Cmd/Ctrl+K. Confirm saved profile/preferences remain while onboarding progress resets.
+13. Switch among English, Spanish, Ukrainian, and French and verify onboarding, setup checklist, tips, empty states, and demo copy are localized.
+
 ## Performance & Reliability v1
 
 1. Open a completed collaborative trip with DevTools Network recording. The first useful overview should use trip detail, command-center summary, and bounded active-job status; no identical request should appear twice.

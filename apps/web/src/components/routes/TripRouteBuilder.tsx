@@ -8,6 +8,7 @@ import type {
   TripRouteStop,
   TripStyle
 } from "@/entities/route/model";
+import { ContextualTip } from "@/components/onboarding/ContextualTip";
 import { rebuildRouteLegs } from "@/lib/route-builder/route-draft";
 import { RouteLegCard } from "./RouteLegCard";
 import { RouteStopCard } from "./RouteStopCard";
@@ -91,6 +92,7 @@ export function TripRouteBuilder({
 
   return (
     <div className="flex flex-col gap-5">
+      <ContextualTip tipId="route_transport" />
       <div className="rounded-[18px] border border-sand-300 bg-sand-50 p-5">
         <label className={LABEL}>
           Origin

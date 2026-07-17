@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/lib/cn";
+import { EmptyState } from "@/components/ui";
 import { useTripTemplates } from "@/features/trip-template";
 import { getErrorMessage } from "@/lib/utils";
 import type { TripTemplateVisibility } from "@/entities/trip-template/model";
@@ -17,6 +19,7 @@ const FILTERS: { value: TripTemplateVisibility | "all"; label: string }[] = [
 ];
 
 export function TemplatesPageContent() {
+  const emptyT = useTranslations("emptyStates.templates");
   const [visibility, setVisibility] = useState<TripTemplateVisibility | "all">("all");
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
@@ -115,14 +118,12 @@ export function TemplatesPageContent() {
         ) : null}
 
         {templatesQuery.isSuccess && templates.length === 0 ? (
-          <div className="mt-8 rounded-[20px] border border-dashed border-sand-400 bg-white/60 px-8 py-14 text-center">
-            <h2 className="font-newsreader text-[24px] font-semibold text-cocoa-900">
-              No templates yet
-            </h2>
-            <p className="mx-auto mt-2 max-w-md text-[14.5px] text-cocoa-400">
-              Save a trip as a template to reuse its structure later, or adjust your filters above.
-            </p>
-          </div>
+          <EmptyState
+            className="mt-8 rounded-[20px] border-sand-400 bg-white/60 py-12"
+            title={emptyT("title")}
+            description={emptyT("description")}
+            primaryAction={{ href: "/trips", label: emptyT("action") }}
+          />
         ) : null}
 
         {templates.length > 0 ? (

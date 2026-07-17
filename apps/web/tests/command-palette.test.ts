@@ -61,6 +61,15 @@ describe("command palette helpers", () => {
     expect(getRecentCommandPaletteItems("user-a")[0].title).toBe("Updated Rome");
     expect(getRecentCommandPaletteItems("user-b")[0].id).toBe("trip:2");
   });
+
+  it("includes first-run and demo commands", () => {
+    const ids = getCommandRegistry(t).map((command) => command.id);
+    expect(ids).toContain("onboarding.gettingStarted");
+    expect(ids).toContain("onboarding.createFirstTrip");
+    expect(ids).toContain("onboarding.discovery");
+    expect(ids).toContain("onboarding.demoTrip");
+    expect(ids).toContain("onboarding.restart");
+  });
 });
 
 function result(id: string, href: string): SearchResult {

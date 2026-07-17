@@ -12,6 +12,7 @@ import { RouteReadinessCard } from "./RouteReadinessCard";
 import { TopFixesPanel } from "./TopFixesPanel";
 import { TripOverviewHeader } from "./TripOverviewHeader";
 import { TripReadinessSummary } from "./TripReadinessSummary";
+import { TripSetupChecklist } from "@/components/onboarding/TripSetupChecklist";
 import type { TripApprovalState } from "@/entities/approval/model";
 import type { Trip } from "@/entities/trip/model";
 import type {
@@ -30,6 +31,12 @@ type TripCommandCenterProps = {
   workspaceName?: string | null;
   onSyncNow?: () => void;
   syncing?: boolean;
+  setupChecklist?: {
+    checklistExists?: boolean;
+    collaboratorCount?: number;
+    healthLoaded?: boolean;
+    healthHasCriticalIssues?: boolean;
+  };
 };
 
 export function TripCommandCenter({
@@ -40,7 +47,8 @@ export function TripCommandCenter({
   offlineStatus,
   workspaceName,
   onSyncNow,
-  syncing = false
+  syncing = false,
+  setupChecklist
 }: TripCommandCenterProps) {
   const cardsById = Object.fromEntries(data.cards.map((card) => [card.id, card])) as Partial<
     Record<ReadinessCardModel["id"], ReadinessCardModel>
@@ -55,6 +63,7 @@ export function TripCommandCenter({
         trip={trip}
         workspaceName={workspaceName}
       />
+      <TripSetupChecklist trip={trip} {...setupChecklist} />
       <NextBestActionCard action={data.nextBestAction} />
       <TripReadinessSummary cards={data.cards} />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">

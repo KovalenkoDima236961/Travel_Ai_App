@@ -11,6 +11,7 @@ import { OfflineReceiptDraftsList } from "@/components/offline/OfflineReceiptDra
 import { PendingChangesList } from "@/components/offline/PendingChangesList";
 import { SyncConflictDialog } from "@/components/offline/SyncConflictDialog";
 import { SyncQueueStatus } from "@/components/offline/SyncQueueStatus";
+import { ContextualTip } from "@/components/onboarding/ContextualTip";
 import type { OfflineReceiptDraftRecord, PendingOfflineMutation } from "@/lib/offline/types";
 
 type OfflineTripCompanionPanelProps = {
@@ -73,6 +74,7 @@ export function OfflineTripCompanionPanel({
 
   return (
     <Card className="space-y-4">
+      <ContextualTip tipId="offline_mode" />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Offline Trip Companion</h2>

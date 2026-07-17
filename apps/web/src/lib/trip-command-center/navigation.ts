@@ -19,6 +19,7 @@ export const TAB_TO_ANCHOR: Record<string, string> = {
   reminders: "reminders",
   offline: "offline",
   collaborators: "sharing",
+  team: "sharing",
   sharing: "sharing",
   activity: "activity",
   comments: "itinerary",

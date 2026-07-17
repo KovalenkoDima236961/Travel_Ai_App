@@ -83,6 +83,14 @@ export function AccountMenu() {
           >
             {translate("settings")}
           </Link>
+          <Link
+            href="/getting-started"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-[13.5px] font-medium text-cocoa-700 transition hover:bg-sand-150"
+          >
+            {translate("gettingStarted")}
+          </Link>
           <button
             type="button"
             role="menuitem"

@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -10,6 +10,9 @@ import { useTranslations } from "next-intl";
 import { createTrip, tripKeys } from "@/lib/api/trips";
 import { getErrorMessage } from "@/lib/utils";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { useOnboardingState } from "@/hooks/useOnboardingState";
+import { getMyPreferences, getMyProfile, userKeys } from "@/lib/api/user";
 import {
   AdvancedTripPreferencesForm,
   type AdvancedTripPreferencesValue
@@ -22,7 +25,7 @@ import {
   TripRouteBuilder
 } from "@/components/routes/TripRouteBuilder";
 import { usePlanningConstraintsPreview } from "@/hooks/usePlanningConstraintsPreview";
-import type { TripRoute } from "@/entities/route/model";
+import type { TransportMode, TripRoute, TripStyle } from "@/entities/route/model";
 import type { PlanningConstraintsPreviewRequest } from "@/types/planning-constraints";
 import { CheckCircleIcon, MapPinIcon, SparklesIcon } from "./icons";
 
@@ -74,13 +77,18 @@ const FIELD_INPUT =
   "mt-2 h-12 w-full rounded-xl border border-sand-400 bg-[#FFFDFA] px-3.5 text-[14.5px] text-cocoa-900 outline-none transition placeholder:text-cocoa-400 focus:border-clay focus:ring-[3px] focus:ring-clay-tint";
 const FIELD_ERROR = "mt-1.5 block text-[13px] text-clay-deep";
 
-export function CreateTripForm() {
+export function CreateTripForm({ initialTripMode = "single_destination" }: { initialTripMode?: TripFormValues["tripMode"] }) {
   const translate = useTranslations("trips");
   const translateCommon = useTranslations("common");
   const translatePlanning = useTranslations("planningConstraints");
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const onboarding = useOnboardingState(user?.id);
   const { currentScope, currentWorkspace, editableWorkspaces } = useWorkspaces();
+  const preferenceDefaultsApplied = useRef(false);
+  const profileQuery = useQuery({ queryKey: userKeys.profile(), queryFn: getMyProfile });
+  const preferencesQuery = useQuery({ queryKey: userKeys.preferences(), queryFn: getMyPreferences });
   const [route, setRoute] = useState(createDefaultTripRoute);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [advancedPreferences, setAdvancedPreferences] = useState<AdvancedTripPreferencesValue>({
@@ -97,7 +105,7 @@ export function CreateTripForm() {
   const form = useForm<TripFormValues>({
     resolver: zodResolver(tripFormSchema),
     defaultValues: {
-      tripMode: "single_destination",
+      tripMode: initialTripMode,
       destination: "",
       workspaceId: "",
       startDate: "",
@@ -112,6 +120,7 @@ export function CreateTripForm() {
   const createMutation = useMutation({
     mutationFn: createTrip,
     onSuccess: async (trip) => {
+      onboarding.markFirstTripCreated(trip.createdAt);
       await queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
       router.push(`/trips/${trip.id}`);
     }
@@ -133,6 +142,44 @@ export function CreateTripForm() {
   useEffect(() => {
     register("interests");
   }, [register]);
+
+  useEffect(() => {
+    setValue("tripMode", initialTripMode);
+  }, [initialTripMode, setValue]);
+
+  useEffect(() => {
+    if (
+      preferenceDefaultsApplied.current ||
+      !profileQuery.data ||
+      !preferencesQuery.data ||
+      form.formState.isDirty
+    ) {
+      return;
+    }
+    preferenceDefaultsApplied.current = true;
+    const profile = profileQuery.data;
+    const preferences = preferencesQuery.data;
+    const interests = preferences.travelStyles.filter((style) => interestOptions.some((option) => option.value === style));
+    const pace = preferences.pace === "intensive" ? "packed" : preferences.pace;
+    setValue("budgetCurrency", profile.preferredCurrency || "EUR");
+    setValue("interests", interests);
+    setValue("pace", pace);
+    setAdvancedPreferences((current) => ({
+      ...current,
+      outputLanguage: profile.preferredLanguage,
+      pace,
+      maxWalkingKmPerDay: preferences.maxWalkingKmPerDay,
+      preferredModes: preferences.preferredTransport as TransportMode[],
+      tripStyles: preferences.travelStyles.filter(isTripStyle) as TripStyle[],
+      avoid: preferences.avoid.join(", ")
+    }));
+    if (profile.homeCity) {
+      setRoute((current) => ({
+        ...current,
+        origin: { name: profile.homeCity, country: profile.homeCountry }
+      }));
+    }
+  }, [form.formState.isDirty, preferencesQuery.data, profileQuery.data, setValue]);
 
   useEffect(() => {
     if (
@@ -408,7 +455,10 @@ export function CreateTripForm() {
                 tripStyles: advancedPreferences.tripStyles,
                 outputLanguage: advancedPreferences.outputLanguage ?? "en"
               }}
-              onTripCreated={(trip) => router.push(`/trips/${trip.id}`)}
+              onTripCreated={(trip) => {
+                onboarding.markFirstTripCreated(trip.createdAt);
+                router.push(`/trips/${trip.id}`);
+              }}
             />
           </div>
           <div className="mt-5">
@@ -614,4 +664,12 @@ function deriveRouteDestination(route: ReturnType<typeof createDefaultTripRoute>
     return `${firstStop.country} route`;
   }
   return `${firstStop.destination} route`;
+}
+
+function isTripStyle(value: string): value is TripStyle {
+  return [
+    "city_break", "road_trip", "train_trip", "backpacking", "camping", "hiking",
+    "island_hopping", "nature", "beach", "food", "culture", "adventure", "family",
+    "romantic", "low_budget", "luxury", "hidden_gem"
+  ].includes(value);
 }

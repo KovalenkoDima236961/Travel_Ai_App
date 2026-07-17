@@ -5,6 +5,13 @@ import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/shared/lib/cn";
 import { CollaborationInvitationsPanel } from "@/features/trip-sharing";
+import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  FirstRunDashboard,
+  HelpfulTripsEmptyState
+} from "@/components/onboarding/FirstRunDashboard";
+import { useFirstRunStatus } from "@/hooks/useFirstRunStatus";
+import { useOnboardingState } from "@/hooks/useOnboardingState";
 import { listSharedTrips, listTrips, tripKeys } from "@/lib/api/trips";
 import { recordPwaEngagement } from "@/lib/pwa/pwa-detection";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
@@ -16,6 +23,8 @@ import { TripCard } from "./TripCard";
 import { TripsHeader } from "./TripsHeader";
 
 export function TripsPageContent() {
+  const { user } = useAuth();
+  const onboarding = useOnboardingState(user?.id);
   const { currentScope, currentWorkspace, currentWorkspaceId, workspaces } = useWorkspaces();
   const listParams = useMemo(
     () => ({
@@ -56,6 +65,7 @@ export function TripsPageContent() {
   const heading =
     currentScope === "workspace" ? currentWorkspace?.name ?? "Workspace trips" : "Your trips";
   const trips = tripsQuery.data?.items ?? [];
+  const firstRun = useFirstRunStatus(trips.length, onboarding.state);
   const subtitle = tripsQuery.isSuccess ? describeScope(trips.length, currentScope, currentWorkspace?.name) : null;
 
   return (
@@ -95,20 +105,15 @@ export function TripsPageContent() {
           </div>
         ) : null}
 
-        {tripsQuery.isSuccess && trips.length === 0 ? (
+        {tripsQuery.isSuccess && trips.length === 0 && currentScope !== "workspace" && onboarding.hydrated && firstRun.showFirstRunDashboard ? <FirstRunDashboard /> : null}
+
+        {tripsQuery.isSuccess && trips.length === 0 && currentScope !== "workspace" && onboarding.hydrated && firstRun.showHelpfulEmptyState ? <HelpfulTripsEmptyState /> : null}
+
+        {tripsQuery.isSuccess && trips.length === 0 && currentScope === "workspace" ? (
           <div className="mt-9 rounded-[20px] border border-dashed border-sand-400 bg-white/60 px-8 py-14 text-center">
-            <h2 className="font-newsreader text-[24px] font-semibold text-cocoa-900">No trips yet</h2>
-            <p className="mx-auto mt-2 max-w-md text-[14.5px] text-cocoa-400">
-              {currentScope === "workspace"
-                ? "Create the first trip for this workspace to start planning together."
-                : "Create your first trip request and let AI draft an itinerary you can shape."}
-            </p>
-            <Link
-              href="/trips/new"
-              className="mt-6 inline-flex h-[42px] items-center rounded-full bg-clay px-6 text-[14px] font-semibold text-sand-100 transition hover:bg-clay-dark"
-            >
-              Create trip
-            </Link>
+            <h2 className="font-newsreader text-[24px] font-semibold text-cocoa-900">No workspace trips yet</h2>
+            <p className="mx-auto mt-2 max-w-md text-[14.5px] text-cocoa-400">Create the first trip for this workspace to start planning together.</p>
+            <Link href="/trips/new" className="mt-6 inline-flex h-[42px] items-center rounded-full bg-clay px-6 text-[14px] font-semibold text-sand-100 transition hover:bg-clay-dark">Create trip</Link>
           </div>
         ) : null}
 

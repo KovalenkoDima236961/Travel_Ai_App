@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ButtonSpinner, FieldHint, InlineError } from "@/components/ui";
+import { ContextualTip } from "@/components/onboarding/ContextualTip";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
@@ -152,6 +153,8 @@ export function UploadReceiptDialog({
           {expensesT("cancel")}
         </Button>
       </div>
+
+      <div className="mt-4"><ContextualTip tipId="receipts" /></div>
 
       {error ? <InlineError className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3" id="receipt-upload-error" message={error} /> : null}
 

@@ -30,6 +30,7 @@ describe("trip detail deep links", () => {
 
   it("falls back to a section and rejects unknown tabs", () => {
     expect(getDeepLinkTarget("checklist", new URLSearchParams())).toEqual({ sectionId: "checklist" });
+    expect(getDeepLinkTarget("team", new URLSearchParams())).toEqual({ sectionId: "sharing" });
     expect(getDeepLinkTarget("missing", new URLSearchParams())).toBeNull();
   });
 });

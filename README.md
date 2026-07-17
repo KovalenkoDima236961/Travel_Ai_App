@@ -7,6 +7,13 @@ Prometheus/Grafana observability stack.
 
 The default development stack runs at `http://localhost:3000`.
 
+Onboarding & First-Run Experience v1 guides zero-trip users through optional
+preferences and existing destination, AI discovery, template, and route flows.
+It adds a read-only demo, a first-trip Command Center setup checklist,
+contextual feature tips, restartable local progress, and action-oriented empty
+states without adding a service or changing the visual design system. Details
+live in `docs/frontend/onboarding.md`.
+
 Frontend UX Polish & Usability Hardening v1 adds shared localized
 loading/empty/error/form/confirmation primitives, progressive trip and public
 share states, safer destructive actions, focused deep links, accessible progress,

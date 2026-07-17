@@ -59,7 +59,8 @@
     "health": { "title": "Trip looks good", "description": "No critical trip health issues were found. Review the itinerary before travel." },
     "groupReadiness": { "title": "Everyone looks ready", "description": "No group readiness issues need attention right now." },
     "offline": { "title": "No offline trips yet", "description": "Open a trip while online to make its saved details available offline." },
-    "templates": { "title": "No templates yet", "description": "Save a reusable trip plan to get started faster next time." },
+    "templates": { "title": "No templates yet", "description": "Save a completed trip as a template or start by creating a trip you can reuse later.", "action": "Open trips" },
+    "workspaces": { "title": "No workspaces yet", "description": "Create a workspace when you want to plan trips with a team.", "action": "Create workspace" },
     "notifications": { "title": "No notifications", "description": "You are all caught up." },
     "workspaceTrips": { "title": "No workspace trips yet", "description": "Create or move a trip into this workspace to collaborate." }
   },
@@ -184,7 +185,8 @@
     "logout": "Log out",
     "account": "Account",
     "signedInAs": "Signed in as",
-    "yourAccount": "Your account"
+    "yourAccount": "Your account",
+    "gettingStarted": "Getting started"
   },
   "commandCenter": {
     "overview": "Overview",
@@ -264,7 +266,8 @@
     "loadFailed": "Your saved settings are unchanged. Check your connection and try again.",
     "saveFailed": "Could not save profile.",
     "preferencesSaved": "Preferences saved.",
-    "preferencesSaveFailed": "Could not save preferences. Your previous settings are unchanged."
+    "preferencesSaveFailed": "Could not save preferences. Your previous settings are unchanged.",
+    "onboarding": { "title": "Getting started", "description": "Manage first-run guidance and contextual tips on this device.", "status": "Onboarding status", "completed": "Completed", "skipped": "Skipped", "inProgress": "In progress", "restart": "Restart onboarding", "clearTips": "Show dismissed tips again" }
   },
   "profile": {},
   "trips": {
@@ -1145,6 +1148,79 @@
     "openRoute": "Open route",
     "openAffectedDay": "Open affected day"
   },
+  "onboarding": {
+    "pageTitle": "Getting started",
+    "pageDescription": "Set useful defaults, choose the planning path that fits, and create your first trip at your own pace.",
+    "loading": "Loading your setup…",
+    "skipForNow": "Skip for now",
+    "restart": "Restart onboarding",
+    "loadError": { "title": "We could not load your preferences", "description": "Your existing settings are unchanged. You can retry without losing progress.", "retry": "Try again" },
+    "welcome": {
+      "eyebrow": "Welcome to Travel AI",
+      "title": "Plan a useful first trip in a few minutes",
+      "description": "Tell us a few optional preferences or go straight to the planning flow that matches what you already know.",
+      "preferencesAction": "Set up preferences",
+      "chooseAction": "Choose how to start"
+    },
+    "firstRun": {
+      "eyebrow": "Getting started",
+      "title": "Plan your first trip",
+      "description": "Start with a destination, let AI suggest ideas, use a template, or build a multi-city route.",
+      "preferencesAction": "Set up preferences",
+      "skip": "Skip onboarding",
+      "demo": { "title": "Explore a demo trip", "description": "See how a completed trip looks.", "bestFor": "Best for a quick product tour", "time": "About 1 minute" }
+    },
+    "chooseStart": {
+      "title": "How would you like to start?",
+      "description": "Each option opens an existing planning flow, so you can switch paths at any time.",
+      "known": { "title": "I know where I want to go", "description": "Best if you already know where and when you want to travel. Add the essentials and create a draft.", "shortDescription": "Create a trip when you know the destination and dates.", "bestFor": "Destination and dates in mind", "time": "About 2 minutes" },
+      "discovery": { "title": "Help me choose a destination", "description": "Best if you know the vibe but not the destination. Describe what you want and compare suggestions.", "shortDescription": "Describe the trip vibe and compare AI suggestions.", "bestFor": "A vibe, season, or budget", "time": "About 3 minutes" },
+      "template": { "title": "Start from a template", "description": "Reuse a proven itinerary structure and adapt it to a new destination.", "shortDescription": "Start from a reusable itinerary template.", "bestFor": "A faster, structured start", "time": "About 2 minutes" },
+      "route": { "title": "Create a multi-destination route", "description": "Plan multiple cities, towns, or stops and connect them with transport.", "shortDescription": "Plan several cities or stops in one trip.", "bestFor": "Two or more destinations", "time": "About 4 minutes" }
+    },
+    "preferences": {
+      "progress": "Step {current} of {total}",
+      "back": "Back", "skip": "Skip for now", "continue": "Continue", "finish": "Finish setup", "saving": "Saving…", "saveFailed": "Could not save preferences. You can continue and try again later.",
+      "basics": { "title": "The basics", "description": "These defaults make new trip forms faster to complete." },
+      "style": { "title": "Your travel style", "description": "Choose any themes you often enjoy. You can change them for each trip." },
+      "comfort": { "title": "Comfort and pace", "description": "Help the planner avoid days that are too packed, expensive, or walk-heavy." },
+      "details": { "title": "Food, transport, and stays", "description": "Optional preferences make suggestions more relevant from the first draft." },
+      "fields": { "homeCity": "Home city", "homeCountry": "Home country", "currency": "Preferred currency", "language": "Preferred language", "travelStyles": "Travel styles", "pace": "Default pace", "walking": "Walking tolerance", "kmPerDay": "km per day", "budgetComfort": "Budget comfort", "food": "Food preferences", "dietary": "Dietary restrictions", "transport": "Preferred transport", "accommodation": "Accommodation style" },
+      "languages": { "en": "English", "es": "Spanish", "uk": "Ukrainian", "fr": "French" },
+      "validation": { "shortText": "Use 100 characters or fewer.", "currency": "Choose a supported currency.", "language": "Choose English, Spanish, Ukrainian, or French.", "walking": "Enter a walking limit between 0.5 and 50 km." },
+      "options": {
+        "styles": { "city_break": "City breaks", "nature": "Nature", "food": "Food", "culture": "Culture", "adventure": "Adventure", "budget": "Low budget", "comfort": "Comfort", "hidden_gems": "Hidden gems" },
+        "pace": { "relaxed": "Relaxed", "balanced": "Balanced", "intensive": "Intensive" },
+        "budget": { "budget": "Budget conscious", "balanced": "Balanced", "comfort": "Comfort first" },
+        "food": { "local": "Local food", "street_food": "Street food", "cafes": "Cafes", "fine_dining": "Fine dining" },
+        "dietary": { "vegetarian": "Vegetarian", "vegan": "Vegan", "gluten_free": "Gluten free", "lactose_free": "Lactose free", "halal": "Halal", "kosher": "Kosher" },
+        "transport": { "walking": "Walking", "public_transport": "Public transport", "train": "Train", "bus": "Bus", "bike": "Bike", "rental_car": "Rental car" },
+        "accommodation": { "budget_hotel": "Budget hotel", "apartment": "Apartment", "hostel": "Hostel", "boutique_hotel": "Boutique hotel", "luxury_hotel": "Luxury hotel" }
+      }
+    },
+    "setup": { "eyebrow": "First trip created", "title": "Finish the useful details", "description": "Your trip Command Center now shows a short setup checklist. Use it to add an itinerary, budget, route, packing checklist, and final health review.", "openTrip": "Open my trip", "finish": "Finish onboarding" },
+    "status": { "completed": "Onboarding completed", "skipped": "Onboarding skipped", "description": "You can still use any starting option or restart the preference setup." },
+    "setupChecklist": {
+      "eyebrow": "First-trip setup", "title": "Set up your trip", "description": "Complete the useful details in any order.", "dismiss": "Dismiss", "dismissLabel": "Dismiss trip setup checklist", "progress": "{completed} of {total} setup items complete",
+      "items": { "destination_dates": "Add destination and dates", "itinerary": "Generate itinerary", "budget": "Set budget", "route_transport": "Add route and transport", "checklist": "Generate checklist", "collaborators": "Invite collaborators", "health": "Review Trip Health" },
+      "status": { "complete": "Complete", "recommended": "Recommended", "optional": "Optional", "needs_attention": "Needs attention" }
+    },
+    "tips": {
+      "title": "Good to know", "dismiss": "Dismiss",
+      "tripHealth": "Trip Health tells you what is missing before travel.",
+      "budgetConfidence": "Budget confidence shows how trustworthy your estimate is based on cost sources.",
+      "routeTransport": "Selected transport helps timing and budget, but it is not a booking confirmation.",
+      "publicShare": "Public share links are read-only and do not include private expenses or receipts.",
+      "offlineMode": "Offline mode stores selected trip data on this device. Clear it on shared devices.",
+      "receipts": "Receipts may contain sensitive information. Upload only files you want stored with this trip.",
+      "aiGeneration": "AI plans are validated before saving, but you should still review important details."
+    },
+    "demo": {
+      "badge": "Demo", "readOnly": "This is a read-only demo", "readOnlyLabel": "Demo trip, read-only", "privacy": "It uses sample data and never saves changes or exposes private information.", "createAction": "Create my trip",
+      "commandCenter": "Command Center", "tripTitle": "A long weekend in Bratislava and Vienna", "tripMeta": "4 days · 2 travelers · EUR 900 sample budget", "health": "Trip Health", "budgetConfidence": "Budget confidence", "setupProgress": "Setup progress", "itinerary": "Sample itinerary", "itineraryDescription": "A balanced first day with travel time and costs reviewed.", "route": "Route timeline", "checklist": "Sample checklist", "healthAndBudget": "Health and budget signals", "healthNoticeTitle": "One recommended fix", "healthNoticeDescription": "Add the return train time before travel so the final day remains realistic.", "budgetNoticeTitle": "Estimate confidence is good", "budgetNoticeDescription": "Most major items have prices; meals still use regional estimates.",
+      "sample": { "breakfastTitle": "Riverside breakfast", "breakfastDetail": "Local bakery and coffee near the old town.", "walkTitle": "Old Town walk", "walkDetail": "A relaxed route through historic streets and small courtyards.", "castleTitle": "Castle and gardens", "castleDetail": "Panoramic city views with time to explore at your own pace.", "trainTickets": "Check train tickets", "address": "Save accommodation address", "jacket": "Pack a light rain jacket", "twoNights": "2 nights", "trainOneHour": "Train · 1h" }
+    }
+  },
   "validation": {
     "required": "This field is required.",
     "invalidEmail": "Enter a valid email address.",
@@ -1191,7 +1267,8 @@
       "offline": "Offline",
       "templates": "Templates",
       "workspaces": "Workspaces",
-      "ops": "Ops"
+      "ops": "Ops",
+      "onboarding": "Getting started"
     },
     "commands": {
       "createTrip": { "title": "Create new trip", "description": "Start a new AI travel plan." },
@@ -1212,7 +1289,12 @@
       "templates": { "title": "Open templates", "description": "Browse reusable trip templates." },
       "workspaces": { "title": "Open workspace switcher", "description": "Switch or manage workspaces." },
       "opsDashboard": { "title": "Open ops dashboard", "description": "Review operational status." },
-      "aiGenerations": { "title": "Open AI generations", "description": "Review AI generation traces." }
+      "aiGenerations": { "title": "Open AI generations", "description": "Review AI generation traces." },
+      "gettingStarted": { "title": "Getting started", "description": "Open the first-run guide and planning choices." },
+      "createFirstTrip": { "title": "Create first trip", "description": "Start with a destination and dates." },
+      "helpChooseDestination": { "title": "Help me choose a destination", "description": "Open AI Trip Discovery." },
+      "demoTrip": { "title": "Open demo trip", "description": "See a read-only example trip." },
+      "restartOnboarding": { "title": "Restart onboarding", "description": "Reset this device's first-run guide." }
     }
   }
 }

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { cn } from "@/shared/lib/cn";
+import { EmptyState } from "@/components/ui";
 import { listWorkspaces, workspaceKeys } from "@/lib/api/workspaces";
 import { instrumentSans, newsreader } from "./fonts";
 import { PlusIcon } from "./icons";
@@ -13,6 +15,7 @@ const CREATE_CTA =
   "inline-flex h-11 items-center gap-2 rounded-full bg-clay px-5 text-[14.5px] font-semibold text-sand-100 transition hover:bg-clay-dark";
 
 export function WorkspacesPageContent() {
+  const emptyT = useTranslations("emptyStates.workspaces");
   const workspacesQuery = useQuery({
     queryKey: workspaceKeys.list(),
     queryFn: listWorkspaces
@@ -61,18 +64,12 @@ export function WorkspacesPageContent() {
         ) : null}
 
         {workspacesQuery.isSuccess && workspacesQuery.data.length === 0 ? (
-          <div className="mt-8 rounded-[20px] border border-dashed border-sand-400 bg-white/60 px-8 py-14 text-center">
-            <h2 className="font-newsreader text-[24px] font-semibold text-cocoa-900">
-              No workspaces yet
-            </h2>
-            <p className="mx-auto mt-2 max-w-md text-[14.5px] text-cocoa-400">
-              Create a workspace when a group needs access to more than one trip.
-            </p>
-            <Link href="/workspaces/new" className={cn(CREATE_CTA, "mt-6")}>
-              <PlusIcon className="h-4 w-4" />
-              Create workspace
-            </Link>
-          </div>
+          <EmptyState
+            className="mt-8 rounded-[20px] border-sand-400 bg-white/60 py-12"
+            title={emptyT("title")}
+            description={emptyT("description")}
+            primaryAction={{ href: "/workspaces/new", label: emptyT("action") }}
+          />
         ) : null}
 
         {workspacesQuery.isSuccess && workspacesQuery.data.length > 0 ? (

@@ -31,7 +31,8 @@
     "health": { "title": "El viaje está bien", "description": "No se encontraron problemas críticos. Revisa el itinerario antes de viajar." },
     "groupReadiness": { "title": "Todo el grupo parece preparado", "description": "No hay problemas de preparación que requieran atención." },
     "offline": { "title": "Aún no hay viajes sin conexión", "description": "Abre un viaje con conexión para guardar sus datos y usarlos sin internet." },
-    "templates": { "title": "Aún no hay plantillas", "description": "Guarda un plan reutilizable para empezar más rápido la próxima vez." },
+    "templates": { "title": "Aún no hay plantillas", "description": "Guarda un viaje completo como plantilla o crea uno que puedas reutilizar después.", "action": "Abrir viajes" },
+    "workspaces": { "title": "Aún no hay espacios", "description": "Crea un espacio cuando quieras planificar viajes con un equipo.", "action": "Crear espacio" },
     "notifications": { "title": "No hay notificaciones", "description": "Estás al día." },
     "workspaceTrips": { "title": "Aún no hay viajes en el espacio", "description": "Crea o mueve un viaje a este espacio para colaborar." }
   },
@@ -104,7 +105,8 @@
     "approvals": "Aprobaciones", "budgets": "Presupuestos", "analytics": "Análisis",
     "createTrip": "Crear viaje", "login": "Iniciar sesión", "register": "Registrarse",
     "logout": "Cerrar sesión", "account": "Cuenta", "signedInAs": "Sesión iniciada como",
-    "yourAccount": "Tu cuenta"
+    "yourAccount": "Tu cuenta",
+    "gettingStarted": "Primeros pasos"
   },
   "commandCenter": {
     "overview": "Resumen", "commandCenter": "Centro de control", "nextBestAction": "Siguiente mejor acción",
@@ -145,7 +147,8 @@
     "saveProfile": "Guardar perfil", "saving": "Guardando…", "profileSaved": "Perfil guardado.",
     "loadErrorTitle": "No pudimos cargar tus ajustes", "loadFailed": "Los ajustes guardados no han cambiado. Comprueba la conexión e inténtalo de nuevo.",
     "saveFailed": "No se pudo guardar el perfil.", "preferencesSaved": "Preferencias guardadas.",
-    "preferencesSaveFailed": "No se pudieron guardar las preferencias. Los ajustes anteriores no han cambiado."
+    "preferencesSaveFailed": "No se pudieron guardar las preferencias. Los ajustes anteriores no han cambiado.",
+    "onboarding": { "title": "Primeros pasos", "description": "Gestiona la guía inicial y los consejos de este dispositivo.", "status": "Estado de introducción", "completed": "Completada", "skipped": "Omitida", "inProgress": "En curso", "restart": "Reiniciar introducción", "clearTips": "Volver a mostrar consejos" }
   },
   "profile": {},
   "trips": {
@@ -719,6 +722,37 @@
     "routeIssue": "Problema de ruta", "routeItineraryMismatch": "La ruta y el itinerario no coinciden",
     "activityOverlapsTransport": "La actividad se solapa con el transporte", "openRoute": "Abrir ruta", "openAffectedDay": "Abrir día afectado"
   },
+  "onboarding": {
+    "pageTitle": "Primeros pasos", "pageDescription": "Define opciones útiles, elige cómo planificar y crea tu primer viaje a tu ritmo.", "loading": "Cargando tu configuración…", "skipForNow": "Omitir por ahora", "restart": "Reiniciar introducción",
+    "loadError": { "title": "No pudimos cargar tus preferencias", "description": "Tus ajustes siguen intactos. Puedes reintentar sin perder el progreso.", "retry": "Reintentar" },
+    "welcome": { "eyebrow": "Te damos la bienvenida a Travel AI", "title": "Planifica un primer viaje útil en pocos minutos", "description": "Indica algunas preferencias opcionales o ve directamente al flujo que encaje con lo que ya sabes.", "preferencesAction": "Configurar preferencias", "chooseAction": "Elegir cómo empezar" },
+    "firstRun": { "eyebrow": "Primeros pasos", "title": "Planifica tu primer viaje", "description": "Empieza con un destino, pide ideas a la IA, usa una plantilla o crea una ruta con varias ciudades.", "preferencesAction": "Configurar preferencias", "skip": "Omitir introducción", "demo": { "title": "Explorar viaje de demo", "description": "Mira cómo se ve un viaje completo.", "bestFor": "Ideal para una visita rápida", "time": "Aproximadamente 1 minuto" } },
+    "chooseStart": {
+      "title": "¿Cómo quieres empezar?", "description": "Cada opción abre un flujo existente y puedes cambiar de camino en cualquier momento.",
+      "known": { "title": "Sé adónde quiero ir", "description": "Ideal si ya sabes dónde y cuándo viajar. Añade lo esencial y crea un borrador.", "shortDescription": "Crea un viaje con destino y fechas conocidos.", "bestFor": "Destino y fechas decididos", "time": "Aproximadamente 2 minutos" },
+      "discovery": { "title": "Ayúdame a elegir destino", "description": "Ideal si conoces el ambiente, pero no el destino. Describe lo que buscas y compara sugerencias.", "shortDescription": "Describe el estilo del viaje y compara sugerencias IA.", "bestFor": "Un ambiente, temporada o presupuesto", "time": "Aproximadamente 3 minutos" },
+      "template": { "title": "Empezar con una plantilla", "description": "Reutiliza una estructura probada y adáptala a otro destino.", "shortDescription": "Empieza con una plantilla reutilizable.", "bestFor": "Un inicio rápido y estructurado", "time": "Aproximadamente 2 minutos" },
+      "route": { "title": "Crear ruta multidestino", "description": "Planifica varias ciudades o paradas y conéctalas con transporte.", "shortDescription": "Planifica varias ciudades o paradas.", "bestFor": "Dos o más destinos", "time": "Aproximadamente 4 minutos" }
+    },
+    "preferences": {
+      "progress": "Paso {current} de {total}", "back": "Atrás", "skip": "Omitir por ahora", "continue": "Continuar", "finish": "Finalizar configuración", "saving": "Guardando…", "saveFailed": "No se pudieron guardar las preferencias. Puedes continuar e intentarlo después.",
+      "basics": { "title": "Lo básico", "description": "Estos valores predeterminados aceleran los nuevos viajes." }, "style": { "title": "Tu estilo de viaje", "description": "Elige los temas que sueles disfrutar. Puedes cambiarlos en cada viaje." }, "comfort": { "title": "Comodidad y ritmo", "description": "Ayuda a evitar días demasiado llenos, caros o con demasiadas caminatas." }, "details": { "title": "Comida, transporte y alojamiento", "description": "Las preferencias opcionales mejoran las sugerencias desde el primer borrador." },
+      "fields": { "homeCity": "Ciudad de origen", "homeCountry": "País de origen", "currency": "Moneda preferida", "language": "Idioma preferido", "travelStyles": "Estilos de viaje", "pace": "Ritmo predeterminado", "walking": "Tolerancia al caminar", "kmPerDay": "km al día", "budgetComfort": "Comodidad de presupuesto", "food": "Preferencias gastronómicas", "dietary": "Restricciones alimentarias", "transport": "Transporte preferido", "accommodation": "Tipo de alojamiento" },
+      "languages": { "en": "Inglés", "es": "Español", "uk": "Ucraniano", "fr": "Francés" },
+      "validation": { "shortText": "Usa 100 caracteres o menos.", "currency": "Elige una moneda admitida.", "language": "Elige inglés, español, ucraniano o francés.", "walking": "Indica entre 0,5 y 50 km." },
+      "options": {
+        "styles": { "city_break": "Escapadas urbanas", "nature": "Naturaleza", "food": "Gastronomía", "culture": "Cultura", "adventure": "Aventura", "budget": "Bajo presupuesto", "comfort": "Comodidad", "hidden_gems": "Lugares secretos" },
+        "pace": { "relaxed": "Relajado", "balanced": "Equilibrado", "intensive": "Intensivo" }, "budget": { "budget": "Ahorrador", "balanced": "Equilibrado", "comfort": "Priorizar comodidad" },
+        "food": { "local": "Comida local", "street_food": "Comida callejera", "cafes": "Cafés", "fine_dining": "Alta cocina" }, "dietary": { "vegetarian": "Vegetariana", "vegan": "Vegana", "gluten_free": "Sin gluten", "lactose_free": "Sin lactosa", "halal": "Halal", "kosher": "Kosher" },
+        "transport": { "walking": "A pie", "public_transport": "Transporte público", "train": "Tren", "bus": "Autobús", "bike": "Bicicleta", "rental_car": "Coche de alquiler" }, "accommodation": { "budget_hotel": "Hotel económico", "apartment": "Apartamento", "hostel": "Hostal", "boutique_hotel": "Hotel boutique", "luxury_hotel": "Hotel de lujo" }
+      }
+    },
+    "setup": { "eyebrow": "Primer viaje creado", "title": "Completa los detalles útiles", "description": "El Command Center muestra una breve lista para itinerario, presupuesto, ruta, equipaje y salud.", "openTrip": "Abrir mi viaje", "finish": "Finalizar introducción" },
+    "status": { "completed": "Introducción completada", "skipped": "Introducción omitida", "description": "Puedes usar cualquier opción o reiniciar la configuración." },
+    "setupChecklist": { "eyebrow": "Configuración inicial", "title": "Configura tu viaje", "description": "Completa los detalles en cualquier orden.", "dismiss": "Descartar", "dismissLabel": "Descartar lista de configuración", "progress": "{completed} de {total} elementos completos", "items": { "destination_dates": "Añadir destino y fechas", "itinerary": "Generar itinerario", "budget": "Definir presupuesto", "route_transport": "Añadir ruta y transporte", "checklist": "Generar checklist", "collaborators": "Invitar colaboradores", "health": "Revisar Trip Health" }, "status": { "complete": "Completo", "recommended": "Recomendado", "optional": "Opcional", "needs_attention": "Requiere atención" } },
+    "tips": { "title": "Conviene saberlo", "dismiss": "Descartar", "tripHealth": "Trip Health muestra lo que falta antes de viajar.", "budgetConfidence": "La confianza del presupuesto indica la fiabilidad de la estimación según sus fuentes.", "routeTransport": "El transporte elegido mejora tiempos y presupuesto, pero no confirma una reserva.", "publicShare": "Los enlaces públicos son de solo lectura y no incluyen gastos privados ni recibos.", "offlineMode": "El modo sin conexión guarda datos del viaje en este dispositivo. Bórralos en dispositivos compartidos.", "receipts": "Los recibos pueden incluir datos sensibles. Sube solo archivos que quieras guardar con el viaje.", "aiGeneration": "Los planes IA se validan antes de guardarse, pero debes revisar los detalles importantes." },
+    "demo": { "badge": "Demo", "readOnly": "Esta demo es de solo lectura", "readOnlyLabel": "Viaje de demo, solo lectura", "privacy": "Usa datos de muestra y no guarda cambios ni expone datos privados.", "createAction": "Crear mi viaje", "commandCenter": "Command Center", "tripTitle": "Un fin de semana largo en Bratislava y Viena", "tripMeta": "4 días · 2 viajeros · presupuesto de muestra de 900 EUR", "health": "Trip Health", "budgetConfidence": "Confianza del presupuesto", "setupProgress": "Progreso", "itinerary": "Itinerario de muestra", "itineraryDescription": "Un primer día equilibrado con tiempos y costes revisados.", "route": "Cronología de ruta", "checklist": "Checklist de muestra", "healthAndBudget": "Señales de salud y presupuesto", "healthNoticeTitle": "Una mejora recomendada", "healthNoticeDescription": "Añade la hora del tren de vuelta para mantener realista el último día.", "budgetNoticeTitle": "Buena confianza de estimación", "budgetNoticeDescription": "La mayoría de partidas tienen precio; las comidas usan estimaciones regionales.", "sample": { "breakfastTitle": "Desayuno junto al río", "breakfastDetail": "Panadería local y café cerca del casco antiguo.", "walkTitle": "Paseo por el casco antiguo", "walkDetail": "Una ruta tranquila por calles históricas y patios pequeños.", "castleTitle": "Castillo y jardines", "castleDetail": "Vistas panorámicas con tiempo para explorar a tu ritmo.", "trainTickets": "Comprobar billetes de tren", "address": "Guardar la dirección del alojamiento", "jacket": "Llevar una chaqueta ligera", "twoNights": "2 noches", "trainOneHour": "Tren · 1 h" } }
+  },
   "validation": {
     "required": "Este campo es obligatorio.", "invalidEmail": "Introduce un correo válido.",
     "invalidDate": "Introduce una fecha válida.", "invalidCurrency": "Introduce un código de moneda válido.",
@@ -743,7 +777,7 @@
     "disabled": { "editTrip": "No tienes permiso para editar este viaje." },
     "categories": {
       "trips": "Viajes", "tripSections": "Secciones del viaje", "money": "Dinero", "notifications": "Notificaciones",
-      "settings": "Ajustes", "offline": "Sin conexión", "templates": "Plantillas", "workspaces": "Espacios", "ops": "Ops"
+      "settings": "Ajustes", "offline": "Sin conexión", "templates": "Plantillas", "workspaces": "Espacios", "ops": "Ops", "onboarding": "Primeros pasos"
     },
     "commands": {
       "createTrip": { "title": "Crear viaje", "description": "Inicia un nuevo plan de viaje con IA." },
@@ -764,7 +798,12 @@
       "templates": { "title": "Abrir plantillas", "description": "Explora plantillas reutilizables." },
       "workspaces": { "title": "Abrir espacios", "description": "Cambia o gestiona espacios." },
       "opsDashboard": { "title": "Abrir panel ops", "description": "Revisa el estado operativo." },
-      "aiGenerations": { "title": "Abrir generaciones IA", "description": "Revisa trazas de generación IA." }
+      "aiGenerations": { "title": "Abrir generaciones IA", "description": "Revisa trazas de generación IA." },
+      "gettingStarted": { "title": "Primeros pasos", "description": "Abre la guía inicial y las opciones de planificación." },
+      "createFirstTrip": { "title": "Crear primer viaje", "description": "Empieza con un destino y fechas." },
+      "helpChooseDestination": { "title": "Ayúdame a elegir destino", "description": "Abre el descubrimiento de viajes con IA." },
+      "demoTrip": { "title": "Abrir viaje de demo", "description": "Mira un ejemplo de solo lectura." },
+      "restartOnboarding": { "title": "Reiniciar introducción", "description": "Restablece la guía inicial de este dispositivo." }
     }
   }
 }

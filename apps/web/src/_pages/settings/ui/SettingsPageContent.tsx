@@ -7,6 +7,7 @@ import { cn } from "@/shared/lib/cn";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PushNotificationSettings } from "@/components/notifications/PushNotificationSettings";
 import { NotificationPreferencesSection } from "@/components/settings/NotificationPreferencesSection";
+import { OnboardingSettingsCard } from "@/components/settings/OnboardingSettingsCard";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { PwaSettingsSection } from "@/components/settings/PwaSettingsSection";
@@ -133,6 +134,8 @@ export function SettingsPageContent() {
               successMessage={preferencesMutation.isSuccess ? translate("preferencesSaved") : null}
               onSubmit={(values) => preferencesMutation.mutate(values)}
             />
+
+            <OnboardingSettingsCard />
 
             <PwaSettingsSection />
 

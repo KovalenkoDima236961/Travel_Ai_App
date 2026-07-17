@@ -2517,6 +2517,24 @@ export function TripDetailPageContent() {
                 syncing={offlineSync.syncing}
                 trip={trip}
                 workspaceName={workspaceName}
+                setupChecklist={{
+                  checklistExists: Boolean(
+                    checklistQuery.data?.checklist ||
+                    (commandCenterSummaryQuery.data?.checklist?.totalCount ?? 0) > 0
+                  ),
+                  collaboratorCount: Math.max(
+                    0,
+                    (groupReadinessQuery.data?.members.length ??
+                      commandCenterSummaryQuery.data?.groupReadiness?.memberCount ??
+                      1) - 1
+                  ),
+                  healthLoaded: Boolean(tripHealthQuery.data ?? summaryHealth),
+                  healthHasCriticalIssues: Boolean(
+                    (tripHealthQuery.data ?? summaryHealth)?.issues.some(
+                      (issue) => issue.status === "open" && issue.severity === "critical"
+                    )
+                  )
+                }}
               />
             ) : null}
 

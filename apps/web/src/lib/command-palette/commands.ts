@@ -23,6 +23,46 @@ type Translator = (key: string) => string;
 export function getCommandRegistry(t: Translator): CommandPaletteCommand[] {
   return [
     {
+      id: "onboarding.gettingStarted",
+      title: t("commands.gettingStarted.title"),
+      description: t("commands.gettingStarted.description"),
+      category: t("categories.onboarding"),
+      href: "/getting-started",
+      visibleIf: () => true
+    },
+    {
+      id: "onboarding.createFirstTrip",
+      title: t("commands.createFirstTrip.title"),
+      description: t("commands.createFirstTrip.description"),
+      category: t("categories.onboarding"),
+      href: "/trips/new?mode=destination",
+      visibleIf: () => true
+    },
+    {
+      id: "onboarding.discovery",
+      title: t("commands.helpChooseDestination.title"),
+      description: t("commands.helpChooseDestination.description"),
+      category: t("categories.onboarding"),
+      href: "/trips/new?mode=discovery",
+      visibleIf: () => true
+    },
+    {
+      id: "onboarding.demoTrip",
+      title: t("commands.demoTrip.title"),
+      description: t("commands.demoTrip.description"),
+      category: t("categories.onboarding"),
+      href: "/demo-trip",
+      visibleIf: () => true
+    },
+    {
+      id: "onboarding.restart",
+      title: t("commands.restartOnboarding.title"),
+      description: t("commands.restartOnboarding.description"),
+      category: t("categories.onboarding"),
+      href: "/getting-started?restart=true",
+      visibleIf: () => true
+    },
+    {
       id: "trip.create",
       title: t("commands.createTrip.title"),
       description: t("commands.createTrip.description"),

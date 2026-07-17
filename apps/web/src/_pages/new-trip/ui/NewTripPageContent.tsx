@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   TripCreateModeSelector,
@@ -32,7 +33,13 @@ const STEPS = [
 export function NewTripPageContent() {
   const translate = useTranslations("trips");
   const discovery = useTranslations("tripDiscovery");
-  const [mode, setMode] = useState<TripCreateMode>("known");
+  const searchParams = useSearchParams();
+  const requestedMode = searchParams.get("mode");
+  const [mode, setMode] = useState<TripCreateMode>(requestedMode === "discovery" ? "discover" : "known");
+
+  useEffect(() => {
+    setMode(requestedMode === "discovery" ? "discover" : "known");
+  }, [requestedMode]);
   return (
     <div
       className={cn(
@@ -67,7 +74,7 @@ export function NewTripPageContent() {
 
         {mode === "known" ? (
           <div className="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <CreateTripForm />
+            <CreateTripForm initialTripMode={requestedMode === "route" ? "multi_destination" : "single_destination"} />
 
             <aside className="flex flex-col gap-5">
             <div className="rounded-[20px] border border-sand-300 bg-white px-[26px] py-6">

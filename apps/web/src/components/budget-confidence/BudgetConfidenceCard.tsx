@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ErrorState, SectionLoadingState } from "@/components/ui";
+import { ContextualTip } from "@/components/onboarding/ContextualTip";
 import { BudgetConfidenceBadge } from "./BudgetConfidenceBadge";
 import { BudgetCoverageBreakdown } from "./BudgetCoverageBreakdown";
 import { BudgetImprovementActions } from "./BudgetImprovementActions";
@@ -58,6 +59,7 @@ export function BudgetConfidenceCard({
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4">
+      <div className="mb-4"><ContextualTip tipId="budget_confidence" /></div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">

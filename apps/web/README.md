@@ -26,6 +26,23 @@ Add a key to `messages/en.json` first, then translate it in the other catalogs.
 The settings selector applies changes immediately and persists them to the
 profile when signed in.
 
+## Onboarding and first run
+
+New users with no trips see a lightweight first-run dashboard with direct
+routes into known-destination creation, AI discovery, templates,
+multi-destination planning, and a read-only demo. `/getting-started` contains a
+skippable four-step preference wizard that saves to the existing User Service
+profile/preferences endpoints. Create Trip then prefills currency, language,
+pace, walking, transport, origin, and travel styles from those records.
+
+Onboarding progress is analytics-free and browser-local under the user-scoped
+`onboarding:{userId}` key. Dismissed feature tips and per-trip setup cards use
+separate user-scoped keys. A first trip gets a computed setup checklist in its
+Command Center until most useful setup work is complete, the user dismisses it,
+or onboarding is finished. `/demo-trip` uses only sample props and exposes no
+mutation or sharing actions. See `docs/frontend/onboarding.md` for state,
+checklist, accessibility, i18n, and tip-extension guidance.
+
 Existing trip text, comments, notes, template names, and other user content are
 never translated automatically. Some legacy screens and email/backend fallback
 messages can still be English in v1.
@@ -102,6 +119,7 @@ notification streams, and calendar OAuth calls.
 | Area | What the UI supports |
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
+| Onboarding | Skippable first-run dashboard and preference wizard, four existing trip entry paths, read-only demo trip, first-trip setup checklist, contextual tips, restart controls, and user-scoped local progress. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
 | Search | Cmd/Ctrl+K global command palette with permission-aware backend results, local quick actions, recent items, current-trip boosts, and deep links into trip sections. |
 | Trip Command Center | Default trip overview that summarizes health, next best action, route/transport, budget confidence, group readiness, checklist/reminders, expenses/settlements, approval/policy, recent activity, offline sync, and grouped navigation. |

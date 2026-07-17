@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ErrorState, SectionLoadingState } from "@/components/ui";
+import { ContextualTip } from "@/components/onboarding/ContextualTip";
 import { ReadinessChecklist } from "./ReadinessChecklist";
 import { TopFixesCard } from "./TopFixesCard";
 import { TripHealthCategoryGrid } from "./TripHealthCategoryGrid";
@@ -54,6 +55,7 @@ export function TripHealthPanel({
   return (
     <section id="health" className="scroll-mt-24">
       <div className="flex flex-col gap-4">
+        <ContextualTip tipId="trip_health" />
         <TripHealthScoreCard health={health} />
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           <TopFixesCard fixes={health.topFixes} />

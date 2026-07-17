@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ConfirmDialog } from "@/components/ui";
+import { ContextualTip } from "@/components/onboarding/ContextualTip";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
@@ -239,6 +240,8 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
             They cannot edit, regenerate, or see your private preferences.
           </p>
         </div>
+
+        <ContextualTip tipId="public_share" />
 
         {shareQuery.isError ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
