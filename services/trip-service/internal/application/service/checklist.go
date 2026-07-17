@@ -338,7 +338,7 @@ func (s *Service) SetTripChecklistItemChecked(ctx context.Context, tripID, itemI
 	if err != nil {
 		return appdto.TripChecklistItemDTO{}, err
 	}
-	_, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
+	trip, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
 	if err != nil {
 		return appdto.TripChecklistItemDTO{}, err
 	}
@@ -352,6 +352,17 @@ func (s *Service) SetTripChecklistItemChecked(ctx context.Context, tripID, itemI
 	updated, err := s.repo.SetChecklistItemChecked(ctx, tripID, itemID, user.ID, checked)
 	if err != nil {
 		return appdto.TripChecklistItemDTO{}, err
+	}
+	if checked && !item.Checked {
+		s.notifyTripBroadcast(ctx, trip, user.ID,
+			notifications.TypeChecklistItemCompleted,
+			"Checklist item completed",
+			fmt.Sprintf("A checklist item was completed for %s.", tripDestination(trip)),
+			notifications.EntityChecklistItem, activityEntityID(updated.ID),
+			map[string]any{
+				"tripId": updated.TripID.String(), "checklistItemId": updated.ID.String(),
+				"itemTitle": updated.Title,
+			})
 	}
 	return appdto.NewTripChecklistItemDTO(updated), nil
 }

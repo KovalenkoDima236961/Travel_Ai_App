@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { activityKeys } from "@/lib/api/activity";
 import { notificationKeys } from "@/lib/api/notifications";
 import { tripHealthKeys } from "@/lib/api/trip-health";
+import { groupReadinessKeys } from "@/lib/api/group-readiness";
+import { queryKeys } from "@/lib/query-keys";
 import {
   completeTripReminder,
   createTripReminder,
@@ -32,7 +34,8 @@ export function useTripReminders(
   return useQuery({
     queryKey: reminderKeys.detail(tripId, params),
     queryFn: () => getTripReminders(tripId, params),
-    enabled: (options.enabled ?? true) && Boolean(tripId)
+    enabled: (options.enabled ?? true) && Boolean(tripId),
+    staleTime: 30 * 1000
   });
 }
 
@@ -132,6 +135,8 @@ function useReminderQueryClient(tripId: string) {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: groupReadinessKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
         queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       ]);
     },
@@ -140,6 +145,8 @@ function useReminderQueryClient(tripId: string) {
         queryClient.invalidateQueries({ queryKey: reminderKeys.all }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: groupReadinessKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
         queryClient.invalidateQueries({ queryKey: notificationKeys.all })
       ]);
     }

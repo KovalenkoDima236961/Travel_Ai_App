@@ -71,6 +71,7 @@ export type TripExpense = {
 
 export type TripExpensesResponse = {
   items: TripExpense[];
+  nextOffset?: number | null;
 };
 
 export type ExpenseCustomAmount = {
@@ -110,6 +111,8 @@ export type ListExpensesFilters = {
   fromDate?: string | null;
   toDate?: string | null;
   linkedOnly?: boolean;
+  limit?: number;
+  offset?: number;
 };
 
 export type ExpenseCategoryTotal = {
@@ -148,6 +151,7 @@ export type SettlementSummary = {
 
 export type ExpenseSummary = {
   tripId: string;
+  expenseCount?: number;
   currency: string;
   actualTotal: MoneyAmount;
   estimatedTotal?: MoneyAmount | null;

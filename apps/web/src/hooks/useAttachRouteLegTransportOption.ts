@@ -12,6 +12,7 @@ import { tripKeys } from "@/lib/api/trips";
 import { attachRouteLegTransportOption } from "@/lib/api/transport";
 import type { Trip } from "@/entities/trip/model";
 import type { AttachRouteLegTransportOptionInput } from "@/types/transport";
+import { queryKeys } from "@/lib/query-keys";
 
 export function useAttachRouteLegTransportOption(tripId: string, legId: string) {
   const queryClient = useQueryClient();
@@ -27,6 +28,7 @@ export function useAttachRouteLegTransportOption(tripId: string, legId: string) 
         queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: reminderKeys.all }),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: planningConstraintKeys.all })

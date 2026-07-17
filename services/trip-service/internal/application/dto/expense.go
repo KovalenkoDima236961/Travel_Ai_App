@@ -54,7 +54,8 @@ type TripExpense struct {
 }
 
 type TripExpensesResponse struct {
-	Items []TripExpense `json:"items"`
+	Items      []TripExpense `json:"items"`
+	NextOffset *int          `json:"nextOffset,omitempty"`
 }
 
 type ExpenseCustomAmount struct {
@@ -117,6 +118,8 @@ type ListExpensesInput struct {
 	FromDate     *time.Time
 	ToDate       *time.Time
 	LinkedOnly   bool
+	Limit        int
+	Offset       int
 }
 
 type ExpenseCategoryTotal struct {
@@ -155,6 +158,7 @@ type SettlementSummary struct {
 
 type ExpenseSummary struct {
 	TripID                 uuid.UUID              `json:"tripId"`
+	ExpenseCount           int                    `json:"expenseCount"`
 	Currency               string                 `json:"currency"`
 	ActualTotal            MoneyAmount            `json:"actualTotal"`
 	EstimatedTotal         *MoneyAmount           `json:"estimatedTotal,omitempty"`
@@ -247,14 +251,18 @@ type ExpenseReceipt struct {
 }
 
 type TripReceiptsResponse struct {
-	Receipts []ExpenseReceipt `json:"receipts"`
+	Receipts   []ExpenseReceipt `json:"receipts"`
+	NextOffset *int             `json:"nextOffset,omitempty"`
 }
 
 type ListReceiptsInput struct {
 	ExpenseID      *uuid.UUID
+	ExpenseIDs     []uuid.UUID
 	Status         *entity.ReceiptStatus
 	UnlinkedOnly   bool
 	IncludeRawText bool
+	Limit          int
+	Offset         int
 }
 
 type UploadReceiptInput struct {

@@ -16,6 +16,7 @@ export function useBudgetConfidence({
   return useQuery({
     queryKey: budgetConfidenceKeys.detail(tripId, currency),
     queryFn: () => getTripBudgetConfidence(tripId, { currency }),
-    enabled: enabled && Boolean(tripId)
+    enabled: enabled && Boolean(tripId),
+    staleTime: 45 * 1000
   });
 }

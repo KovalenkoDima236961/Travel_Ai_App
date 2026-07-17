@@ -7,7 +7,7 @@ export function useTripApprovalRisk(tripId: string, enabled = true) {
     queryKey: approvalRiskKeys.trip(tripId),
     queryFn: () => getTripApprovalRisk(tripId),
     enabled: enabled && Boolean(tripId),
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: false,
+    staleTime: 60_000
   });
 }
-

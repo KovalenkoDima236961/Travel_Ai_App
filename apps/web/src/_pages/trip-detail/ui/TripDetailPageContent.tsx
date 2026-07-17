@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +14,7 @@ import { useTripApprovalRisk } from "@/features/approval-risk";
 import { CalendarSyncPanel } from "@/features/calendar-sync";
 import { TripApprovalPanel, useTripApproval } from "@/features/trip-approval";
 import { TripPolicyPanel } from "@/components/workspace-policy/TripPolicyPanel";
-import { TripCommandCenter } from "@/components/trip-command-center";
+import { CommandCenterSkeleton, TripCommandCenter } from "@/components/trip-command-center";
 import { BudgetPanel } from "@/features/trip-budget";
 import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
@@ -28,6 +29,7 @@ import { ItemCommentsPanel } from "@/features/trip-comments";
 import { TripCommentsSummary } from "@/features/trip-comments";
 import { OfflineBanner } from "@/components/offline/OfflineBanner";
 import { OfflineTripCompanionPanel } from "@/components/offline/OfflineTripCompanionPanel";
+import { TripMuteSettings } from "@/components/notifications/TripMuteSettings";
 import { PendingOfflineChangesPanel } from "@/components/offline/PendingOfflineChangesPanel";
 import { PresenceEditingWarning } from "@/components/presence/TripPresenceIndicator";
 import {
@@ -43,20 +45,14 @@ import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { OptimizeDayOrderDialog } from "@/features/itinerary-optimization";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { SaveTripAsTemplateDialog } from "@/features/trip-template";
-import { ExpensesPanel } from "@/components/expenses";
-import { GroupReadinessPanel } from "@/components/group-readiness";
-import { TripHealthPanel } from "@/components/trip-health";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
-import { TripChecklistPanel } from "@/components/checklists";
-import { TripRemindersPanel } from "@/components/trip-reminders";
 import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
-import { RouteBuilderPanel } from "@/components/route-builder";
-import { RouteAlternativesPanel } from "@/components/route-alternatives";
 import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
 import { AvailabilityPanel } from "@/components/trip-availability";
 import { Button } from "@/shared/ui/button";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { activityKeys, listTripActivity } from "@/lib/api/activity";
+import { getCommandCenterSummary } from "@/lib/api/command-center";
 import { approvalRiskKeys } from "@/lib/api/approval-risk";
 import { useTripActivityStream } from "@/lib/activity/use-trip-activity-stream";
 import { budgetKeys, getTripBudgetSummary } from "@/lib/api/budget";
@@ -136,7 +132,12 @@ import {
 import { rollbackOfflineCompanionMutation } from "@/lib/offline/cache-writer";
 import { recordPwaEngagement } from "@/lib/pwa/pwa-detection";
 import { buildTripCommandCenterData } from "@/lib/trip-command-center/readiness";
-import { scrollToTabAnchor } from "@/lib/trip-command-center/navigation";
+import { scrollToTabAnchor, TAB_TO_ANCHOR } from "@/lib/trip-command-center/navigation";
+import {
+  buildTripCommandCenterDataFromSummary,
+  healthFromCommandCenterSummary
+} from "@/lib/trip-command-center/summary";
+import { queryKeys } from "@/lib/query-keys";
 import {
   discardMutation,
   enqueueItineraryUpdate,
@@ -184,8 +185,6 @@ import { TripDetailHeader } from "./TripDetailHeader";
 import { TripDetailSidebar } from "./TripDetailSidebar";
 import { TripDetailChromeHeader } from "./TripDetailChromeHeader";
 import { ItineraryTimeline } from "./ItineraryTimeline";
-import { RightRailMap } from "./RightRailMap";
-import { RightRailWeather } from "./RightRailWeather";
 import { RightRailActivity } from "./RightRailActivity";
 import { PencilSquareIcon, ShareNodesIcon } from "./icons";
 import { instrumentSans, newsreader } from "./fonts";
@@ -206,6 +205,43 @@ import {
   type RegeneratingTarget
 } from "../model/tripDetailPageModel";
 
+const ExpensesPanel = dynamic(
+  () => import("@/components/expenses").then((module) => module.ExpensesPanel),
+  { loading: PanelLoading }
+);
+const GroupReadinessPanel = dynamic(
+  () => import("@/components/group-readiness").then((module) => module.GroupReadinessPanel),
+  { loading: PanelLoading }
+);
+const TripHealthPanel = dynamic(
+  () => import("@/components/trip-health").then((module) => module.TripHealthPanel),
+  { loading: PanelLoading }
+);
+const TripChecklistPanel = dynamic(
+  () => import("@/components/checklists").then((module) => module.TripChecklistPanel),
+  { loading: PanelLoading }
+);
+const TripRemindersPanel = dynamic(
+  () => import("@/components/trip-reminders").then((module) => module.TripRemindersPanel),
+  { loading: PanelLoading }
+);
+const RouteBuilderPanel = dynamic(
+  () => import("@/components/route-builder").then((module) => module.RouteBuilderPanel),
+  { loading: PanelLoading }
+);
+const RouteAlternativesPanel = dynamic(
+  () => import("@/components/route-alternatives").then((module) => module.RouteAlternativesPanel),
+  { loading: PanelLoading }
+);
+const RightRailMap = dynamic(
+  () => import("./RightRailMap").then((module) => module.RightRailMap),
+  { loading: PanelLoading }
+);
+const RightRailWeather = dynamic(
+  () => import("./RightRailWeather").then((module) => module.RightRailWeather),
+  { loading: PanelLoading }
+);
+
 export function TripDetailPageContent() {
   const loadingT = useTranslations("loading");
   const errorsT = useTranslations("errors");
@@ -219,7 +255,10 @@ export function TripDetailPageContent() {
   const currentUserId = user?.id;
   const networkStatus = useNetworkStatus();
   const invalidateBudgetConfidence = () =>
-    queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) })
+    ]);
   const [isEditing, setIsEditing] = useState(false);
   const [commentTarget, setCommentTarget] = useState<{
     dayNumber: number;
@@ -261,6 +300,11 @@ export function TripDetailPageContent() {
   const [offlineUnavailable, setOfflineUnavailable] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [routeAlternativesOpen, setRouteAlternativesOpen] = useState(false);
+  const [loadedSections, setLoadedSections] = useState<Set<string>>(
+    () => new Set(["overview"])
+  );
+  const sectionEnabled = (...sections: string[]) =>
+    sections.some((section) => loadedSections.has(section));
 
   const offlineSync = useOfflineSync({
     userId: currentUserId,
@@ -408,6 +452,60 @@ export function TripDetailPageContent() {
     networkStatus.online && !isUsingCachedTrip && !hasPendingItineraryDraft;
   const cachedBudgetSummary = cachedTripRecord?.budgetSummary ?? null;
   const currentItinerary = displayedTrip?.itinerary ?? null;
+  const commandCenterSummaryQuery = useQuery({
+    queryKey: queryKeys.trip.commandCenter(tripId),
+    queryFn: () => getCommandCenterSummary(tripId),
+    enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(displayedTrip),
+    staleTime: 30 * 1000,
+    retry: 1
+  });
+  const summaryHealth = useMemo(
+    () =>
+      commandCenterSummaryQuery.data
+        ? healthFromCommandCenterSummary(commandCenterSummaryQuery.data)
+        : null,
+    [commandCenterSummaryQuery.data]
+  );
+
+  useEffect(() => {
+    if (!displayedTrip || typeof window === "undefined") {
+      return;
+    }
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    const deepLinkedSection = tab ? TAB_TO_ANCHOR[tab] : null;
+    if (deepLinkedSection) {
+      setLoadedSections((current) => new Set([...current, deepLinkedSection]));
+    }
+
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-load-section]")
+    );
+    if (!("IntersectionObserver" in window)) {
+      setLoadedSections((current) =>
+        new Set([
+          ...current,
+          ...elements
+            .map((element) => element.dataset.loadSection)
+            .filter((section): section is string => Boolean(section))
+        ])
+      );
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .map((entry) => (entry.target as HTMLElement).dataset.loadSection)
+          .filter((section): section is string => Boolean(section));
+        if (visible.length > 0) {
+          setLoadedSections((current) => new Set([...current, ...visible]));
+        }
+      },
+      { rootMargin: "800px 0px" }
+    );
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [displayedTrip?.id, displayedTrip?.status]);
   useEffect(() => {
     if (displayedTrip?.workspaceId) {
       void queryClient.invalidateQueries({
@@ -417,7 +515,10 @@ export function TripDetailPageContent() {
   }, [displayedTrip?.itineraryRevision, displayedTrip?.workspaceId, queryClient, tripId]);
   const routeEstimateStates = useRouteEstimates(
     currentItinerary,
-    onlineActionsEnabled && displayedTrip?.status === "COMPLETED" && Boolean(currentItinerary),
+    onlineActionsEnabled &&
+      sectionEnabled("itinerary", "route") &&
+      displayedTrip?.status === "COMPLETED" &&
+      Boolean(currentItinerary),
     displayedTrip?.accommodation ?? null
   );
   const routeEstimatesByDay = useMemo<Record<number, RouteEstimate | null>>(() => {
@@ -451,7 +552,7 @@ export function TripDetailPageContent() {
   const weatherForecastQuery = useQuery({
     queryKey: weatherKeys.forecast(weatherParams),
     queryFn: () => getWeatherForecast(weatherParams),
-    enabled: canFetchWeather && onlineActionsEnabled,
+    enabled: canFetchWeather && onlineActionsEnabled && sectionEnabled("itinerary", "weather"),
     staleTime: 10 * 60 * 1000,
     retry: 1
   });
@@ -461,14 +562,18 @@ export function TripDetailPageContent() {
   const budgetSummaryQuery = useQuery({
     queryKey: budgetKeys.summary(tripId),
     queryFn: () => getTripBudgetSummary(tripId),
-    enabled: onlineActionsEnabled
+    enabled: onlineActionsEnabled && sectionEnabled("budget", "itinerary")
   });
 
   // Comments are a private collaboration feature: anyone who can view this
   // private trip (owner/editor/viewer) may read and add comments. Counts power
   // the per-item badges. The public share page never mounts this page.
   const tripAccess = displayedTrip?.access;
-  const costSplittingEnabled = onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess);
+  const costSplittingEnabled =
+    onlineActionsEnabled &&
+    sectionEnabled("budget", "expenses", "cost-split") &&
+    Boolean(tripId) &&
+    Boolean(tripAccess);
   const tripTravelersQuery = useTripTravelers({
     tripId,
     enabled: costSplittingEnabled
@@ -480,18 +585,25 @@ export function TripDetailPageContent() {
   });
   const approvalRiskQuery = useTripApprovalRisk(
     tripId,
-    onlineActionsEnabled && Boolean(displayedTrip?.workspaceId)
+    onlineActionsEnabled &&
+      sectionEnabled("approval", "workspace-policy") &&
+      Boolean(displayedTrip?.workspaceId)
   );
   const budgetOptimizationProposalsQuery = useBudgetOptimizationProposals({
     tripId,
     status: "pending",
-    enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess)
+    enabled:
+      onlineActionsEnabled &&
+      sectionEnabled("budget", "itinerary") &&
+      Boolean(tripId) &&
+      Boolean(tripAccess)
   });
   const tripRepairProposalsQuery = useTripRepairProposals({
     tripId,
     status: "pending",
     enabled:
       onlineActionsEnabled &&
+      sectionEnabled("approval", "workspace-policy", "itinerary") &&
       Boolean(tripId) &&
       Boolean(tripAccess) &&
       Boolean(displayedTrip?.workspaceId)
@@ -549,20 +661,31 @@ export function TripDetailPageContent() {
     currency: budgetSummaryQuery.data?.currency ?? displayedTrip?.budgetCurrency ?? "EUR",
     enabled:
       onlineActionsEnabled &&
+      sectionEnabled("budget") &&
       Boolean(tripId) &&
       Boolean(tripAccess) &&
       canUsePrivateCollaboration
   });
   const tripHealthQuery = useTripHealth(tripId, {
-    enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess) && canUsePrivateCollaboration
+    enabled:
+      onlineActionsEnabled &&
+      sectionEnabled("health", "route") &&
+      Boolean(tripId) &&
+      Boolean(tripAccess) &&
+      canUsePrivateCollaboration
   });
   const groupReadinessQuery = useGroupReadiness(
     tripId,
-    onlineActionsEnabled && Boolean(tripId) && Boolean(tripAccess) && canUsePrivateCollaboration
+    onlineActionsEnabled &&
+      sectionEnabled("group-readiness", "dates", "decisions") &&
+      Boolean(tripId) &&
+      Boolean(tripAccess) &&
+      canUsePrivateCollaboration
   );
   const checklistQuery = useTripChecklist(tripId, {
     enabled:
       onlineActionsEnabled &&
+      sectionEnabled("checklist") &&
       Boolean(tripId) &&
       canUsePrivateCollaboration &&
       displayedTrip?.status === "COMPLETED"
@@ -573,6 +696,7 @@ export function TripDetailPageContent() {
     {
       enabled:
         onlineActionsEnabled &&
+        sectionEnabled("reminders") &&
         Boolean(tripId) &&
         canUsePrivateCollaboration &&
         displayedTrip?.status === "COMPLETED"
@@ -582,6 +706,7 @@ export function TripDetailPageContent() {
     tripId,
     enabled:
       onlineActionsEnabled &&
+      sectionEnabled("expenses") &&
       Boolean(tripId) &&
       canUsePrivateCollaboration &&
       displayedTrip?.status === "COMPLETED"
@@ -591,6 +716,7 @@ export function TripDetailPageContent() {
     currency: displayedTrip?.budgetCurrency ?? "EUR",
     enabled:
       onlineActionsEnabled &&
+      sectionEnabled("expenses") &&
       Boolean(tripId) &&
       canUsePrivateCollaboration &&
       displayedTrip?.status === "COMPLETED"
@@ -600,15 +726,23 @@ export function TripDetailPageContent() {
     currency: displayedTrip?.budgetCurrency ?? "EUR",
     enabled:
       onlineActionsEnabled &&
+      sectionEnabled("expenses") &&
       Boolean(tripId) &&
       canUsePrivateCollaboration &&
       displayedTrip?.status === "COMPLETED"
   });
-  const availabilitySummaryQuery = useTripAvailability(tripId, decisionsEnabled);
-  const pollsSummaryQuery = useTripPolls(tripId, decisionsEnabled);
+  const availabilitySummaryQuery = useTripAvailability(
+    tripId,
+    decisionsEnabled && sectionEnabled("dates", "decisions")
+  );
+  const pollsSummaryQuery = useTripPolls(
+    tripId,
+    decisionsEnabled && sectionEnabled("decisions")
+  );
   const tripApprovalQuery = useTripApproval(
     tripId,
     onlineActionsEnabled &&
+      sectionEnabled("approval") &&
       Boolean(tripId) &&
       canUsePrivateCollaboration &&
       Boolean(displayedTrip?.workspaceId)
@@ -616,6 +750,7 @@ export function TripDetailPageContent() {
   const policyEvaluation = useTripPolicyEvaluation(
     tripId,
     onlineActionsEnabled &&
+      sectionEnabled("workspace-policy", "approval") &&
       Boolean(tripId) &&
       canUsePrivateCollaboration &&
       Boolean(displayedTrip?.workspaceId)
@@ -623,7 +758,7 @@ export function TripDetailPageContent() {
   const recentActivityQuery = useQuery({
     queryKey: [...activityKeys.all(tripId), "overview", 5] as const,
     queryFn: () => listTripActivity(tripId, { limit: 5 }),
-    enabled: canComment && Boolean(tripId),
+    enabled: canComment && Boolean(tripId) && sectionEnabled("activity"),
     staleTime: 60 * 1000
   });
   useEffect(() => {
@@ -646,6 +781,7 @@ export function TripDetailPageContent() {
   ]);
   const commentsEnabled =
     onlineActionsEnabled &&
+    sectionEnabled("itinerary") &&
     Boolean(tripId) &&
     canComment &&
     displayedTrip?.status === "COMPLETED" &&
@@ -657,10 +793,14 @@ export function TripDetailPageContent() {
   });
   const reactionSummariesQuery = useItineraryReactions(
     tripId,
-    decisionsEnabled && displayedTrip?.status === "COMPLETED" && Boolean(displayedTrip?.itinerary)
+    decisionsEnabled &&
+      sectionEnabled("itinerary", "decisions") &&
+      displayedTrip?.status === "COMPLETED" &&
+      Boolean(displayedTrip?.itinerary)
   );
   const presenceEnabled =
     onlineActionsEnabled &&
+    sectionEnabled("itinerary", "sharing", "activity") &&
     Boolean(tripId) &&
     Boolean(currentUserId) &&
     Boolean(
@@ -803,8 +943,14 @@ export function TripDetailPageContent() {
     ]
   );
   const commandCenterData = useMemo(
-    () =>
-      displayedTrip
+    () => {
+      if (commandCenterSummaryQuery.data) {
+        return buildTripCommandCenterDataFromSummary(
+          commandCenterSummaryQuery.data,
+          commandCenterOfflineStatus
+        );
+      }
+      return displayedTrip
         ? buildTripCommandCenterData({
             trip: displayedTrip,
             health: tripHealthQuery.data ?? null,
@@ -830,7 +976,8 @@ export function TripDetailPageContent() {
               currentUserId
             }
           })
-        : null,
+        : null;
+    },
     [
       approvalRiskQuery.data,
       availabilitySummaryQuery.data,
@@ -839,6 +986,7 @@ export function TripDetailPageContent() {
       cachedBudgetSummary,
       canUsePrivateCollaboration,
       checklistQuery.data,
+      commandCenterSummaryQuery.data,
       commandCenterOfflineStatus,
       currentUserId,
       displayedTrip,
@@ -2266,11 +2414,13 @@ export function TripDetailPageContent() {
                 }
               : null
           }
-          health={tripHealthQuery.data ?? null}
-          healthLoading={tripHealthQuery.isLoading}
+          health={tripHealthQuery.data ?? summaryHealth}
+          healthLoading={commandCenterSummaryQuery.isLoading && !summaryHealth}
           trip={trip}
           workspaceName={workspaceName}
         />
+
+        <TripMuteSettings tripId={trip.id} className="mt-5" />
 
         <div className="mt-8 grid grid-cols-1 gap-8 xl:grid-cols-[224px_minmax(0,1fr)_372px]">
           <TripDetailSidebar
@@ -2354,11 +2504,13 @@ export function TripDetailPageContent() {
               </div>
             ) : null}
 
-            {commandCenterData ? (
+            {commandCenterSummaryQuery.isLoading && onlineActionsEnabled ? (
+              <CommandCenterSkeleton />
+            ) : commandCenterData ? (
               <TripCommandCenter
                 approval={tripApprovalQuery.data ?? null}
                 data={commandCenterData}
-                health={tripHealthQuery.data ?? null}
+                health={tripHealthQuery.data ?? summaryHealth}
                 offlineStatus={commandCenterOfflineStatus}
                 onSyncNow={offlineSync.syncNow}
                 syncing={offlineSync.syncing}
@@ -2368,45 +2520,56 @@ export function TripDetailPageContent() {
             ) : null}
 
             {canUsePrivateCollaboration && onlineActionsEnabled ? (
-              <TripHealthPanel
-                error={tripHealthQuery.error instanceof Error ? tripHealthQuery.error : null}
-                health={tripHealthQuery.data ?? null}
-                loading={tripHealthQuery.isLoading}
-                onRetry={() => void tripHealthQuery.refetch()}
-                retrying={tripHealthQuery.isFetching}
-              />
+              <DeferredSection active={sectionEnabled("health")} section="health">
+                <TripHealthPanel
+                  error={tripHealthQuery.error instanceof Error ? tripHealthQuery.error : null}
+                  health={tripHealthQuery.data ?? summaryHealth}
+                  loading={tripHealthQuery.isLoading}
+                  onRetry={() => void tripHealthQuery.refetch()}
+                  retrying={tripHealthQuery.isFetching}
+                />
+              </DeferredSection>
             ) : null}
 
             {canUsePrivateCollaboration && onlineActionsEnabled ? (
-              <GroupReadinessPanel
-                canNudge={Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled}
-                error={groupReadinessQuery.error instanceof Error ? groupReadinessQuery.error : null}
-                loading={groupReadinessQuery.isLoading}
-                onRetry={() => void groupReadinessQuery.refetch()}
-                readiness={groupReadinessQuery.data ?? null}
-                retrying={groupReadinessQuery.isFetching}
-                tripId={trip.id}
-              />
+              <DeferredSection
+                active={sectionEnabled("group-readiness")}
+                section="group-readiness"
+              >
+                <GroupReadinessPanel
+                  canNudge={Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled}
+                  error={groupReadinessQuery.error instanceof Error ? groupReadinessQuery.error : null}
+                  loading={groupReadinessQuery.isLoading}
+                  onRetry={() => void groupReadinessQuery.refetch()}
+                  readiness={groupReadinessQuery.data ?? null}
+                  retrying={groupReadinessQuery.isFetching}
+                  tripId={trip.id}
+                />
+              </DeferredSection>
             ) : null}
 
             {canUsePrivateCollaboration ? (
               <>
-                <AvailabilityPanel
-                  canEdit={canMutateTrip}
-                  currentUserId={currentUserId}
-                  online={onlineActionsEnabled}
-                  onGenerationJobCreated={handleGenerationJobCreated}
-                  trip={trip}
-                />
-                <PollsPanel
-                  canCreate={canCreatePoll}
-                  online={onlineActionsEnabled}
-                  tripId={trip.id}
-                />
-                <GroupPreferencesPanel
-                  enabled={decisionsEnabled}
-                  tripId={trip.id}
-                />
+                <DeferredSection active={sectionEnabled("dates")} section="dates">
+                  <AvailabilityPanel
+                    canEdit={canMutateTrip}
+                    currentUserId={currentUserId}
+                    online={onlineActionsEnabled}
+                    onGenerationJobCreated={handleGenerationJobCreated}
+                    trip={trip}
+                  />
+                </DeferredSection>
+                <DeferredSection active={sectionEnabled("decisions")} section="decisions">
+                  <PollsPanel
+                    canCreate={canCreatePoll}
+                    online={onlineActionsEnabled}
+                    tripId={trip.id}
+                  />
+                  <GroupPreferencesPanel
+                    enabled={decisionsEnabled}
+                    tripId={trip.id}
+                  />
+                </DeferredSection>
               </>
             ) : null}
 
@@ -2417,8 +2580,12 @@ export function TripDetailPageContent() {
             ) : null}
 
             {trip.status === "COMPLETED" && trip.itinerary ? (
-              <div className="flex flex-col gap-4">
-                <section id="route" className="scroll-mt-24 space-y-4">
+              <div className="flex flex-col gap-4" data-load-section="itinerary">
+                <section
+                  id="route"
+                  className="scroll-mt-24 space-y-4"
+                  data-load-section="route"
+                >
                   <div className="space-y-3">
                     <RouteBuilderPanel
                       canEdit={canEditTripAccess}
@@ -2449,6 +2616,9 @@ export function TripDetailPageContent() {
                         void queryClient.invalidateQueries({
                           queryKey: tripHealthKeys.detail(trip.id)
                         });
+                        void queryClient.invalidateQueries({
+                          queryKey: queryKeys.trip.commandCenter(trip.id)
+                        });
                         setRouteAlternativesOpen(false);
                       }}
                     />
@@ -2472,24 +2642,28 @@ export function TripDetailPageContent() {
                 weatherForecast={weatherForecastQuery.data ?? null}
               />
 
-              <TripChecklistPanel
-                canCheck={canUsePrivateCollaboration}
-                canEdit={canEditTripAccess}
-                currentUserId={currentUserId}
-                enabled={canUsePrivateCollaboration}
-                offline={offlineDataMode}
-                tripId={trip.id}
-                userId={currentUserId}
-              />
+              <DeferredSection active={sectionEnabled("checklist")} section="checklist">
+                <TripChecklistPanel
+                  canCheck={canUsePrivateCollaboration}
+                  canEdit={canEditTripAccess}
+                  currentUserId={currentUserId}
+                  enabled={canUsePrivateCollaboration}
+                  offline={offlineDataMode}
+                  tripId={trip.id}
+                  userId={currentUserId}
+                />
+              </DeferredSection>
 
-              <TripRemindersPanel
-                canEdit={canEditTripAccess}
-                currentUserId={currentUserId}
-                enabled={canUsePrivateCollaboration}
-                offline={offlineDataMode}
-                tripId={trip.id}
-                userId={currentUserId}
-              />
+              <DeferredSection active={sectionEnabled("reminders")} section="reminders">
+                <TripRemindersPanel
+                  canEdit={canEditTripAccess}
+                  currentUserId={currentUserId}
+                  enabled={canUsePrivateCollaboration}
+                  offline={offlineDataMode}
+                  tripId={trip.id}
+                  userId={currentUserId}
+                />
+              </DeferredSection>
 
               <BudgetOptimizationProposalsPanel
                 canMutate={canMutateTrip}
@@ -2721,7 +2895,11 @@ export function TripDetailPageContent() {
 
             {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
               <div className="flex flex-col gap-4">
-                <section id="route" className="scroll-mt-24 space-y-4">
+                <section
+                  id="route"
+                  className="scroll-mt-24 space-y-4"
+                  data-load-section="route"
+                >
                   <div className="space-y-3">
                     <RouteBuilderPanel
                       canEdit={canEditTripAccess}
@@ -2751,6 +2929,9 @@ export function TripDetailPageContent() {
                         queryClient.setQueryData(tripKeys.detail(trip.id), updatedTrip);
                         void queryClient.invalidateQueries({
                           queryKey: tripHealthKeys.detail(trip.id)
+                        });
+                        void queryClient.invalidateQueries({
+                          queryKey: queryKeys.trip.commandCenter(trip.id)
                         });
                         setRouteAlternativesOpen(false);
                       }}
@@ -2791,20 +2972,22 @@ export function TripDetailPageContent() {
               <h2 className="font-newsreader text-[22px] font-semibold tracking-[-0.01em] text-cocoa-900">
                 Trip tools
               </h2>
-              <div id="budget" className="scroll-mt-24">
-                <BudgetPanel
-                  canEdit={canMutateTrip}
-                  offline={offlineDataMode}
-                  offlineSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
-                  onOpenBudgetOptimization={openBudgetOptimization}
-                  optimizationDisabled={
-                    isEditing || createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
-                  }
-                  perPersonAverage={perPersonAverage}
-                  trip={trip}
-                />
-              </div>
-              <div id="expenses" className="scroll-mt-24">
+              <DeferredSection active={sectionEnabled("budget")} section="budget">
+                <div id="budget" className="scroll-mt-24">
+                  <BudgetPanel
+                    canEdit={canMutateTrip}
+                    offline={offlineDataMode}
+                    offlineSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
+                    onOpenBudgetOptimization={openBudgetOptimization}
+                    optimizationDisabled={
+                      isEditing || createBudgetOptimizationMutation.isPending || hasActiveGenerationJob
+                    }
+                    perPersonAverage={perPersonAverage}
+                    trip={trip}
+                  />
+                </div>
+              </DeferredSection>
+              <DeferredSection active={sectionEnabled("expenses")} section="expenses">
                 <ExpensesPanel
                   canEdit={canEditTripAccess}
                   currentUserId={currentUserId}
@@ -2812,7 +2995,7 @@ export function TripDetailPageContent() {
                   travelers={tripTravelersQuery.data?.travelers ?? []}
                   trip={trip}
                 />
-              </div>
+              </DeferredSection>
               <AccommodationPanel
                 canEdit={canMutateTrip}
                 onOpenCostSplit={
@@ -2856,7 +3039,11 @@ export function TripDetailPageContent() {
               {onlineActionsEnabled && trip.status === "COMPLETED" && trip.itinerary ? (
                 <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />
               ) : null}
-              <div id="sharing" className="flex scroll-mt-24 flex-col gap-4">
+              <div
+                id="sharing"
+                className="flex scroll-mt-24 flex-col gap-4"
+                data-load-section="sharing"
+              >
                 {canManageShare ? <ShareTripPanel tripId={trip.id} /> : null}
                 {onlineActionsEnabled ? (
                   <>
@@ -2891,11 +3078,13 @@ export function TripDetailPageContent() {
               offline={!networkStatus.online || isUsingCachedTrip}
               startDate={trip.startDate}
             />
-            <RightRailActivity
-              canViewActivity={canComment}
-              currentUserId={currentUserId}
-              tripId={trip.id}
-            />
+            <DeferredSection active={sectionEnabled("activity")} section="activity">
+              <RightRailActivity
+                canViewActivity={canComment}
+                currentUserId={currentUserId}
+                tripId={trip.id}
+              />
+            </DeferredSection>
           </div>
         </div>
       {lockWarning ? (
@@ -3013,5 +3202,43 @@ function BackToTripsLink() {
     >
       Back to trips
     </Link>
+  );
+}
+
+function DeferredSection({
+  active,
+  children,
+  section
+}: {
+  active: boolean;
+  children: ReactNode;
+  section: string;
+}) {
+  return (
+    <div data-load-section={section}>
+      {active ? (
+        children
+      ) : (
+        <div
+          id={section}
+          aria-label={`Loading ${section.replaceAll("-", " ")}`}
+          className="min-h-36 animate-pulse scroll-mt-24 rounded-[18px] border border-sand-300 bg-white p-5"
+        >
+          <div className="h-4 w-32 rounded-full bg-sand-200" />
+          <div className="mt-4 h-5 w-2/3 rounded-full bg-sand-100" />
+          <div className="mt-3 h-4 w-full rounded-full bg-sand-100" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PanelLoading() {
+  return (
+    <div className="min-h-32 animate-pulse rounded-[18px] border border-sand-300 bg-white p-5">
+      <div className="h-4 w-32 rounded-full bg-sand-200" />
+      <div className="mt-4 h-5 w-2/3 rounded-full bg-sand-100" />
+      <div className="mt-3 h-4 w-full rounded-full bg-sand-100" />
+    </div>
   );
 }

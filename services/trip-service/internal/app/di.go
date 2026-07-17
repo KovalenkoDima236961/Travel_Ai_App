@@ -58,7 +58,7 @@ type container struct {
 // service -> handler -> router. Long-lived resources register themselves with
 // the closer.
 func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*container, error) {
-	db, err := postgres.New(ctx, cfg.Postgres)
+	db, err := postgres.New(ctx, cfg.Postgres, log)
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
@@ -242,6 +242,12 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			PlannedActualGapWarningPercent:  cfg.BudgetConfidence.PlannedActualGapWarningPercent,
 			PlannedActualGapHighPercent:     cfg.BudgetConfidence.PlannedActualGapHighPercent,
 		}),
+		service.WithSummaryCache(
+			cfg.SummaryCache.Enabled,
+			time.Duration(cfg.SummaryCache.TTLSeconds)*time.Second,
+			cfg.SummaryCache.MaxItems,
+			time.Duration(cfg.SummaryCache.EndpointTimeoutSeconds)*time.Second,
+		),
 	}
 	aiValidationCfg := aivalidation.Config{
 		Enabled:                    cfg.AIValidation.Enabled,

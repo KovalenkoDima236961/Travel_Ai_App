@@ -2,11 +2,13 @@ package routes
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
 
 // fallbackRouteProvider tries the primary (real) provider and, on failure, falls
@@ -39,9 +41,17 @@ func newFallbackRouteProvider(
 }
 
 func (p *fallbackRouteProvider) EstimateRoute(ctx context.Context, req entity.RouteEstimateRequest) (*entity.RouteEstimate, error) {
-	estimate, err := p.primary.EstimateRoute(ctx, req)
-	if err == nil {
-		return estimate, nil
+	var estimate *entity.RouteEstimate
+	var err error
+	if extobs.ProviderCircuitAllows(p.providerName, "route_estimate") {
+		estimate, err = p.primary.EstimateRoute(ctx, req)
+		if err == nil {
+			extobs.RecordProviderCircuitSuccess(p.providerName, "route_estimate")
+			return estimate, nil
+		}
+		extobs.RecordProviderCircuitFailure(p.providerName, "route_estimate")
+	} else {
+		err = errors.New("route provider cooldown active")
 	}
 
 	p.log.Warn("route provider fallback used",

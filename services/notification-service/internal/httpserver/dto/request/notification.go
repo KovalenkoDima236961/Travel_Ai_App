@@ -4,6 +4,7 @@ package request
 
 import (
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -29,11 +30,38 @@ type CreateNotification struct {
 	EntityType  *string        `json:"entityType"`
 	EntityID    *string        `json:"entityId"`
 	Metadata    map[string]any `json:"metadata"`
+	Priority    string         `json:"priority"`
+	Category    string         `json:"category"`
+	DigestKey   *string        `json:"digestKey"`
+	DedupeKey   *string        `json:"dedupeKey"`
 }
 
 // UpdateNotificationPreferences is the body of PUT /notifications/preferences.
 type UpdateNotificationPreferences struct {
-	Items []NotificationPreferenceItem `json:"items"`
+	Items    []NotificationPreferenceItem `json:"items"`
+	Settings *NotificationSettings        `json:"settings,omitempty"`
+}
+
+type NotificationSettings struct {
+	QuietHoursEnabled        bool   `json:"quietHoursEnabled"`
+	QuietHoursStart          string `json:"quietHoursStart"`
+	QuietHoursEnd            string `json:"quietHoursEnd"`
+	QuietHoursTimezone       string `json:"quietHoursTimezone"`
+	UrgentBypassesQuietHours bool   `json:"urgentBypassesQuietHours"`
+	DailyDigestTime          string `json:"dailyDigestTime"`
+	WeeklyDigestDay          int    `json:"weeklyDigestDay"`
+	WeeklyDigestTime         string `json:"weeklyDigestTime"`
+}
+
+type UpsertTripMute struct {
+	TripID     string     `json:"tripId"`
+	Category   *string    `json:"category"`
+	MutedUntil *time.Time `json:"mutedUntil"`
+}
+
+type ProcessDigests struct {
+	Now   *time.Time `json:"now,omitempty"`
+	Limit int        `json:"limit"`
 }
 
 // SubscribePush is the body of POST /notifications/push/subscribe.
@@ -64,9 +92,10 @@ type UnsubscribePush struct {
 // NotificationPreferenceItem is one requested channel/category setting. Enabled
 // is a pointer so omission is distinguishable from false and can be rejected.
 type NotificationPreferenceItem struct {
-	Channel  string `json:"channel"`
-	Category string `json:"category"`
-	Enabled  *bool  `json:"enabled"`
+	Channel      string  `json:"channel"`
+	Category     string  `json:"category"`
+	Enabled      *bool   `json:"enabled"`
+	DeliveryMode *string `json:"deliveryMode"`
 }
 
 // ToInputs validates id formats and maps the batch into application
@@ -113,6 +142,10 @@ func (n CreateNotification) toInput() (notifications.CreateInput, error) {
 		EntityType:  normalizeEntityType(n.EntityType),
 		EntityID:    entityID,
 		Metadata:    n.Metadata,
+		Priority:    strings.ToLower(strings.TrimSpace(n.Priority)),
+		Category:    strings.ToLower(strings.TrimSpace(n.Category)),
+		DigestKey:   NormalizeOptionalString(n.DigestKey),
+		DedupeKey:   NormalizeOptionalString(n.DedupeKey),
 	}, nil
 }
 
@@ -153,13 +186,22 @@ func (u UpdateNotificationPreferences) ToInputs() ([]preferences.PreferenceInput
 	inputs := make([]preferences.PreferenceInput, 0, len(u.Items))
 	for i := range u.Items {
 		item := u.Items[i]
-		if item.Enabled == nil {
-			return nil, apperrs.NewInvalidInput("enabled is required")
+		if item.Enabled == nil && item.DeliveryMode == nil {
+			return nil, apperrs.NewInvalidInput("deliveryMode or enabled is required")
+		}
+		mode := ""
+		if item.DeliveryMode != nil {
+			mode = strings.ToLower(strings.TrimSpace(*item.DeliveryMode))
+		}
+		enabled := mode != preferences.ModeMuted
+		if item.Enabled != nil {
+			enabled = *item.Enabled
 		}
 		inputs = append(inputs, preferences.PreferenceInput{
-			Channel:  strings.TrimSpace(item.Channel),
-			Category: strings.TrimSpace(item.Category),
-			Enabled:  *item.Enabled,
+			Channel:      strings.TrimSpace(item.Channel),
+			Category:     strings.TrimSpace(item.Category),
+			Enabled:      enabled,
+			DeliveryMode: mode,
 		})
 	}
 	return inputs, nil

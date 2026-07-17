@@ -19,7 +19,7 @@ export function useWorkspaceApprovals({
     queryKey: approvalKeys.workspace(workspaceId, status),
     queryFn: () => listWorkspaceApprovals(workspaceId, { status }),
     enabled: enabled && Boolean(workspaceId),
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchInterval: 60_000
   });
 }

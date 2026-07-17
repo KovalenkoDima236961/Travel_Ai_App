@@ -65,26 +65,26 @@ func TestGetPreferencesReturnsFullDefaultMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Items) != 18 {
-		t.Fatalf("expected 18 preference items, got %d", len(result.Items))
+	if len(result.Items) != len(AllChannels)*len(AllCategories) {
+		t.Fatalf("expected full preference matrix, got %d", len(result.Items))
 	}
 	if !findPreference(t, result.Items, ChannelInApp, CategoryTripUpdates).Enabled {
 		t.Fatal("expected in-app trip updates enabled by default")
 	}
-	if findPreference(t, result.Items, ChannelEmail, CategoryTripUpdates).Enabled {
-		t.Fatal("expected email trip updates disabled by default")
+	if findPreference(t, result.Items, ChannelEmail, CategoryTripUpdates).DeliveryMode != ModeDailyDigest {
+		t.Fatal("expected email trip updates digested by default")
 	}
 	if !findPreference(t, result.Items, ChannelEmail, CategoryCollaboration).Enabled {
 		t.Fatal("expected email collaboration enabled by default")
 	}
-	if !findPreference(t, result.Items, ChannelPush, CategoryTripUpdates).Enabled {
-		t.Fatal("expected push trip updates enabled by default")
+	if findPreference(t, result.Items, ChannelPush, CategoryTripUpdates).DeliveryMode != ModeMuted {
+		t.Fatal("expected push trip updates muted by default")
 	}
 	if !findPreference(t, result.Items, ChannelInApp, CategoryPreTripReminders).Enabled {
 		t.Fatal("expected in-app pre-trip reminders enabled by default")
 	}
-	if findPreference(t, result.Items, ChannelEmail, CategoryPreTripReminders).Enabled {
-		t.Fatal("expected email pre-trip reminders disabled by default")
+	if findPreference(t, result.Items, ChannelEmail, CategoryPreTripReminders).DeliveryMode != ModeInstant {
+		t.Fatal("expected email pre-trip reminders instant by default")
 	}
 	if !findPreference(t, result.Items, ChannelPush, CategoryChecklistReminders).Enabled {
 		t.Fatal("expected push checklist reminders enabled by default")
@@ -162,13 +162,13 @@ func TestCategoryForNotificationType(t *testing.T) {
 		notifications.TypeCollaboratorRoleChange:   CategoryRoleChanges,
 		notifications.TypeCollaboratorRemoved:      CategoryRoleChanges,
 		notifications.TypeItineraryUpdated:         CategoryTripUpdates,
-		notifications.TypeItineraryGenerated:       CategoryTripUpdates,
+		notifications.TypeItineraryGenerated:       CategoryAIGeneration,
 		notifications.TypeDayRegenerated:           CategoryTripUpdates,
 		notifications.TypeItemRegenerated:          CategoryTripUpdates,
 		notifications.TypeVersionRestored:          CategoryTripUpdates,
-		notifications.TypeGenerationJobFailed:      CategoryTripUpdates,
-		notifications.TypeBudgetOptimizationReady:  CategoryTripUpdates,
-		notifications.TypeBudgetOptimizationFailed: CategoryTripUpdates,
+		notifications.TypeGenerationJobFailed:      CategoryAIGeneration,
+		notifications.TypeBudgetOptimizationReady:  CategoryBudget,
+		notifications.TypeBudgetOptimizationFailed: CategoryBudget,
 	}
 
 	for typ, expected := range cases {

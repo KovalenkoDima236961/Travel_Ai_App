@@ -6,6 +6,12 @@ editing, collaboration, notifications, exports, calendar sync controls, maps,
 weather, budgets, route-leg transport search, and ticket/activity availability
 checks.
 
+## Performance query conventions
+
+Use `src/lib/query-keys.ts` for new TanStack Query keys and keep private trip data under the trip detail prefix. Queries must wait for required IDs/permissions and, for heavy modules, the visible or deep-linked section. Default freshness is 30 seconds; expensive health/readiness/confidence views use 45 seconds, weather uses 10 minutes, and only queued/running jobs poll aggressively.
+
+Mutations invalidate the smallest dependency set. For example, an expense write refreshes that trip’s expense subtree, budget summary/confidence, health, activity, and Command Center—not all trips. The trip page loads its compact summary first, uses card-level degraded states, activates detailed sections with `IntersectionObserver`, and dynamically imports maps and heavy panels without changing layout. Set `NEXT_PUBLIC_WEB_VITALS_ENDPOINT` to report normalized LCP/CLS/INP; use `scripts/performance-smoke-test.sh` and the Performance & Reliability steps in `scripts/web-smoke-test.md` before release.
+
 ## Internationalization
 
 The app supports `en`, `es`, `uk`, and `fr` without locale-prefixed routes.
@@ -1078,3 +1084,12 @@ inspect safe AI generation timelines, prompt versions, model metadata,
 validation/repair counts, and controlled errors. The UI deliberately never
 shows raw prompts; a clearly marked redacted snapshot is rendered only when
 the server has explicitly retained one. Non-ops users receive no trace data.
+
+## Notification digests and noise control
+
+Settings exposes per-category delivery modes for in-app, email, and push,
+daily/weekly digest times, IANA-timezone quiet hours, and urgent bypass control.
+Trip detail exposes trip/category mutes with optional expiry. The notification
+page previews pending digests, filters categories, groups by date/trip/category,
+shows priority/grouped counts, and supports global or trip-level read actions.
+Digest text is deterministic rather than AI-generated.

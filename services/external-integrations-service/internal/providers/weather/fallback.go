@@ -2,11 +2,13 @@ package weather
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
 
 // fallbackWeatherProvider tries the primary (real) provider and, on failure,
@@ -39,9 +41,17 @@ func newFallbackWeatherProvider(
 }
 
 func (p *fallbackWeatherProvider) GetForecast(ctx context.Context, req entity.WeatherForecastRequest) (*entity.WeatherForecast, error) {
-	forecast, err := p.primary.GetForecast(ctx, req)
-	if err == nil {
-		return forecast, nil
+	var forecast *entity.WeatherForecast
+	var err error
+	if extobs.ProviderCircuitAllows(p.providerName, "weather_forecast") {
+		forecast, err = p.primary.GetForecast(ctx, req)
+		if err == nil {
+			extobs.RecordProviderCircuitSuccess(p.providerName, "weather_forecast")
+			return forecast, nil
+		}
+		extobs.RecordProviderCircuitFailure(p.providerName, "weather_forecast")
+	} else {
+		err = errors.New("weather provider cooldown active")
 	}
 
 	p.log.Warn("weather provider fallback used",

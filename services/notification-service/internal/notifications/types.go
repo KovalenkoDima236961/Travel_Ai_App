@@ -3,6 +3,34 @@
 // notification list, unread count, and read-state changes.
 package notifications
 
+import "strings"
+
+const (
+	PriorityLow    = "low"
+	PriorityNormal = "normal"
+	PriorityHigh   = "high"
+	PriorityUrgent = "urgent"
+)
+
+const (
+	CategoryCollaboration = "collaboration"
+	CategoryComments      = "comments"
+	CategoryTripUpdates   = "trip_updates"
+	CategoryRoleChanges   = "role_changes"
+	CategoryChecklist     = "checklist"
+	CategoryReminders     = "reminders"
+	CategoryExpenses      = "expenses"
+	CategorySettlements   = "settlements"
+	CategoryApproval      = "approval"
+	CategoryBudget        = "budget"
+	CategoryHealth        = "health"
+	CategoryOfflineSync   = "offline_sync"
+	CategoryCalendar      = "calendar"
+	CategoryAIGeneration  = "ai_generation"
+	CategorySecurity      = "security"
+	CategorySystem        = "system"
+)
+
 // Notification type constants. Use these instead of scattered string literals so
 // the vocabulary stays consistent across the create path, the API, and tests.
 // They mirror the Trip Service activity vocabulary where the two overlap.
@@ -14,7 +42,9 @@ const (
 	TypeCollaboratorRemoved    = "collaborator_removed"
 
 	// Comments.
-	TypeCommentCreated = "comment_created"
+	TypeCommentCreated  = "comment_created"
+	TypeTripPollCreated = "trip_poll_created"
+	TypeTripPollClosed  = "trip_poll_closed"
 
 	// Itinerary.
 	TypeItineraryUpdated      = "itinerary_updated"
@@ -61,6 +91,21 @@ const (
 	TypeTripChangesRequested     = "trip_changes_requested"
 	TypeTripApprovalCancelled    = "trip_approval_cancelled"
 	TypeTripApprovalResetToDraft = "trip_approval_reset_to_draft"
+
+	// Digest/noise-control vocabulary used by newer producers.
+	TypeRouteChanged            = "route_changed"
+	TypeChecklistItemAssigned   = "checklist_item_assigned"
+	TypeChecklistItemCompleted  = "checklist_item_completed"
+	TypeChecklistItemOverdue    = "checklist_item_overdue"
+	TypeChecklistGenerated      = "checklist_generated"
+	TypeSettlementPending       = "settlement_pending"
+	TypeSettlementOverdue       = "settlement_overdue"
+	TypeBudgetConfidenceChanged = "budget_confidence_changed"
+	TypeTripHealthIssue         = "trip_health_issue"
+	TypeOfflineSyncConflict     = "offline_sync_conflict"
+	TypeCalendarSyncFailed      = "calendar_sync_failed"
+	TypeShareSecurityChanged    = "share_security_changed"
+	TypeNotificationDigest      = "notification_digest"
 )
 
 // Entity type constants describe the kind of object a notification refers to.
@@ -91,6 +136,8 @@ var knownTypes = map[string]struct{}{
 	TypeCollaboratorRoleChange:      {},
 	TypeCollaboratorRemoved:         {},
 	TypeCommentCreated:              {},
+	TypeTripPollCreated:             {},
+	TypeTripPollClosed:              {},
 	TypeItineraryUpdated:            {},
 	TypeItineraryGenerated:          {},
 	TypeDayRegenerated:              {},
@@ -127,6 +174,19 @@ var knownTypes = map[string]struct{}{
 	TypeTripChangesRequested:        {},
 	TypeTripApprovalCancelled:       {},
 	TypeTripApprovalResetToDraft:    {},
+	TypeRouteChanged:                {},
+	TypeChecklistItemAssigned:       {},
+	TypeChecklistItemCompleted:      {},
+	TypeChecklistItemOverdue:        {},
+	TypeChecklistGenerated:          {},
+	TypeSettlementPending:           {},
+	TypeSettlementOverdue:           {},
+	TypeBudgetConfidenceChanged:     {},
+	TypeTripHealthIssue:             {},
+	TypeOfflineSyncConflict:         {},
+	TypeCalendarSyncFailed:          {},
+	TypeShareSecurityChanged:        {},
+	TypeNotificationDigest:          {},
 }
 
 // IsKnownType reports whether the notification type is part of the recognised
@@ -134,4 +194,88 @@ var knownTypes = map[string]struct{}{
 func IsKnownType(notificationType string) bool {
 	_, ok := knownTypes[notificationType]
 	return ok
+}
+
+// DefaultPriority is the deterministic fallback for producers that have not
+// yet adopted the priority field.
+func DefaultPriority(notificationType string) string {
+	switch notificationType {
+	case TypeGenerationJobFailed, TypeBudgetOptimizationFailed, TypeOfflineSyncConflict,
+		TypeCalendarSyncFailed, TypeShareSecurityChanged, TypeSettlementOverdue:
+		return PriorityUrgent
+	case TypeCollaborationInvited, TypeTripSubmittedForApproval, TypeTripChangesRequested,
+		TypeChecklistItemOverdue, TypePreTripReminderDue, TypeSettlementPending,
+		TypeRouteChanged:
+		return PriorityHigh
+	case TypeChecklistItemCompleted:
+		return PriorityLow
+	default:
+		return PriorityNormal
+	}
+}
+
+func IsPriority(value string) bool {
+	switch value {
+	case PriorityLow, PriorityNormal, PriorityHigh, PriorityUrgent:
+		return true
+	default:
+		return false
+	}
+}
+
+// DefaultCategory keeps old producers governed by the new category controls.
+func DefaultCategory(notificationType string) string {
+	switch notificationType {
+	case TypeCollaborationInvited, TypeCollaborationAccepted, TypeAvailabilityRequested,
+		TypeGroupReadinessNudge, TypeAvailabilityNudge, TypePollVoteNudge,
+		TypeTripPollCreated, TypeTripPollClosed:
+		return CategoryCollaboration
+	case TypeCollaboratorRoleChange, TypeCollaboratorRemoved:
+		return CategoryRoleChanges
+	case TypeCommentCreated:
+		return CategoryComments
+	case TypeChecklistItemAssigned, TypeChecklistItemCompleted, TypeChecklistItemOverdue, TypeChecklistGenerated,
+		TypeChecklistNudge, TypeReminderTaskNudge, TypeReminderAssigned:
+		return CategoryChecklist
+	case TypePreTripReminderDue:
+		return CategoryReminders
+	case TypeExpenseAdded:
+		return CategoryExpenses
+	case TypeSettlementPaid, TypeSettlementPending, TypeSettlementOverdue, TypeSettlementNudge:
+		return CategorySettlements
+	case TypeTripSubmittedForApproval, TypeTripApproved, TypeTripChangesRequested,
+		TypeTripApprovalCancelled, TypeTripApprovalResetToDraft:
+		return CategoryApproval
+	case TypeBudgetOptimizationReady, TypeBudgetOptimizationFailed,
+		TypeWorkspaceBudgetCreated, TypeWorkspaceBudgetUpdated, TypeWorkspaceBudgetArchived,
+		TypeWorkspaceBudgetExceeded, TypeWorkspaceBudgetNearLimit, TypeBudgetConfidenceChanged:
+		return CategoryBudget
+	case TypeTripHealthIssue:
+		return CategoryHealth
+	case TypeOfflineSyncConflict:
+		return CategoryOfflineSync
+	case TypeCalendarSyncFailed:
+		return CategoryCalendar
+	case TypeGenerationJobFailed, TypeItineraryGenerated:
+		return CategoryAIGeneration
+	case TypeShareSecurityChanged:
+		return CategorySecurity
+	case TypeNotificationDigest:
+		return CategorySystem
+	default:
+		return CategoryTripUpdates
+	}
+}
+
+func DefaultDigestKey(notificationType, category, tripID string) string {
+	if strings.TrimSpace(tripID) != "" {
+		return "trip:" + tripID + ":" + category
+	}
+	return "category:" + category + ":" + notificationType
+}
+
+func IsProtectedFromTripMute(notificationType, category string) bool {
+	return category == CategorySecurity || notificationType == TypeOfflineSyncConflict ||
+		notificationType == TypeTripHealthIssue || notificationType == TypePreTripReminderDue ||
+		notificationType == TypeTripSubmittedForApproval
 }

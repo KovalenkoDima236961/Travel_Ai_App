@@ -51,8 +51,19 @@ type Config struct {
 	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
 	TripHealth         TripHealthConfig         `yaml:"trip_health"`
 	BudgetConfidence   BudgetConfidenceConfig   `yaml:"budget_confidence"`
+	SummaryCache       SummaryCacheConfig       `yaml:"summary_cache"`
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
 	AIObservability    AIObservabilityConfig    `yaml:"ai_observability"`
+}
+
+// SummaryCacheConfig controls the small, process-local cache used by private,
+// deterministic trip summaries. Cache keys include the viewer and trip
+// revision/update timestamp so responses are never shared across users.
+type SummaryCacheConfig struct {
+	Enabled                bool `yaml:"enabled" env:"SUMMARY_CACHE_ENABLED" env-default:"true"`
+	TTLSeconds             int  `yaml:"ttl_seconds" env:"SUMMARY_CACHE_TTL_SECONDS" env-default:"30" validate:"min=1,max=300"`
+	MaxItems               int  `yaml:"max_items" env:"SUMMARY_CACHE_MAX_ITEMS" env-default:"1000" validate:"min=1,max=10000"`
+	EndpointTimeoutSeconds int  `yaml:"endpoint_timeout_seconds" env:"SUMMARY_ENDPOINT_TIMEOUT_SECONDS" env-default:"8" validate:"min=1,max=30"`
 }
 
 // AIObservabilityConfig keeps persisted generation traces privacy-safe. Raw

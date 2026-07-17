@@ -1,48 +1,92 @@
 package preferences
 
-// defaultMatrix is the per-channel, per-category default applied when a user has
-// no stored override for a given (channel, category) pair.
-//
-// Rationale:
-//   - In-app notifications can surface all useful activity, so every in-app
-//     category is enabled by default.
-//   - Email should avoid noisy trip updates by default, so trip_updates email is
-//     off while the other email categories are on.
-var defaultMatrix = map[string]map[string]bool{
+// defaultModeMatrix is used when no stored override exists. It deliberately
+// keeps urgent/action channels useful while digesting routine email and muting
+// noisy push categories.
+var defaultModeMatrix = map[string]map[string]string{
 	ChannelInApp: {
-		CategoryCollaboration:      true,
-		CategoryComments:           true,
-		CategoryRoleChanges:        true,
-		CategoryTripUpdates:        true,
-		CategoryPreTripReminders:   true,
-		CategoryChecklistReminders: true,
+		CategoryCollaboration:      ModeInstant,
+		CategoryComments:           ModeInstant,
+		CategoryRoleChanges:        ModeInstant,
+		CategoryTripUpdates:        ModeDailyDigest,
+		CategoryChecklist:          ModeInstant,
+		CategoryChecklistReminders: ModeInstant,
+		CategoryReminders:          ModeInstant,
+		CategoryPreTripReminders:   ModeInstant,
+		CategoryExpenses:           ModeDailyDigest,
+		CategorySettlements:        ModeInstant,
+		CategoryApproval:           ModeInstant,
+		CategoryBudget:             ModeDailyDigest,
+		CategoryHealth:             ModeDailyDigest,
+		CategoryOfflineSync:        ModeInstant,
+		CategoryCalendar:           ModeInstant,
+		CategoryAIGeneration:       ModeInstant,
+		CategorySecurity:           ModeInstant,
+		CategorySystem:             ModeInstant,
 	},
 	ChannelEmail: {
-		CategoryCollaboration:      true,
-		CategoryComments:           true,
-		CategoryRoleChanges:        true,
-		CategoryTripUpdates:        false,
-		CategoryPreTripReminders:   false,
-		CategoryChecklistReminders: false,
+		CategoryCollaboration:      ModeInstant,
+		CategoryComments:           ModeDailyDigest,
+		CategoryRoleChanges:        ModeInstant,
+		CategoryTripUpdates:        ModeDailyDigest,
+		CategoryChecklist:          ModeDailyDigest,
+		CategoryChecklistReminders: ModeDailyDigest,
+		CategoryReminders:          ModeInstant,
+		CategoryPreTripReminders:   ModeInstant,
+		CategoryExpenses:           ModeDailyDigest,
+		CategorySettlements:        ModeInstant,
+		CategoryApproval:           ModeInstant,
+		CategoryBudget:             ModeDailyDigest,
+		CategoryHealth:             ModeDailyDigest,
+		CategoryOfflineSync:        ModeInstant,
+		CategoryCalendar:           ModeInstant,
+		CategoryAIGeneration:       ModeDailyDigest,
+		CategorySecurity:           ModeInstant,
+		CategorySystem:             ModeMuted,
 	},
 	ChannelPush: {
-		CategoryCollaboration:      true,
-		CategoryComments:           true,
-		CategoryRoleChanges:        true,
-		CategoryTripUpdates:        true,
-		CategoryPreTripReminders:   true,
-		CategoryChecklistReminders: true,
+		CategoryCollaboration:      ModeInstant,
+		CategoryComments:           ModeMuted,
+		CategoryRoleChanges:        ModeInstant,
+		CategoryTripUpdates:        ModeMuted,
+		CategoryChecklist:          ModeInstant,
+		CategoryChecklistReminders: ModeInstant,
+		CategoryReminders:          ModeInstant,
+		CategoryPreTripReminders:   ModeInstant,
+		CategoryExpenses:           ModeMuted,
+		CategorySettlements:        ModeInstant,
+		CategoryApproval:           ModeInstant,
+		CategoryBudget:             ModeMuted,
+		CategoryHealth:             ModeInstant,
+		CategoryOfflineSync:        ModeInstant,
+		CategoryCalendar:           ModeInstant,
+		CategoryAIGeneration:       ModeInstant,
+		CategorySecurity:           ModeInstant,
+		CategorySystem:             ModeMuted,
 	},
 }
 
-// defaultEnabled returns the default enabled state for a (channel, category)
-// pair. An unrecognised pair defaults to false (defence in depth; callers
-// validate the vocabulary before reaching here).
-func defaultEnabled(channel, category string) bool {
-	if byCategory, ok := defaultMatrix[channel]; ok {
-		if enabled, ok := byCategory[category]; ok {
-			return enabled
+func defaultDeliveryMode(channel, category string) string {
+	if byCategory, ok := defaultModeMatrix[channel]; ok {
+		if mode, ok := byCategory[category]; ok {
+			return mode
 		}
 	}
-	return false
+	return ModeMuted
+}
+
+func defaultEnabled(channel, category string) bool {
+	return defaultDeliveryMode(channel, category) != ModeMuted
+}
+
+func defaultModeMatrixCopy() map[string]map[string]string {
+	out := make(map[string]map[string]string, len(defaultModeMatrix))
+	for channel, byCategory := range defaultModeMatrix {
+		copied := make(map[string]string, len(byCategory))
+		for category, mode := range byCategory {
+			copied[category] = mode
+		}
+		out[channel] = copied
+	}
+	return out
 }

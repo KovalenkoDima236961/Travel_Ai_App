@@ -148,9 +148,14 @@ func (r *Repository) ListTripExpensesByTrip(ctx context.Context, tripID uuid.UUI
 			sq.Eq{"linked_accommodation": true},
 		})
 	}
-	query, args, err := builder.
-		OrderBy("expense_date DESC", "created_at DESC", "id DESC").
-		ToSql()
+	builder = builder.OrderBy("expense_date DESC", "created_at DESC", "id DESC")
+	if filters.Limit > 0 {
+		builder = builder.Limit(uint64(filters.Limit))
+	}
+	if filters.Offset > 0 {
+		builder = builder.Offset(uint64(filters.Offset))
+	}
+	query, args, err := builder.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list trip expenses: %w", err)
 	}

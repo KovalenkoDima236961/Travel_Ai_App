@@ -6,14 +6,18 @@ import type {
   NotificationsResponse,
   UnreadNotificationsResponse
 } from "@/entities/notification/model";
+import type { NotificationDigest, NotificationDigestsResponse } from "@/entities/notification/model";
+import { queryKeys } from "@/lib/query-keys";
 
 // React Query keys for notifications. Notifications are private, authenticated
 // data and are never fetched from the public share page.
 export const notificationKeys = {
-  all: ["notifications"] as const,
+  all: queryKeys.notifications.all,
   list: (params?: ListNotificationsParams) =>
-    ["notifications", "list", params ?? {}] as const,
-  unreadCount: ["notifications", "unread-count"] as const
+    queryKeys.notifications.list(params ? { ...params } : undefined),
+  unreadCount: queryKeys.notifications.unread(),
+  pendingDigests: [...queryKeys.notifications.all, "digests", "pending"] as const,
+  digestHistory: [...queryKeys.notifications.all, "digests", "history"] as const
 };
 
 type ListNotificationsParams = {
@@ -26,6 +30,16 @@ function notificationOptions() {
     baseUrl: getNotificationApiBaseUrl(),
     serviceName: "Notification Service"
   };
+}
+
+export async function listPendingNotificationDigests(): Promise<NotificationDigest[]> {
+  const response = await apiFetch<NotificationDigestsResponse>("/notifications/digests/pending", {}, notificationOptions());
+  return response.items ?? [];
+}
+
+export async function listNotificationDigestHistory(): Promise<NotificationDigest[]> {
+  const response = await apiFetch<NotificationDigestsResponse>("/notifications/digests/history", {}, notificationOptions());
+  return response.items ?? [];
 }
 
 /**
@@ -84,6 +98,10 @@ export function markAllNotificationsRead(): Promise<MarkNotificationResponse> {
     { method: "PATCH" },
     notificationOptions()
   );
+}
+
+export function markTripNotificationsRead(tripId: string): Promise<MarkNotificationResponse> {
+  return apiFetch<MarkNotificationResponse>(`/notifications/read-trip?tripId=${encodeURIComponent(tripId)}`, { method: "PATCH" }, notificationOptions());
 }
 
 export type { AppNotification, ListNotificationsParams };

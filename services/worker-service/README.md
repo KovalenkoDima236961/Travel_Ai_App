@@ -8,6 +8,10 @@ proposal, version, activity, and notification effects.
 The Web App does not call Worker Service directly. It creates and polls jobs
 through Trip Service.
 
+## Reliability contract
+
+RabbitMQ delivery is at-least-once, so the worker atomically claims the persisted job and skips terminal/already-owned duplicates before producing itinerary versions, activity, or notifications. Errors are classified as transient or permanent; transient work is republished to the retry route with a bounded attempt header, while permanent/exhausted work is failed and dead-lettered. Startup/periodic cleanup marks stale running rows, and shutdown stops intake before waiting for active handlers. Monitor `worker_messages_{consumed,acked,retried,dead_lettered}_total`, queue depth, active jobs, queue delay, and duration. Use `scripts/worker-reliability-smoke-test.sh`; deterministic failure instructions are optional and should exist only in mock test deployments.
+
 Worker Service also runs the Smart Pre-Trip Reminders polling loop. That loop
 does not read reminder rows directly; it calls Trip Service
 `POST /internal/reminders/process-due` with the shared internal service token so
@@ -273,3 +277,13 @@ generation worker creates or updates its safe AI trace from those IDs, records
 high-level stage events, and marks the trace completed or failed with a
 controlled code. Trace persistence is fail-open and must never change AMQP
 ack/retry or DLQ behavior.
+
+## Notification digest scheduler
+
+Worker Service polls Notification Service's internal digest-processing endpoint.
+Configure `NOTIFICATION_DIGEST_WORKER_ENABLED`,
+`NOTIFICATION_DIGEST_WORKER_POLL_INTERVAL_SECONDS` (60),
+`NOTIFICATION_DIGEST_WORKER_BATCH_SIZE` (100), and
+`NOTIFICATION_DIGEST_WORKER_TIMEOUT_SECONDS` (15). Notification Service owns
+durable batches and atomic claims, so multiple pollers cannot claim the same
+pending batch.

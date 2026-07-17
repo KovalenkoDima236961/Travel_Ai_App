@@ -6,6 +6,7 @@ import { planningConstraintKeys } from "@/lib/api/planning-constraints";
 import { applyRouteAlternative, routeAlternativeKeys } from "@/lib/api/route-alternatives";
 import { tripKeys } from "@/lib/api/trips";
 import type { ApplyRouteAlternativeInput } from "@/types/route-alternatives";
+import { queryKeys } from "@/lib/query-keys";
 
 export function useApplyRouteAlternative(tripId?: string, sessionId?: string, alternativeId?: string) {
   const queryClient = useQueryClient();
@@ -23,6 +24,7 @@ export function useApplyRouteAlternative(tripId?: string, sessionId?: string, al
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.route(tripId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
         queryClient.invalidateQueries({ queryKey: routeAlternativeKeys.all }),
         queryClient.invalidateQueries({ queryKey: planningConstraintKeys.all }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })

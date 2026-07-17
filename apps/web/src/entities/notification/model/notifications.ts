@@ -38,12 +38,37 @@ export type NotificationType =
   | "workspace_role_changed"
   | "workspace_trip_created";
 
+export type ExtendedNotificationType =
+  | NotificationType
+  | "date_option_applied"
+  | "availability_requested"
+  | "pre_trip_reminder_due"
+  | "reminder_assigned"
+  | "trip_submitted_for_approval"
+  | "trip_approved"
+  | "trip_changes_requested"
+  | "trip_approval_cancelled"
+  | "trip_approval_reset_to_draft"
+  | "route_changed"
+  | "checklist_item_assigned"
+  | "checklist_item_completed"
+  | "checklist_item_overdue"
+  | "checklist_generated"
+  | "settlement_pending"
+  | "settlement_overdue"
+  | "budget_confidence_changed"
+  | "trip_health_issue"
+  | "offline_sync_conflict"
+  | "calendar_sync_failed"
+  | "share_security_changed"
+  | "notification_digest";
+
 export type AppNotification = {
   id: string;
   userId: string;
   tripId?: string | null;
   actorUserId?: string | null;
-  type: NotificationType;
+  type: ExtendedNotificationType;
   title: string;
   message: string;
   entityType?: string | null;
@@ -51,7 +76,47 @@ export type AppNotification = {
   metadata: Record<string, unknown>;
   readAt?: string | null;
   createdAt: string;
+  priority: "low" | "normal" | "high" | "urgent";
+  category: string;
+  digestKey?: string | null;
+  dedupeKey?: string | null;
+  groupedCount: number;
+  digestBatchId?: string | null;
+  deliveryMode?: string | null;
+  deliveryStatus?: string | null;
+  expiresAt?: string | null;
+  latestEventAt: string;
 };
+
+export type NotificationDigestItem = {
+  id: string;
+  tripId?: string | null;
+  category: string;
+  priority: string;
+  digestKey: string;
+  title: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  eventCount: number;
+  latestEventAt: string;
+};
+
+export type NotificationDigest = {
+  id: string;
+  channel: "in_app" | "email" | "push";
+  mode: string;
+  status: string;
+  scheduledFor: string;
+  sentAt?: string | null;
+  attempts: number;
+  nextAttemptAt?: string | null;
+  errorCode?: string | null;
+  errorMessageSafe?: string | null;
+  eventCount: number;
+  items: NotificationDigestItem[];
+};
+
+export type NotificationDigestsResponse = { items: NotificationDigest[] };
 
 export type NotificationsResponse = {
   items: AppNotification[];

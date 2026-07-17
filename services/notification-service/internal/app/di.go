@@ -8,6 +8,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/config"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/controls"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/digests"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/emailnotifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver/handler"
@@ -50,8 +52,11 @@ func buildContainer(
 	})
 
 	repo := notificationrepo.New(db)
-	svc := notifications.New(repo, log)
+	svc := notifications.New(repo, log).
+		WithDedupeWindow(cfg.NotificationDedupeWindow()).
+		WithGroupingWindow(cfg.NotificationGroupingWindow())
 	preferenceSvc := preferences.New(repo, log)
+	controlsSvc := controls.New(repo, log)
 	streamCfg := stream.Normalize(stream.Config{
 		Enabled:               cfg.SSE.Enabled,
 		HeartbeatInterval:     cfg.SSEHeartbeatInterval(),
@@ -115,13 +120,21 @@ func buildContainer(
 		return nil, fmt.Errorf("init web push sender: %w", err)
 	}
 	pushSvc := pushsvc.New(pushCfg, repo, pushSender, log)
+	digestSvc := digests.New(repo, userLookup, emailSender, pushSvc, digests.Config{
+		PublicWebBaseURL: cfg.Email.PublicWebBaseURL,
+		MaxAttempts:      cfg.Digest.MaxAttempts,
+		RetryDelay:       cfg.NotificationDigestRetryDelay(),
+	}, log)
 
 	notificationHandler := handler.New(svc, log, preferenceSvc).
 		EnableStream(streamManager, streamCfg).
-		EnablePush(pushSvc)
+		EnablePush(pushSvc).
+		EnableControls(controlsSvc).
+		EnableDigests(digestSvc)
 	internalHandler := handler.NewInternal(svc, emailSvc, log, preferenceSvc).
 		EnableStream(streamManager).
-		EnablePush(pushSvc)
+		EnablePush(pushSvc).
+		EnableNoiseControl(controlsSvc, digestSvc)
 	readinessHandler := httpserver.NewReadinessHandler(db, log)
 
 	router := httpserver.NewRouter(

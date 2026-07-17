@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/golang-migrate/migrate/v4"
@@ -14,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"go.uber.org/zap"
 )
 
 // PoolIface is the subset of *pgxpool.Pool used by DB and its callers.
@@ -31,17 +35,26 @@ type PoolIface interface {
 }
 
 type DB struct {
-	Pool    PoolIface
-	Builder squirrel.StatementBuilderType
+	Pool               PoolIface
+	Builder            squirrel.StatementBuilderType
+	log                *zap.Logger
+	slowQueryThreshold time.Duration
 }
 
-func New(ctx context.Context, cfg Config) (*DB, error) {
+func New(ctx context.Context, cfg Config, logs ...*zap.Logger) (*DB, error) {
 	connString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
 
 	postgresCfg, err := pgxpool.ParseConfig(fmt.Sprintf("%s&pool_max_conns=%d&pool_min_conns=%d", connString, cfg.MaxConns, cfg.MinConns))
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse database connection config: %w", err)
+	}
+	if cfg.QueryTimeoutSeconds > 0 {
+		postgresCfg.ConnConfig.RuntimeParams["statement_timeout"] = strconv.Itoa(cfg.QueryTimeoutSeconds * 1000)
+	}
+	log := zap.NewNop()
+	if len(logs) > 0 && logs[0] != nil {
+		log = logs[0]
 	}
 
 	var pool *pgxpool.Pool
@@ -51,8 +64,10 @@ func New(ctx context.Context, cfg Config) (*DB, error) {
 	}
 
 	db := &DB{
-		Pool:    pool,
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
+		Pool:               pool,
+		Builder:            squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
+		log:                log,
+		slowQueryThreshold: time.Duration(cfg.SlowQueryThresholdMS) * time.Millisecond,
 	}
 
 	if err = doMigrate(connString, cfg.MigPath); err != nil {
@@ -76,15 +91,61 @@ func doMigrate(connStr, migPath string) error {
 }
 
 func (db *DB) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
-	return db.Pool.Exec(ctx, query, args...)
+	started := time.Now()
+	result, err := db.Pool.Exec(ctx, query, args...)
+	db.recordQuery(query, started, err)
+	return result, err
 }
 
 func (db *DB) Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
-	return db.Pool.Query(ctx, query, args...)
+	started := time.Now()
+	rows, err := db.Pool.Query(ctx, query, args...)
+	db.recordQuery(query, started, err)
+	return rows, err
 }
 
 func (db *DB) QueryRow(ctx context.Context, query string, args ...interface{}) pgx.Row {
-	return db.Pool.QueryRow(ctx, query, args...)
+	return &timedRow{row: db.Pool.QueryRow(ctx, query, args...), db: db, query: query, started: time.Now()}
+}
+
+type timedRow struct {
+	row     pgx.Row
+	db      *DB
+	query   string
+	started time.Time
+}
+
+func (r *timedRow) Scan(dest ...any) error {
+	err := r.row.Scan(dest...)
+	r.db.recordQuery(r.query, r.started, err)
+	return err
+}
+
+func (db *DB) recordQuery(query string, started time.Time, err error) {
+	duration := time.Since(started)
+	operation := queryOperation(query)
+	recordDBQuery(operation, duration, err, db.Stat())
+	if db.slowQueryThreshold > 0 && duration >= db.slowQueryThreshold {
+		db.log.Warn("slow database query",
+			zap.String("operation", operation),
+			zap.Duration("duration", duration),
+			zap.Bool("failed", err != nil),
+		)
+	}
+}
+
+func queryOperation(query string) string {
+	fields := strings.Fields(strings.TrimSpace(query))
+	if len(fields) == 0 {
+		return "unknown"
+	}
+	op := strings.ToLower(fields[0])
+	switch op {
+	case "select", "insert", "update", "delete", "with":
+		return op
+	default:
+		return "other"
+	}
 }
 
 func (db *DB) Close() {

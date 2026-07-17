@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/controls"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/httpserver/dto/response"
@@ -38,6 +39,20 @@ type preferenceService interface {
 	UpdatePreferences(ctx context.Context, userID uuid.UUID, items []preferences.PreferenceInput) (*preferences.PreferencesResult, error)
 }
 
+type controlsService interface {
+	GetSettings(ctx context.Context, userID uuid.UUID) (*entity.NotificationSettings, error)
+	UpdateSettings(ctx context.Context, input controls.SettingsInput) (*entity.NotificationSettings, error)
+	ListTripMutes(ctx context.Context, userID, tripID uuid.UUID) ([]entity.NotificationTripMute, error)
+	UpsertTripMute(ctx context.Context, input controls.TripMuteInput) (*entity.NotificationTripMute, error)
+	DeleteTripMute(ctx context.Context, id, userID uuid.UUID) error
+}
+
+type userDigestService interface {
+	ListPending(ctx context.Context, userID uuid.UUID, limit int) ([]entity.NotificationDigestBatch, error)
+	ListHistory(ctx context.Context, userID uuid.UUID, limit int) ([]entity.NotificationDigestBatch, error)
+	Get(ctx context.Context, id, userID uuid.UUID) (*entity.NotificationDigestBatch, error)
+}
+
 // pushService is the user-facing browser push port.
 type pushService interface {
 	PublicKey() push.PublicKeyResult
@@ -51,11 +66,16 @@ type pushService interface {
 type Handler struct {
 	svc         notificationService
 	preferences preferenceService
+	controls    controlsService
+	digests     userDigestService
 	push        pushService
 	streams     stream.Manager
 	streamCfg   stream.Config
 	log         *zap.Logger
 }
+
+func (h *Handler) EnableControls(service controlsService) *Handler  { h.controls = service; return h }
+func (h *Handler) EnableDigests(service userDigestService) *Handler { h.digests = service; return h }
 
 // New constructs the user-facing notification HTTP handler.
 func New(svc notificationService, log *zap.Logger, preferenceSvc ...preferenceService) *Handler {
@@ -95,12 +115,23 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/preferences", h.GetPreferences)
 			r.Put("/preferences", h.UpdatePreferences)
 		}
+		if h.controls != nil {
+			r.Get("/trip-mutes", h.ListTripMutes)
+			r.Put("/trip-mutes", h.UpsertTripMute)
+			r.Delete("/trip-mutes/{muteId}", h.DeleteTripMute)
+		}
+		if h.digests != nil {
+			r.Get("/digests/pending", h.ListPendingDigests)
+			r.Get("/digests/history", h.ListDigestHistory)
+			r.Get("/digests/{digestId}", h.GetDigest)
+		}
 		if h.push != nil {
 			r.Post("/push/subscribe", h.SubscribePush)
 			r.Delete("/push/unsubscribe", h.UnsubscribePush)
 			r.Get("/push/status", h.PushStatus)
 		}
 		r.Patch("/read-all", h.MarkAllRead)
+		r.Patch("/read-trip", h.MarkTripRead)
 		r.Patch("/{id}/read", h.MarkRead)
 	})
 }
@@ -367,6 +398,14 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, h.log, err)
 		return
 	}
+	if h.controls != nil {
+		settings, settingsErr := h.controls.GetSettings(r.Context(), user.ID)
+		if settingsErr != nil {
+			writeServiceError(w, h.log, settingsErr)
+			return
+		}
+		result.Settings = settingsResult(*settings)
+	}
 
 	writeJSON(w, http.StatusOK, response.NewNotificationPreferences(result))
 }
@@ -388,19 +427,162 @@ func (h *Handler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	inputs, err := req.ToInputs()
+	if req.Items == nil && req.Settings == nil {
+		writeError(w, http.StatusBadRequest, "items or settings is required")
+		return
+	}
+
+	var result *preferences.PreferencesResult
+	if req.Items != nil {
+		inputs, inputErr := req.ToInputs()
+		if inputErr != nil {
+			writeServiceError(w, h.log, inputErr)
+			return
+		}
+		result, err = h.preferences.UpdatePreferences(r.Context(), user.ID, inputs)
+	} else {
+		result, err = h.preferences.GetPreferences(r.Context(), user.ID)
+	}
 	if err != nil {
 		writeServiceError(w, h.log, err)
 		return
 	}
-
-	result, err := h.preferences.UpdatePreferences(r.Context(), user.ID, inputs)
-	if err != nil {
-		writeServiceError(w, h.log, err)
-		return
+	if h.controls != nil && req.Settings != nil {
+		settings, settingsErr := h.controls.UpdateSettings(r.Context(), controls.SettingsInput{
+			UserID: user.ID, QuietHoursEnabled: req.Settings.QuietHoursEnabled,
+			QuietHoursStart: req.Settings.QuietHoursStart, QuietHoursEnd: req.Settings.QuietHoursEnd,
+			QuietHoursTimezone:       req.Settings.QuietHoursTimezone,
+			UrgentBypassesQuietHours: req.Settings.UrgentBypassesQuietHours,
+			DailyDigestTime:          req.Settings.DailyDigestTime, WeeklyDigestDay: req.Settings.WeeklyDigestDay,
+			WeeklyDigestTime: req.Settings.WeeklyDigestTime,
+		})
+		if settingsErr != nil {
+			writeServiceError(w, h.log, settingsErr)
+			return
+		}
+		result.Settings = settingsResult(*settings)
 	}
 
 	writeJSON(w, http.StatusOK, response.NewNotificationPreferences(result))
+}
+
+func (h *Handler) ListTripMutes(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	tripID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("tripId")))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "tripId must be a valid uuid")
+		return
+	}
+	items, err := h.controls.ListTripMutes(r.Context(), user.ID, tripID)
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripMutes(items))
+}
+
+func (h *Handler) UpsertTripMute(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req request.UpsertTripMute
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	tripID, err := uuid.Parse(strings.TrimSpace(req.TripID))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "tripId must be a valid uuid")
+		return
+	}
+	item, err := h.controls.UpsertTripMute(r.Context(), controls.TripMuteInput{UserID: user.ID, TripID: tripID, Category: req.Category, MutedUntil: req.MutedUntil})
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewTripMutes([]entity.NotificationTripMute{*item}).Items[0])
+}
+
+func (h *Handler) DeleteTripMute(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(chi.URLParam(r, "muteId")))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid mute id")
+		return
+	}
+	if err := h.controls.DeleteTripMute(r.Context(), id, user.ID); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.Success{Success: true})
+}
+
+func (h *Handler) ListPendingDigests(w http.ResponseWriter, r *http.Request) {
+	h.listDigests(w, r, true)
+}
+func (h *Handler) ListDigestHistory(w http.ResponseWriter, r *http.Request) {
+	h.listDigests(w, r, false)
+}
+func (h *Handler) listDigests(w http.ResponseWriter, r *http.Request, pending bool) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	limit, ok := parseLimit(w, r.URL.Query().Get("limit"))
+	if !ok {
+		return
+	}
+	if limit == 0 {
+		limit = 20
+	}
+	var items []entity.NotificationDigestBatch
+	if pending {
+		items, err = h.digests.ListPending(r.Context(), user.ID, limit)
+	} else {
+		items, err = h.digests.ListHistory(r.Context(), user.ID, limit)
+	}
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewDigestList(items))
+}
+func (h *Handler) GetDigest(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(chi.URLParam(r, "digestId")))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid digest id")
+		return
+	}
+	batch, err := h.digests.Get(r.Context(), id, user.ID)
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewDigestBatch(*batch))
+}
+
+func settingsResult(value entity.NotificationSettings) preferences.NotificationSettings {
+	return preferences.NotificationSettings{
+		QuietHoursEnabled: value.QuietHoursEnabled, QuietHoursStart: value.QuietHoursStart,
+		QuietHoursEnd: value.QuietHoursEnd, QuietHoursTimezone: value.QuietHoursTimezone,
+		UrgentBypassesQuietHours: value.UrgentBypassesQuietHours, DailyDigestTime: value.DailyDigestTime,
+		WeeklyDigestDay: value.WeeklyDigestDay, WeeklyDigestTime: value.WeeklyDigestTime,
+	}
 }
 
 // MarkRead handles PATCH /notifications/{id}/read. It is idempotent and only
@@ -439,6 +621,31 @@ func (h *Handler) MarkAllRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writeJSON(w, http.StatusOK, response.Success{Success: true})
+}
+
+func (h *Handler) MarkTripRead(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	tripID, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("tripId")))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "tripId must be a valid uuid")
+		return
+	}
+	service, ok := h.svc.(interface {
+		MarkTripRead(context.Context, uuid.UUID, uuid.UUID) (int, error)
+	})
+	if !ok {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if _, err := service.MarkTripRead(r.Context(), user.ID, tripID); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, response.Success{Success: true})
 }
 

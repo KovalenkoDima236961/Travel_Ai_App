@@ -2345,6 +2345,10 @@ func (r *routeTestRepo) GetLatestReceiptOCRResult(context.Context, uuid.UUID, uu
 	return nil, domainerrs.ErrNotFound
 }
 
+func (r *routeTestRepo) ListLatestReceiptOCRResults(context.Context, uuid.UUID, []uuid.UUID) ([]entity.ReceiptOCRResult, error) {
+	return []entity.ReceiptOCRResult{}, nil
+}
+
 func (r *routeTestRepo) CreateTripShare(_ context.Context, share *entity.TripShare) (*entity.TripShare, error) {
 	if _, ok := r.sharesByTrip[share.TripID]; ok {
 		return nil, domainerrs.ErrConflict

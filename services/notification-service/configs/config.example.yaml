@@ -76,6 +76,13 @@ sse:
   write_timeout_seconds: 10
   max_connections_per_user: 5
 
+digest:
+  dedupe_window_minutes: 30
+  grouping_window_minutes: 60
+  max_attempts: 3
+  retry_delay_seconds: 300
+  retention_days: 90
+
 cors:
   allowed_origins: "http://localhost:3000"
   allowed_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"

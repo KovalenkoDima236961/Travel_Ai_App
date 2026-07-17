@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 
@@ -15,7 +14,7 @@ func (s *Service) RecordGenerationJobFailed(
 	ctx context.Context,
 	tripID, requesterID, jobID uuid.UUID,
 	jobType entity.GenerationJobType,
-	errorCode, errorMessage string,
+	errorCode, _ string,
 ) {
 	s.recordActivity(ctx, activity.RecordActivityInput{
 		TripID:      tripID,
@@ -37,7 +36,11 @@ func (s *Service) RecordGenerationJobFailed(
 		TripID:     &trip,
 		Type:       notifications.TypeGenerationJobFailed,
 		Title:      "Generation failed",
-		Message:    fmt.Sprintf("Your itinerary generation job failed: %s", errorMessage),
+		Message:    "Your itinerary generation could not be completed. Open the trip to retry.",
+		Priority:   notifications.PriorityUrgent,
+		Category:   "ai_generation",
+		DigestKey:  "trip:" + tripID.String() + ":ai_generation",
+		DedupeKey:  "generation_job:" + jobID.String() + ":recipient:" + requesterID.String(),
 		EntityType: activityEntityType(notifications.EntityItinerary),
 		EntityID:   &job,
 		Metadata: map[string]any{

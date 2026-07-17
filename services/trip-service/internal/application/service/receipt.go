@@ -149,19 +149,47 @@ func (s *Service) ListReceipts(ctx context.Context, tripID uuid.UUID, filters ap
 	} else if !access.Allows(tripsecurity.PermissionReceiptsView) {
 		return appdto.TripReceiptsResponse{}, apperrs.ErrForbidden
 	}
+	limit := normalizeListLimit(filters.Limit, 30, 100)
+	if filters.Offset < 0 {
+		filters.Offset = 0
+	}
+	filters.Limit = limit + 1
 	receiptsList, err := s.repo.ListTripExpenseReceipts(ctx, tripID, filters)
+	if err != nil {
+		return appdto.TripReceiptsResponse{}, err
+	}
+	var nextOffset *int
+	if len(receiptsList) > limit {
+		receiptsList = receiptsList[:limit]
+		next := filters.Offset + limit
+		nextOffset = &next
+	}
+	latestByID, err := s.latestReceiptOCRByID(ctx, tripID, receiptsList)
 	if err != nil {
 		return appdto.TripReceiptsResponse{}, err
 	}
 	out := make([]appdto.ExpenseReceipt, 0, len(receiptsList))
 	for i := range receiptsList {
-		latest, err := s.latestReceiptOCR(ctx, tripID, receiptsList[i].ID)
-		if err != nil {
-			return appdto.TripReceiptsResponse{}, err
-		}
-		out = append(out, receiptDTO(&receiptsList[i], latest, false))
+		out = append(out, receiptDTO(&receiptsList[i], latestByID[receiptsList[i].ID], false))
 	}
-	return appdto.TripReceiptsResponse{Receipts: out}, nil
+	return appdto.TripReceiptsResponse{Receipts: out, NextOffset: nextOffset}, nil
+}
+
+func (s *Service) latestReceiptOCRByID(ctx context.Context, tripID uuid.UUID, receiptsList []entity.TripExpenseReceipt) (map[uuid.UUID]*entity.ReceiptOCRResult, error) {
+	ids := make([]uuid.UUID, 0, len(receiptsList))
+	for i := range receiptsList {
+		ids = append(ids, receiptsList[i].ID)
+	}
+	results, err := s.repo.ListLatestReceiptOCRResults(ctx, tripID, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID]*entity.ReceiptOCRResult, len(results))
+	for i := range results {
+		result := results[i]
+		out[result.ReceiptID] = &result
+	}
+	return out, nil
 }
 
 func (s *Service) GetReceipt(ctx context.Context, tripID, receiptID uuid.UUID) (appdto.ExpenseReceipt, error) {

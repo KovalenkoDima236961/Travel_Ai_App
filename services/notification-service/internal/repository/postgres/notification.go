@@ -73,6 +73,112 @@ func (r *Repository) CreateNotifications(ctx context.Context, notifications []en
 	return created, nil
 }
 
+func (r *Repository) FindRecentNotificationByDedupeKey(ctx context.Context, userID uuid.UUID, dedupeKey string, since time.Time) (*entity.Notification, error) {
+	query, args, err := r.db.Builder.Select(dto.Columns).From("notifications").Where(sq.Eq{
+		"user_id": dto.IDArg(userID), "dedupe_key": dedupeKey,
+	}).Where(sq.GtOrEq{"latest_event_at": since.UTC()}).OrderBy("latest_event_at DESC").Limit(1).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build recent notification dedupe query: %w", err)
+	}
+	value, err := dto.Scan(r.db.QueryRow(ctx, query, args...))
+	if errors.Is(err, domainerrs.ErrNotFound) {
+		return nil, nil
+	}
+	return value, err
+}
+
+func (r *Repository) GroupNotification(ctx context.Context, id, userID uuid.UUID, latest entity.Notification) (*entity.Notification, error) {
+	metadata, err := dto.MarshalMetadata(latest.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	query, args, err := r.db.Builder.Update("notifications").
+		Set("grouped_count", sq.Expr("grouped_count + 1")).Set("latest_event_at", latest.LatestEventAt).
+		Set("title", latest.Title).Set("message", latest.Message).Set("metadata", metadata).
+		Where(sq.Eq{"id": dto.IDArg(id), "user_id": dto.IDArg(userID)}).Suffix("RETURNING " + dto.Columns).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build group notification: %w", err)
+	}
+	return dto.Scan(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ClaimNotificationDedupe(ctx context.Context, userID uuid.UUID, dedupeKey string, now, since time.Time) (bool, *uuid.UUID, error) {
+	query := `INSERT INTO notification_event_dedupes
+(user_id,dedupe_key,first_seen_at,latest_event_at,grouped_count)
+VALUES ($1,$2,$3,$3,1)
+ON CONFLICT (user_id,dedupe_key) DO UPDATE SET
+ notification_id=CASE
+   WHEN notification_event_dedupes.latest_event_at < $4 THEN NULL
+   ELSE notification_event_dedupes.notification_id END,
+ first_seen_at=CASE
+   WHEN notification_event_dedupes.latest_event_at < $4 THEN EXCLUDED.first_seen_at
+   ELSE notification_event_dedupes.first_seen_at END,
+ latest_event_at=EXCLUDED.latest_event_at,
+ grouped_count=CASE
+   WHEN notification_event_dedupes.latest_event_at < $4 THEN 1
+   ELSE notification_event_dedupes.grouped_count+1 END
+RETURNING notification_id, grouped_count > 1`
+	var notificationID *uuid.UUID
+	var duplicate bool
+	if err := r.db.QueryRow(ctx, query, dto.IDArg(userID), dedupeKey, now.UTC(), since.UTC()).Scan(&notificationID, &duplicate); err != nil {
+		return false, nil, fmt.Errorf("claim notification dedupe key: %w", err)
+	}
+	return duplicate, notificationID, nil
+}
+
+func (r *Repository) BindNotificationDedupe(ctx context.Context, userID uuid.UUID, dedupeKey string, notificationID uuid.UUID, since time.Time) error {
+	_, err := r.db.Exec(ctx, `UPDATE notification_event_dedupes
+SET notification_id=$3
+WHERE user_id=$1 AND dedupe_key=$2 AND latest_event_at >= $4`,
+		dto.IDArg(userID), dedupeKey, dto.IDArg(notificationID), since.UTC())
+	if err != nil {
+		return fmt.Errorf("bind notification dedupe key: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) FindRecentNotificationByDigestKey(ctx context.Context, userID uuid.UUID, digestKey string, since time.Time) (*entity.Notification, error) {
+	query, args, err := r.db.Builder.Select(dto.Columns).From("notifications").Where(sq.Eq{
+		"user_id": dto.IDArg(userID), "digest_key": digestKey,
+	}).Where(sq.Eq{"priority": []string{notifications.PriorityLow, notifications.PriorityNormal}}).
+		Where(sq.GtOrEq{"latest_event_at": since.UTC()}).OrderBy("latest_event_at DESC").Limit(1).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build recent notification grouping query: %w", err)
+	}
+	value, err := dto.Scan(r.db.QueryRow(ctx, query, args...))
+	if errors.Is(err, domainerrs.ErrNotFound) {
+		return nil, nil
+	}
+	return value, err
+}
+
+func (r *Repository) GroupRelatedNotification(ctx context.Context, id, userID uuid.UUID, latest entity.Notification) (*entity.Notification, error) {
+	metadata, err := dto.MarshalMetadata(latest.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	query, args, err := r.db.Builder.Update("notifications").
+		Set("grouped_count", sq.Expr("grouped_count + 1")).
+		Set("latest_event_at", latest.LatestEventAt).
+		Set("type", latest.Type).
+		Set("title", latest.Title).
+		Set("message", latest.Message).
+		Set("metadata", metadata).
+		Set("priority", latest.Priority).
+		Set("actor_user_id", nullableUUID(latest.ActorUserID)).
+		Set("entity_type", latest.EntityType).
+		Set("entity_id", nullableUUID(latest.EntityID)).
+		Set("delivery_mode", latest.DeliveryMode).
+		Set("delivery_status", latest.DeliveryStatus).
+		Set("read_at", nil).
+		Where(sq.Eq{"id": dto.IDArg(id), "user_id": dto.IDArg(userID)}).
+		Suffix("RETURNING " + dto.Columns).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build group related notification: %w", err)
+	}
+	return dto.Scan(r.db.QueryRow(ctx, query, args...))
+}
+
 // ListNotificationsByUser returns a page of a user's notifications ordered
 // newest first (created_at DESC, id DESC). When a cursor is supplied it returns
 // only rows strictly older than the cursor position for stable keyset
@@ -205,6 +311,18 @@ func (r *Repository) MarkAllNotificationsRead(ctx context.Context, userID uuid.U
 	return int(tag.RowsAffected()), nil
 }
 
+func (r *Repository) MarkTripNotificationsRead(ctx context.Context, userID, tripID uuid.UUID) (int, error) {
+	query, args, err := r.db.Builder.Update("notifications").Set("read_at", sq.Expr("NOW()")).Where(sq.Eq{"user_id": dto.IDArg(userID), "trip_id": dto.IDArg(tripID), "read_at": nil}).ToSql()
+	if err != nil {
+		return 0, err
+	}
+	tag, err := r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("mark trip notifications read: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 // ListNotificationPreferencesByUsers returns all stored preference overrides
 // for the given users. Missing rows are intentionally not synthesized here; the
 // preferences service merges defaults over the sparse stored overrides.
@@ -259,11 +377,20 @@ func (r *Repository) UpsertNotificationPreferencesBatch(ctx context.Context, use
 
 	for i := range items {
 		item := items[i]
+		mode := item.DeliveryMode
+		if !preferences.IsKnownDeliveryMode(mode) {
+			if item.Enabled {
+				mode = preferences.ModeInstant
+			} else {
+				mode = preferences.ModeMuted
+			}
+		}
+		enabled := mode != preferences.ModeMuted
 		query, args, err := r.db.Builder.
 			Insert("notification_preferences").
 			Columns(dto.PreferenceInsertColumns()...).
-			Values(dto.PreferenceInsertValues(dto.IDArg(userID), item.Channel, item.Category, item.Enabled)...).
-			Suffix("ON CONFLICT (user_id, channel, category) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()").
+			Values(dto.PreferenceInsertValues(dto.IDArg(userID), item.Channel, item.Category, enabled, mode)...).
+			Suffix("ON CONFLICT (user_id, channel, category) DO UPDATE SET enabled = EXCLUDED.enabled, delivery_mode = EXCLUDED.delivery_mode, updated_at = NOW()").
 			ToSql()
 		if err != nil {
 			return fmt.Errorf("build upsert notification preference: %w", err)

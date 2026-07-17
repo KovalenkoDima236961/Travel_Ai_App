@@ -3,6 +3,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { activityKeys } from "@/lib/api/activity";
 import { tripHealthKeys } from "@/lib/api/trip-health";
+import { groupReadinessKeys } from "@/lib/api/group-readiness";
+import { queryKeys } from "@/lib/query-keys";
 import {
   checkChecklistItem,
   checklistKeys,
@@ -26,6 +28,8 @@ export function useChecklistMutations(tripId: string) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: checklistKeys.detail(tripId) }),
       queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+      queryClient.invalidateQueries({ queryKey: groupReadinessKeys.detail(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
       queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
     ]);
   }
@@ -36,6 +40,8 @@ export function useChecklistMutations(tripId: string) {
       queryClient.setQueryData(checklistKeys.detail(tripId), data);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: groupReadinessKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
       ]);
     }

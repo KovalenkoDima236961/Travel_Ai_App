@@ -352,6 +352,16 @@ var pushTypeAllowlist = map[string]struct{}{
 	notifications.TypeGenerationJobFailed:      {},
 	notifications.TypeBudgetOptimizationReady:  {},
 	notifications.TypeBudgetOptimizationFailed: {},
+	notifications.TypeNotificationDigest:       {},
+}
+
+func (s *Service) SendDigest(ctx context.Context, userID uuid.UUID, title, body string) error {
+	_, err := s.SendPushForNotifications(ctx, []entity.Notification{{
+		ID: uuid.New(), UserID: userID, Type: notifications.TypeNotificationDigest,
+		Title: title, Message: body, Category: notifications.CategorySystem,
+		Priority: notifications.PriorityNormal,
+	}})
+	return err
 }
 
 func buildPayload(notification entity.Notification, category string) pushdelivery.PushPayload {
@@ -386,6 +396,16 @@ func safeTitleBody(notification entity.Notification) (string, string) {
 		return "Budget proposal ready", "A budget optimization proposal is ready to review."
 	case notifications.TypeBudgetOptimizationFailed:
 		return "Budget optimization failed", "Your budget optimization request failed."
+	case notifications.TypeNotificationDigest:
+		title := strings.TrimSpace(notification.Title)
+		if title == "" {
+			title = "Trip update digest"
+		}
+		body := strings.TrimSpace(notification.Message)
+		if body == "" {
+			body = "Open the app to review your grouped updates."
+		}
+		return truncate(title, 80), truncate(body, 160)
 	default:
 		title := strings.TrimSpace(notification.Title)
 		if title == "" {

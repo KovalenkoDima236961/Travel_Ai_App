@@ -10,6 +10,7 @@ import { groupReadinessKeys } from "@/lib/api/group-readiness";
 import { planningConstraintKeys } from "@/lib/api/planning-constraints";
 import { reminderKeys } from "@/lib/api/trip-reminders";
 import { getTripRoute, tripKeys, updateTripRoute } from "@/lib/api/trips";
+import { queryKeys } from "@/lib/query-keys";
 
 export function useTripRoute(tripId: string, enabled = true) {
   return useQuery({
@@ -33,6 +34,7 @@ export function useUpdateTripRoute(tripId: string) {
         queryClient.invalidateQueries({ queryKey: approvalRiskKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: approvalKeys.trip(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
         queryClient.invalidateQueries({ queryKey: reminderKeys.all }),
         queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) }),
         queryClient.invalidateQueries({ queryKey: groupReadinessKeys.detail(tripId) }),

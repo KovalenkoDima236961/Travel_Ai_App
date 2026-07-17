@@ -22,6 +22,18 @@ var (
 		prometheus.CounterOpts{Name: "budget_optimization_proposals_created_total", Help: "Total budget optimization proposals created."},
 		[]string{"status"},
 	)
+	summaryCacheHits = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "summary_cache_hits_total", Help: "Total trip summary cache hits."},
+		[]string{"summary"},
+	)
+	summaryCacheMisses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "summary_cache_misses_total", Help: "Total trip summary cache misses."},
+		[]string{"summary"},
+	)
+	summaryCacheEvictions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "summary_cache_evictions_total", Help: "Total trip summary cache evictions."},
+		[]string{"summary"},
+	)
 )
 
 func init() {
@@ -31,7 +43,22 @@ func init() {
 		calendarSyncTotal,
 		budgetOptimizationJobsCreated,
 		budgetOptimizationProposalsCreated,
+		summaryCacheHits,
+		summaryCacheMisses,
+		summaryCacheEvictions,
 	)
+}
+
+func RecordSummaryCacheHit(summary string) {
+	summaryCacheHits.WithLabelValues(summary).Inc()
+}
+
+func RecordSummaryCacheMiss(summary string) {
+	summaryCacheMisses.WithLabelValues(summary).Inc()
+}
+
+func RecordSummaryCacheEviction(summary string) {
+	summaryCacheEvictions.WithLabelValues(summary).Inc()
 }
 
 func RecordActivityEventCreated(eventType string) {

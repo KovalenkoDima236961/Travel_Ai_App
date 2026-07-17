@@ -140,7 +140,9 @@ export function SettingsPageContent() {
               <PushNotificationSettings />
             </div>
 
-            <NotificationPreferencesSection />
+            <div id="notifications">
+              <NotificationPreferencesSection />
+            </div>
           </div>
         ) : null}
       </div>

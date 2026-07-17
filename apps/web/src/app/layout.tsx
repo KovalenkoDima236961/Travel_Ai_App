@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { WebVitalsReporter } from "@/components/observability/WebVitalsReporter";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en">
       <body>
         <Providers>
+          <WebVitalsReporter />
           <AppHeader />
           <main>{children}</main>
         </Providers>

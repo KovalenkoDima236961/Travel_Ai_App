@@ -11,18 +11,28 @@ import (
 
 // Notification is the user-facing JSON representation of a notification.
 type Notification struct {
-	ID          string         `json:"id"`
-	UserID      string         `json:"userId"`
-	TripID      *string        `json:"tripId"`
-	ActorUserID *string        `json:"actorUserId"`
-	Type        string         `json:"type"`
-	Title       string         `json:"title"`
-	Message     string         `json:"message"`
-	EntityType  *string        `json:"entityType"`
-	EntityID    *string        `json:"entityId"`
-	Metadata    map[string]any `json:"metadata"`
-	ReadAt      *string        `json:"readAt"`
-	CreatedAt   string         `json:"createdAt"`
+	ID             string         `json:"id"`
+	UserID         string         `json:"userId"`
+	TripID         *string        `json:"tripId"`
+	ActorUserID    *string        `json:"actorUserId"`
+	Type           string         `json:"type"`
+	Title          string         `json:"title"`
+	Message        string         `json:"message"`
+	EntityType     *string        `json:"entityType"`
+	EntityID       *string        `json:"entityId"`
+	Metadata       map[string]any `json:"metadata"`
+	ReadAt         *string        `json:"readAt"`
+	CreatedAt      string         `json:"createdAt"`
+	Priority       string         `json:"priority"`
+	Category       string         `json:"category"`
+	DigestKey      *string        `json:"digestKey"`
+	DedupeKey      *string        `json:"dedupeKey"`
+	GroupedCount   int            `json:"groupedCount"`
+	DigestBatchID  *string        `json:"digestBatchId"`
+	DeliveryMode   *string        `json:"deliveryMode"`
+	DeliveryStatus *string        `json:"deliveryStatus"`
+	ExpiresAt      *string        `json:"expiresAt"`
+	LatestEventAt  string         `json:"latestEventAt"`
 }
 
 // NotificationList is one newest-first page of notifications plus an opaque
@@ -44,14 +54,40 @@ type Success struct {
 
 // NotificationPreference is one user-facing preference setting.
 type NotificationPreference struct {
-	Channel  string `json:"channel"`
-	Category string `json:"category"`
-	Enabled  bool   `json:"enabled"`
+	Channel      string `json:"channel"`
+	Category     string `json:"category"`
+	Enabled      bool   `json:"enabled"`
+	DeliveryMode string `json:"deliveryMode"`
 }
 
 // NotificationPreferences is the full effective preference matrix.
 type NotificationPreferences struct {
-	Items []NotificationPreference `json:"items"`
+	Items    []NotificationPreference `json:"items"`
+	Settings NotificationSettings     `json:"settings"`
+}
+
+type NotificationSettings struct {
+	QuietHoursEnabled        bool   `json:"quietHoursEnabled"`
+	QuietHoursStart          string `json:"quietHoursStart"`
+	QuietHoursEnd            string `json:"quietHoursEnd"`
+	QuietHoursTimezone       string `json:"quietHoursTimezone"`
+	UrgentBypassesQuietHours bool   `json:"urgentBypassesQuietHours"`
+	DailyDigestTime          string `json:"dailyDigestTime"`
+	WeeklyDigestDay          int    `json:"weeklyDigestDay"`
+	WeeklyDigestTime         string `json:"weeklyDigestTime"`
+}
+
+type TripMute struct {
+	ID         string  `json:"id"`
+	TripID     string  `json:"tripId"`
+	Category   *string `json:"category"`
+	MutedUntil *string `json:"mutedUntil"`
+	CreatedAt  string  `json:"createdAt"`
+	UpdatedAt  string  `json:"updatedAt"`
+}
+
+type TripMutes struct {
+	Items []TripMute `json:"items"`
 }
 
 // PushPublicKey exposes the VAPID public key when browser push is enabled.
@@ -83,19 +119,37 @@ func NewNotification(n entity.Notification) Notification {
 	if metadata == nil {
 		metadata = map[string]any{}
 	}
+	latestEventAt := n.LatestEventAt
+	if latestEventAt.IsZero() {
+		latestEventAt = n.CreatedAt
+	}
+	groupedCount := n.GroupedCount
+	if groupedCount < 1 {
+		groupedCount = 1
+	}
 	return Notification{
-		ID:          n.ID.String(),
-		UserID:      n.UserID.String(),
-		TripID:      uuidPtrString(n.TripID),
-		ActorUserID: uuidPtrString(n.ActorUserID),
-		Type:        n.Type,
-		Title:       n.Title,
-		Message:     n.Message,
-		EntityType:  n.EntityType,
-		EntityID:    uuidPtrString(n.EntityID),
-		Metadata:    metadata,
-		ReadAt:      timePtrString(n.ReadAt),
-		CreatedAt:   n.CreatedAt.UTC().Format(time.RFC3339Nano),
+		ID:             n.ID.String(),
+		UserID:         n.UserID.String(),
+		TripID:         uuidPtrString(n.TripID),
+		ActorUserID:    uuidPtrString(n.ActorUserID),
+		Type:           n.Type,
+		Title:          n.Title,
+		Message:        n.Message,
+		EntityType:     n.EntityType,
+		EntityID:       uuidPtrString(n.EntityID),
+		Metadata:       metadata,
+		ReadAt:         timePtrString(n.ReadAt),
+		CreatedAt:      n.CreatedAt.UTC().Format(time.RFC3339Nano),
+		Priority:       n.Priority,
+		Category:       n.Category,
+		DigestKey:      n.DigestKey,
+		DedupeKey:      n.DedupeKey,
+		GroupedCount:   groupedCount,
+		DigestBatchID:  uuidPtrString(n.DigestBatchID),
+		DeliveryMode:   n.DeliveryMode,
+		DeliveryStatus: n.DeliveryStatus,
+		ExpiresAt:      timePtrString(n.ExpiresAt),
+		LatestEventAt:  latestEventAt.UTC().Format(time.RFC3339Nano),
 	}
 }
 
@@ -120,12 +174,30 @@ func NewNotificationPreferences(result *preferences.PreferencesResult) Notificat
 	items := make([]NotificationPreference, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, NotificationPreference{
-			Channel:  item.Channel,
-			Category: item.Category,
-			Enabled:  item.Enabled,
+			Channel:      item.Channel,
+			Category:     item.Category,
+			Enabled:      item.Enabled,
+			DeliveryMode: item.DeliveryMode,
 		})
 	}
-	return NotificationPreferences{Items: items}
+	return NotificationPreferences{Items: items, Settings: NotificationSettings{
+		QuietHoursEnabled: result.Settings.QuietHoursEnabled,
+		QuietHoursStart:   result.Settings.QuietHoursStart, QuietHoursEnd: result.Settings.QuietHoursEnd,
+		QuietHoursTimezone:       result.Settings.QuietHoursTimezone,
+		UrgentBypassesQuietHours: result.Settings.UrgentBypassesQuietHours,
+		DailyDigestTime:          result.Settings.DailyDigestTime, WeeklyDigestDay: result.Settings.WeeklyDigestDay,
+		WeeklyDigestTime: result.Settings.WeeklyDigestTime,
+	}}
+}
+
+func NewTripMutes(items []entity.NotificationTripMute) TripMutes {
+	out := make([]TripMute, 0, len(items))
+	for _, item := range items {
+		out = append(out, TripMute{ID: item.ID.String(), TripID: item.TripID.String(), Category: item.Category,
+			MutedUntil: timePtrString(item.MutedUntil), CreatedAt: item.CreatedAt.UTC().Format(time.RFC3339Nano),
+			UpdatedAt: item.UpdatedAt.UTC().Format(time.RFC3339Nano)})
+	}
+	return TripMutes{Items: out}
 }
 
 func timePtrString(t *time.Time) *string {

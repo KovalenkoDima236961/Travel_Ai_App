@@ -1,5 +1,18 @@
 # Web Smoke Test
 
+## Performance & Reliability v1
+
+1. Open a completed collaborative trip with DevTools Network recording. The first useful overview should use trip detail, command-center summary, and bounded active-job status; no identical request should appear twice.
+2. Confirm the Command Center skeleton resolves before detailed Health, Group Readiness, Budget, expense, or activity modules and a failed optional summary section does not remove the other cards.
+3. Scroll slowly. Health, dates/decisions, checklist, reminders, budget, expenses, and activity requests should begin only when their section approaches the viewport. Open a `?tab=expenses` deep link and confirm that section activates immediately.
+4. Complete a checklist item. Confirm checklist, health/readiness, activity, and Command Center refresh without a full page reload or unrelated all-trip refetch.
+5. Add an expense. Confirm only that trip’s expenses, settlements, budget summary/confidence, health, activity, and Command Center refresh.
+6. Open Ops AI Generations and verify filters preserve bounded cursor pages. Confirm the browser does not create overlapping polling requests.
+7. With SSE connected, leave notifications open and refocus the tab. Confirm focus does not cause a request burst; a stream event still refreshes unread/list data.
+8. In slow-network mode, verify stable skeleton heights, card-level retry/degraded copy, and no page-wide failure when weather/provider data is late.
+9. Fail the configured live route/weather/place provider three times in local mode. Confirm deterministic fallback continues and the provider cooldown/short-circuit metrics increase.
+10. Run `PERF_ACCESS_TOKEN=... PERF_TRIP_ID=... ./scripts/performance-smoke-test.sh` and review the Performance & Reliability Grafana dashboard.
+
 ## Security hardening checks
 
 After the baseline flow, verify in a private/incognito browser pair:
@@ -1593,3 +1606,15 @@ API smoke test, start the stack with `OPS_DASHBOARD_ENABLED=true`, set
   Check `ai-planning-service` logs for the original error.
 - RAG returns no results: run `./scripts/index-knowledge.sh`, confirm
   `RAG_ENABLED=true`, and confirm `nomic-embed-text` is pulled in Ollama.
+
+## Notification Digest & Noise Control v1
+
+1. Set Comments email to Daily digest in Notification preferences.
+2. Enable quiet hours, choose a valid IANA timezone, and save.
+3. Open a private trip and mute Trip updates, then Comments until a future time.
+4. Trigger comments/checklist updates and confirm grouping by date/trip/category.
+5. Confirm Pending digests shows the next time and included categories.
+6. Process due digests and confirm one deterministic mock summary.
+7. Trigger an urgent failure and confirm urgent bypass works.
+8. Mark the trip read, unmute it, and confirm later allowed events appear.
+9. Confirm public shares expose no notification, digest, preference, or mute data.

@@ -20,6 +20,8 @@ secrets.
 
 ## Environment
 
+Before application rollout, apply Trip Service migration `000034` and Notification Service migration `000004`. Configure `DB_QUERY_TIMEOUT_SECONDS`, `DB_SLOW_QUERY_THRESHOLD_MS`, the `SUMMARY_CACHE_*` limits/TTL, and existing worker retry/DLQ/stale-running settings explicitly. Start conservatively, verify Postgres pool saturation and summary cache hit ratio in the Performance & Reliability dashboard, and keep browser vitals ingestion same-origin or disabled.
+
 1. Copy `infra/.env.production.example` to `infra/.env.production`.
 2. Replace every placeholder with a strong value.
 3. Validate without printing secrets:
@@ -131,3 +133,13 @@ Set `AI_OBSERVABILITY_STORE_REDACTED_PROMPTS=false` and
 `AI_PROMPT_LOGGING_ENABLED=false` in production. Trace retention defaults to 30
 days via `AI_OBSERVABILITY_RETENTION_DAYS`; use the existing ops allowlist for
 trace access. Production startup rejects unsafe prompt logging or snapshots.
+
+## Notification digest deployment
+
+Run at least one Worker Service with `NOTIFICATION_DIGEST_WORKER_ENABLED=true`.
+It calls an internal-token-protected endpoint every 60 seconds by default;
+Notification Service uses row locking and state transitions to avoid double
+sends. Configure maximum attempts/retry delay and monitor digest
+created/sent/failed metrics. All instances need timezone data for quiet-hours
+calculations. Timing is approximate and urgent/security events may bypass quiet
+hours by user choice.

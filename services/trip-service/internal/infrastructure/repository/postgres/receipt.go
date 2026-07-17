@@ -49,15 +49,27 @@ func (r *Repository) ListTripExpenseReceipts(ctx context.Context, tripID uuid.UU
 	if filters.ExpenseID != nil {
 		builder = builder.Where(sq.Eq{"expense_id": dto.IDArg(*filters.ExpenseID)})
 	}
+	if len(filters.ExpenseIDs) > 0 {
+		ids := make([]any, 0, len(filters.ExpenseIDs))
+		for _, id := range filters.ExpenseIDs {
+			ids = append(ids, dto.IDArg(id))
+		}
+		builder = builder.Where(sq.Eq{"expense_id": ids})
+	}
 	if filters.Status != nil {
 		builder = builder.Where(sq.Eq{"status": string(*filters.Status)})
 	}
 	if filters.UnlinkedOnly {
 		builder = builder.Where(sq.Eq{"expense_id": nil})
 	}
-	query, args, err := builder.
-		OrderBy("created_at DESC", "id DESC").
-		ToSql()
+	builder = builder.OrderBy("created_at DESC", "id DESC")
+	if filters.Limit > 0 {
+		builder = builder.Limit(uint64(filters.Limit))
+	}
+	if filters.Offset > 0 {
+		builder = builder.Offset(uint64(filters.Offset))
+	}
+	query, args, err := builder.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list trip expense receipts: %w", err)
 	}
@@ -149,4 +161,29 @@ func (r *Repository) GetLatestReceiptOCRResult(ctx context.Context, tripID, rece
 		return nil, fmt.Errorf("build get latest receipt OCR result: %w", err)
 	}
 	return dto.ScanReceiptOCRResult(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ListLatestReceiptOCRResults(ctx context.Context, tripID uuid.UUID, receiptIDs []uuid.UUID) ([]entity.ReceiptOCRResult, error) {
+	if len(receiptIDs) == 0 {
+		return []entity.ReceiptOCRResult{}, nil
+	}
+	ids := make([]any, 0, len(receiptIDs))
+	for _, id := range receiptIDs {
+		ids = append(ids, dto.IDArg(id))
+	}
+	query, args, err := r.db.Builder.
+		Select("DISTINCT ON (receipt_id) "+dto.ReceiptOCRResultColumns).
+		From("receipt_ocr_results").
+		Where(sq.Eq{"trip_id": dto.IDArg(tripID), "receipt_id": ids}).
+		OrderBy("receipt_id", "created_at DESC", "id DESC").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build list latest receipt OCR results: %w", err)
+	}
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query latest receipt OCR results: %w", err)
+	}
+	defer rows.Close()
+	return dto.ScanReceiptOCRResultRows(rows)
 }

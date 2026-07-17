@@ -149,6 +149,7 @@ type tripRepository interface {
 	SoftDeleteTripExpenseReceipt(ctx context.Context, tripID, receiptID, actorUserID uuid.UUID) (*entity.TripExpenseReceipt, error)
 	CreateReceiptOCRResult(ctx context.Context, result *entity.ReceiptOCRResult) (*entity.ReceiptOCRResult, error)
 	GetLatestReceiptOCRResult(ctx context.Context, tripID, receiptID uuid.UUID) (*entity.ReceiptOCRResult, error)
+	ListLatestReceiptOCRResults(ctx context.Context, tripID uuid.UUID, receiptIDs []uuid.UUID) ([]entity.ReceiptOCRResult, error)
 	CreateTripShare(ctx context.Context, share *entity.TripShare) (*entity.TripShare, error)
 	GetTripShareByTripAndUser(ctx context.Context, tripID, userID uuid.UUID) (*entity.TripShare, error)
 	GetTripShareByToken(ctx context.Context, shareToken string) (*entity.TripShare, error)
@@ -499,8 +500,21 @@ type Service struct {
 	publicShareTokens                  *sharing.PublicShareTokenManager
 	tripHealthConfig                   triphealth.Config
 	budgetConfidenceConfig             budgetconfidence.Config
+	summaryCache                       *summaryCache
+	summaryEndpointTimeout             time.Duration
 	generationReliability              aivalidation.GenerationReliabilityPipeline
 	log                                *zap.Logger
+}
+
+// WithSummaryCache enables viewer-scoped, short-lived caching for expensive
+// summary reads. It is intentionally in-memory for v1.
+func WithSummaryCache(enabled bool, ttl time.Duration, maxItems int, endpointTimeout time.Duration) Option {
+	return func(s *Service) {
+		s.summaryCache = newSummaryCache(enabled, ttl, maxItems)
+		if endpointTimeout > 0 {
+			s.summaryEndpointTimeout = endpointTimeout
+		}
+	}
 }
 
 // New constructs the trip service.
@@ -518,6 +532,8 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		receiptFileScanner:       receipts.NoopFileScanner{},
 		tripHealthConfig:         triphealth.DefaultConfig(),
 		budgetConfidenceConfig:   budgetconfidence.DefaultConfig(),
+		summaryCache:             newSummaryCache(true, 30*time.Second, 1000),
+		summaryEndpointTimeout:   8 * time.Second,
 		log:                      log,
 	}
 	for _, opt := range opts {

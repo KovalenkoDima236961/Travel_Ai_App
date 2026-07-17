@@ -957,6 +957,10 @@ func (m *mockRepo) GetLatestReceiptOCRResult(context.Context, uuid.UUID, uuid.UU
 	return nil, domainerrs.ErrNotFound
 }
 
+func (m *mockRepo) ListLatestReceiptOCRResults(context.Context, uuid.UUID, []uuid.UUID) ([]entity.ReceiptOCRResult, error) {
+	return []entity.ReceiptOCRResult{}, nil
+}
+
 func (m *mockRepo) CancelTripSettlement(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*entity.TripSettlement, error) {
 	return nil, domainerrs.ErrNotFound
 }

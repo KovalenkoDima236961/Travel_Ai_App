@@ -1,0 +1,88 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"trip-service\"}[5m])) by (route, le))", "legendFormat": "{{route}}", "refId": "A" }],
+      "title": "Trip API p95 By Route",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(trip_db_query_duration_seconds_bucket[5m])) by (operation, le))", "legendFormat": "{{operation}}", "refId": "A" }],
+      "title": "Database Query p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [{ "expr": "sum(rate(summary_cache_hits_total[5m])) by (summary) / clamp_min(sum(rate(summary_cache_hits_total[5m]) + rate(summary_cache_misses_total[5m])) by (summary), 0.000001)", "legendFormat": "{{summary}}", "refId": "A" }],
+      "title": "Summary Cache Hit Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "id": 4,
+      "targets": [{ "expr": "trip_db_pool_connections", "legendFormat": "{{state}}", "refId": "A" }],
+      "title": "Database Pool",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "id": 5,
+      "targets": [
+        { "expr": "sum(rate(worker_messages_retried_total[5m])) by (message_type)", "legendFormat": "retry {{message_type}}", "refId": "A" },
+        { "expr": "sum(rate(worker_messages_dead_lettered_total[5m])) by (message_type)", "legendFormat": "dlq {{message_type}}", "refId": "B" }
+      ],
+      "title": "Worker Retry / DLQ Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 6,
+      "targets": [
+        { "expr": "external_provider_circuit_open", "legendFormat": "open {{provider}} {{operation}}", "refId": "A" },
+        { "expr": "sum(rate(external_provider_short_circuits_total[5m])) by (provider, operation)", "legendFormat": "skip {{provider}} {{operation}}", "refId": "B" }
+      ],
+      "title": "Provider Cooldowns",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 7,
+      "targets": [{ "expr": "topk(10, sum(increase(http_requests_total{status=~\"5..\"}[30m])) by (service, route))", "legendFormat": "{{service}} {{route}}", "refId": "A" }],
+      "title": "Top 5xx Routes",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["travel-ai", "performance", "reliability"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "Performance & Reliability",
+  "uid": "travel-performance-reliability",
+  "version": 1,
+  "weekStart": ""
+}

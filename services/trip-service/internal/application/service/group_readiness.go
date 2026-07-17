@@ -40,6 +40,12 @@ func (s *Service) GetGroupReadiness(
 	if err != nil {
 		return groupreadiness.Response{}, err
 	}
+	cacheKey := summaryCacheKey("group_readiness", trip, user.ID, options.IncludeDetails, options.IncludeDebug, access.Role())
+	if cached, ok := s.summaryCache.get("group_readiness", cacheKey); ok {
+		if response, valid := cached.(groupreadiness.Response); valid {
+			return response, nil
+		}
+	}
 
 	snapshot, err := s.groupReadinessSnapshot(ctx, trip, access, user)
 	if err != nil {
@@ -56,6 +62,7 @@ func (s *Service) GetGroupReadiness(
 		zap.Int("member_count", len(response.Members)),
 		zap.Duration("duration", time.Since(started)),
 	)
+	s.summaryCache.set("group_readiness", cacheKey, response)
 	return response, nil
 }
 

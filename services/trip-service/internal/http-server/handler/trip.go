@@ -129,6 +129,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/shared-with-me", h.ListSharedTrips)
 		r.Get("/{id}", h.Get)
+		r.Get("/{id}/command-center-summary", h.GetCommandCenterSummary)
 		r.Get("/{id}/health", h.GetTripHealth)
 		r.Get("/{id}/group-readiness", h.GetGroupReadiness)
 		r.Post("/{id}/group-readiness/nudge", h.SendGroupReadinessNudge)
@@ -298,6 +299,21 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{budgetId}/make-primary", h.MakeWorkspaceBudgetPrimary)
 		r.Get("/{budgetId}/summary", h.GetWorkspaceBudgetSummary)
 	})
+}
+
+// GetCommandCenterSummary returns the compact, private initial payload used by
+// the Trip Command Center. Public routes never mount this handler.
+func (h *Handler) GetCommandCenterSummary(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	summary, err := h.svc.GetCommandCenterSummary(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
 }
 
 func (h *Handler) RegisterInternalRoutes(r chi.Router) {

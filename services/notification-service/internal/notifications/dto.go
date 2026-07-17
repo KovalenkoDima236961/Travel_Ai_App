@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,8 +25,9 @@ const (
 	// MaxTitleLength and MaxMessageLength bound the user-visible text. They match
 	// the database CHECK constraints so an over-long value is rejected before it
 	// reaches Postgres.
-	MaxTitleLength   = 200
-	MaxMessageLength = 1000
+	MaxTitleLength       = 200
+	MaxMessageLength     = 1000
+	MaxGroupingKeyLength = 500
 
 	// maxMetadataKeys caps how many keys are persisted per notification so a
 	// stray large map can never bloat a row.
@@ -51,6 +53,10 @@ type CreateInput struct {
 	EntityType  *string
 	EntityID    *uuid.UUID
 	Metadata    map[string]any
+	Priority    string
+	Category    string
+	DigestKey   *string
+	DedupeKey   *string
 }
 
 // InAppPreferenceGate reports whether an in-app row may be created for a
@@ -60,6 +66,17 @@ type InAppPreferenceGate interface {
 	AllowInApp(userID uuid.UUID, notificationType string) bool
 }
 
+type InAppNotificationGate interface {
+	AllowInAppNotification(notification entity.Notification) bool
+}
+
+// InAppDeliveryResolver annotates persisted in-app rows with the deterministic
+// mode/status chosen by the richer delivery policy. Simpler legacy gates do not
+// need to implement it.
+type InAppDeliveryResolver interface {
+	InAppDelivery(notification entity.Notification) (mode, status string)
+}
+
 // BatchCreateResult reports how an internal batch was handled. Created contains
 // only persisted in-app rows. EmailCandidates contains all non-self,
 // successfully validated notification objects so email can remain independent
@@ -67,9 +84,12 @@ type InAppPreferenceGate interface {
 type BatchCreateResult struct {
 	Requested           int
 	Created             []entity.Notification
+	GroupedInApp        []entity.Notification
 	EmailCandidates     []entity.Notification
 	Skipped             int
 	SkippedByPreference int
+	Grouped             int
+	DuplicatesDropped   int
 }
 
 // ListInput selects a page of a user's notifications, newest first. Cursor
@@ -149,16 +169,74 @@ func sanitizeMetadata(in map[string]any) map[string]any {
 		if len(out) >= maxMetadataKeys {
 			break
 		}
-		if value == nil {
+		if value == nil || unsafeMetadataKey(key) {
 			continue
 		}
-		if s, ok := value.(string); ok {
-			out[key] = truncate(s, maxMetadataStringLen)
-			continue
+		if sanitized, ok := sanitizeMetadataValue(value, 0); ok {
+			out[key] = sanitized
 		}
-		out[key] = value
 	}
 	return out
+}
+
+func sanitizeMetadataValue(value any, depth int) (any, bool) {
+	if value == nil || depth > 2 {
+		return nil, false
+	}
+	switch typed := value.(type) {
+	case string:
+		return truncate(typed, maxMetadataStringLen), true
+	case bool, float64, float32, int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64, json.Number:
+		return typed, true
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if len(out) >= maxMetadataKeys || unsafeMetadataKey(key) {
+				continue
+			}
+			if sanitized, ok := sanitizeMetadataValue(nested, depth+1); ok {
+				out[key] = sanitized
+			}
+		}
+		return out, true
+	case []any:
+		limit := len(typed)
+		if limit > maxMetadataKeys {
+			limit = maxMetadataKeys
+		}
+		out := make([]any, 0, limit)
+		for _, nested := range typed[:limit] {
+			if sanitized, ok := sanitizeMetadataValue(nested, depth+1); ok {
+				out = append(out, sanitized)
+			}
+		}
+		return out, true
+	default:
+		raw, err := json.Marshal(value)
+		if err != nil || len(raw) > maxMetadataStringLen*maxMetadataKeys {
+			return nil, false
+		}
+		var decoded any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			return nil, false
+		}
+		return sanitizeMetadataValue(decoded, depth+1)
+	}
+}
+
+func unsafeMetadataKey(key string) bool {
+	normalized := strings.NewReplacer("_", "", "-", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(key)))
+	for _, forbidden := range []string{
+		"password", "token", "secret", "authorization", "credential",
+		"ocrtext", "receiptocr", "aiprompt", "prompttext", "commentbody",
+		"privatenote", "expensenote", "calendareventdetails", "p256dh",
+	} {
+		if strings.Contains(normalized, forbidden) {
+			return true
+		}
+	}
+	return normalized == "auth"
 }
 
 func truncate(s string, max int) string {

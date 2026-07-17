@@ -2,11 +2,13 @@ package places
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/domain/entity"
+	extobs "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
 
 type fallbackPlaceProvider struct {
@@ -36,9 +38,17 @@ func newFallbackPlaceProvider(
 }
 
 func (p *fallbackPlaceProvider) SearchPlaces(ctx context.Context, query string, destination string) ([]entity.Place, error) {
-	items, err := p.primary.SearchPlaces(ctx, query, destination)
-	if err == nil {
-		return items, nil
+	var items []entity.Place
+	var err error
+	if extobs.ProviderCircuitAllows(p.providerName, "place_search") {
+		items, err = p.primary.SearchPlaces(ctx, query, destination)
+		if err == nil {
+			extobs.RecordProviderCircuitSuccess(p.providerName, "place_search")
+			return items, nil
+		}
+		extobs.RecordProviderCircuitFailure(p.providerName, "place_search")
+	} else {
+		err = errors.New("place provider cooldown active")
 	}
 
 	p.log.Warn("place provider fallback used",
@@ -65,9 +75,17 @@ func (p *fallbackPlaceProvider) SearchPlaces(ctx context.Context, query string, 
 }
 
 func (p *fallbackPlaceProvider) GetPlaceDetails(ctx context.Context, providerPlaceID string) (*entity.Place, error) {
-	place, err := p.primary.GetPlaceDetails(ctx, providerPlaceID)
-	if err == nil {
-		return place, nil
+	var place *entity.Place
+	var err error
+	if extobs.ProviderCircuitAllows(p.providerName, "place_details") {
+		place, err = p.primary.GetPlaceDetails(ctx, providerPlaceID)
+		if err == nil {
+			extobs.RecordProviderCircuitSuccess(p.providerName, "place_details")
+			return place, nil
+		}
+		extobs.RecordProviderCircuitFailure(p.providerName, "place_details")
+	} else {
+		err = errors.New("place provider cooldown active")
 	}
 
 	p.log.Warn("place provider fallback used",

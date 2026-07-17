@@ -1,9 +1,10 @@
 import { apiFetch } from "@/shared/api/client";
 import type { GroupReadiness, NudgeRequest, NudgeResponse } from "@/types/group-readiness";
+import { queryKeys } from "@/lib/query-keys";
 
 export const groupReadinessKeys = {
   all: ["group-readiness"] as const,
-  detail: (tripId: string) => [...groupReadinessKeys.all, tripId] as const
+  detail: (tripId: string) => queryKeys.trip.groupReadiness(tripId)
 };
 
 export function getGroupReadiness(tripId: string) {
@@ -44,4 +45,3 @@ export function nudgePendingSettlements(tripId: string, input: Omit<NudgeRequest
     body: JSON.stringify(input)
   });
 }
-

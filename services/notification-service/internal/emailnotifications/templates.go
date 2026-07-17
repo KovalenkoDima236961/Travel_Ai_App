@@ -146,6 +146,22 @@ func BuildEmailForNotification(input BuildEmailInput) (email.EmailMessage, error
 			linkLabel: "Open the trip:",
 			linkURL:   tripLink(base, tripID),
 		}
+	case notifications.TypeGenerationJobFailed, notifications.TypeBudgetOptimizationFailed:
+		c = emailContent{subject: "Trip generation needs attention", greeting: greeting, body: "A trip generation task failed and needs your attention.", linkLabel: "Open the trip:", linkURL: tripLink(base, tripID)}
+	case notifications.TypeTripSubmittedForApproval:
+		c = emailContent{subject: "Trip approval requested", greeting: greeting, body: "A trip is waiting for your approval.", linkLabel: "Review the trip:", linkURL: tripLink(base, tripID)}
+	case notifications.TypeTripChangesRequested:
+		c = emailContent{subject: "Trip changes requested", greeting: greeting, body: "Changes were requested for a trip approval.", linkLabel: "Review the trip:", linkURL: tripLink(base, tripID)}
+	case notifications.TypeOfflineSyncConflict:
+		c = emailContent{subject: "Offline changes need attention", greeting: greeting, body: "Some offline trip changes could not be synchronized safely.", linkLabel: "Open the trip:", linkURL: tripLink(base, tripID)}
+	case notifications.TypeCalendarSyncFailed:
+		c = emailContent{subject: "Calendar sync failed", greeting: greeting, body: "A calendar synchronization failed and may need to be retried.", linkLabel: "Open the trip:", linkURL: tripLink(base, tripID)}
+	case notifications.TypeShareSecurityChanged:
+		c = emailContent{subject: "Trip sharing security changed", greeting: greeting, body: "Security settings for a shared trip changed.", linkLabel: "Review your trip:", linkURL: tripLink(base, tripID)}
+	case notifications.TypeTripHealthIssue:
+		c = emailContent{subject: "Critical Trip Health issue", greeting: greeting, body: "A critical planning issue was found for a trip.", linkLabel: "Review Trip Health:", linkURL: tripLink(base, tripID)}
+	case notifications.TypeSettlementPending, notifications.TypeSettlementOverdue:
+		c = emailContent{subject: "Trip settlement needs attention", greeting: greeting, body: "A trip settlement is pending or overdue.", linkLabel: "Open trip expenses:", linkURL: tripLink(base, tripID)}
 	case notifications.TypeWorkspaceInvited:
 		workspaceName := workspaceNameOr(meta, "a workspace")
 		c = emailContent{

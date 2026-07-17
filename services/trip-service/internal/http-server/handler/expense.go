@@ -236,5 +236,13 @@ func parseExpenseFilters(w http.ResponseWriter, r *http.Request) (appdto.ListExp
 	filters.FromDate = from
 	filters.ToDate = to
 	filters.LinkedOnly = linkedOnly
+	filters.Limit, ok = parseQueryInt(w, r, "limit")
+	if !ok {
+		return filters, false
+	}
+	filters.Offset, ok = parseQueryInt(w, r, "offset")
+	if !ok {
+		return filters, false
+	}
 	return filters, true
 }

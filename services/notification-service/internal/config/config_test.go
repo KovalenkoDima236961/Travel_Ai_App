@@ -87,13 +87,24 @@ func TestEmailDefaults(t *testing.T) {
 		t.Fatalf("expected email enabled+fail-open by default, got enabled=%v failOpen=%v", cfg.Email.Enabled, cfg.Email.FailOpen)
 	}
 	types := cfg.EmailNotificationTypes()
-	if len(types) != 8 ||
-		types[0] != "collaboration_invited" ||
-		types[4] != "workspace_invited" ||
-		types[5] != "workspace_member_removed" ||
-		types[6] != "workspace_role_changed" ||
-		types[7] != "pre_trip_reminder_due" {
-		t.Fatalf("unexpected default email types: %v", types)
+	want := map[string]bool{
+		"collaboration_invited":       false,
+		"workspace_invited":           false,
+		"pre_trip_reminder_due":       false,
+		"generation_job_failed":       false,
+		"trip_submitted_for_approval": false,
+		"offline_sync_conflict":       false,
+		"share_security_changed":      false,
+	}
+	for _, notificationType := range types {
+		if _, ok := want[notificationType]; ok {
+			want[notificationType] = true
+		}
+	}
+	for notificationType, found := range want {
+		if !found {
+			t.Fatalf("default email types do not include %q: %v", notificationType, types)
+		}
 	}
 }
 

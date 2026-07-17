@@ -51,6 +51,7 @@ export type ExpenseReceiptSummary = {
 
 export type TripReceiptsResponse = {
   receipts: ExpenseReceipt[];
+  nextOffset?: number | null;
 };
 
 export type ReceiptUploadInput = {
@@ -63,6 +64,8 @@ export type ListReceiptsParams = {
   expenseId?: string | null;
   status?: ReceiptStatus | null;
   unlinkedOnly?: boolean;
+  limit?: number;
+  offset?: number;
 };
 
 export type ExtractReceiptInput = {

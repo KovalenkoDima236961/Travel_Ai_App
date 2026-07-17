@@ -305,10 +305,11 @@ make build
 
 ## Limitations
 
-- Email and push are synchronous inside the internal batch request.
+- Instant email and push are dispatched inside the internal batch request;
+  digest delivery is claimed asynchronously by Worker Service.
 - SSE delivery is in-memory and instance-local, with polling as recovery.
-- No cross-instance fanout, replay stream, WebSockets, event bus, quiet hours,
-  per-trip preferences, unsubscribe links, or email digests in v1.
+- No cross-instance SSE fanout, replay stream, WebSockets, event bus, native
+  mobile push, unsubscribe links, or administrator-managed policy overrides.
 - Browser Web Push only; no native mobile push, FCM, APNS, SMS, or push vendor.
 
 ## Observability And Safety
@@ -318,3 +319,29 @@ make build
 - Do not log access tokens, internal service tokens, SMTP credentials, VAPID
   private keys, push subscription secrets, full notification metadata, or full
   recipient payloads.
+
+## Notification Digest & Noise Control v1
+
+Every event has deterministic `priority`, `category`, `digestKey`, and optional
+`dedupeKey` fields. Missing values are derived from the type. Exact duplicate
+keys are grouped during `NOTIFICATION_DEDUPE_WINDOW_MINUTES`; digest items
+sharing a key retain an event count and the latest safe state.
+
+Each channel/category supports `instant`, `hourly_digest`, `daily_digest`,
+`weekly_digest`, or `muted`. Legacy `enabled` writes remain valid and migration
+`000005` preserves stored preferences. Quiet hours use an IANA timezone.
+Non-urgent email/push waits until quiet hours end; urgent events bypass only
+when allowed. Trip mutes do not suppress security, offline conflicts, critical
+Trip Health, responsible-user approvals, or assigned due reminders.
+
+New routes cover trip bulk-read, trip-mute CRUD, digest preview/history/detail,
+and internal-token-protected digest processing. Worker Service schedules atomic
+`pending → processing` claims. Digest summaries group by trip/category and are
+deterministic, never AI-written.
+
+Configuration includes `NOTIFICATION_DEDUPE_WINDOW_MINUTES` (30),
+`NOTIFICATION_GROUPING_WINDOW_MINUTES` (60),
+`NOTIFICATION_DIGEST_MAX_ATTEMPTS` (3),
+`NOTIFICATION_DIGEST_RETRY_DELAY_SECONDS` (300), and
+`NOTIFICATION_DIGEST_RETENTION_DAYS` (90). Timing is approximate and provider
+delivery remains best effort.

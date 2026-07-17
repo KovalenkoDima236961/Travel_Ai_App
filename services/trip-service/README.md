@@ -9,6 +9,12 @@ enrichment metadata.
 Trip Service is the orchestration point between user-facing APIs, AI generation,
 external provider data, notifications, and background workers.
 
+## Performance endpoints and safeguards
+
+`GET /trips/{id}/command-center-summary` returns a compact, private, viewer-scoped overview. Health, budget, group, checklist, reminder, expense, and activity sections compute concurrently and fail independently through `sectionErrors`; the response excludes receipt bytes/raw OCR, comments, notes, prompts, and full itinerary payloads. Summary, health, confidence, and readiness calculations use a bounded short-TTL in-process cache keyed by viewer/role/revision/options.
+
+Expense and receipt lists accept `limit`/`offset`, enforce 50/100 and 30/100 default/max sizes, and return `nextOffset`. Their metadata is batch-loaded to avoid N+1 OCR/participant reads. `DB_QUERY_TIMEOUT_SECONDS` sets statement timeout and `DB_SLOW_QUERY_THRESHOLD_MS` controls sanitized slow-operation logging. Metrics include DB operation latency/errors/pool state and summary cache hit/miss/eviction. Apply migration `000034` before comparing query plans.
+
 ## AI output language
 
 Direct generate/regenerate requests may provide `outputLanguage` with one of
@@ -1433,3 +1439,13 @@ Raw prompts are never stored. Redacted snapshots are disabled by default and
 only available in explicitly configured local debugging environments. See
 [`docs/ai/observability.md`](../../docs/ai/observability.md) for retention,
 configuration, and the safe summary contract.
+
+## Notification trigger metadata
+
+Trip Service payloads include deterministic priority, category, digest, and
+dedupe fields. The client derives safe defaults for legacy call sites, using
+`trip:{tripId}:{category}` and an entity/recipient dedupe key. Metadata may
+contain safe IDs, status/count values, destination, and short labels only—never
+receipt OCR, private expense notes, comment bodies, calendar details, share
+credentials, AI prompts, or raw provider errors. An activity event alone is not
+a notification trigger.

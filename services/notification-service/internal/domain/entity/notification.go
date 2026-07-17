@@ -16,18 +16,28 @@ import (
 // item name, role, etc.). It must never contain secrets: no JWTs, refresh
 // tokens, passwords, share passwords, public-share access tokens, or API keys.
 type Notification struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	TripID      *uuid.UUID
-	ActorUserID *uuid.UUID
-	Type        string
-	Title       string
-	Message     string
-	EntityType  *string
-	EntityID    *uuid.UUID
-	Metadata    map[string]any
-	ReadAt      *time.Time
-	CreatedAt   time.Time
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	TripID         *uuid.UUID
+	ActorUserID    *uuid.UUID
+	Type           string
+	Title          string
+	Message        string
+	EntityType     *string
+	EntityID       *uuid.UUID
+	Metadata       map[string]any
+	Priority       string
+	Category       string
+	DigestKey      *string
+	DedupeKey      *string
+	GroupedCount   int
+	DigestBatchID  *uuid.UUID
+	DeliveryMode   *string
+	DeliveryStatus *string
+	ExpiresAt      *time.Time
+	LatestEventAt  time.Time
+	ReadAt         *time.Time
+	CreatedAt      time.Time
 }
 
 // IsRead reports whether the notification has been marked read.

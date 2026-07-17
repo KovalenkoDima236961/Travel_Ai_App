@@ -26,6 +26,18 @@ type providerHealthState struct {
 }
 
 var providerHealth sync.Map
+var providerCircuits sync.Map
+
+const (
+	providerCircuitFailureThreshold = 3
+	providerCircuitCooldown         = 30 * time.Second
+)
+
+type providerCircuitState struct {
+	mu                  sync.Mutex
+	consecutiveFailures int
+	openUntil           time.Time
+}
 
 var (
 	externalProviderRequests = prometheus.NewCounterVec(
@@ -56,6 +68,14 @@ var (
 		prometheus.CounterOpts{Name: "external_provider_cache_misses_total", Help: "Total external provider cache misses."},
 		[]string{"provider", "operation"},
 	)
+	externalProviderCircuitOpen = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{Name: "external_provider_circuit_open", Help: "Whether a provider operation circuit is currently open."},
+		[]string{"provider", "operation"},
+	)
+	externalProviderShortCircuits = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "external_provider_short_circuits_total", Help: "Provider calls skipped while a cooldown circuit is open."},
+		[]string{"provider", "operation"},
+	)
 )
 
 func init() {
@@ -66,7 +86,59 @@ func init() {
 		externalProviderFallback,
 		externalProviderCacheHits,
 		externalProviderCacheMisses,
+		externalProviderCircuitOpen,
+		externalProviderShortCircuits,
 	)
+}
+
+// ProviderCircuitAllows returns false after repeated primary-provider failures.
+// The circuit automatically permits one probe after a short cooldown.
+func ProviderCircuitAllows(provider, operation string) bool {
+	provider, operation = normalize(provider), normalize(operation)
+	state := circuitState(provider, operation)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.openUntil.IsZero() {
+		return true
+	}
+	if time.Now().UTC().Before(state.openUntil) {
+		externalProviderShortCircuits.WithLabelValues(provider, operation).Inc()
+		return false
+	}
+	state.openUntil = time.Time{}
+	state.consecutiveFailures = 0
+	externalProviderCircuitOpen.WithLabelValues(provider, operation).Set(0)
+	return true
+}
+
+func RecordProviderCircuitSuccess(provider, operation string) {
+	provider, operation = normalize(provider), normalize(operation)
+	state := circuitState(provider, operation)
+	state.mu.Lock()
+	state.consecutiveFailures = 0
+	state.openUntil = time.Time{}
+	state.mu.Unlock()
+	externalProviderCircuitOpen.WithLabelValues(provider, operation).Set(0)
+}
+
+func RecordProviderCircuitFailure(provider, operation string) {
+	provider, operation = normalize(provider), normalize(operation)
+	state := circuitState(provider, operation)
+	state.mu.Lock()
+	state.consecutiveFailures++
+	if state.consecutiveFailures >= providerCircuitFailureThreshold {
+		state.openUntil = time.Now().UTC().Add(providerCircuitCooldown)
+	}
+	open := !state.openUntil.IsZero()
+	state.mu.Unlock()
+	if open {
+		externalProviderCircuitOpen.WithLabelValues(provider, operation).Set(1)
+	}
+}
+
+func circuitState(provider, operation string) *providerCircuitState {
+	value, _ := providerCircuits.LoadOrStore(provider+":"+operation, &providerCircuitState{})
+	return value.(*providerCircuitState)
 }
 
 func RecordProviderRequest(provider, operation, result string, duration time.Duration) {

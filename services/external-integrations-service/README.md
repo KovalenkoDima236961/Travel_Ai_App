@@ -8,6 +8,10 @@ and Google Calendar sync.
 Mock providers are the local default. Real providers are opt-in and keep API
 keys server-side.
 
+## Performance and provider reliability
+
+Real providers use bounded HTTP clients and their existing cache/fallback guards. Route, weather, and place boundaries now count consecutive primary failures per operation; three failures open a 30-second cooldown so fallback can respond without repeatedly spending the upstream timeout. One primary probe is allowed after cooldown, and a success closes the circuit. Prometheus exposes request/duration/failure/fallback/cache metrics plus `external_provider_circuit_open` and `external_provider_short_circuits_total`. Labels contain provider/operation/error classes only, never destinations, user IDs, API keys, or request payloads.
+
 ## Provider Boundary
 
 ```mermaid

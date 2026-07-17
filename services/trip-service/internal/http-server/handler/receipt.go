@@ -261,6 +261,14 @@ func parseReceiptFilters(w http.ResponseWriter, r *http.Request) (appdto.ListRec
 		return filters, false
 	}
 	filters.UnlinkedOnly = unlinkedOnly
+	filters.Limit, ok = parseQueryInt(w, r, "limit")
+	if !ok {
+		return filters, false
+	}
+	filters.Offset, ok = parseQueryInt(w, r, "offset")
+	if !ok {
+		return filters, false
+	}
 	return filters, true
 }
 

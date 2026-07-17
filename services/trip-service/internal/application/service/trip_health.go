@@ -35,6 +35,12 @@ func (s *Service) GetTripHealth(
 	if err != nil {
 		return triphealth.Response{}, err
 	}
+	cacheKey := summaryCacheKey("trip_health", trip, user.ID, options.IncludeResolved, options.IncludeDebug)
+	if cached, ok := s.summaryCache.get("trip_health", cacheKey); ok {
+		if response, valid := cached.(triphealth.Response); valid {
+			return response, nil
+		}
+	}
 
 	snapshot := triphealth.Snapshot{
 		Trip:      trip,
@@ -64,6 +70,7 @@ func (s *Service) GetTripHealth(
 		zap.Duration("duration", time.Since(started)),
 		zap.Strings("subsystem_failures", snapshot.SubsystemFailures),
 	)
+	s.summaryCache.set("trip_health", cacheKey, response)
 	return response, nil
 }
 

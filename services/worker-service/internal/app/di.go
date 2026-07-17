@@ -26,6 +26,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
+	workerdigests "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/digests"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/httpserver"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/rabbitmq"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/reminders"
@@ -90,6 +91,14 @@ func buildContainer(
 			LookaheadMinutes: cfg.Reminders.LookaheadMinutes,
 		}, log)
 		shutdown.Add("reminder-worker", reminderWorker.Start(context.Background()))
+	}
+	if cfg.Digests.Enabled {
+		digestClient, err := workerdigests.NewClient(cfg.Digests.NotificationServiceURL, cfg.Trip.Auth.InternalServiceToken, time.Duration(cfg.Digests.TimeoutSeconds)*time.Second)
+		if err != nil {
+			return nil, fmt.Errorf("init notification digest worker client: %w", err)
+		}
+		digestWorker := workerdigests.NewWorker(digestClient, workerdigests.Config{Enabled: cfg.Digests.Enabled, PollInterval: time.Duration(cfg.Digests.PollIntervalSeconds) * time.Second, BatchSize: cfg.Digests.BatchSize}, log)
+		shutdown.Add("notification-digest-worker", digestWorker.Start(context.Background()))
 	}
 
 	return &container{

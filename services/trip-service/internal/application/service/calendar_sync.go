@@ -17,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarsync"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
@@ -132,6 +133,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 	deleted, deleteFailed, err := s.deleteGoogleEvents(ctx, user.ID, tripID, deleteItems, deleteKeys)
 	if err != nil {
 		tripobs.RecordCalendarSync(googleCalendarProvider, "delete_failed")
+		s.notifyCalendarSyncFailed(ctx, trip, user.ID)
 		return nil, err
 	}
 
@@ -160,6 +162,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 	})
 	if err != nil {
 		tripobs.RecordCalendarSync(googleCalendarProvider, "sync_failed")
+		s.notifyCalendarSyncFailed(ctx, trip, user.ID)
 		return nil, calendarClientError(err)
 	}
 
@@ -199,6 +202,7 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 		})
 		if err != nil {
 			tripobs.RecordCalendarSync(googleCalendarProvider, "store_failed")
+			s.notifyCalendarSyncFailed(ctx, trip, user.ID)
 			return nil, err
 		}
 	}
@@ -219,6 +223,23 @@ func (s *Service) SyncTripToGoogleCalendar(ctx context.Context, tripID uuid.UUID
 
 	tripobs.RecordCalendarSync(googleCalendarProvider, result.Status)
 	return result, nil
+}
+
+func (s *Service) notifyCalendarSyncFailed(ctx context.Context, trip *entity.Trip, recipientID uuid.UUID) {
+	if !s.notificationsEnabled || s.notifier == nil || trip == nil || recipientID == uuid.Nil {
+		return
+	}
+	tripID := trip.ID
+	s.sendNotifications(ctx, []notifications.NotificationCreateInput{{
+		UserID: recipientID, TripID: &tripID, Type: notifications.TypeCalendarSyncFailed,
+		Title:    "Calendar sync failed",
+		Message:  "Your trip could not be synchronized with Google Calendar. Open the trip to retry.",
+		Priority: notifications.PriorityUrgent, Category: "calendar",
+		DigestKey:  "trip:" + tripID.String() + ":calendar",
+		DedupeKey:  "calendar_sync_failed:" + tripID.String() + ":recipient:" + recipientID.String(),
+		EntityType: activityEntityType(activity.EntityCalendarSync), EntityID: &tripID,
+		Metadata: map[string]any{"tripId": tripID.String(), "provider": googleCalendarProvider},
+	}})
 }
 
 func (s *Service) RemoveTripGoogleCalendarSync(ctx context.Context, tripID uuid.UUID) (*appdto.TripCalendarDeleteResult, error) {

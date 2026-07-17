@@ -39,6 +39,15 @@ var (
 		prometheus.CounterOpts{Name: "notifications_sse_events_dropped_total", Help: "Notification SSE events dropped."},
 		[]string{"event_type", "reason"},
 	)
+	notificationsDeliveryDecisions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "notifications_delivery_decisions_total", Help: "Deterministic notification delivery decisions."},
+		[]string{"channel", "category", "priority", "mode", "decision", "reason"},
+	)
+	notificationsMuted             = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notifications_muted_total", Help: "Notifications muted by policy."}, []string{"channel", "category", "priority"})
+	notificationsDigested          = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notifications_digested_total", Help: "Notifications queued for digests."}, []string{"channel", "category", "priority", "mode"})
+	notificationsInstantSent       = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notifications_instant_sent_total", Help: "Notifications selected for instant delivery."}, []string{"channel", "category", "priority"})
+	notificationsQuietHoursDelayed = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notification_quiet_hours_delayed_total", Help: "Notifications delayed by quiet hours."}, []string{"channel", "category"})
+	notificationDedupeDropped      = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notification_dedupe_dropped_total", Help: "Duplicate notification events grouped or dropped."}, []string{"result"})
 )
 
 func init() {
@@ -52,7 +61,37 @@ func init() {
 		notificationsSSEConnections,
 		notificationsSSEEventsSent,
 		notificationsSSEEventsDropped,
+		notificationsDeliveryDecisions,
+		notificationsMuted,
+		notificationsDigested,
+		notificationsInstantSent,
+		notificationsQuietHoursDelayed,
+		notificationDedupeDropped,
 	)
+}
+
+func recordDeliveryDecision(channel, category, priority, mode, decision, reason string) {
+	notificationsDeliveryDecisions.WithLabelValues(channel, category, priority, mode, decision, reason).Inc()
+	switch decision {
+	case "mute":
+		notificationsMuted.WithLabelValues(channel, category, priority).Inc()
+	case "digest", "delay_until_quiet_hours_end":
+		notificationsDigested.WithLabelValues(channel, category, priority, mode).Inc()
+	case "create_in_app_only":
+		if mode != "instant" {
+			notificationsDigested.WithLabelValues(channel, category, priority, mode).Inc()
+		}
+	case "send_instant":
+		notificationsInstantSent.WithLabelValues(channel, category, priority).Inc()
+	}
+}
+func recordQuietHoursDelayed(channel, category string) {
+	notificationsQuietHoursDelayed.WithLabelValues(channel, category).Inc()
+}
+func recordDedupeDropped(count int) {
+	if count > 0 {
+		notificationDedupeDropped.WithLabelValues("grouped").Add(float64(count))
+	}
 }
 
 func recordNotificationCreated(notificationType, channel string) {

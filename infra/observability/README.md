@@ -4,6 +4,8 @@ Local Prometheus and Grafana setup for the Docker Compose environment. It is
 designed for development, smoke-test verification, and debugging service flows.
 It is not hardened as a public production monitoring surface.
 
+The provisioned **Performance & Reliability** dashboard combines trip API p95, database operation p95/pool state, summary cache ratio, worker retry/DLQ rate, provider cooldowns, and top 5xx routes. Browser LCP/CLS/INP is emitted by the Web App to the optional `NEXT_PUBLIC_WEB_VITALS_ENDPOINT`; no new external telemetry vendor is required.
+
 ## Telemetry Flow
 
 ```mermaid

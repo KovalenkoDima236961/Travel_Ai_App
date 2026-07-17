@@ -9,15 +9,17 @@ import type {
   TripExpensesResponse,
   UpdateExpenseInput
 } from "@/entities/expense/model";
+import { queryKeys } from "@/lib/query-keys";
 
 export const expenseKeys = {
   all: ["expenses"] as const,
+  trip: (tripId: string) => [...queryKeys.trip.detail(tripId), "expenses"] as const,
   list: (tripId: string, filters?: ListExpensesFilters) =>
-    [...expenseKeys.all, "list", tripId, filtersKey(filters)] as const,
+    [...expenseKeys.trip(tripId), "list", filtersKey(filters)] as const,
   summary: (tripId: string, currency?: string | null) =>
-    [...expenseKeys.all, "summary", tripId, currency ?? null] as const,
+    queryKeys.trip.expenseSummary(tripId, currency),
   settlements: (tripId: string, currency?: string | null) =>
-    [...expenseKeys.all, "settlements", tripId, currency ?? null] as const
+    queryKeys.trip.settlements(tripId, currency)
 };
 
 export function listTripExpenses(tripId: string, filters?: ListExpensesFilters) {
@@ -130,6 +132,12 @@ function expenseFilterParams(filters?: ListExpensesFilters) {
   if (filters.linkedOnly) {
     params.set("linkedOnly", "true");
   }
+  if (filters.limit != null) {
+    params.set("limit", String(filters.limit));
+  }
+  if (filters.offset != null) {
+    params.set("offset", String(filters.offset));
+  }
   return params;
 }
 
@@ -139,7 +147,9 @@ function filtersKey(filters?: ListExpensesFilters) {
     paidByUserId: filters?.paidByUserId ?? null,
     fromDate: filters?.fromDate ?? null,
     toDate: filters?.toDate ?? null,
-    linkedOnly: filters?.linkedOnly ?? false
+    linkedOnly: filters?.linkedOnly ?? false,
+    limit: filters?.limit ?? null,
+    offset: filters?.offset ?? null
   };
 }
 

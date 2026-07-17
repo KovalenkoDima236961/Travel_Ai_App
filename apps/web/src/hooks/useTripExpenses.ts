@@ -14,6 +14,8 @@ import {
 import { activityKeys } from "@/lib/api/activity";
 import { budgetConfidenceKeys } from "@/lib/api/budget-confidence";
 import { tripHealthKeys } from "@/lib/api/trip-health";
+import { budgetKeys } from "@/lib/api/budget";
+import { queryKeys } from "@/lib/query-keys";
 import type {
   CreateExpenseInput,
   ListExpensesFilters,
@@ -33,7 +35,8 @@ export function useTripExpenses({
   return useQuery({
     queryKey: expenseKeys.list(tripId, filters),
     queryFn: () => listTripExpenses(tripId, filters),
-    enabled: enabled && Boolean(tripId)
+    enabled: enabled && Boolean(tripId),
+    staleTime: 15 * 1000
   });
 }
 
@@ -49,7 +52,8 @@ export function useTripExpenseSummary({
   return useQuery({
     queryKey: expenseKeys.summary(tripId, currency),
     queryFn: () => getTripExpenseSummary(tripId, currency),
-    enabled: enabled && Boolean(tripId)
+    enabled: enabled && Boolean(tripId),
+    staleTime: 30 * 1000
   });
 }
 
@@ -65,7 +69,8 @@ export function useTripSettlements({
   return useQuery({
     queryKey: expenseKeys.settlements(tripId, currency),
     queryFn: () => getTripSettlements(tripId, currency),
-    enabled: enabled && Boolean(tripId)
+    enabled: enabled && Boolean(tripId),
+    staleTime: 30 * 1000
   });
 }
 
@@ -126,9 +131,11 @@ export function useRecalculateTripSettlements(tripId: string, currency?: string 
 
 function invalidateExpenseQueries(queryClient: QueryClient, tripId: string) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: expenseKeys.all }),
+    queryClient.invalidateQueries({ queryKey: expenseKeys.trip(tripId) }),
+    queryClient.invalidateQueries({ queryKey: budgetKeys.summary(tripId) }),
     queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) }),
     queryClient.invalidateQueries({ queryKey: tripHealthKeys.detail(tripId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.trip.commandCenter(tripId) }),
     queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) })
   ]);
 }

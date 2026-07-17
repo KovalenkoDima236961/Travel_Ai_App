@@ -114,6 +114,12 @@ function receiptSearchParams(params?: ListReceiptsParams) {
   if (params.unlinkedOnly) {
     search.set("unlinkedOnly", "true");
   }
+  if (params.limit != null) {
+    search.set("limit", String(params.limit));
+  }
+  if (params.offset != null) {
+    search.set("offset", String(params.offset));
+  }
   return search;
 }
 
@@ -121,7 +127,9 @@ function receiptParamsKey(params?: ListReceiptsParams) {
   return {
     expenseId: params?.expenseId ?? null,
     status: params?.status ?? null,
-    unlinkedOnly: params?.unlinkedOnly ?? false
+    unlinkedOnly: params?.unlinkedOnly ?? false,
+    limit: params?.limit ?? null,
+    offset: params?.offset ?? null
   };
 }
 

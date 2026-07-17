@@ -16,6 +16,10 @@ function notification(overrides: Partial<AppNotification>): AppNotification {
     metadata: {},
     readAt: null,
     createdAt: "2026-06-24T12:00:00Z",
+    priority: "normal",
+    category: "comments",
+    groupedCount: 1,
+    latestEventAt: "2026-06-24T12:00:00Z",
     ...overrides
   };
 }

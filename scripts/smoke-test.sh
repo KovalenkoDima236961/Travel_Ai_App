@@ -1242,13 +1242,119 @@ request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/preferences" 
 assert_2xx "Get default notification preferences"
 NOTIFICATION_PREF_COUNT="$(jq '.items | length' <<<"${LAST_BODY}")"
 DEFAULT_IN_APP_COMMENTS="$(jq -r '.items[] | select(.channel == "in_app" and .category == "comments") | .enabled' <<<"${LAST_BODY}")"
-DEFAULT_EMAIL_TRIP_UPDATES="$(jq -r '.items[] | select(.channel == "email" and .category == "trip_updates") | .enabled' <<<"${LAST_BODY}")"
-DEFAULT_PUSH_TRIP_UPDATES="$(jq -r '.items[] | select(.channel == "push" and .category == "trip_updates") | .enabled' <<<"${LAST_BODY}")"
-if [[ "${NOTIFICATION_PREF_COUNT}" -ne 12 || "${DEFAULT_IN_APP_COMMENTS}" != "true" || "${DEFAULT_EMAIL_TRIP_UPDATES}" != "false" || "${DEFAULT_PUSH_TRIP_UPDATES}" != "true" ]]; then
+DEFAULT_EMAIL_TRIP_UPDATES="$(jq -r '.items[] | select(.channel == "email" and .category == "trip_updates") | .deliveryMode' <<<"${LAST_BODY}")"
+DEFAULT_PUSH_TRIP_UPDATES="$(jq -r '.items[] | select(.channel == "push" and .category == "trip_updates") | .deliveryMode' <<<"${LAST_BODY}")"
+if [[ "${NOTIFICATION_PREF_COUNT}" -lt 48 || "${DEFAULT_IN_APP_COMMENTS}" != "true" || "${DEFAULT_EMAIL_TRIP_UPDATES}" != "daily_digest" || "${DEFAULT_PUSH_TRIP_UPDATES}" != "muted" ]]; then
   echo "Default notification preferences did not match expected values." >&2
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+
+echo "Checking digest schedule, quiet hours, and trip mute controls..."
+NOISE_CONTROL_PREFS='{"items":[{"channel":"email","category":"comments","deliveryMode":"daily_digest"}],"settings":{"quietHoursEnabled":true,"quietHoursStart":"22:00","quietHoursEnd":"08:00","quietHoursTimezone":"Europe/Bratislava","urgentBypassesQuietHours":true,"dailyDigestTime":"08:00","weeklyDigestDay":1,"weeklyDigestTime":"08:00"}}'
+request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${ACCESS_TOKEN}" "${NOISE_CONTROL_PREFS}"
+assert_2xx "Save notification digest and quiet-hours settings"
+if ! jq -e '.settings.quietHoursEnabled == true and (.items[] | select(.channel == "email" and .category == "comments") | .deliveryMode == "daily_digest")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Digest or quiet-hours settings were not saved." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+TRIP_COMMENT_MUTE="$(jq -nc --arg tripId "${TRIP_ID}" '{tripId:$tripId,category:"comments",mutedUntil:null}')"
+request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes" "${ACCESS_TOKEN}" "${TRIP_COMMENT_MUTE}"
+assert_2xx "Mute trip comments"
+TRIP_COMMENT_MUTE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes?tripId=${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "List trip notification mutes"
+if ! jq -e '.items[] | select(.category == "comments")' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Trip comment mute was not returned." >&2
+  exit 1
+fi
+request_with_bearer DELETE "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes/${TRIP_COMMENT_MUTE_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Unmute trip comments"
+request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/digests/pending" "${ACCESS_TOKEN}"
+assert_2xx "List pending notification digests"
+
+if [[ -n "${SMOKE_INTERNAL_SERVICE_TOKEN:-}" ]]; then
+  echo "Checking grouped digest delivery, mute decisions, and urgent bypass..."
+  DIGEST_KEY="trip:${TRIP_ID}:comments"
+  for DIGEST_INDEX in 1 2 3; do
+    DIGEST_EVENT_PAYLOAD="$(jq -nc \
+      --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" \
+      --arg digestKey "${DIGEST_KEY}" --arg dedupeKey "smoke:${RUN_ID:-manual}:digest:${DIGEST_INDEX}" \
+      '{notifications:[{userId:$userId,tripId:$tripId,type:"comment_created",priority:"normal",category:"comments",title:"Smoke digest comment",message:"A collaborator added a comment.",digestKey:$digestKey,dedupeKey:$dedupeKey,metadata:{tripName:"Smoke Trip"}}]}')"
+    request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${DIGEST_EVENT_PAYLOAD}"
+    assert_2xx "Queue grouped digest event ${DIGEST_INDEX}"
+    if ! jq -e '.digested >= 1 and .email.sent == 0' <<<"${LAST_BODY}" >/dev/null; then
+      echo "Normal comment unexpectedly sent an instant email or was not digested." >&2
+      echo "${LAST_BODY}" >&2
+      exit 1
+    fi
+  done
+  request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/digests/pending" "${ACCESS_TOKEN}"
+  assert_2xx "Read grouped pending digest"
+  GROUPED_DIGEST_EVENT_COUNT="$(jq --arg digestKey "${DIGEST_KEY}" '[.items[] | select(.channel == "email") | .items[] | select(.digestKey == $digestKey) | .eventCount] | add // 0' <<<"${LAST_BODY}")"
+  if [[ "${GROUPED_DIGEST_EVENT_COUNT}" -lt 3 ]]; then
+    echo "Pending email digest did not group all three comment events." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/process-digests" "${SMOKE_INTERNAL_SERVICE_TOKEN}" '{"now":"2099-01-01T00:00:00Z","limit":100}'
+  assert_2xx "Process pending notification digests"
+  if ! jq -e '.processed >= 1 and .sent >= 1' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Digest processor did not send a grouped digest." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes" "${ACCESS_TOKEN}" "${TRIP_COMMENT_MUTE}"
+  assert_2xx "Re-enable trip comment mute for delivery check"
+  TRIP_COMMENT_MUTE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+  MUTED_COMMENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:muted" '{notifications:[{userId:$userId,tripId:$tripId,type:"comment_created",priority:"normal",category:"comments",title:"Muted comment",message:"A collaborator added a comment.",digestKey:("trip:"+$tripId+":comments"),dedupeKey:$dedupeKey,metadata:{}}]}')"
+  request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${MUTED_COMMENT_PAYLOAD}"
+  assert_2xx "Apply trip category mute"
+  if ! jq -e '.created == 0 and .muted >= 1' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Trip comment mute did not suppress the notification." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  request_with_bearer DELETE "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes/${TRIP_COMMENT_MUTE_ID}" "${ACCESS_TOKEN}"
+  assert_2xx "Remove trip comment mute after delivery check"
+
+  URGENT_FAILURE_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:urgent" '{notifications:[{userId:$userId,tripId:$tripId,type:"generation_job_failed",priority:"urgent",category:"ai_generation",title:"Generation failed",message:"Your itinerary generation could not be completed. Open the trip to retry.",digestKey:("trip:"+$tripId+":ai_generation"),dedupeKey:$dedupeKey,metadata:{errorCode:"smoke_failure"}}]}')"
+  request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${URGENT_FAILURE_PAYLOAD}"
+  assert_2xx "Urgent generation failure bypasses digest defaults"
+  if ! jq -e '.created == 1 and .email.sent >= 1' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Urgent generation failure was not delivered instantly." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+
+  ALL_DAY_QUIET_PREFS='{"items":[{"channel":"email","category":"trip_updates","deliveryMode":"instant"}],"settings":{"quietHoursEnabled":true,"quietHoursStart":"00:00","quietHoursEnd":"00:00","quietHoursTimezone":"UTC","urgentBypassesQuietHours":true,"dailyDigestTime":"08:00","weeklyDigestDay":1,"weeklyDigestTime":"08:00"}}'
+  request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${ACCESS_TOKEN}" "${ALL_DAY_QUIET_PREFS}"
+  assert_2xx "Enable deterministic all-day quiet hours"
+  QUIET_EVENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:quiet" '{notifications:[{userId:$userId,tripId:$tripId,type:"itinerary_updated",priority:"normal",category:"trip_updates",title:"Itinerary updated",message:"The itinerary was updated.",digestKey:("trip:"+$tripId+":trip_updates"),dedupeKey:$dedupeKey,metadata:{}}]}')"
+  request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${QUIET_EVENT_PAYLOAD}"
+  assert_2xx "Delay normal email during quiet hours"
+  if ! jq -e '.delayed >= 1 and .email.sent == 0' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Quiet hours did not delay a normal email notification." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+  SECURITY_EVENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:security" '{notifications:[{userId:$userId,tripId:$tripId,type:"share_security_changed",priority:"urgent",category:"security",title:"Sharing security changed",message:"Security settings for a shared trip changed.",digestKey:("trip:"+$tripId+":security"),dedupeKey:$dedupeKey,metadata:{}}]}')"
+  request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${SECURITY_EVENT_PAYLOAD}"
+  assert_2xx "Urgent security notification bypasses quiet hours"
+  if ! jq -e '.created == 1 and .email.sent >= 1' <<<"${LAST_BODY}" >/dev/null; then
+    echo "Urgent security notification did not bypass quiet hours." >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
+else
+  echo "SMOKE_INTERNAL_SERVICE_TOKEN is not set; skipping digest delivery decision checks."
+fi
+
+NOISE_CONTROL_RESET='{"items":[{"channel":"email","category":"comments","deliveryMode":"daily_digest"},{"channel":"email","category":"trip_updates","deliveryMode":"daily_digest"}],"settings":{"quietHoursEnabled":false,"quietHoursStart":"22:00","quietHoursEnd":"08:00","quietHoursTimezone":"Europe/Bratislava","urgentBypassesQuietHours":true,"dailyDigestTime":"08:00","weeklyDigestDay":1,"weeklyDigestTime":"08:00"}}'
+request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${ACCESS_TOKEN}" "${NOISE_CONTROL_RESET}"
+assert_2xx "Disable smoke-test quiet hours"
 
 echo "Checking Web Push endpoint plumbing..."
 request GET "${NOTIFICATION_SERVICE_URL}/notifications/push/public-key"

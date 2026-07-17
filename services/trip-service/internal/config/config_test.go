@@ -58,6 +58,12 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"TRIP_EDIT_LOCK_TTL_SECONDS",
 		"TRIP_EDIT_LOCK_RENEW_SECONDS",
 		"TRIP_EDIT_LOCK_STALE_CLEANUP_SECONDS",
+		"DB_QUERY_TIMEOUT_SECONDS",
+		"DB_SLOW_QUERY_THRESHOLD_MS",
+		"SUMMARY_CACHE_ENABLED",
+		"SUMMARY_CACHE_TTL_SECONDS",
+		"SUMMARY_CACHE_MAX_ITEMS",
+		"SUMMARY_ENDPOINT_TIMEOUT_SECONDS",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -81,6 +87,12 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 			"expected AI planning timeout 120s, got %d",
 			cfg.ItineraryGenerator.AIPlanningTimeoutSeconds,
 		)
+	}
+	if cfg.Postgres.QueryTimeoutSeconds != 10 || cfg.Postgres.SlowQueryThresholdMS != 250 {
+		t.Fatalf("unexpected DB performance defaults: timeout=%d slow=%d", cfg.Postgres.QueryTimeoutSeconds, cfg.Postgres.SlowQueryThresholdMS)
+	}
+	if !cfg.SummaryCache.Enabled || cfg.SummaryCache.TTLSeconds != 30 || cfg.SummaryCache.MaxItems != 1000 || cfg.SummaryCache.EndpointTimeoutSeconds != 8 {
+		t.Fatalf("unexpected summary cache defaults: %+v", cfg.SummaryCache)
 	}
 	if cfg.CORS.AllowedOrigins != "http://localhost:3000" {
 		t.Fatalf("expected default CORS origin, got %q", cfg.CORS.AllowedOrigins)

@@ -24,9 +24,11 @@ import (
 )
 
 const (
-	maxExpenseTitleLength = 120
-	maxExpenseTextLength  = 1000
-	settlementTolerance   = 0.01
+	maxExpenseTitleLength  = 120
+	maxExpenseTextLength   = 1000
+	settlementTolerance    = 0.01
+	defaultExpensePageSize = 50
+	maxExpensePageSize     = 100
 )
 
 type expenseUser struct {
@@ -102,24 +104,79 @@ func (s *Service) ListTripExpenses(ctx context.Context, tripID uuid.UUID, filter
 	if err != nil {
 		return appdto.TripExpensesResponse{}, err
 	}
+	limit := normalizeListLimit(filters.Limit, defaultExpensePageSize, maxExpensePageSize)
+	if filters.Offset < 0 {
+		filters.Offset = 0
+	}
+	filters.Limit = limit + 1
 	expenses, err := s.repo.ListTripExpensesByTrip(ctx, tripID, filters)
 	if err != nil {
 		return appdto.TripExpensesResponse{}, err
 	}
+	var nextOffset *int
+	if len(expenses) > limit {
+		expenses = expenses[:limit]
+		next := filters.Offset + limit
+		nextOffset = &next
+	}
+	participants, err := s.repo.ListExpenseParticipantsByTrip(ctx, tripID)
+	if err != nil {
+		return appdto.TripExpensesResponse{}, err
+	}
+	participantsByExpense := make(map[uuid.UUID][]entity.TripExpenseParticipant, len(expenses))
+	for _, participant := range participants {
+		participantsByExpense[participant.ExpenseID] = append(participantsByExpense[participant.ExpenseID], participant)
+	}
+	expenseIDs := make([]uuid.UUID, 0, len(expenses))
+	for i := range expenses {
+		expenseIDs = append(expenseIDs, expenses[i].ID)
+	}
+	receiptRows := []entity.TripExpenseReceipt{}
+	if len(expenseIDs) > 0 {
+		receiptRows, err = s.repo.ListTripExpenseReceipts(ctx, tripID, appdto.ListReceiptsInput{ExpenseIDs: expenseIDs})
+		if err != nil {
+			return appdto.TripExpensesResponse{}, err
+		}
+	}
+	ocrByReceipt, err := s.latestReceiptOCRByID(ctx, tripID, receiptRows)
+	if err != nil {
+		return appdto.TripExpensesResponse{}, err
+	}
+	receiptsByExpense := make(map[uuid.UUID][]appdto.ExpenseReceiptSummary, len(expenses))
+	for i := range receiptRows {
+		if receiptRows[i].ExpenseID == nil {
+			continue
+		}
+		var confidence *entity.ReceiptOCRConfidence
+		if latest := ocrByReceipt[receiptRows[i].ID]; latest != nil {
+			value := latest.Confidence
+			confidence = &value
+		}
+		receiptsByExpense[*receiptRows[i].ExpenseID] = append(
+			receiptsByExpense[*receiptRows[i].ExpenseID],
+			appdto.ExpenseReceiptSummary{
+				ID: receiptRows[i].ID, OriginalFilename: receiptRows[i].OriginalFilename,
+				ContentType: receiptRows[i].ContentType, Status: receiptRows[i].Status,
+				OCRConfidence: confidence, CreatedAt: receiptRows[i].CreatedAt,
+			},
+		)
+	}
 	items := make([]appdto.TripExpense, 0, len(expenses))
 	for i := range expenses {
-		participants, err := s.repo.ListExpenseParticipantsByExpense(ctx, tripID, expenses[i].ID)
-		if err != nil {
-			return appdto.TripExpensesResponse{}, err
-		}
-		item := expenseDTO(&expenses[i], participants, users)
-		summaries, err := s.receiptSummariesForExpense(ctx, tripID, expenses[i].ID)
-		if err != nil {
-			return appdto.TripExpensesResponse{}, err
-		}
-		items = append(items, withExpenseReceipts(item, summaries))
+		item := expenseDTO(&expenses[i], participantsByExpense[expenses[i].ID], users)
+		items = append(items, withExpenseReceipts(item, receiptsByExpense[expenses[i].ID]))
 	}
-	return appdto.TripExpensesResponse{Items: items}, nil
+	return appdto.TripExpensesResponse{Items: items, NextOffset: nextOffset}, nil
+}
+
+func normalizeListLimit(value, defaultValue, maxValue int) int {
+	if value <= 0 {
+		return defaultValue
+	}
+	if value > maxValue {
+		return maxValue
+	}
+	return value
 }
 
 func (s *Service) GetTripExpense(ctx context.Context, tripID, expenseID uuid.UUID) (appdto.TripExpense, error) {
@@ -252,6 +309,7 @@ func (s *Service) GetTripExpenseSummary(ctx context.Context, tripID uuid.UUID, c
 	}
 	summary := appdto.ExpenseSummary{
 		TripID:                 tripID,
+		ExpenseCount:           len(fin.Expenses),
 		Currency:               fin.Currency,
 		ActualTotal:            money(fin.ActualTotal, fin.Currency),
 		OriginalCurrencyTotals: originalTotalsDTO(fin.OriginalTotals),

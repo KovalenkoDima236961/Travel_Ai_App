@@ -3,28 +3,28 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
 import { cn } from "@/shared/lib/cn";
 import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  markTripNotificationsRead,
   notificationKeys
 } from "@/lib/api/notifications";
 import { getNotificationHref } from "@/lib/notifications/notification-navigation";
-import { formatRelativeTime } from "@/lib/notifications/relative-time";
 import type { AppNotification } from "@/entities/notification/model";
 import { PAGE_LIMIT } from "../model/notificationsPageModel";
 import { instrumentSans, newsreader } from "./fonts";
-import { notificationVisual } from "./notification-visuals";
 import { NotificationsHeader } from "./NotificationsHeader";
-import { localizedNotificationTitle } from "@/lib/i18n/notifications";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
+import { NotificationBulkActions } from "@/components/notifications/NotificationBulkActions";
+import { upsertTripNotificationMute } from "@/lib/api/notification-preferences";
+import type { NotificationCategory } from "@/entities/notification-preferences/model";
 
 const OUTLINE_PILL =
   "inline-flex h-[38px] items-center rounded-full border border-sand-400 bg-white px-4 text-[13.5px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-sand-400 disabled:hover:text-cocoa-700";
 
 export function NotificationsPageContent() {
-  const translateNotification = useTranslations("notifications");
   const router = useRouter();
   const queryClient = useQueryClient();
   const [items, setItems] = useState<AppNotification[]>([]);
@@ -92,6 +92,23 @@ export function NotificationsPageContent() {
     }
   }
 
+  async function handleMarkTripRead(tripId: string) {
+    try {
+      await markTripNotificationsRead(tripId);
+      const now = new Date().toISOString();
+      setItems((current) => current.map((item) => item.tripId === tripId ? { ...item, readAt: item.readAt ?? now } : item));
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    } catch { /* Keep current read state when the bulk action fails. */ }
+  }
+
+  async function handleMuteTrip(tripId: string) {
+    await upsertTripNotificationMute({ tripId, category: null });
+  }
+
+  async function handleMuteCategory(tripId: string, category: string) {
+    await upsertTripNotificationMute({ tripId, category: category as NotificationCategory });
+  }
+
   const hasUnread = items.some((item) => !item.readAt);
 
   return (
@@ -111,14 +128,7 @@ export function NotificationsPageContent() {
           <h1 className="font-newsreader text-[40px] font-medium leading-none tracking-[-0.02em] text-cocoa-900">
             Notifications
           </h1>
-          <button
-            type="button"
-            onClick={handleMarkAllRead}
-            disabled={!hasUnread}
-            className={OUTLINE_PILL}
-          >
-            Mark all as read
-          </button>
+          <NotificationBulkActions hasUnread={hasUnread} onMarkAllRead={handleMarkAllRead} />
         </div>
 
         {status === "loading" ? (
@@ -137,63 +147,17 @@ export function NotificationsPageContent() {
             </button>
           </div>
         ) : items.length === 0 ? (
-          <div className="mt-7 rounded-[20px] border border-dashed border-sand-400 bg-white/60 px-8 py-14 text-center">
+          <><NotificationCenter items={[]} onSelect={handleSelect} /><div className="mt-7 rounded-[20px] border border-dashed border-sand-400 bg-white/60 px-8 py-14 text-center">
             <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
               You’re all caught up
             </h2>
             <p className="mx-auto mt-2 max-w-md text-[14.5px] text-cocoa-400">
               New activity across your trips and workspaces will show up here.
             </p>
-          </div>
+          </div></>
         ) : (
           <>
-            <ul className="mt-7 overflow-hidden rounded-[20px] border border-sand-300 bg-white">
-              {items.map((notification, index) => {
-                const isUnread = !notification.readAt;
-                const { Icon, tileClassName } = notificationVisual(notification.type);
-                return (
-                  <li key={notification.id}>
-                    <button
-                      type="button"
-                      onClick={() => handleSelect(notification)}
-                      className={cn(
-                        "flex w-full items-start gap-3.5 px-[22px] py-[18px] text-left transition",
-                        index > 0 && "border-t border-sand-200",
-                        isUnread ? "bg-sand-100 hover:bg-sand-150" : "bg-white hover:bg-sand-50"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                          tileClassName
-                        )}
-                      >
-                        <Icon className="h-[19px] w-[19px]" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          {isUnread ? (
-                            <span
-                              className="h-2 w-2 shrink-0 rounded-full bg-clay"
-                              aria-label="Unread"
-                            />
-                          ) : null}
-                          <span className="text-[14.5px] font-semibold text-cocoa-900">
-                            {localizedNotificationTitle(notification, translateNotification)}
-                          </span>
-                        </span>
-                        <span className="mt-[3px] block text-[13.5px] leading-[1.5] text-cocoa-500">
-                          {notification.message}
-                        </span>
-                        <span className="mt-[5px] block text-[12px] text-[#A08D78]">
-                          {formatRelativeTime(notification.createdAt)}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <NotificationCenter items={items} onSelect={handleSelect} onMarkTripRead={handleMarkTripRead} onMuteTrip={handleMuteTrip} onMuteCategory={handleMuteCategory} />
 
             {nextCursor ? (
               <div className="mt-6 text-center">

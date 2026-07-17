@@ -35,7 +35,16 @@ func (s *Service) GetBudgetConfidence(
 	if err != nil {
 		return budgetconfidence.Response{}, err
 	}
-	return s.budgetConfidenceForTrip(ctx, trip, options), nil
+	currency := strings.ToUpper(strings.TrimSpace(options.Currency))
+	cacheKey := summaryCacheKey("budget_confidence", trip, user.ID, currency, options.IncludeDebug)
+	if cached, ok := s.summaryCache.get("budget_confidence", cacheKey); ok {
+		if response, valid := cached.(budgetconfidence.Response); valid {
+			return response, nil
+		}
+	}
+	response := s.budgetConfidenceForTrip(ctx, trip, options)
+	s.summaryCache.set("budget_confidence", cacheKey, response)
+	return response, nil
 }
 
 func (s *Service) budgetConfidenceForTrip(

@@ -24,6 +24,10 @@ type NotificationCreateInput struct {
 	EntityType  *string
 	EntityID    *uuid.UUID
 	Metadata    map[string]any
+	Priority    string
+	Category    string
+	DigestKey   string
+	DedupeKey   string
 }
 
 // --- wire shapes (JSON sent to / received from Notification Service) ---
@@ -42,6 +46,10 @@ type notificationPayload struct {
 	EntityType  *string        `json:"entityType,omitempty"`
 	EntityID    *string        `json:"entityId,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
+	Priority    string         `json:"priority,omitempty"`
+	Category    string         `json:"category,omitempty"`
+	DigestKey   string         `json:"digestKey,omitempty"`
+	DedupeKey   string         `json:"dedupeKey,omitempty"`
 }
 
 type batchResponse struct {
@@ -60,9 +68,37 @@ type emailStats struct {
 }
 
 func toPayload(in NotificationCreateInput) notificationPayload {
+	tripID := in.TripID
+	if tripID == nil && in.Metadata != nil {
+		if raw, ok := in.Metadata["tripId"].(string); ok {
+			if parsed, err := uuid.Parse(raw); err == nil {
+				tripID = &parsed
+			}
+		}
+	}
+	priority := in.Priority
+	if priority == "" {
+		priority = defaultPriority(in.Type)
+	}
+	category := in.Category
+	if category == "" {
+		category = defaultCategory(in.Type)
+	}
+	digestKey := in.DigestKey
+	if digestKey == "" {
+		if tripID != nil {
+			digestKey = "trip:" + tripID.String() + ":" + category
+		} else {
+			digestKey = "category:" + category
+		}
+	}
+	dedupeKey := in.DedupeKey
+	if dedupeKey == "" && in.EntityID != nil {
+		dedupeKey = in.Type + ":" + in.EntityID.String() + ":recipient:" + in.UserID.String()
+	}
 	return notificationPayload{
 		UserID:      in.UserID.String(),
-		TripID:      uuidPtrString(in.TripID),
+		TripID:      uuidPtrString(tripID),
 		ActorUserID: uuidPtrString(in.ActorUserID),
 		Type:        in.Type,
 		Title:       in.Title,
@@ -70,6 +106,10 @@ func toPayload(in NotificationCreateInput) notificationPayload {
 		EntityType:  in.EntityType,
 		EntityID:    uuidPtrString(in.EntityID),
 		Metadata:    in.Metadata,
+		Priority:    priority,
+		Category:    category,
+		DigestKey:   digestKey,
+		DedupeKey:   dedupeKey,
 	}
 }
 

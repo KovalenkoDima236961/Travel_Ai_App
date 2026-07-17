@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,74 @@ import (
 type fakeRepo struct {
 	rows []entity.Notification
 	now  time.Time
+}
+
+type atomicFakeRepo struct {
+	*fakeRepo
+	mu     sync.Mutex
+	claims map[string]atomicFakeClaim
+}
+
+type atomicFakeClaim struct {
+	latest         time.Time
+	notificationID *uuid.UUID
+}
+
+func newAtomicFakeRepo() *atomicFakeRepo {
+	return &atomicFakeRepo{fakeRepo: newFakeRepo(), claims: make(map[string]atomicFakeClaim)}
+}
+
+func (f *atomicFakeRepo) ClaimNotificationDedupe(_ context.Context, userID uuid.UUID, dedupeKey string, now, since time.Time) (bool, *uuid.UUID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := userID.String() + "|" + dedupeKey
+	claim, ok := f.claims[key]
+	if ok && !claim.latest.Before(since) {
+		claim.latest = now
+		f.claims[key] = claim
+		return true, claim.notificationID, nil
+	}
+	f.claims[key] = atomicFakeClaim{latest: now}
+	return false, nil, nil
+}
+
+func (f *atomicFakeRepo) BindNotificationDedupe(_ context.Context, userID uuid.UUID, dedupeKey string, notificationID uuid.UUID, since time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := userID.String() + "|" + dedupeKey
+	claim, ok := f.claims[key]
+	if ok && !claim.latest.Before(since) {
+		id := notificationID
+		claim.notificationID = &id
+		f.claims[key] = claim
+	}
+	return nil
+}
+
+type groupingFakeRepo struct{ *fakeRepo }
+
+func (f *groupingFakeRepo) FindRecentNotificationByDigestKey(_ context.Context, userID uuid.UUID, digestKey string, since time.Time) (*entity.Notification, error) {
+	for i := len(f.rows) - 1; i >= 0; i-- {
+		row := f.rows[i]
+		if row.UserID == userID && row.DigestKey != nil && *row.DigestKey == digestKey &&
+			canGroupNotification(row) && !row.LatestEventAt.Before(since) {
+			return &row, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *groupingFakeRepo) GroupRelatedNotification(_ context.Context, id, userID uuid.UUID, latest entity.Notification) (*entity.Notification, error) {
+	for i := range f.rows {
+		if f.rows[i].ID != id || f.rows[i].UserID != userID {
+			continue
+		}
+		mergeNotificationOccurrence(&f.rows[i], latest)
+		f.rows[i].ReadAt = nil
+		row := f.rows[i]
+		return &row, nil
+	}
+	return nil, domainerrs.ErrNotFound
 }
 
 type fakeInAppGate struct {
@@ -123,6 +192,32 @@ func (f *fakeRepo) MarkAllNotificationsRead(_ context.Context, userID uuid.UUID)
 		}
 	}
 	return changed, nil
+}
+
+func (f *fakeRepo) FindRecentNotificationByDedupeKey(_ context.Context, userID uuid.UUID, dedupeKey string, since time.Time) (*entity.Notification, error) {
+	for i := len(f.rows) - 1; i >= 0; i-- {
+		row := f.rows[i]
+		if row.UserID == userID && row.DedupeKey != nil && *row.DedupeKey == dedupeKey && !row.LatestEventAt.Before(since) {
+			return &row, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *fakeRepo) GroupNotification(_ context.Context, id, userID uuid.UUID, latest entity.Notification) (*entity.Notification, error) {
+	for i := range f.rows {
+		if f.rows[i].ID != id || f.rows[i].UserID != userID {
+			continue
+		}
+		f.rows[i].GroupedCount++
+		f.rows[i].LatestEventAt = latest.LatestEventAt
+		f.rows[i].Title = latest.Title
+		f.rows[i].Message = latest.Message
+		f.rows[i].Metadata = latest.Metadata
+		row := f.rows[i]
+		return &row, nil
+	}
+	return nil, domainerrs.ErrNotFound
 }
 
 func validInput(userID uuid.UUID) CreateInput {
@@ -234,6 +329,8 @@ func TestCreateBatch_ValidatesFields(t *testing.T) {
 		"long title":      func(in *CreateInput) { in.Title = strings.Repeat("x", MaxTitleLength+1) },
 		"missing message": func(in *CreateInput) { in.Message = "" },
 		"long message":    func(in *CreateInput) { in.Message = strings.Repeat("y", MaxMessageLength+1) },
+		"long digest key": func(in *CreateInput) { value := strings.Repeat("d", MaxGroupingKeyLength+1); in.DigestKey = &value },
+		"long dedupe key": func(in *CreateInput) { value := strings.Repeat("e", MaxGroupingKeyLength+1); in.DedupeKey = &value },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -289,6 +386,171 @@ func TestCreateBatch_EmptyMetadataDoesNotBreak(t *testing.T) {
 	created, err := svc.CreateBatch(context.Background(), []CreateInput{in})
 	if err != nil || len(created) != 1 {
 		t.Fatalf("expected 1 created with nil metadata, got %d err=%v", len(created), err)
+	}
+}
+
+func TestCreateBatch_GroupsDuplicateKeysWithinOneBatch(t *testing.T) {
+	repo := newFakeRepo()
+	svc := New(repo, nil)
+	userID := uuid.New()
+	dedupeKey := "comment:one:recipient:" + userID.String()
+	first := validInput(userID)
+	first.DedupeKey = &dedupeKey
+	second := first
+	second.Message = "The latest safe state."
+
+	result, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{first, second}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Created) != 1 || len(result.EmailCandidates) != 1 || len(repo.rows) != 1 {
+		t.Fatalf("expected one grouped row/candidate, got result=%+v rows=%+v", result, repo.rows)
+	}
+	if result.Created[0].GroupedCount != 2 || result.Created[0].Message != second.Message {
+		t.Fatalf("expected latest state and count=2, got %+v", result.Created[0])
+	}
+	if result.DuplicatesDropped != 1 || result.Grouped != 1 {
+		t.Fatalf("expected one grouped duplicate, got %+v", result)
+	}
+}
+
+func TestCreateBatch_GroupsPersistedDuplicateWithoutAnotherCandidate(t *testing.T) {
+	repo := newFakeRepo()
+	svc := New(repo, nil)
+	userID := uuid.New()
+	dedupeKey := "reminder:one:recipient:" + userID.String()
+	input := validInput(userID)
+	input.DedupeKey = &dedupeKey
+	if _, err := svc.CreateBatch(context.Background(), []CreateInput{input}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{input}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Created) != 0 || len(result.EmailCandidates) != 0 || len(repo.rows) != 1 {
+		t.Fatalf("expected persisted duplicate to be grouped and suppressed, got result=%+v rows=%+v", result, repo.rows)
+	}
+	if repo.rows[0].GroupedCount != 2 || result.DuplicatesDropped != 1 {
+		t.Fatalf("expected grouped_count=2 and one dropped duplicate, got result=%+v row=%+v", result, repo.rows[0])
+	}
+}
+
+func TestCreateBatch_AtomicDedupeWorksWithoutInAppRow(t *testing.T) {
+	repo := newAtomicFakeRepo()
+	svc := New(repo, nil)
+	userID := uuid.New()
+	dedupeKey := "muted-event:one:recipient:" + userID.String()
+	input := validInput(userID)
+	input.DedupeKey = &dedupeKey
+	gate := fakeInAppGate{allowed: map[string]bool{TypeCommentCreated: false}}
+
+	first, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{input}, gate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{input}, gate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.EmailCandidates) != 1 || len(second.EmailCandidates) != 0 || len(repo.rows) != 0 {
+		t.Fatalf("expected one channel-independent event then an exact drop, first=%+v second=%+v", first, second)
+	}
+	if second.DuplicatesDropped != 1 || second.SkippedByPreference != 0 {
+		t.Fatalf("expected the retry to be classified as a duplicate, got %+v", second)
+	}
+}
+
+func TestCreateBatch_ValidatesWholeBatchBeforeAtomicClaim(t *testing.T) {
+	repo := newAtomicFakeRepo()
+	svc := New(repo, nil)
+	userID := uuid.New()
+	dedupeKey := "valid:event"
+	valid := validInput(userID)
+	valid.DedupeKey = &dedupeKey
+	invalid := validInput(userID)
+	invalid.Message = ""
+
+	if _, err := svc.CreateBatch(context.Background(), []CreateInput{valid, invalid}); err == nil {
+		t.Fatal("expected invalid batch error")
+	}
+	if len(repo.claims) != 0 {
+		t.Fatalf("expected no dedupe claims for an invalid batch, got %+v", repo.claims)
+	}
+}
+
+func TestCreateBatch_GroupsRelatedEventsWithoutCollapsingChannelCandidates(t *testing.T) {
+	repo := &groupingFakeRepo{fakeRepo: newFakeRepo()}
+	svc := New(repo, nil)
+	userID := uuid.New()
+	digestKey := "trip:one:comments"
+	firstKey, secondKey := "comment:one", "comment:two"
+	first := validInput(userID)
+	first.DigestKey, first.DedupeKey = &digestKey, &firstKey
+	second := validInput(userID)
+	second.Message = "A second collaborator commented."
+	second.DigestKey, second.DedupeKey = &digestKey, &secondKey
+
+	result, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{first, second}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Created) != 1 || result.Created[0].GroupedCount != 2 || len(repo.rows) != 1 {
+		t.Fatalf("expected one grouped in-app card, got result=%+v rows=%+v", result, repo.rows)
+	}
+	if len(result.EmailCandidates) != 2 || result.EmailCandidates[0].GroupedCount != 1 || result.EmailCandidates[1].GroupedCount != 1 {
+		t.Fatalf("expected one channel candidate per real event, got %+v", result.EmailCandidates)
+	}
+	if result.Grouped != 1 || result.DuplicatesDropped != 0 {
+		t.Fatalf("expected related grouping without exact dedupe, got %+v", result)
+	}
+}
+
+func TestCreateBatch_QueuesOneOccurrenceWhenGroupingIntoPersistedCard(t *testing.T) {
+	repo := &groupingFakeRepo{fakeRepo: newFakeRepo()}
+	svc := New(repo, nil)
+	userID := uuid.New()
+	digestKey := "trip:one:comments"
+	firstKey, secondKey := "comment:one", "comment:two"
+	first := validInput(userID)
+	first.DigestKey, first.DedupeKey = &digestKey, &firstKey
+	second := validInput(userID)
+	second.DigestKey, second.DedupeKey = &digestKey, &secondKey
+
+	if _, err := svc.CreateBatch(context.Background(), []CreateInput{first}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.CreateBatchWithPreferences(context.Background(), []CreateInput{second}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Created) != 0 || len(result.GroupedInApp) != 1 || result.GroupedInApp[0].GroupedCount != 1 {
+		t.Fatalf("expected one digest occurrence for the persisted group, got %+v", result)
+	}
+	if len(repo.rows) != 1 || repo.rows[0].GroupedCount != 2 {
+		t.Fatalf("expected persisted card count=2, got %+v", repo.rows)
+	}
+}
+
+func TestCreateBatch_StripsSensitiveMetadataRecursively(t *testing.T) {
+	repo := newFakeRepo()
+	svc := New(repo, nil)
+	input := validInput(uuid.New())
+	input.Metadata = map[string]any{
+		"tripId": "safe", "publicShareToken": "secret-value", "receiptOCRText": "private",
+		"nested": map[string]any{"destination": "Vienna", "privateNotes": "do not persist"},
+	}
+	created, err := svc.CreateBatch(context.Background(), []CreateInput{input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := created[0].Metadata
+	if metadata["tripId"] != "safe" || metadata["publicShareToken"] != nil || metadata["receiptOCRText"] != nil {
+		t.Fatalf("unexpected sanitized metadata: %#v", metadata)
+	}
+	nested, ok := metadata["nested"].(map[string]any)
+	if !ok || nested["destination"] != "Vienna" || nested["privateNotes"] != nil {
+		t.Fatalf("nested metadata was not sanitized: %#v", metadata["nested"])
 	}
 }
 

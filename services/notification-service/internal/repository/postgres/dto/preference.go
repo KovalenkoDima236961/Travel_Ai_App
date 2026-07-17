@@ -12,43 +12,45 @@ import (
 )
 
 // PreferenceColumns is the canonical projection for notification preference rows.
-const PreferenceColumns = "id, user_id, channel, category, enabled, created_at, updated_at"
+const PreferenceColumns = "id, user_id, channel, category, enabled, delivery_mode, created_at, updated_at"
 
 // PreferenceInsertColumns returns the columns set on preference INSERT/UPSERT.
 // id, created_at, and updated_at are left to database defaults.
 func PreferenceInsertColumns() []string {
-	return []string{"user_id", "channel", "category", "enabled"}
+	return []string{"user_id", "channel", "category", "enabled", "delivery_mode"}
 }
 
 // PreferenceInsertValues returns values in PreferenceInsertColumns order.
-func PreferenceInsertValues(userID pgtype.UUID, channel, category string, enabled bool) []any {
-	return []any{userID, channel, category, enabled}
+func PreferenceInsertValues(userID pgtype.UUID, channel, category string, enabled bool, deliveryMode string) []any {
+	return []any{userID, channel, category, enabled, deliveryMode}
 }
 
 // ScanPreference reads a single preference row in PreferenceColumns order.
 func ScanPreference(row pgx.Row) (*entity.NotificationPreference, error) {
 	var (
-		id        pgtype.UUID
-		userID    pgtype.UUID
-		channel   string
-		category  string
-		enabled   bool
-		createdAt pgtype.Timestamp
-		updatedAt pgtype.Timestamp
+		id           pgtype.UUID
+		userID       pgtype.UUID
+		channel      string
+		category     string
+		enabled      bool
+		deliveryMode string
+		createdAt    pgtype.Timestamp
+		updatedAt    pgtype.Timestamp
 	)
 
-	if err := row.Scan(&id, &userID, &channel, &category, &enabled, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&id, &userID, &channel, &category, &enabled, &deliveryMode, &createdAt, &updatedAt); err != nil {
 		return nil, fmt.Errorf("scan notification preference: %w", err)
 	}
 
 	return &entity.NotificationPreference{
-		ID:        uuid.UUID(id.Bytes),
-		UserID:    uuid.UUID(userID.Bytes),
-		Channel:   channel,
-		Category:  category,
-		Enabled:   enabled,
-		CreatedAt: timestampValue(createdAt),
-		UpdatedAt: timestampValue(updatedAt),
+		ID:           uuid.UUID(id.Bytes),
+		UserID:       uuid.UUID(userID.Bytes),
+		Channel:      channel,
+		Category:     category,
+		Enabled:      enabled,
+		DeliveryMode: deliveryMode,
+		CreatedAt:    timestampValue(createdAt),
+		UpdatedAt:    timestampValue(updatedAt),
 	}, nil
 }
 

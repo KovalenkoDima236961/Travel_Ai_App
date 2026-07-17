@@ -42,7 +42,7 @@ func (s *Service) GetPreferences(ctx context.Context, userID uuid.UUID) (*Prefer
 	if err != nil {
 		return nil, err
 	}
-	return buildResult(set.Matrix(userID)), nil
+	return buildResult(set.ModeMatrix(userID)), nil
 }
 
 // UpdatePreferences validates and upserts the given preference items for the
@@ -121,6 +121,17 @@ func validateUpdateItems(items []PreferenceInput) error {
 		if !IsKnownCategory(item.Category) {
 			return apperrs.NewInvalidInput("category %q is not a known category", item.Category)
 		}
+		mode := item.DeliveryMode
+		if mode == "" {
+			if item.Enabled {
+				mode = ModeInstant
+			} else {
+				mode = ModeMuted
+			}
+		}
+		if !IsKnownDeliveryMode(mode) {
+			return apperrs.NewInvalidInput("delivery mode %q is not known", mode)
+		}
 		key := item.Channel + "|" + item.Category
 		if _, dup := seen[key]; dup {
 			return apperrs.NewInvalidInput("duplicate preference for channel %q and category %q", item.Channel, item.Category)
@@ -133,24 +144,25 @@ func validateUpdateItems(items []PreferenceInput) error {
 // buildResult flattens a merged matrix into the ordered item list. It ranges the
 // ordered AllChannels/AllCategories slices (never the map) so the output order
 // is deterministic.
-func buildResult(matrix map[string]map[string]bool) *PreferencesResult {
+func buildResult(matrix map[string]map[string]string) *PreferencesResult {
 	items := make([]PreferenceItem, 0, len(AllChannels)*len(AllCategories))
 	for _, channel := range AllChannels {
 		for _, category := range AllCategories {
-			enabled := defaultEnabled(channel, category)
+			mode := defaultDeliveryMode(channel, category)
 			if byCategory, ok := matrix[channel]; ok {
 				if v, ok := byCategory[category]; ok {
-					enabled = v
+					mode = v
 				}
 			}
 			items = append(items, PreferenceItem{
-				Channel:  channel,
-				Category: category,
-				Enabled:  enabled,
+				Channel:      channel,
+				Category:     category,
+				Enabled:      mode != ModeMuted,
+				DeliveryMode: mode,
 			})
 		}
 	}
-	return &PreferencesResult{Items: items}
+	return &PreferencesResult{Items: items, Settings: DefaultSettings()}
 }
 
 func dedupeIDs(ids []uuid.UUID) []uuid.UUID {

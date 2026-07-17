@@ -2,6 +2,12 @@
 
 Staging should mirror production validation with `APP_ENV=staging`.
 
+## Performance configuration
+
+Apply Trip Service migration `000034` and Notification Service migration `000004` before deploying the matching application images. Size `POSTGRES_MIN_CONNS`/`POSTGRES_MAX_CONNS` from measured concurrency, then start with `DB_QUERY_TIMEOUT_SECONDS=10` and `DB_SLOW_QUERY_THRESHOLD_MS=250`. The compact summary defaults to an enabled 30-second, 1000-entry cache with an 8-second section deadline; tune only after reviewing cache and DB dashboards.
+
+Keep the worker retry/DLQ/stale-running settings explicit in the staging environment and confirm the retry/DLQ queues are declared before traffic. After rollout, run both performance smoke scripts against a seeded trip and inspect the Performance & Reliability dashboard for API p95, DB p95/pool saturation, cache ratio, provider cooldowns, and worker retries.
+
 ## Setup
 
 1. Copy `infra/.env.staging.example` to `infra/.env.staging`.
@@ -26,6 +32,15 @@ Staging may use mock providers:
 
 When a real provider is selected, startup validation requires the matching key
 or OAuth secret.
+
+## Notification digests
+
+Apply Notification Service migration `000005` before deploying the matching
+service image. Keep at least one Worker Service instance running with
+`NOTIFICATION_DIGEST_WORKER_ENABLED=true`; multiple workers are safe because
+due batches are claimed atomically. Exercise quiet-hours boundaries, trip mutes,
+and one digest retry in staging, then verify the delivery-decision and digest
+created/sent/failed metrics before promotion.
 
 ## Deploy
 

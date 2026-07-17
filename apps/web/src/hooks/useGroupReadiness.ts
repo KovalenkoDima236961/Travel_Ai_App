@@ -7,7 +7,7 @@ export function useGroupReadiness(tripId: string, enabled = true) {
   return useQuery({
     queryKey: groupReadinessKeys.detail(tripId),
     queryFn: () => getGroupReadiness(tripId),
-    enabled: enabled && Boolean(tripId)
+    enabled: enabled && Boolean(tripId),
+    staleTime: 45 * 1000
   });
 }
-

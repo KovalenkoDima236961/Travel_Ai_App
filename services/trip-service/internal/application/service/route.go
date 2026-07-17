@@ -16,6 +16,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 )
 
 const (
@@ -88,11 +89,46 @@ func (s *Service) UpdateTripRoute(ctx context.Context, tripID uuid.UUID, in appd
 			"routeWasPresent": current.Route != nil,
 		},
 	})
+	s.notifyRouteChanged(ctx, current, user.ID, updated)
 
 	if len(current.Itinerary) > 0 {
 		s.ResetApprovalIfApproved(ctx, tripID, user.ID, "Route changed")
 	}
 	return updated, nil
+}
+
+func (s *Service) notifyRouteChanged(ctx context.Context, before *entity.Trip, actorID uuid.UUID, updated *entity.Trip) {
+	if !s.notificationsEnabled || s.notifier == nil || before == nil || updated == nil {
+		return
+	}
+	recipients := s.broadcastRecipients(ctx, before, actorID)
+	if len(recipients) == 0 {
+		return
+	}
+	priority := notifications.PriorityNormal
+	if len(before.Itinerary) > 0 {
+		priority = notifications.PriorityHigh
+	}
+	tripID := before.ID
+	actor := actorID
+	inputs := make([]notifications.NotificationCreateInput, 0, len(recipients))
+	for _, recipient := range recipients {
+		inputs = append(inputs, notifications.NotificationCreateInput{
+			UserID: recipient, TripID: &tripID, ActorUserID: &actor,
+			Type: notifications.TypeRouteChanged, Title: "Trip route changed",
+			Message:  fmt.Sprintf("The route for %s was updated.", tripDestination(before)),
+			Priority: priority, Category: "trip_updates",
+			DigestKey: "trip:" + tripID.String() + ":trip_updates",
+			DedupeKey: fmt.Sprintf("route:%s:revision:%d:updated:%d:recipient:%s",
+				tripID, updated.ItineraryRevision, updated.UpdatedAt.UnixNano(), recipient),
+			EntityType: activityEntityType(notifications.EntityTrip), EntityID: &tripID,
+			Metadata: map[string]any{
+				"tripId": tripID.String(), "destination": tripDestination(before),
+				"stopCount": routeStopCount(updated.Route), "staleItinerary": len(before.Itinerary) > 0,
+			},
+		})
+	}
+	s.sendNotifications(ctx, inputs)
 }
 
 func normalizeTripType(value string, route *aggregate.TripRoute) string {

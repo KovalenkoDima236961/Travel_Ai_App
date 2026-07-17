@@ -42,6 +42,15 @@ type Config struct {
 	WebPush    WebPushConfig   `yaml:"web_push" validate:"required"`
 	Users      UsersConfig     `yaml:"users" validate:"required"`
 	SSE        SSEConfig       `yaml:"sse" validate:"required"`
+	Digest     DigestConfig    `yaml:"digest" validate:"required"`
+}
+
+type DigestConfig struct {
+	DedupeWindowMinutes   int `yaml:"dedupe_window_minutes" env:"NOTIFICATION_DEDUPE_WINDOW_MINUTES" env-default:"30" validate:"min=1"`
+	GroupingWindowMinutes int `yaml:"grouping_window_minutes" env:"NOTIFICATION_GROUPING_WINDOW_MINUTES" env-default:"60" validate:"min=1"`
+	MaxAttempts           int `yaml:"max_attempts" env:"NOTIFICATION_DIGEST_MAX_ATTEMPTS" env-default:"3" validate:"min=1,max=10"`
+	RetryDelaySeconds     int `yaml:"retry_delay_seconds" env:"NOTIFICATION_DIGEST_RETRY_DELAY_SECONDS" env-default:"300" validate:"min=1"`
+	RetentionDays         int `yaml:"retention_days" env:"NOTIFICATION_DIGEST_RETENTION_DAYS" env-default:"90" validate:"min=1"`
 }
 
 // EmailConfig controls optional email delivery for selected notification types.
@@ -58,7 +67,7 @@ type EmailConfig struct {
 	Provider string `yaml:"provider" env:"EMAIL_PROVIDER" env-default:"mock" validate:"required,oneof=mock smtp"`
 	// Types is the comma-separated allowlist of notification types that may
 	// trigger an email. Anything outside this list is skipped.
-	Types string `yaml:"types" env:"EMAIL_NOTIFICATION_TYPES" env-default:"collaboration_invited,comment_created,collaborator_role_changed,collaborator_removed,workspace_invited,workspace_member_removed,workspace_role_changed,pre_trip_reminder_due"`
+	Types string `yaml:"types" env:"EMAIL_NOTIFICATION_TYPES" env-default:"collaboration_invited,comment_created,collaborator_role_changed,collaborator_removed,workspace_invited,workspace_member_removed,workspace_role_changed,pre_trip_reminder_due,generation_job_failed,budget_optimization_failed,trip_submitted_for_approval,trip_changes_requested,offline_sync_conflict,calendar_sync_failed,share_security_changed,trip_health_issue,settlement_pending,settlement_overdue"`
 	// PublicWebBaseURL is used to build safe links back to the Web App.
 	PublicWebBaseURL string     `yaml:"public_web_base_url" env:"PUBLIC_WEB_BASE_URL" env-default:"http://localhost:3000"`
 	SMTP             SMTPConfig `yaml:"smtp"`
@@ -250,6 +259,16 @@ func (c *Config) SSEWriteTimeout() time.Duration {
 // WebPushTimeout returns the per-push request timeout.
 func (c *Config) WebPushTimeout() time.Duration {
 	return time.Duration(c.WebPush.TimeoutSeconds) * time.Second
+}
+
+func (c *Config) NotificationDedupeWindow() time.Duration {
+	return time.Duration(c.Digest.DedupeWindowMinutes) * time.Minute
+}
+func (c *Config) NotificationGroupingWindow() time.Duration {
+	return time.Duration(c.Digest.GroupingWindowMinutes) * time.Minute
+}
+func (c *Config) NotificationDigestRetryDelay() time.Duration {
+	return time.Duration(c.Digest.RetryDelaySeconds) * time.Second
 }
 
 func (c *Config) applyDefaults() {

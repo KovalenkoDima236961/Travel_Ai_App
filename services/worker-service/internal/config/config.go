@@ -23,7 +23,16 @@ type Config struct {
 	Runtime            Runtime
 	RabbitMQManagement RabbitMQManagement
 	Reminders          ReminderWorker
+	Digests            DigestWorker
 	Trip               *tripconfig.Config
+}
+
+type DigestWorker struct {
+	Enabled                bool   `env:"NOTIFICATION_DIGEST_WORKER_ENABLED" env-default:"true"`
+	NotificationServiceURL string `env:"NOTIFICATION_SERVICE_URL" env-default:"http://notification-service:8086"`
+	PollIntervalSeconds    int    `env:"NOTIFICATION_DIGEST_WORKER_POLL_INTERVAL_SECONDS" env-default:"60"`
+	BatchSize              int    `env:"NOTIFICATION_DIGEST_WORKER_BATCH_SIZE" env-default:"100"`
+	TimeoutSeconds         int    `env:"NOTIFICATION_DIGEST_WORKER_TIMEOUT_SECONDS" env-default:"15"`
 }
 
 type ReminderWorker struct {
@@ -85,11 +94,31 @@ func Load(tripConfigPath string) (*Config, error) {
 			return nil, err
 		}
 	}
+	var digests DigestWorker
+	if err := cleanenv.ReadEnv(&digests); err != nil {
+		return nil, fmt.Errorf("read digest worker env config: %w", err)
+	}
+	if digests.PollIntervalSeconds < 1 {
+		digests.PollIntervalSeconds = 60
+	}
+	if digests.BatchSize < 1 {
+		digests.BatchSize = 100
+	}
+	if digests.BatchSize > 500 {
+		digests.BatchSize = 500
+	}
+	if digests.TimeoutSeconds < 1 {
+		digests.TimeoutSeconds = 15
+	}
+	if err := validateHTTPURL("NOTIFICATION_SERVICE_URL", digests.NotificationServiceURL); err != nil && tripCfg.IsStrictEnv() {
+		return nil, err
+	}
 
 	return &Config{
 		Runtime:            runtime,
 		RabbitMQManagement: management,
 		Reminders:          reminders,
+		Digests:            digests,
 		Trip:               tripCfg,
 	}, nil
 }

@@ -10,7 +10,7 @@ export function useTripChecklist(
   return useQuery({
     queryKey: checklistKeys.detail(tripId),
     queryFn: () => getTripChecklist(tripId),
-    enabled: (options.enabled ?? true) && Boolean(tripId)
+    enabled: (options.enabled ?? true) && Boolean(tripId),
+    staleTime: 30 * 1000
   });
 }
-

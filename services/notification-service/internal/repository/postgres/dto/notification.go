@@ -16,7 +16,8 @@ import (
 
 // Columns is the canonical column projection for notification rows.
 const Columns = "id, user_id, trip_id, actor_user_id, type, title, message, " +
-	"entity_type, entity_id, metadata, read_at, created_at"
+	"entity_type, entity_id, metadata, priority, category, digest_key, dedupe_key, " +
+	"grouped_count, digest_batch_id, delivery_mode, delivery_status, expires_at, latest_event_at, read_at, created_at"
 
 // InsertColumns returns the columns set on INSERT. created_at and read_at are
 // intentionally omitted so the table defaults (NOW() / NULL) apply.
@@ -24,6 +25,8 @@ func InsertColumns() []string {
 	return []string{
 		"id", "user_id", "trip_id", "actor_user_id", "type", "title",
 		"message", "entity_type", "entity_id", "metadata",
+		"priority", "category", "digest_key", "dedupe_key", "grouped_count",
+		"digest_batch_id", "delivery_mode", "delivery_status", "expires_at", "latest_event_at",
 	}
 }
 
@@ -45,6 +48,16 @@ func InsertValues(n *entity.Notification) ([]any, error) {
 		toPgTextPtr(n.EntityType),
 		toPgUUIDPtr(n.EntityID),
 		metadata,
+		n.Priority,
+		n.Category,
+		toPgTextPtr(n.DigestKey),
+		toPgTextPtr(n.DedupeKey),
+		n.GroupedCount,
+		toPgUUIDPtr(n.DigestBatchID),
+		toPgTextPtr(n.DeliveryMode),
+		toPgTextPtr(n.DeliveryStatus),
+		toPgTimestampPtr(n.ExpiresAt),
+		n.LatestEventAt,
 	}, nil
 }
 
@@ -57,17 +70,27 @@ func IDArg(id uuid.UUID) pgtype.UUID {
 // returns domain errs.ErrNotFound when the row is absent.
 func Scan(row pgx.Row) (*entity.Notification, error) {
 	var (
-		id, userID  pgtype.UUID
-		tripID      pgtype.UUID
-		actorUserID pgtype.UUID
-		ntype       string
-		title       string
-		message     string
-		entityType  pgtype.Text
-		entityID    pgtype.UUID
-		metadataRaw []byte
-		readAt      pgtype.Timestamp
-		createdAt   pgtype.Timestamp
+		id, userID     pgtype.UUID
+		tripID         pgtype.UUID
+		actorUserID    pgtype.UUID
+		ntype          string
+		title          string
+		message        string
+		entityType     pgtype.Text
+		entityID       pgtype.UUID
+		metadataRaw    []byte
+		priority       string
+		category       string
+		digestKey      pgtype.Text
+		dedupeKey      pgtype.Text
+		groupedCount   int
+		digestBatchID  pgtype.UUID
+		deliveryMode   pgtype.Text
+		deliveryStatus pgtype.Text
+		expiresAt      pgtype.Timestamp
+		latestEventAt  pgtype.Timestamp
+		readAt         pgtype.Timestamp
+		createdAt      pgtype.Timestamp
 	)
 
 	err := row.Scan(
@@ -81,6 +104,16 @@ func Scan(row pgx.Row) (*entity.Notification, error) {
 		&entityType,
 		&entityID,
 		&metadataRaw,
+		&priority,
+		&category,
+		&digestKey,
+		&dedupeKey,
+		&groupedCount,
+		&digestBatchID,
+		&deliveryMode,
+		&deliveryStatus,
+		&expiresAt,
+		&latestEventAt,
 		&readAt,
 		&createdAt,
 	)
@@ -97,18 +130,28 @@ func Scan(row pgx.Row) (*entity.Notification, error) {
 	}
 
 	return &entity.Notification{
-		ID:          uuid.UUID(id.Bytes),
-		UserID:      uuid.UUID(userID.Bytes),
-		TripID:      fromPgUUID(tripID),
-		ActorUserID: fromPgUUID(actorUserID),
-		Type:        ntype,
-		Title:       title,
-		Message:     message,
-		EntityType:  fromPgText(entityType),
-		EntityID:    fromPgUUID(entityID),
-		Metadata:    metadata,
-		ReadAt:      timestampPtr(readAt),
-		CreatedAt:   createdAt.Time,
+		ID:             uuid.UUID(id.Bytes),
+		UserID:         uuid.UUID(userID.Bytes),
+		TripID:         fromPgUUID(tripID),
+		ActorUserID:    fromPgUUID(actorUserID),
+		Type:           ntype,
+		Title:          title,
+		Message:        message,
+		EntityType:     fromPgText(entityType),
+		EntityID:       fromPgUUID(entityID),
+		Metadata:       metadata,
+		Priority:       priority,
+		Category:       category,
+		DigestKey:      fromPgText(digestKey),
+		DedupeKey:      fromPgText(dedupeKey),
+		GroupedCount:   groupedCount,
+		DigestBatchID:  fromPgUUID(digestBatchID),
+		DeliveryMode:   fromPgText(deliveryMode),
+		DeliveryStatus: fromPgText(deliveryStatus),
+		ExpiresAt:      timestampPtr(expiresAt),
+		LatestEventAt:  latestEventAt.Time,
+		ReadAt:         timestampPtr(readAt),
+		CreatedAt:      createdAt.Time,
 	}, nil
 }
 
@@ -140,6 +183,8 @@ func marshalMetadata(metadata map[string]any) ([]byte, error) {
 	}
 	return b, nil
 }
+
+func MarshalMetadata(metadata map[string]any) ([]byte, error) { return marshalMetadata(metadata) }
 
 func unmarshalMetadata(raw []byte) (map[string]any, error) {
 	if len(raw) == 0 {
@@ -195,4 +240,11 @@ func timestampPtr(ts pgtype.Timestamp) *time.Time {
 	}
 	t := ts.Time
 	return &t
+}
+
+func toPgTimestampPtr(value *time.Time) pgtype.Timestamp {
+	if value == nil {
+		return pgtype.Timestamp{Valid: false}
+	}
+	return pgtype.Timestamp{Time: value.UTC(), Valid: true}
 }
