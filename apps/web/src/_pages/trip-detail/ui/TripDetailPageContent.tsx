@@ -15,6 +15,7 @@ import { CalendarSyncPanel } from "@/features/calendar-sync";
 import { TripApprovalPanel, useTripApproval } from "@/features/trip-approval";
 import { TripPolicyPanel } from "@/components/workspace-policy/TripPolicyPanel";
 import { CommandCenterSkeleton, TripCommandCenter } from "@/components/trip-command-center";
+import { TripCopilot } from "@/components/copilot";
 import { BudgetPanel } from "@/features/trip-budget";
 import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
@@ -3106,6 +3107,13 @@ export function TripDetailPageContent() {
             </DeferredSection>
           </div>
         </div>
+      {canUsePrivateCollaboration && onlineActionsEnabled ? (
+        <TripCopilot
+          currentPath={`/trips/${trip.id}`}
+          currentTab={searchParams?.get("tab") ?? "overview"}
+          tripId={trip.id}
+        />
+      ) : null}
       {lockWarning ? (
         <SoftEditLockWarningDialog
           lock={lockWarning}

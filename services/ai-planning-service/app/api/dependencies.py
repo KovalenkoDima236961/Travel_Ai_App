@@ -6,6 +6,7 @@ from app.services.destination_suggestion import DestinationSuggestionGenerator
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.knowledge_search import KnowledgeSearchService
 from app.services.route_alternatives import RouteAlternativeGenerator
+from app.services.copilot import CopilotResponder
 from app.services.template_adapter import TemplateAdapter
 
 
@@ -41,3 +42,7 @@ def get_configured_route_alternative_generator(
     request: Request,
 ) -> RouteAlternativeGenerator:
     return request.app.state.route_alternative_generator
+
+
+def get_configured_copilot_responder(request: Request) -> CopilotResponder:
+    return request.app.state.copilot_responder

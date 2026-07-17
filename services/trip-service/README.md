@@ -27,6 +27,47 @@ and share credentials. Configuration: `SEARCH_ENABLED`,
 `SEARCH_MIN_QUERY_LENGTH`, and `SEARCH_QUERY_TIMEOUT_SECONDS`. Metrics use the
 `search_*` prefix. Apply migration `000035` for trigram-backed text indexes.
 
+## Travel Assistant Copilot
+
+`POST /trips/{tripId}/copilot/chat` is a private, authenticated advisory
+endpoint for owners, accepted editors, accepted viewers, and permitted workspace
+members. It rebuilds a safe current-trip context server-side from Command
+Center, Trip Health, Budget Confidence, Group Readiness, route, itinerary
+counts, checklist/reminder counts, expense totals, and approval/policy status.
+It never trusts client-supplied trip facts.
+
+The response contains a concise answer, permission-filtered existing UI deep
+links, source badges, warnings, and safe metadata. Public-share routes do not
+mount Copilot in v1. Viewer responses retain navigation but omit edit-only
+actions such as transport search, expense creation, and share settings.
+
+Copilot is advisory only: it cannot edit, repair, restore, delete, book, pay,
+send nudges, upload files, or invoke any mutation. Raw receipt OCR, expense
+notes, calendar event details, comments, share credentials, tokens, provider
+secrets, file paths, and raw prompts are excluded before any AI call. Responses
+are validated again on return; unknown actions, unsafe claims, external hrefs,
+and sensitive-looking content are discarded in favor of a deterministic safe
+fallback. Session conversation state stays in the browser by default; no history
+is persisted in v1.
+
+Configuration:
+
+- `TRIP_COPILOT_ENABLED=true`
+- `TRIP_COPILOT_MODE=mock|ai` (`ai` calls the local AI Planning Service)
+- `TRIP_COPILOT_FAIL_OPEN=false`
+- `TRIP_COPILOT_MAX_MESSAGE_CHARS=2000`
+- `TRIP_COPILOT_MAX_CONTEXT_CHARS=12000`
+- `TRIP_COPILOT_TIMEOUT_SECONDS=20`
+- `TRIP_COPILOT_STORE_HISTORY=false`
+- `TRIP_COPILOT_HISTORY_RETENTION_DAYS=7`
+- `TRIP_COPILOT_PUBLIC_SHARE_ENABLED=false`
+- `TRIP_COPILOT_RATE_LIMIT_PER_MINUTE=20`
+
+Prometheus metrics use the `copilot_*` prefix and label only intent, mode,
+status, and role. AI observability traces record a message hash, intent,
+context-section list, mode, duration, and validation outcome—never raw chat
+content or prompts.
+
 ## AI output language
 
 Direct generate/regenerate requests may provide `outputLanguage` with one of
@@ -1226,6 +1267,7 @@ repair.
 | `AUTH_REQUIRED`, `JWT_ACCESS_SECRET`, `AUTH_HEADER_NAME` | Auth Service JWT validation. |
 | `ITINERARY_GENERATOR_MODE` | `mock` or `http` AI generator adapter. |
 | `AI_PLANNING_SERVICE_URL`, `AI_PLANNING_TIMEOUT_SECONDS` | AI Planning Service client. |
+| `TRIP_COPILOT_*` | Private advisory Copilot enablement, mode, context/message limits, timeout, and rate limit. |
 | `USER_SERVICE_URL`, `USER_CONTEXT_*` | Profile/preference lookup for personalization. |
 | `WORKSPACES_ENABLED`, `USER_SERVICE_URL`, `WORKSPACE_ACCESS_TIMEOUT_SECONDS`, `INTERNAL_SERVICE_TOKEN` | Workspace access checks and trip list scoping. |
 | `EXTERNAL_INTEGRATIONS_SERVICE_URL` | Weather, places, prices, rates, and calendar calls. |

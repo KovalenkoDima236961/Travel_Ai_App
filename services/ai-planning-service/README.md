@@ -104,6 +104,7 @@ flowchart TD
 | `POST` | `/adapt-template` | Adapt a reusable template to a new destination/duration/budget. |
 | `POST` | `/suggest-destinations` | Return 3–5 destination ideas for `prompt`, `surprise`, or `refine` mode. |
 | `POST` | `/suggest-route-alternatives` | Return route alternatives with stops, legs, estimates, scores, pros/cons, and warnings. |
+| `POST` | `/copilot/respond` | Return a concise, advisory answer from supplied safe trip summaries only. |
 | `GET` | `/destination-context` | List curated destination context. |
 | `GET` | `/destination-context/{destination}` | Read one destination context. |
 | `POST` | `/destination-context/{destination}/preview-prompt` | Development prompt preview. |
@@ -111,6 +112,26 @@ flowchart TD
 
 Destination context and knowledge routes are development/internal routes in v1.
 Protect them before exposing the service outside a private network.
+
+## Travel Assistant Copilot
+
+`POST /copilot/respond` accepts a sanitized current-trip summary, a
+deterministic intent, permitted action catalog, and permission summary from Trip
+Service. It returns `{answer, actions, sourceTypes, warnings}` and never receives
+raw receipt OCR, private expense notes, calendar details, share credentials,
+access tokens, or raw prompts.
+
+`COPILOT_MODE=mock|ollama` defaults to the itinerary generator mode. Mock mode
+deterministically handles next-action, health, budget, route, group, checklist,
+expense, approval, feature-help, and unsafe mutation requests in `en`, `es`,
+`fr`, and `uk`. Ollama mode uses strict JSON plus an exact available-action
+allowlist and falls back to mock when configured. The prompt treats the user
+message as untrusted and prohibits revealing hidden context, performing actions,
+or making booking/payment/legal/safety guarantees.
+
+Copilot output remains advisory: Trip Service is responsible for permission
+enforcement, response validation, and navigation action filtering before a
+browser receives it.
 
 ## Generation Output Repair
 
@@ -409,6 +430,7 @@ docker compose -f infra/docker-compose.yml exec ollama ollama pull nomic-embed-t
 | -------- | ------- | ------- |
 | `HTTP_HOST`, `HTTP_PORT` | `0.0.0.0`, `8000` | Service bind address. |
 | `ITINERARY_GENERATOR_MODE` | `mock` locally, `ollama` in compose | Generator backend. |
+| `COPILOT_ENABLED`, `COPILOT_MODE` | `true`, itinerary mode | Enable Copilot responder and choose `mock` or local `ollama`. |
 | `OLLAMA_BASE_URL` | `http://ollama:11434` | Ollama API URL in compose. |
 | `OLLAMA_MODEL` | `llama3.1:8b` | Generation model. |
 | `OLLAMA_TIMEOUT_SECONDS` | `60` to `90` | LLM request timeout. |

@@ -1296,5 +1296,33 @@
       "demoTrip": { "title": "Open demo trip", "description": "See a read-only example trip." },
       "restartOnboarding": { "title": "Restart onboarding", "description": "Reset this device's first-run guide." }
     }
+  },
+  "copilot": {
+    "title": "Travel Assistant",
+    "open": "Open Travel Assistant",
+    "close": "Close Travel Assistant",
+    "subtitle": "Ask about this trip",
+    "suggestions": "Try one of these questions",
+    "promptNext": "What should I fix first?",
+    "promptHealth": "Why is my Trip Health low?",
+    "promptBudget": "How can I improve Budget Confidence?",
+    "promptGroup": "Who still needs to do something?",
+    "promptRoute": "Is my route ready?",
+    "promptPack": "What should I pack?",
+    "promptShare": "How do I share this trip?",
+    "promptReceipt": "Where do I upload a receipt?",
+    "promptApproval": "Why is approval blocked?",
+    "promptChanges": "What changed recently?",
+    "ask": "Ask a question",
+    "askPlaceholder": "Ask about this trip…",
+    "send": "Send",
+    "checking": "Checking your trip…",
+    "disclaimer": "Copilot uses your trip summaries and settings to answer. It cannot make changes automatically.",
+    "suggestedActions": "Suggested actions",
+    "sources": "Sources",
+    "unavailable": "Copilot is unavailable",
+    "unavailableDescription": "You can still use Trip Health and Command Center to review next steps.",
+    "openHealth": "Open Trip Health",
+    "retry": "Retry"
   }
 }

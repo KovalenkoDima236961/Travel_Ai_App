@@ -55,6 +55,22 @@ type Config struct {
 	Search             SearchConfig             `yaml:"search"`
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
 	AIObservability    AIObservabilityConfig    `yaml:"ai_observability"`
+	Copilot            CopilotConfig            `yaml:"copilot"`
+}
+
+// CopilotConfig controls the private, advisory trip copilot. It deliberately
+// has no mutation/tool settings: v1 only returns validated navigation actions.
+type CopilotConfig struct {
+	Enabled              bool   `yaml:"enabled" env:"TRIP_COPILOT_ENABLED" env-default:"true"`
+	Mode                 string `yaml:"mode" env:"TRIP_COPILOT_MODE" env-default:"mock" validate:"oneof=mock ai"`
+	FailOpen             bool   `yaml:"fail_open" env:"TRIP_COPILOT_FAIL_OPEN" env-default:"false"`
+	MaxMessageChars      int    `yaml:"max_message_chars" env:"TRIP_COPILOT_MAX_MESSAGE_CHARS" env-default:"2000" validate:"min=1,max=10000"`
+	MaxContextChars      int    `yaml:"max_context_chars" env:"TRIP_COPILOT_MAX_CONTEXT_CHARS" env-default:"12000" validate:"min=1000,max=50000"`
+	TimeoutSeconds       int    `yaml:"timeout_seconds" env:"TRIP_COPILOT_TIMEOUT_SECONDS" env-default:"20" validate:"min=1,max=120"`
+	StoreHistory         bool   `yaml:"store_history" env:"TRIP_COPILOT_STORE_HISTORY" env-default:"false"`
+	HistoryRetentionDays int    `yaml:"history_retention_days" env:"TRIP_COPILOT_HISTORY_RETENTION_DAYS" env-default:"7" validate:"min=1,max=365"`
+	PublicShareEnabled   bool   `yaml:"public_share_enabled" env:"TRIP_COPILOT_PUBLIC_SHARE_ENABLED" env-default:"false"`
+	RateLimitPerMinute   int    `yaml:"rate_limit_per_minute" env:"TRIP_COPILOT_RATE_LIMIT_PER_MINUTE" env-default:"20" validate:"min=1,max=1000"`
 }
 
 type SearchConfig struct {
@@ -567,7 +583,7 @@ func (c *Config) validateServiceURLs() error {
 		enabled      bool
 		requireHTTPS bool
 	}{
-		{"AI_PLANNING_SERVICE_URL", c.ItineraryGenerator.AIPlanningServiceURL, strings.TrimSpace(c.ItineraryGenerator.Mode) == "http", false},
+		{"AI_PLANNING_SERVICE_URL", c.ItineraryGenerator.AIPlanningServiceURL, strings.TrimSpace(c.ItineraryGenerator.Mode) == "http" || (c.Copilot.Enabled && strings.TrimSpace(c.Copilot.Mode) == "ai"), false},
 		{"USER_SERVICE_URL", c.UserContext.UserServiceURL, c.UserContext.Enabled, false},
 		{"USER_SERVICE_URL", c.Workspaces.UserServiceURL, c.Workspaces.Enabled, false},
 		{"EXTERNAL_INTEGRATIONS_SERVICE_URL", c.WeatherContext.ExternalIntegrationsServiceURL, c.WeatherContext.Enabled, false},

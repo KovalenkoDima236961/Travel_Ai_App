@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.api.dependencies import (
+    get_configured_copilot_responder,
     get_configured_destination_suggestion_generator,
     get_configured_itinerary_generator,
     get_configured_route_alternative_generator,
@@ -19,6 +20,7 @@ from app.core.errors import ItineraryGenerationError
 from app.core.readiness import check_readiness
 from app.observability import record_ai_request, record_ai_validation_failure
 from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
+from app.schemas.copilot import CopilotRespondRequest, CopilotRespondResponse
 from app.schemas.destination_suggestion import (
     DestinationSuggestionRequest,
     DestinationSuggestionResponse,
@@ -42,6 +44,7 @@ from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.schemas.route_alternatives import RouteAlternativeRequest, RouteAlternativeResponse
 from app.schemas.template_adaptation import TemplateAdaptationRequest, TemplateAdaptationResponse
 from app.services.destination_suggestion import DestinationSuggestionGenerator
+from app.services.copilot import CopilotResponder
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.route_alternatives import RouteAlternativeGenerator
 from app.services.template_adaptation_validator import TemplateAdaptationValidationError
@@ -50,6 +53,31 @@ from app.services.template_adapter import TemplateAdapter, validate_adaptation
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.post("/copilot/respond", response_model=CopilotRespondResponse)
+def copilot_respond(
+    request: CopilotRespondRequest,
+    settings: Settings = Depends(get_configured_settings),
+    responder: CopilotResponder = Depends(get_configured_copilot_responder),
+) -> CopilotRespondResponse | JSONResponse:
+    operation = "copilot_respond"
+    mode = settings.copilot_mode.strip().lower()
+    started_at = time.monotonic()
+    if not settings.copilot_enabled:
+        return JSONResponse(status_code=503, content={"error": "copilot is disabled"})
+    try:
+        response = responder.respond(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
+    except ValueError:
+        record_ai_request(operation, "validation_error", mode, time.monotonic() - started_at)
+        record_ai_validation_failure(operation)
+        return JSONResponse(status_code=400, content={"error": "invalid copilot response"})
+    except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        logger.warning("Copilot response failed", extra={"errorType": type(exc).__name__})
+        raise ItineraryGenerationError("Failed to produce Copilot response") from exc
 
 
 @router.post("/suggest-destinations", response_model=DestinationSuggestionResponse)

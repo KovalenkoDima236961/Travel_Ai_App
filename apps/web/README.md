@@ -301,6 +301,22 @@ Limitations: readiness is advisory, some cards can be unavailable until their
 source data has been generated or loaded, and the overview summarizes data from
 other sections rather than replacing the underlying tools.
 
+## Travel Assistant Copilot
+
+Authenticated private trip pages mount the floating `TripCopilot` button and
+mobile-friendly side panel from `src/components/copilot/`. The session-local
+conversation hook is `src/hooks/useTripCopilot.ts`; it calls
+`src/lib/api/copilot.ts` and renders suggested prompts, loading/error states,
+source badges, and only the deep links returned by Trip Service. Copilot is not
+rendered on public-share pages or offline snapshots.
+
+The panel sends the active tab/path as focus context, but Trip Service rebuilds
+all trip data from the authenticated trip. It is advisory: it cannot book, pay,
+delete, edit a trip, apply repair, restore a version, send nudges, or upload a
+receipt. Viewers can ask questions and receive view-only guidance; the backend
+removes actions they cannot use. User-facing labels live in the `copilot`
+namespace in all four message catalogs.
+
 ## Generation Reliability UI
 
 Generation job responses and itinerary version history can include

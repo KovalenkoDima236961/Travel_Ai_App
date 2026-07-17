@@ -804,5 +804,33 @@
       "demoTrip": { "title": "Ouvrir le voyage démo", "description": "Voir un exemple en lecture seule." },
       "restartOnboarding": { "title": "Recommencer l’accueil", "description": "Réinitialiser le guide initial de cet appareil." }
     }
+  },
+  "copilot": {
+    "title": "Assistant de voyage",
+    "open": "Ouvrir l’assistant de voyage",
+    "close": "Fermer l’assistant de voyage",
+    "subtitle": "Posez une question sur ce voyage",
+    "suggestions": "Essayez l’une de ces questions",
+    "promptNext": "Que dois-je corriger en premier ?",
+    "promptHealth": "Pourquoi ma santé du voyage est-elle faible ?",
+    "promptBudget": "Comment améliorer la fiabilité du budget ?",
+    "promptGroup": "Qui doit encore faire quelque chose ?",
+    "promptRoute": "Mon itinéraire est-il prêt ?",
+    "promptPack": "Que dois-je emporter ?",
+    "promptShare": "Comment partager ce voyage ?",
+    "promptReceipt": "Où téléverser un reçu ?",
+    "promptApproval": "Pourquoi l’approbation est-elle bloquée ?",
+    "promptChanges": "Qu’est-ce qui a changé récemment ?",
+    "ask": "Posez une question",
+    "askPlaceholder": "Question sur ce voyage…",
+    "send": "Envoyer",
+    "checking": "Vérification du voyage…",
+    "disclaimer": "Copilot utilise les résumés et réglages du voyage pour répondre. Il ne peut pas effectuer de changements automatiquement.",
+    "suggestedActions": "Actions suggérées",
+    "sources": "Sources",
+    "unavailable": "Copilot est indisponible",
+    "unavailableDescription": "Vous pouvez toujours utiliser Trip Health et Command Center pour examiner les prochaines étapes.",
+    "openHealth": "Ouvrir Trip Health",
+    "retry": "Réessayer"
   }
 }

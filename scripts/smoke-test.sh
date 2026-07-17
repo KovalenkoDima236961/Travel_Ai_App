@@ -2397,6 +2397,39 @@ if ! jq -e --arg id "${TRIP_ID}" '
   exit 1
 fi
 
+echo "Checking private Trip Copilot safe guidance..."
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Get trip before Copilot guidance"
+COPILOT_REVISION_BEFORE="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+COPILOT_CHAT_PAYLOAD="$(jq -nc '{message:"What should I fix first?",clientContext:{currentTab:"overview"}}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/copilot/chat" "${ACCESS_TOKEN}" "${COPILOT_CHAT_PAYLOAD}"
+assert_2xx "Copilot next-action guidance"
+if ! jq -e --arg tripHref "/trips/${TRIP_ID}" '
+  (.answer | type == "string" and length > 0)
+  and (.actions | type == "array")
+  and (.sources | type == "array")
+  and all(.actions[]?; (.href | startswith($tripHref)))
+' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Copilot response was not safely shaped." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+COPILOT_UNSAFE_PAYLOAD="$(jq -nc '{message:"Delete this trip"}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/copilot/chat" "${ACCESS_TOKEN}" "${COPILOT_UNSAFE_PAYLOAD}"
+assert_2xx "Copilot unsafe request refusal"
+if ! jq -e '.metadata.intent == "unsafe_mutation_request" and (.answer | test("cannot|can.t|no puedo|ne peux pas|не можу"; "i"))' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Copilot did not safely refuse the destructive request." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Get trip after Copilot guidance"
+COPILOT_REVISION_AFTER="$(jq -r '.itineraryRevision // -1' <<<"${LAST_BODY}")"
+if [[ "${COPILOT_REVISION_BEFORE}" != "${COPILOT_REVISION_AFTER}" ]]; then
+  echo "Copilot guidance unexpectedly changed the trip itinerary." >&2
+  exit 1
+fi
+
 echo "Generating smart packing checklist..."
 CHECKLIST_GENERATE_PAYLOAD="$(jq -nc '{mode:"full",outputLanguage:"en",instructions:"Include hiking and rainy weather preparation.",replaceAiItems:true,preserveCheckedItems:true,preserveManualItems:true}')"
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist/generate" "${ACCESS_TOKEN}" "${CHECKLIST_GENERATE_PAYLOAD}"
@@ -3099,6 +3132,9 @@ if [[ -z "${COLLABORATOR_ID}" || "${INVITED_USER_ID}" != "${COLLAB_USER_ID}" || 
   exit 1
 fi
 
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/copilot/chat" "${COLLAB_ACCESS_TOKEN}" '{"message":"What should I fix first?"}'
+assert_status "Pending collaborator Copilot access" "404"
+
 echo "Checking collaborator pending invitations..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/collaboration/invitations" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "List collaboration invitations"
@@ -3225,6 +3261,14 @@ request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-summary" "$
 assert_2xx "Viewer get budget summary"
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer get budget confidence"
+VIEWER_COPILOT_PAYLOAD="$(jq -nc '{message:"What should I fix first?",clientContext:{currentTab:"overview"}}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/copilot/chat" "${COLLAB_ACCESS_TOKEN}" "${VIEWER_COPILOT_PAYLOAD}"
+assert_2xx "Viewer get Copilot guidance"
+if ! jq -e '(.permissionNotes | type == "array") and ([.actions[]?.type] | index("find_transport") | not) and ([.actions[]?.type] | index("add_expense") | not)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Viewer Copilot response exposed an edit action." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 request_with_bearer PUT "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget" "${COLLAB_ACCESS_TOKEN}" '{"budget":{"amount":1000,"currency":"EUR"}}'
 assert_status "Viewer update budget" "403"
 
@@ -3881,6 +3925,13 @@ assert_status "Unauthenticated comment list" "401"
 echo "Changing collaborator role to editor..."
 request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/collaborators/${COLLABORATOR_ID}" "${ACCESS_TOKEN}" '{"role":"editor"}'
 assert_2xx "Update collaborator role to editor"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/copilot/chat" "${COLLAB_ACCESS_TOKEN}" '{"message":"Is my route ready?"}'
+assert_2xx "Editor get Copilot guidance"
+if ! jq -e '[.actions[]?.type] | index("find_transport") != null' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Editor Copilot response did not retain the permitted transport action." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
 
 echo "Checking advisory itinerary edit locks..."
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${ACCESS_TOKEN}" '{"scope":"itinerary"}'
@@ -3983,6 +4034,8 @@ assert_2xx "Remove collaborator"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
 assert_status "Removed collaborator private trip access" "404"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/copilot/chat" "${COLLAB_ACCESS_TOKEN}" '{"message":"What should I fix first?"}'
+assert_status "Removed collaborator Copilot access" "404"
 
 echo "Confirming removed collaborator cannot list comments..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${COLLAB_ACCESS_TOKEN}"
@@ -4096,6 +4149,8 @@ request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/group-readiness" "
 assert_status "Public share group readiness access" "401"
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/budget-confidence" "${PUBLIC_SHARE_ACCESS_TOKEN}"
 assert_status "Public share budget confidence access" "401"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/copilot/chat" "${PUBLIC_SHARE_ACCESS_TOKEN}" '{"message":"What should I fix first?"}'
+assert_status "Public share Copilot access" "401"
 
 PUBLIC_DESTINATION="$(jq -r '.destination // empty' <<<"${PUBLIC_TRIP_BODY}")"
 PUBLIC_ITINERARY_DAYS="$(jq '.itinerary.days | length' <<<"${PUBLIC_TRIP_BODY}")"

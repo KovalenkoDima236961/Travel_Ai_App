@@ -18,6 +18,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/copilot"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/exchangerateclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
@@ -417,6 +418,27 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		Mode:                      cfg.ItineraryGenerator.Mode,
 	}, log)
 	closer.Add("ai-generation-trace-cleanup", aiobservability.StartCleanupLoop(context.Background(), aiTraceService, 24*time.Hour, log))
+	copilotHandler, err := copilot.NewHandler(
+		svc,
+		copilot.Config{
+			Enabled:              cfg.Copilot.Enabled,
+			Mode:                 cfg.Copilot.Mode,
+			FailOpen:             cfg.Copilot.FailOpen,
+			MaxMessageChars:      cfg.Copilot.MaxMessageChars,
+			MaxContextChars:      cfg.Copilot.MaxContextChars,
+			Timeout:              time.Duration(cfg.Copilot.TimeoutSeconds) * time.Second,
+			StoreHistory:         cfg.Copilot.StoreHistory,
+			HistoryRetentionDays: cfg.Copilot.HistoryRetentionDays,
+			PublicShareEnabled:   cfg.Copilot.PublicShareEnabled,
+			RateLimitPerMinute:   cfg.Copilot.RateLimitPerMinute,
+		},
+		cfg.ItineraryGenerator.AIPlanningServiceURL,
+		aiTraceService,
+		log,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("init copilot handler: %w", err)
+	}
 	discoveryAIClient, err := tripdiscovery.NewHTTPAIClient(
 		cfg.ItineraryGenerator.AIPlanningServiceURL,
 		time.Duration(cfg.TripDiscovery.AITimeoutSeconds)*time.Second,
@@ -501,6 +523,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		cfg.Ops,
 		discoveryHandler,
 		searchHandler,
+		copilotHandler,
 	)
 
 	return &container{

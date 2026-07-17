@@ -1582,6 +1582,22 @@ Use two browsers: workspace owner A and member B (from the Workspaces flow).
     the internet-required hint.
 14. Disconnect Google Calendar from settings if desired.
 
+## Travel Assistant Copilot
+
+1. Open a private trip while online and confirm the **Trip Copilot** button is
+   available in the lower-right corner.
+2. Ask “What should I fix first?” and confirm the answer is concise, marks its
+   sources, includes only in-app links, and does not change the trip.
+3. Ask about Trip Health, Budget Confidence, route transport, group readiness,
+   checklist, expenses, approval, and a feature such as offline mode. Confirm
+   each suggested action opens the corresponding trip tab.
+4. Sign in as a viewer and confirm edit-only links such as **Find transport**
+   and share settings are absent.
+5. Ask Copilot to delete the trip, book travel, pay an expense, or reveal
+   receipt OCR/a token. Confirm it refuses and makes no change.
+6. Open a public share link and confirm the Copilot button is absent. Turn the
+   browser offline and confirm the button is absent or disabled.
+
 ## Troubleshooting
 
 ### Optional Ops Dashboard Check

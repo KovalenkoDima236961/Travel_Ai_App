@@ -14,6 +14,7 @@ from app.services.destination_suggestion import (
     DestinationSuggestionGenerator,
     get_destination_suggestion_generator,
 )
+from app.services.copilot import CopilotResponder, get_copilot_responder
 from app.services.generator_factory import (
     get_destination_knowledge_provider,
     get_itinerary_generator,
@@ -38,6 +39,7 @@ class ApplicationServices:
     knowledge_search_service: KnowledgeSearchService | None
     destination_suggestion_generator: DestinationSuggestionGenerator
     route_alternative_generator: RouteAlternativeGenerator
+    copilot_responder: CopilotResponder
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -73,6 +75,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     template_adapter = get_template_adapter(settings)
     destination_suggestion_generator = get_destination_suggestion_generator(settings)
     route_alternative_generator = get_route_alternative_generator(settings)
+    copilot_responder = get_copilot_responder(settings)
 
     return ApplicationServices(
         itinerary_generator=itinerary_generator,
@@ -81,6 +84,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_search_service=knowledge_search_service,
         destination_suggestion_generator=destination_suggestion_generator,
         route_alternative_generator=route_alternative_generator,
+        copilot_responder=copilot_responder,
     )
 
 
@@ -97,6 +101,7 @@ def _configure_state(
     app.state.knowledge_search_service = services.knowledge_search_service
     app.state.destination_suggestion_generator = services.destination_suggestion_generator
     app.state.route_alternative_generator = services.route_alternative_generator
+    app.state.copilot_responder = services.copilot_responder
 
 
 def _configure_observability(app: FastAPI) -> None:

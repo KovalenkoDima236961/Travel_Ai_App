@@ -805,5 +805,33 @@
       "demoTrip": { "title": "Abrir viaje de demo", "description": "Mira un ejemplo de solo lectura." },
       "restartOnboarding": { "title": "Reiniciar introducción", "description": "Restablece la guía inicial de este dispositivo." }
     }
+  },
+  "copilot": {
+    "title": "Asistente de viaje",
+    "open": "Abrir asistente de viaje",
+    "close": "Cerrar asistente de viaje",
+    "subtitle": "Pregunta sobre este viaje",
+    "suggestions": "Prueba una de estas preguntas",
+    "promptNext": "¿Qué debería arreglar primero?",
+    "promptHealth": "¿Por qué mi Trip Health es baja?",
+    "promptBudget": "¿Cómo mejoro la confianza del presupuesto?",
+    "promptGroup": "¿Quién todavía tiene algo que hacer?",
+    "promptRoute": "¿Está lista mi ruta?",
+    "promptPack": "¿Qué debo empacar?",
+    "promptShare": "¿Cómo comparto este viaje?",
+    "promptReceipt": "¿Dónde subo un recibo?",
+    "promptApproval": "¿Por qué está bloqueada la aprobación?",
+    "promptChanges": "¿Qué cambió recientemente?",
+    "ask": "Haz una pregunta",
+    "askPlaceholder": "Pregunta sobre este viaje…",
+    "send": "Enviar",
+    "checking": "Comprobando tu viaje…",
+    "disclaimer": "Copilot usa los resúmenes y ajustes del viaje para responder. No puede hacer cambios automáticamente.",
+    "suggestedActions": "Acciones sugeridas",
+    "sources": "Fuentes",
+    "unavailable": "Copilot no está disponible",
+    "unavailableDescription": "Aún puedes usar Trip Health y Command Center para revisar los siguientes pasos.",
+    "openHealth": "Abrir Trip Health",
+    "retry": "Reintentar"
   }
 }
