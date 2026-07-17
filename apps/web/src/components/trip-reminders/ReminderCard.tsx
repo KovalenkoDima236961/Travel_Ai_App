@@ -55,7 +55,10 @@ export function ReminderCard({
     .join(" ");
 
   return (
-    <li className="rounded-lg border border-slate-200 bg-white p-3">
+    <li
+      className="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-3"
+      id={`reminder-${reminder.id}`}
+    >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

@@ -37,6 +37,13 @@ type UserWorkspace struct {
 	Role Role
 }
 
+type WorkspaceInfo struct {
+	ID       uuid.UUID
+	Name     string
+	Slug     string
+	Archived bool
+}
+
 type MemberStatus string
 
 const (
@@ -117,6 +124,36 @@ func (c *Client) ListForUser(ctx context.Context, userID uuid.UUID) ([]UserWorks
 			return nil, fmt.Errorf("decode workspace id: %w", err)
 		}
 		out = append(out, UserWorkspace{ID: id, Role: Role(item.Role)})
+	}
+	return out, nil
+}
+
+func (c *Client) BatchInfo(ctx context.Context, ids []uuid.UUID) ([]WorkspaceInfo, error) {
+	if len(ids) == 0 {
+		return []WorkspaceInfo{}, nil
+	}
+	workspaceIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		workspaceIDs = append(workspaceIDs, id.String())
+	}
+	var resp batchInfoResponse
+	if err := c.postJSON(ctx, "/internal/workspaces/batch", batchInfoRequest{
+		WorkspaceIDs: workspaceIDs,
+	}, &resp); err != nil {
+		return nil, err
+	}
+	out := make([]WorkspaceInfo, 0, len(resp.Workspaces))
+	for _, item := range resp.Workspaces {
+		id, err := uuid.Parse(item.ID)
+		if err != nil {
+			return nil, fmt.Errorf("decode workspace info id: %w", err)
+		}
+		out = append(out, WorkspaceInfo{
+			ID:       id,
+			Name:     item.Name,
+			Slug:     item.Slug,
+			Archived: item.Archived,
+		})
 	}
 	return out, nil
 }
@@ -202,10 +239,23 @@ type listMembersRequest struct {
 	WorkspaceID string `json:"workspaceId"`
 }
 
+type batchInfoRequest struct {
+	WorkspaceIDs []string `json:"workspaceIds"`
+}
+
 type listForUserResponse struct {
 	Workspaces []struct {
 		ID   string `json:"id"`
 		Role string `json:"role"`
+	} `json:"workspaces"`
+}
+
+type batchInfoResponse struct {
+	Workspaces []struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Slug     string `json:"slug"`
+		Archived bool   `json:"archived"`
 	} `json:"workspaces"`
 }
 

@@ -153,6 +153,19 @@ export function getDeepLinkTarget(
         ? `route-leg-${legId}`
         : stopId
           ? `route-stop-${stopId}`
+        : undefined
+    };
+  }
+  if (tab === "itinerary") {
+    const itemId = params.get("itemId");
+    const day = params.get("day");
+    const itemIndex = params.get("itemIndex");
+    return {
+      sectionId,
+      targetId: itemId
+        ? `itinerary-item-${itemId}`
+        : day && itemIndex
+          ? `day-${day}-item-${itemIndex}`
           : undefined
     };
   }
@@ -160,6 +173,11 @@ export function getDeepLinkTarget(
     budget: ["category", "budget-category-"],
     health: ["issueId", "trip-health-issue-"],
     expenses: ["expenseId", "expense-"],
+    receipts: ["receiptId", "receipt-"],
+    checklist: ["itemId", "checklist-item-"],
+    reminders: ["reminderId", "reminder-"],
+    polls: ["pollId", "poll-"],
+    decisions: ["pollId", "poll-"],
     activity: ["eventId", "activity-event-"],
     comments: ["commentId", "comment-"]
   };

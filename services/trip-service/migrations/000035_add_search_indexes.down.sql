@@ -1,0 +1,15 @@
+DROP INDEX IF EXISTS idx_trip_templates_destination_hint_trgm;
+DROP INDEX IF EXISTS idx_trip_templates_description_trgm;
+DROP INDEX IF EXISTS idx_trip_templates_title_trgm;
+DROP INDEX IF EXISTS idx_trip_polls_description_trgm;
+DROP INDEX IF EXISTS idx_trip_polls_title_trgm;
+DROP INDEX IF EXISTS idx_trip_reminders_description_trgm;
+DROP INDEX IF EXISTS idx_trip_reminders_title_trgm;
+DROP INDEX IF EXISTS idx_trip_checklist_items_description_trgm;
+DROP INDEX IF EXISTS idx_trip_checklist_items_title_trgm;
+DROP INDEX IF EXISTS idx_receipt_ocr_results_suggested_title_trgm;
+DROP INDEX IF EXISTS idx_receipt_ocr_results_merchant_trgm;
+DROP INDEX IF EXISTS idx_trip_expense_receipts_filename_trgm;
+DROP INDEX IF EXISTS idx_trip_expenses_description_trgm;
+DROP INDEX IF EXISTS idx_trip_expenses_title_trgm;
+DROP INDEX IF EXISTS idx_trips_destination_trgm;

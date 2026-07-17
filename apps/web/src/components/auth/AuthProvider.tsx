@@ -23,6 +23,7 @@ import {
   getRefreshToken,
   saveTokens
 } from "@/shared/api/auth";
+import { clearCommandPaletteRecentItems } from "@/lib/command-palette/recent-items";
 import { clearOfflineData, purgeStaleOfflineData } from "@/lib/offline/trip-cache";
 import type { AuthUser, TokenResponse } from "@/shared/api/auth";
 
@@ -147,6 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Local logout should still complete if Auth Service is unreachable.
     } finally {
       await clearOfflineData(userId);
+      clearCommandPaletteRecentItems(userId);
       clearTokens();
       setUser(null);
     }

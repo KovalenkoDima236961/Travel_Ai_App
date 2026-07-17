@@ -724,5 +724,46 @@
     "positiveAmount": "Сума має бути додатною.", "tooShort": "Значення надто коротке.",
     "tooLong": "Значення надто довге.", "unsupportedLanguage": "Оберіть підтримувану мову.",
     "invalidTime": "Введіть коректний час.", "invalidPercentage": "Введіть коректний відсоток."
+  },
+  "commandPalette": {
+    "title": "Пошук і команди",
+    "placeholder": "Шукайте подорожі, зупинки, витрати, чеки, налаштування...",
+    "inputLabel": "Пошук",
+    "loading": "Пошук...",
+    "footer": "Стрілки для руху, Enter щоб відкрити, Esc щоб закрити.",
+    "sections": { "recent": "Нещодавні", "suggested": "Запропоновані дії", "quickActions": "Швидкі дії", "currentTrip": "Поточна подорож" },
+    "empty": {
+      "shortTitle": "Продовжуйте вводити",
+      "shortDescription": "Введіть щонайменше два символи для пошуку приватних даних.",
+      "title": "Нічого не знайдено",
+      "description": "Спробуйте напрямок, зупинку, витрату, чек, список, нагадування, шаблон або налаштування."
+    },
+    "error": { "title": "Пошук не вдався", "description": "Спробуйте ще раз за мить." },
+    "disabled": { "editTrip": "У вас немає доступу до редагування цієї подорожі." },
+    "categories": {
+      "trips": "Подорожі", "tripSections": "Розділи подорожі", "money": "Фінанси", "notifications": "Сповіщення",
+      "settings": "Налаштування", "offline": "Офлайн", "templates": "Шаблони", "workspaces": "Робочі простори", "ops": "Ops"
+    },
+    "commands": {
+      "createTrip": { "title": "Створити подорож", "description": "Почати новий AI-план." },
+      "openTrips": { "title": "Відкрити мої подорожі", "description": "Перейти до списку подорожей." },
+      "commandCenter": { "title": "Відкрити Command Center", "description": "Відкрити огляд поточної подорожі." },
+      "tripHealth": { "title": "Відкрити Trip Health", "description": "Перевірити проблеми та виправлення." },
+      "routeTransport": { "title": "Відкрити маршрут і транспорт", "description": "Переглянути зупинки, ділянки та транспорт." },
+      "budget": { "title": "Відкрити бюджет", "description": "Переглянути бюджет і впевненість." },
+      "expenses": { "title": "Відкрити витрати", "description": "Переглянути витрати, розрахунки й чеки." },
+      "uploadReceipt": { "title": "Завантажити чек", "description": "Додати чек до цієї подорожі." },
+      "addExpense": { "title": "Додати витрату", "description": "Записати нову витрату." },
+      "checklist": { "title": "Відкрити список", "description": "Переглянути підготовку та речі." },
+      "reminders": { "title": "Відкрити нагадування", "description": "Переглянути нагадування подорожі." },
+      "notifications": { "title": "Відкрити сповіщення", "description": "Переглянути центр сповіщень." },
+      "notificationSettings": { "title": "Налаштування сповіщень", "description": "Керувати сповіщеннями." },
+      "profileSettings": { "title": "Налаштування профілю", "description": "Керувати обліковим записом." },
+      "offlineTrips": { "title": "Відкрити офлайн-подорожі", "description": "Переглянути подорожі на цьому пристрої." },
+      "templates": { "title": "Відкрити шаблони", "description": "Переглянути шаблони подорожей." },
+      "workspaces": { "title": "Відкрити робочі простори", "description": "Перемикати або керувати просторами." },
+      "opsDashboard": { "title": "Відкрити ops-панель", "description": "Переглянути операційний стан." },
+      "aiGenerations": { "title": "Відкрити AI-генерації", "description": "Переглянути траси AI-генерацій." }
+    }
   }
 }

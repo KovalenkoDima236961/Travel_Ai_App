@@ -724,5 +724,46 @@
     "positiveAmount": "Le montant doit être positif.", "tooShort": "Cette valeur est trop courte.",
     "tooLong": "Cette valeur est trop longue.", "unsupportedLanguage": "Choisissez une langue prise en charge.",
     "invalidTime": "Saisissez une heure valide.", "invalidPercentage": "Saisissez un pourcentage valide."
+  },
+  "commandPalette": {
+    "title": "Recherche et commandes",
+    "placeholder": "Rechercher voyages, étapes, dépenses, reçus, réglages...",
+    "inputLabel": "Recherche",
+    "loading": "Recherche...",
+    "footer": "Flèches pour naviguer, Entrée pour ouvrir, Échap pour fermer.",
+    "sections": { "recent": "Récent", "suggested": "Actions suggérées", "quickActions": "Actions rapides", "currentTrip": "Voyage actuel" },
+    "empty": {
+      "shortTitle": "Continuez à saisir",
+      "shortDescription": "Saisissez au moins deux caractères pour chercher dans les données privées.",
+      "title": "Aucun résultat",
+      "description": "Essayez une destination, étape, dépense, reçu, checklist, rappel, modèle ou réglage."
+    },
+    "error": { "title": "La recherche a échoué", "description": "Réessayez dans un instant." },
+    "disabled": { "editTrip": "Vous ne pouvez pas modifier ce voyage." },
+    "categories": {
+      "trips": "Voyages", "tripSections": "Sections du voyage", "money": "Budget", "notifications": "Notifications",
+      "settings": "Réglages", "offline": "Hors ligne", "templates": "Modèles", "workspaces": "Espaces", "ops": "Ops"
+    },
+    "commands": {
+      "createTrip": { "title": "Créer un voyage", "description": "Démarrer un nouveau plan IA." },
+      "openTrips": { "title": "Ouvrir mes voyages", "description": "Accéder à la liste des voyages." },
+      "commandCenter": { "title": "Ouvrir Command Center", "description": "Ouvrir le résumé du voyage actuel." },
+      "tripHealth": { "title": "Ouvrir Trip Health", "description": "Examiner les problèmes et corrections." },
+      "routeTransport": { "title": "Ouvrir itinéraire et transport", "description": "Voir étapes, trajets et transports." },
+      "budget": { "title": "Ouvrir budget", "description": "Examiner budget et confiance." },
+      "expenses": { "title": "Ouvrir dépenses", "description": "Voir dépenses, soldes et reçus." },
+      "uploadReceipt": { "title": "Téléverser un reçu", "description": "Ajouter un reçu à ce voyage." },
+      "addExpense": { "title": "Ajouter une dépense", "description": "Enregistrer une nouvelle dépense." },
+      "checklist": { "title": "Ouvrir checklist", "description": "Voir préparation et bagages." },
+      "reminders": { "title": "Ouvrir rappels", "description": "Voir les rappels du voyage." },
+      "notifications": { "title": "Ouvrir notifications", "description": "Voir le centre de notifications." },
+      "notificationSettings": { "title": "Réglages notifications", "description": "Gérer les préférences." },
+      "profileSettings": { "title": "Réglages profil", "description": "Gérer compte et préférences." },
+      "offlineTrips": { "title": "Ouvrir voyages hors ligne", "description": "Voir les voyages enregistrés sur cet appareil." },
+      "templates": { "title": "Ouvrir modèles", "description": "Parcourir les modèles réutilisables." },
+      "workspaces": { "title": "Ouvrir les espaces", "description": "Changer ou gérer les espaces." },
+      "opsDashboard": { "title": "Ouvrir tableau ops", "description": "Voir l’état opérationnel." },
+      "aiGenerations": { "title": "Ouvrir générations IA", "description": "Voir les traces de génération IA." }
+    }
   }
 }

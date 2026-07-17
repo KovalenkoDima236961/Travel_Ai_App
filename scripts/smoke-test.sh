@@ -1443,6 +1443,14 @@ if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.items | any(.id == $id and .scope =
   exit 1
 fi
 
+request_with_bearer GET "${TRIP_SERVICE_URL}/search?q=Lisbon&scope=workspace&workspaceId=${WORKSPACE_ID}&limit=5" "${COLLAB_ACCESS_TOKEN}"
+assert_2xx "Search workspace trip as member"
+if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.items | any(.type == "trip" and .metadata.tripId == $id)' <<<"${LAST_BODY}" >/dev/null; then
+  echo "Workspace search did not return the accessible workspace trip." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Fetch workspace trip as member"
 WORKSPACE_MEMBER_CAN_EDIT="$(jq -r '.access.canEdit // false' <<<"${LAST_BODY}")"

@@ -158,6 +158,14 @@ edit_locks:
   renew_seconds: 45
   stale_cleanup_seconds: 30
 
+search:
+  enabled: true
+  default_limit: 20
+  max_limit: 50
+  per_category_limit: 5
+  min_query_length: 2
+  query_timeout_seconds: 3
+
 generation_jobs:
   enabled: true
   worker_enabled: true

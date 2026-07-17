@@ -36,6 +36,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/search"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/transportclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/tripdiscovery"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
@@ -160,6 +161,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		AccessCheck(context.Context, uuid.UUID, uuid.UUID) (*workspaces.Access, error)
 		ListForUser(context.Context, uuid.UUID) ([]workspaces.UserWorkspace, error)
 		ListMembers(context.Context, uuid.UUID) ([]workspaces.WorkspaceMember, error)
+		BatchInfo(context.Context, []uuid.UUID) ([]workspaces.WorkspaceInfo, error)
 	}
 	if cfg.Workspaces.Enabled {
 		workspaceClient, err = workspaces.New(workspaces.Config{
@@ -435,6 +437,14 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		log,
 	)
 	discoveryHandler := tripdiscovery.NewHandler(discoverySvc)
+	searchHandler := search.NewModule(db, workspaceClient, search.Config{
+		Enabled:          cfg.Search.Enabled,
+		DefaultLimit:     cfg.Search.DefaultLimit,
+		MaxLimit:         cfg.Search.MaxLimit,
+		PerCategoryLimit: cfg.Search.PerCategoryLimit,
+		MinQueryLength:   cfg.Search.MinQueryLength,
+		QueryTimeout:     time.Duration(cfg.Search.QueryTimeoutSeconds) * time.Second,
+	}, log)
 	generationJobWorker := generationjobs.NewWorker(repo, svc, generationJobsCfg, log, generationjobs.WithTracer(aiTraceService))
 	closer.Add(
 		"generation-job-worker",
@@ -486,6 +496,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		cfg.Auth,
 		cfg.Ops,
 		discoveryHandler,
+		searchHandler,
 	)
 
 	return &container{

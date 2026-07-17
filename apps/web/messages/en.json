@@ -1156,5 +1156,63 @@
     "unsupportedLanguage": "Choose a supported language.",
     "invalidTime": "Enter a valid time.",
     "invalidPercentage": "Enter a valid percentage."
+  },
+  "commandPalette": {
+    "title": "Search and commands",
+    "placeholder": "Search trips, route stops, expenses, receipts, settings...",
+    "inputLabel": "Search",
+    "loading": "Searching...",
+    "footer": "Use arrows to move, Enter to open, Esc to close.",
+    "sections": {
+      "recent": "Recent",
+      "suggested": "Suggested actions",
+      "quickActions": "Quick actions",
+      "currentTrip": "Current trip"
+    },
+    "empty": {
+      "shortTitle": "Keep typing",
+      "shortDescription": "Enter at least two characters to search private trip data.",
+      "title": "No results found",
+      "description": "Try a trip destination, stop name, expense title, receipt filename, checklist item, reminder, template, or setting."
+    },
+    "error": {
+      "title": "Search failed",
+      "description": "Try again in a moment."
+    },
+    "disabled": {
+      "editTrip": "You do not have edit access for this trip."
+    },
+    "categories": {
+      "trips": "Trips",
+      "tripSections": "Trip sections",
+      "money": "Money",
+      "notifications": "Notifications",
+      "settings": "Settings",
+      "offline": "Offline",
+      "templates": "Templates",
+      "workspaces": "Workspaces",
+      "ops": "Ops"
+    },
+    "commands": {
+      "createTrip": { "title": "Create new trip", "description": "Start a new AI travel plan." },
+      "openTrips": { "title": "Open my trips", "description": "Go to your trip list." },
+      "commandCenter": { "title": "Open Command Center", "description": "Open the current trip overview." },
+      "tripHealth": { "title": "Open Trip Health", "description": "Review trip issues and fixes." },
+      "routeTransport": { "title": "Open Route & Transport", "description": "Review stops, legs, and transport choices." },
+      "budget": { "title": "Open Budget", "description": "Review planned budget and confidence." },
+      "expenses": { "title": "Open Expenses", "description": "Review spending, settlements, and receipts." },
+      "uploadReceipt": { "title": "Upload receipt", "description": "Attach a receipt to this trip." },
+      "addExpense": { "title": "Add expense", "description": "Record a new trip expense." },
+      "checklist": { "title": "Open Checklist", "description": "Review packing and preparation items." },
+      "reminders": { "title": "Open Reminders", "description": "Review trip reminders." },
+      "notifications": { "title": "Open notifications", "description": "Review your notification center." },
+      "notificationSettings": { "title": "Notification settings", "description": "Manage notification preferences." },
+      "profileSettings": { "title": "Profile settings", "description": "Manage account and app preferences." },
+      "offlineTrips": { "title": "Open offline trips", "description": "Review trips saved on this device." },
+      "templates": { "title": "Open templates", "description": "Browse reusable trip templates." },
+      "workspaces": { "title": "Open workspace switcher", "description": "Switch or manage workspaces." },
+      "opsDashboard": { "title": "Open ops dashboard", "description": "Review operational status." },
+      "aiGenerations": { "title": "Open AI generations", "description": "Review AI generation traces." }
+    }
   }
 }

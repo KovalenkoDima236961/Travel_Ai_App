@@ -78,7 +78,10 @@ Manual browser flow for the local full stack.
 20. Clear offline data from Settings and Offline trips. Confirm the dialog states cached/pending device data is removed while synced cloud data remains.
 21. Switch among English, Spanish, Ukrainian, and French and repeat representative loading, empty, error, confirmation, offline, and public-share states.
 22. Navigate major pages with keyboard only. Confirm dialog focus containment/return, visible focus rings, labeled fields/buttons, text status badges, and announced progress/loading/errors.
-23. At 320–390 px widths, verify no accidental page-level horizontal overflow on Trip Command Center, Route, Budget, Expenses/Receipts, Checklist, Group Readiness, Trip Health, and public share.
+23. Press Cmd+K/Ctrl+K on an authenticated private page. Confirm the palette opens, focuses search, supports arrows/Enter/Esc, preserves focus on close, shows recent/suggested actions when empty, and never appears on `/share/{token}`.
+24. Search for a trip destination, route stop, route leg, itinerary item, expense, receipt filename, checklist item, reminder, poll, template, and workspace. Confirm results are permission-aware and deep-link/focus the target where applicable.
+25. Use quick actions for Add expense and Upload receipt from a current trip. Confirm the existing dialogs open and viewer accounts do not see edit-only actions.
+26. At 320–390 px widths, verify no accidental page-level horizontal overflow on Trip Command Center, Route, Budget, Expenses/Receipts, Checklist, Group Readiness, Trip Health, command palette, and public share.
 
 ## Start The Stack
 

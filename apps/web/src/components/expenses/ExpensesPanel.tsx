@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ConfirmDialog, EmptyState, SectionLoadingState } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
@@ -85,6 +86,7 @@ export function ExpensesPanel({
   const emptyReceiptsT = useTranslations("emptyStates.receipts");
   const loadingT = useTranslations("loading");
   const confirmationsT = useTranslations("confirmations");
+  const searchParams = useSearchParams();
   const [addOpen, setAddOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [attachExpenseId, setAttachExpenseId] = useState<string | null>(null);
@@ -186,6 +188,21 @@ export function ExpensesPanel({
     : summaryQuery.data ?? null;
   const settlements = offline ? offlineSettlements : settlementsQuery.data ?? null;
   const canMutateExpenses = canEdit && users.length > 0;
+
+  useEffect(() => {
+    if (!canMutateExpenses) {
+      return;
+    }
+    const action = searchParams?.get("action");
+    if (action === "add") {
+      setAddOpen(true);
+      setUploadOpen(false);
+    }
+    if (action === "upload") {
+      setUploadOpen(true);
+      setAddOpen(false);
+    }
+  }, [canMutateExpenses, searchParams]);
 
   async function markPaid(suggestion: SettlementSuggestion) {
     setPanelError(null);

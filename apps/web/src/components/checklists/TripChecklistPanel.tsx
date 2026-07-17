@@ -598,9 +598,10 @@ export function TripChecklistPanel({
               return (
                 <li
                   className={cn(
-                    "rounded-lg border bg-white p-3",
+                    "scroll-mt-24 rounded-lg border bg-white p-3",
                     item.checked ? "border-emerald-200" : "border-slate-200"
                   )}
+                  id={`checklist-item-${item.id}`}
                   key={item.id}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start">

@@ -22,7 +22,8 @@ export function ExpenseReceiptsList({
     <div className="mt-3 space-y-2">
       {receipts.map((receipt) => (
         <div
-          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
+          className="flex scroll-mt-24 flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
+          id={`receipt-${receipt.id}`}
           key={receipt.id}
         >
           <div className="flex min-w-0 items-center gap-2">

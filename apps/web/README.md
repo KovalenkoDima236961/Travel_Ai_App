@@ -52,6 +52,21 @@ feedback. Add every new user-facing key to all four message catalogs. See
 `docs/frontend/ux-guidelines.md` and `docs/frontend/ux-polish-audit.md` for the
 full patterns and migration status.
 
+## Global Command Palette
+
+Authenticated pages mount `GlobalCommandPalette` under `src/app/providers.tsx`.
+Cmd+K/Ctrl+K opens a keyboard-friendly dialog that searches Trip Service
+`GET /search`, mixes in local quick commands, boosts cached current-trip route
+and itinerary matches, and stores up to 20 recent selections in user-scoped
+localStorage. Public share pages disable the private palette.
+
+Command definitions live in `src/lib/command-palette/commands.ts`; recent item
+storage lives in `src/lib/command-palette/recent-items.ts`; the API client is
+`src/lib/api/search.ts`. Result hrefs use existing trip query deep links, so new
+searchable UI targets must add stable IDs and mapping entries in
+`src/lib/trip-command-center/navigation.ts`. Commands are UI shortcuts only:
+backend permissions still authorize every destination action.
+
 ## Frontend Boundary
 
 ```mermaid
@@ -88,6 +103,7 @@ notification streams, and calendar OAuth calls.
 | ---- | -------------------- |
 | Auth | Register, login, refresh/logout, current-user lookup. |
 | Trips | Create/list/detail trips, generate itineraries, edit and restore versions. |
+| Search | Cmd/Ctrl+K global command palette with permission-aware backend results, local quick actions, recent items, current-trip boosts, and deep links into trip sections. |
 | Trip Command Center | Default trip overview that summarizes health, next best action, route/transport, budget confidence, group readiness, checklist/reminders, expenses/settlements, approval/policy, recent activity, offline sync, and grouped navigation. |
 | Routes | Multi-destination route builder with origin, stops, reorder/remove controls, per-leg transport modes, route-leg transport option search/compare/attach, trip styles, validation warnings, route overview, transfer item rendering, and approximate route-map lines. |
 | Route alternatives | AI route alternatives panel with cards, comparison table, route-order preview, refinement controls, create-trip/apply dialogs, and route-poll creation. |

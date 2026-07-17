@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { EmptyState, ErrorState, PageLoadingState } from "@/components/ui";
@@ -248,6 +248,7 @@ export function TripDetailPageContent() {
   const navigationT = useTranslations("navigation");
   const emptyItineraryT = useTranslations("emptyStates.itinerary");
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const tripId = params.id;
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -1009,9 +1010,9 @@ export function TripDetailPageContent() {
       return;
     }
     setDeepLinkMessage(null);
-    const tab = new URLSearchParams(window.location.search).get("tab");
+    const tab = searchParams?.get("tab");
     return scrollToTabAnchor(tab);
-  }, [displayedTrip?.id]);
+  }, [displayedTrip?.id, searchParams]);
 
   useEffect(() => {
     function handleMissingDeepLink() {

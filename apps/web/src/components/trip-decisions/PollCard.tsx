@@ -29,7 +29,10 @@ export function PollCard({
   const hasVotes = poll.results.totalVotes > 0;
 
   return (
-    <article className="rounded-[16px] border border-sand-300 bg-white p-4">
+    <article
+      className="scroll-mt-24 rounded-[16px] border border-sand-300 bg-white p-4"
+      id={`poll-${poll.id}`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

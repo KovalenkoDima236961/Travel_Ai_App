@@ -79,6 +79,14 @@ nudge endpoints, the Web App shows per-collaborator accountability in trip
 detail and the Command Center, and Notification Service delivers safe readiness
 nudge notifications without exposing private trip content.
 
+Search & Global Command Palette v1 adds Cmd+K/Ctrl+K private navigation for
+finding trips, itinerary items, route stops/legs, expenses, receipts, checklist
+items, reminders, polls, templates, workspaces, settings, and quick actions.
+Trip Service owns the authenticated `GET /search` endpoint with server-side
+permission filtering; the Web App adds local command/recent-item UX and deep
+links into existing trip sections. Public share pages keep private search
+disabled.
+
 ## System Map
 
 ```mermaid
@@ -176,6 +184,9 @@ Key product capabilities:
   confidence, group readiness, checklist/reminder progress, expenses/settlements,
   approval/policy, activity, offline sync, and grouped Plan/Prepare/Money/Team/
   Control navigation while preserving existing deep links.
+- Search & Global Command Palette v1: authenticated users can press Cmd+K or
+  Ctrl+K to search permission-aware trip data, open recent items, and run quick
+  navigation/actions without exposing public-share or cross-user data.
 - Multi-Tenant / Team Workspace v1: users can create workspaces, invite members,
   accept/decline invitations, switch between Personal/All/workspace scopes, and
   create workspace-owned trips governed by owner/admin/member/viewer roles.

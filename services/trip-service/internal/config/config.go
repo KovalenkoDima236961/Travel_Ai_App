@@ -52,8 +52,18 @@ type Config struct {
 	TripHealth         TripHealthConfig         `yaml:"trip_health"`
 	BudgetConfidence   BudgetConfidenceConfig   `yaml:"budget_confidence"`
 	SummaryCache       SummaryCacheConfig       `yaml:"summary_cache"`
+	Search             SearchConfig             `yaml:"search"`
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
 	AIObservability    AIObservabilityConfig    `yaml:"ai_observability"`
+}
+
+type SearchConfig struct {
+	Enabled             bool `yaml:"enabled" env:"SEARCH_ENABLED" env-default:"true"`
+	DefaultLimit        int  `yaml:"default_limit" env:"SEARCH_DEFAULT_LIMIT" env-default:"20" validate:"min=1,max=50"`
+	MaxLimit            int  `yaml:"max_limit" env:"SEARCH_MAX_LIMIT" env-default:"50" validate:"min=1,max=50"`
+	PerCategoryLimit    int  `yaml:"per_category_limit" env:"SEARCH_PER_CATEGORY_LIMIT" env-default:"5" validate:"min=1,max=20"`
+	MinQueryLength      int  `yaml:"min_query_length" env:"SEARCH_MIN_QUERY_LENGTH" env-default:"2" validate:"min=1,max=20"`
+	QueryTimeoutSeconds int  `yaml:"query_timeout_seconds" env:"SEARCH_QUERY_TIMEOUT_SECONDS" env-default:"3" validate:"min=1,max=30"`
 }
 
 // SummaryCacheConfig controls the small, process-local cache used by private,
