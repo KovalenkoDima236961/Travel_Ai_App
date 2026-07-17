@@ -131,6 +131,7 @@ func newTestService(
 		nil,
 		nil,
 		nil,
+		nil,
 		Config{Enabled: true},
 		zap.NewNop(),
 	)

@@ -14,11 +14,10 @@ from app.schemas.itinerary import (
     RegenerateItemRequest,
 )
 from app.schemas.knowledge import KnowledgeSearchResult
+from app.schemas.observability import PromptBuildMetadata, PromptBuildResult
 from app.schemas.repair import RepairItineraryRequest
 from app.schemas.route_alternatives import RouteAlternativeRequest
 from app.schemas.template_adaptation import TemplateAdaptationRequest
-from app.schemas.observability import PromptBuildMetadata, PromptBuildResult
-
 
 _PROMPT_BUILD_VERSIONS = {
     "itinerary": "itinerary_generation_v1",
@@ -1638,6 +1637,43 @@ def _planning_constraints_section(request: object, repair_targets: bool = False)
             lines,
             "Dietary restrictions",
             _display_list(getattr(food, "dietary_restrictions", [])),
+        )
+
+    personalization = getattr(constraints, "personalization", None)
+    if personalization is not None:
+        lines.append(
+            "- Personalization is a soft, explainable preference layer. Explicit requests "
+            "and workspace policy still win."
+        )
+        completeness = getattr(personalization, "completeness_score", 0)
+        lines.append(f"- Preference completeness: {completeness}/100.")
+        _append_optional_line(
+            lines,
+            "Personalized transport bias",
+            _display_list(getattr(personalization, "transport_bias", [])),
+        )
+        _append_optional_line(
+            lines,
+            "Personalized activity bias",
+            _display_list(getattr(personalization, "activity_bias", [])),
+        )
+        _append_optional_line(
+            lines,
+            "Personalized avoid bias",
+            _display_list(getattr(personalization, "avoid_bias", [])),
+        )
+        budget_comfort = getattr(personalization, "budget_comfort", "medium")
+        walking_tolerance = getattr(personalization, "walking_tolerance", "moderate")
+        lines.append(f"- Personalized budget comfort: {budget_comfort}.")
+        lines.append(f"- Personalized walking tolerance: {walking_tolerance}.")
+        _append_optional_line(
+            lines,
+            "Explain fit using",
+            _display_list(getattr(personalization, "explanation_inputs", [])),
+        )
+        lines.append(
+            "- Where the response schema supports it, include concise, factual reasons "
+            "explaining why the result fits these preferences and note relevant tradeoffs."
         )
 
     workspace_policy = getattr(constraints, "workspace_policy", None)

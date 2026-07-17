@@ -1,0 +1,2 @@
+import type { FeedbackSummary } from "@/types/personalization";
+export function PersonalizationSettingsSummary({ summary }: { summary: FeedbackSummary }) { return <section className="rounded-[18px] border border-sand-300 bg-white p-5"><h2 className="font-newsreader text-xl text-cocoa-900">Feedback summary</h2><p className="mt-2 text-sm text-cocoa-600">{summary.recentFeedbackCount} feedback signals saved. Budget sensitivity: {summary.budgetSensitivity}; walking sensitivity: {summary.walkingSensitivity}.</p></section>; }

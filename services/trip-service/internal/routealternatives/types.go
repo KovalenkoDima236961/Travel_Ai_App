@@ -126,6 +126,13 @@ type Alternative struct {
 	Cons                     []string            `json:"cons"`
 	Warnings                 []string            `json:"warnings"`
 	SuggestedItineraryPrompt string              `json:"suggestedItineraryPrompt,omitempty"`
+	PersonalizationFit       *PersonalizationFit `json:"personalizationFit,omitempty"`
+}
+
+type PersonalizationFit struct {
+	Score    int      `json:"score"`
+	Reasons  []string `json:"reasons"`
+	Concerns []string `json:"concerns"`
 }
 
 type Scores struct {

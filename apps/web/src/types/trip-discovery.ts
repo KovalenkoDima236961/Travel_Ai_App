@@ -26,6 +26,9 @@ export type TripDiscoverySuggestion = {
   };
   bestTimeToGo: string;
   whyItFits: string;
+  whyThisFitsYou?: string[];
+  personalizationTags?: string[];
+  tradeoffs?: string[];
   possibleDownsides: string[];
   tripPreview: {
     title: string;

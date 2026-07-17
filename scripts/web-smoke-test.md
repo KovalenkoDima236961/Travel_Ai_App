@@ -1637,3 +1637,10 @@ API smoke test, start the stack with `OPS_DASHBOARD_ENABLED=true`, set
 7. Trigger an urgent failure and confirm urgent bypass works.
 8. Mark the trip read, unmute it, and confirm later allowed events appear.
 9. Confirm public shares expose no notification, digest, preference, or mute data.
+# Personalization v2 smoke
+
+1. Open **Settings** and confirm the Personalization card displays a completeness score, a safe privacy statement, and a link to preferences.
+2. Add travel styles, train transport, and a walking limit; refresh Settings and confirm the score updates.
+3. Open AI Trip Discovery and confirm a destination card can show “Why this fits you.” Submit a feedback chip and confirm it changes to Saved.
+4. Open Route Alternatives and confirm personalized reasons and feedback chips are available when a personalized response is returned.
+5. Verify browser requests contain only feedback type and the small visible metadata fields — never notes, receipt OCR, or calendar data.

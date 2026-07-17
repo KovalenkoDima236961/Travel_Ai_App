@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { transportModeLabel } from "@/components/routes/route-options";
+import { FeedbackChips, WhyThisFitsYou } from "@/components/personalization";
 import type { TripDiscoverySuggestion } from "@/types/trip-discovery";
 import type {
   DiscoverySuggestionVoteSummary,
@@ -85,6 +86,12 @@ export function DestinationSuggestionCard({
           <p className="mt-2 text-[14px] leading-6 text-cocoa-700">{suggestion.whyItFits}</p>
         </div>
 
+        {suggestion.whyThisFitsYou?.length ? (
+          <div className="mt-4">
+            <WhyThisFitsYou fit={{ score: suggestion.matchScore, reasons: suggestion.whyThisFitsYou, concerns: suggestion.tradeoffs }} />
+          </div>
+        ) : null}
+
         <div className="mt-4">
           <h4 className="text-[12px] font-bold uppercase tracking-[0.08em] text-cocoa-400">
             {t("tripPreview")}
@@ -155,6 +162,11 @@ export function DestinationSuggestionCard({
             })}
           </div>
         ) : null}
+
+        <div className="mt-4 border-t border-sand-200 pt-4">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-cocoa-400">Refine future ideas</p>
+          <FeedbackChips input={{ entityType: "destination_suggestion", entityId: suggestion.id, metadata: { destination: suggestion.destination, style: suggestion.tags.slice(0, 3), source: "trip_discovery" } }} />
+        </div>
 
         <div className="mt-auto flex flex-wrap gap-2 pt-6">
           <button

@@ -11,6 +11,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
@@ -32,6 +33,7 @@ type BuildInput struct {
 	GroupPreferences           *GroupPreferences
 	GroupAvailability          *GroupAvailability
 	PreviousTrips              []entity.Trip
+	Personalization            *personalization.PlanningSummary
 	IncludePreviousTripSignals bool
 	IncludeRoute               bool
 }
@@ -90,6 +92,10 @@ func Build(input BuildInput) PlanningConstraints {
 	}
 	if input.IncludePreviousTripSignals {
 		constraints.PreviousTripSignals = previousTripSignals(input.PreviousTrips)
+	}
+	if input.Personalization != nil {
+		value := *input.Personalization
+		constraints.Personalization = &value
 	}
 	DetectConflicts(&constraints)
 	return constraints

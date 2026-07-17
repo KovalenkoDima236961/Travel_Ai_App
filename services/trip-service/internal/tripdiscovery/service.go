@@ -17,6 +17,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
@@ -70,6 +71,7 @@ type WorkspaceProvider interface {
 type WorkspacePolicyProvider interface {
 	GetActive(context.Context, uuid.UUID) (*workspacepolicies.Policy, error)
 }
+type PersonalizationProvider interface { Build(context.Context, personalization.BuildInput) (personalization.Context, error) }
 
 type Config struct {
 	Enabled                bool
@@ -85,6 +87,7 @@ type Service struct {
 	users      UserContextProvider
 	workspaces WorkspaceProvider
 	policies   WorkspacePolicyProvider
+	personalizer PersonalizationProvider
 	cfg        Config
 	log        *zap.Logger
 }
@@ -97,6 +100,7 @@ func NewService(
 	users UserContextProvider,
 	workspaces WorkspaceProvider,
 	policies WorkspacePolicyProvider,
+	personalizer PersonalizationProvider,
 	cfg Config,
 	log *zap.Logger,
 ) *Service {
@@ -114,7 +118,7 @@ func NewService(
 	}
 	return &Service{
 		repo: repo, ai: ai, trips: trips, jobs: jobs, users: users,
-		workspaces: workspaces, policies: policies, cfg: cfg, log: log,
+		workspaces: workspaces, policies: policies, personalizer: personalizer, cfg: cfg, log: log,
 	}
 }
 
@@ -587,6 +591,13 @@ func (s *Service) buildAIRequest(
 	if trustedContext != nil {
 		planningUserContext = *trustedContext
 	}
+	var personalizationSummary *personalization.PlanningSummary
+	if s.personalizer != nil {
+		contextValue, contextErr := s.personalizer.Build(ctx, personalization.BuildInput{UserID: user.ID, WorkspaceID: input.WorkspaceID, Source: personalization.SourceTripDiscovery, UserContext: planningUserContext, PreviousTrips: previous, WorkspacePolicy: policy})
+		if contextErr != nil { return AIRequest{}, contextErr }
+		value := contextValue.PlanningSummary()
+		personalizationSummary = &value
+	}
 	planning := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:      user.ID,
 		WorkspaceID: input.WorkspaceID,
@@ -606,6 +617,7 @@ func (s *Service) buildAIRequest(
 		UserContext:                planningUserContext,
 		WorkspacePolicy:            policy,
 		PreviousTrips:              previous,
+		Personalization:            personalizationSummary,
 		IncludePreviousTripSignals: true,
 		IncludeRoute:               false,
 	})

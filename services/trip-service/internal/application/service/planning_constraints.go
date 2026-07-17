@@ -12,6 +12,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
@@ -73,6 +74,10 @@ func (s *Service) PreviewPlanningConstraints(
 	if err != nil {
 		return nil, err
 	}
+	personalizationSummary, err := s.personalizationForPlanning(ctx, user.ID, personalization.Source(req.Source), workspaceID, userCtx, previousTrips, policy)
+	if err != nil {
+		return nil, err
+	}
 
 	constraints := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:                     user.ID,
@@ -85,6 +90,7 @@ func (s *Service) PreviewPlanningConstraints(
 		GroupPreferences:           groupPreferences,
 		GroupAvailability:          groupAvailability,
 		PreviousTrips:              previousTrips,
+		Personalization:            personalizationSummary,
 		IncludePreviousTripSignals: planningconstraints.IncludePreviousSignals(req.Source, req.IncludePreviousTripSignals),
 		IncludeRoute:               planningconstraints.IncludeRoute(req.IncludeRoute),
 	})
@@ -125,6 +131,10 @@ func (s *Service) buildPlanningConstraints(
 	if err != nil {
 		return nil, err
 	}
+	personalizationSummary, err := s.personalizationForPlanning(ctx, user.ID, personalization.Source(source), workspaceID, userCtx, previousTrips, policy)
+	if err != nil {
+		return nil, err
+	}
 	constraints := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:                     user.ID,
 		Trip:                       trip,
@@ -136,6 +146,7 @@ func (s *Service) buildPlanningConstraints(
 		GroupPreferences:           groupPreferences,
 		GroupAvailability:          groupAvailability,
 		PreviousTrips:              previousTrips,
+		Personalization:            personalizationSummary,
 		IncludePreviousTripSignals: includePrevious,
 		IncludeRoute:               true,
 	})

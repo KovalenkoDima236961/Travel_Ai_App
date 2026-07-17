@@ -575,3 +575,6 @@ Major generation endpoints include safe `metadata` with a prompt version,
 provider/model/mode, duration, and estimated token counts. The metadata is
 designed for Trip Service trace correlation and never contains a prompt,
 private request body, RAG chunk text, or provider secret.
+# Personalization v2
+
+Planning schemas accept a privacy-minimized `planningConstraints.personalization` summary. Prompt builders treat it as a soft, explainable preference layer: explicit request fields and workspace policy still override it. Deterministic destination and route mocks emit match reasons when the summary is present.

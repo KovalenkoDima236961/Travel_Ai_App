@@ -1461,3 +1461,6 @@ contain safe IDs, status/count values, destination, and short labels only—neve
 receipt OCR, private expense notes, comment bodies, calendar details, share
 credentials, AI prompts, or raw provider errors. An activity event alone is not
 a notification trigger.
+# Personalization v2
+
+Trip Service builds a deterministic, user-scoped personalization context from the trusted User Service profile, safe aggregates of the current user's trips, explicit feedback, and the active workspace policy. It persists lightweight feedback in `personalization_feedback`, exposes explainable context/feedback/template/budget endpoints, and forwards only a privacy-minimized summary through Planning Constraints. See [`docs/personalization.md`](../../docs/personalization.md) for precedence and privacy rules.

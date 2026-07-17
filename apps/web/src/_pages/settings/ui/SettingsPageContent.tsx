@@ -23,6 +23,8 @@ import {
 import { getErrorMessage } from "@/lib/utils";
 import { instrumentSans, newsreader } from "./fonts";
 import { SettingsHeader } from "./SettingsHeader";
+import { PreferenceCompletenessCard } from "@/components/personalization";
+import { usePreferenceCompleteness } from "@/hooks/usePersonalization";
 
 export function SettingsPageContent() {
   const translate = useTranslations("settings");
@@ -38,6 +40,7 @@ export function SettingsPageContent() {
     queryKey: userKeys.preferences(),
     queryFn: getMyPreferences
   });
+  const completenessQuery = usePreferenceCompleteness();
 
   const profileMutation = useMutation({
     mutationFn: updateMyProfile,
@@ -100,6 +103,7 @@ export function SettingsPageContent() {
 
         {profileQuery.data && preferencesQuery.data ? (
           <div className="mt-9 flex flex-col gap-5">
+            {completenessQuery.data ? <PreferenceCompletenessCard value={completenessQuery.data} /> : null}
             <section className="rounded-[20px] border border-sand-300 bg-white p-7">
               <h2 className="font-newsreader text-2xl font-medium text-cocoa-900">
                 {translate("language")}

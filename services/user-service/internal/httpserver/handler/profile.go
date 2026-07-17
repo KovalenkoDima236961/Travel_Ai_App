@@ -36,7 +36,20 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Put("/profile", h.UpdateProfile)
 		r.Get("/preferences", h.GetPreferences)
 		r.Patch("/preferences", h.PatchPreferences)
+		r.Get("/preferences/completeness", h.GetPreferenceCompleteness)
 	})
+}
+
+// GetPreferenceCompleteness handles GET /users/me/preferences/completeness.
+func (h *Handler) GetPreferenceCompleteness(w http.ResponseWriter, r *http.Request) {
+	result, err := h.svc.GetPreferenceCompleteness(r.Context())
+	if err != nil {
+		recordUserPreferencesRequest("completeness", "error")
+		h.writeServiceError(w, err)
+		return
+	}
+	recordUserPreferencesRequest("completeness", "success")
+	writeJSON(w, http.StatusOK, result)
 }
 
 // GetProfile handles GET /users/me/profile.

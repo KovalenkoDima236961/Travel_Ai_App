@@ -28,3 +28,21 @@ type PatchPreferencesInput struct {
 type OptionalFloat64 struct {
 	Value *float64
 }
+
+type PreferenceMissingField struct {
+	Field  string `json:"field"`
+	Label  string `json:"label"`
+	Reason string `json:"reason"`
+}
+
+type PreferenceRecommendedAction struct {
+	Label string `json:"label"`
+	Href  string `json:"href"`
+}
+
+type PreferenceCompleteness struct {
+	Score              int                           `json:"score"`
+	Level              string                        `json:"level"`
+	MissingFields      []PreferenceMissingField      `json:"missingFields"`
+	RecommendedActions []PreferenceRecommendedAction `json:"recommendedActions"`
+}

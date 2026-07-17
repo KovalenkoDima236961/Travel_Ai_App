@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 )
 
 const SchemaVersion = 1
@@ -56,34 +57,35 @@ const (
 )
 
 type PlanningConstraints struct {
-	SchemaVersion       int                  `json:"schemaVersion"`
-	Language            string               `json:"language"`
-	Scope               string               `json:"scope"`
-	WorkspaceID         *uuid.UUID           `json:"workspaceId"`
-	Source              Source               `json:"source"`
-	Profile             Profile              `json:"profile"`
-	Budget              *Budget              `json:"budget,omitempty"`
-	Dates               Dates                `json:"dates"`
-	Travelers           Travelers            `json:"travelers"`
-	Pace                string               `json:"pace"`
-	Walking             Walking              `json:"walking"`
-	Transport           Transport            `json:"transport"`
-	TripStyles          []string             `json:"tripStyles"`
-	Accommodation       Accommodation        `json:"accommodation"`
-	Interests           []string             `json:"interests"`
-	Avoid               []string             `json:"avoid"`
-	MustHave            []string             `json:"mustHave"`
-	Accessibility       Accessibility        `json:"accessibility"`
-	Food                Food                 `json:"food"`
-	Route               *Route               `json:"route,omitempty"`
-	TransportSelections []TransportSelection `json:"transportSelections,omitempty"`
-	WorkspacePolicy     *WorkspacePolicy     `json:"workspacePolicy,omitempty"`
-	GroupPreferences    *GroupPreferences    `json:"groupPreferences,omitempty"`
-	GroupAvailability   *GroupAvailability   `json:"groupAvailability,omitempty"`
-	PreviousTripSignals *PreviousTripSignals `json:"previousTripSignals,omitempty"`
-	Prompt              *Prompt              `json:"prompt,omitempty"`
-	Warnings            []Issue              `json:"warnings"`
-	Blockers            []Issue              `json:"blockers"`
+	SchemaVersion       int                              `json:"schemaVersion"`
+	Language            string                           `json:"language"`
+	Scope               string                           `json:"scope"`
+	WorkspaceID         *uuid.UUID                       `json:"workspaceId"`
+	Source              Source                           `json:"source"`
+	Profile             Profile                          `json:"profile"`
+	Budget              *Budget                          `json:"budget,omitempty"`
+	Dates               Dates                            `json:"dates"`
+	Travelers           Travelers                        `json:"travelers"`
+	Pace                string                           `json:"pace"`
+	Walking             Walking                          `json:"walking"`
+	Transport           Transport                        `json:"transport"`
+	TripStyles          []string                         `json:"tripStyles"`
+	Accommodation       Accommodation                    `json:"accommodation"`
+	Interests           []string                         `json:"interests"`
+	Avoid               []string                         `json:"avoid"`
+	MustHave            []string                         `json:"mustHave"`
+	Accessibility       Accessibility                    `json:"accessibility"`
+	Food                Food                             `json:"food"`
+	Route               *Route                           `json:"route,omitempty"`
+	TransportSelections []TransportSelection             `json:"transportSelections,omitempty"`
+	WorkspacePolicy     *WorkspacePolicy                 `json:"workspacePolicy,omitempty"`
+	GroupPreferences    *GroupPreferences                `json:"groupPreferences,omitempty"`
+	GroupAvailability   *GroupAvailability               `json:"groupAvailability,omitempty"`
+	PreviousTripSignals *PreviousTripSignals             `json:"previousTripSignals,omitempty"`
+	Personalization     *personalization.PlanningSummary `json:"personalization,omitempty"`
+	Prompt              *Prompt                          `json:"prompt,omitempty"`
+	Warnings            []Issue                          `json:"warnings"`
+	Blockers            []Issue                          `json:"blockers"`
 }
 
 type Profile struct {

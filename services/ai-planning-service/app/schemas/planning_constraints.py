@@ -189,6 +189,56 @@ class PreviousTripSignals(APIModel):
     typical_budget: PlanningConstraintBudget | None = Field(default=None, alias="typicalBudget")
 
 
+class PersonalizationMoney(APIModel):
+    amount: float
+    currency: str = "EUR"
+
+
+class PersonalizationPastTripSignals(APIModel):
+    past_destination_count: int = Field(default=0, alias="pastDestinationCount")
+    recent_destinations: list[str] = Field(default_factory=list, alias="recentDestinations")
+    repeated_styles: list[str] = Field(default_factory=list, alias="repeatedStyles")
+    average_trip_duration_days: int | None = Field(default=None, alias="averageTripDurationDays")
+    average_budget_per_day: PersonalizationMoney | None = Field(
+        default=None, alias="averageBudgetPerDay"
+    )
+    preferred_transport_from_history: list[str] = Field(
+        default_factory=list, alias="preferredTransportFromHistory"
+    )
+    over_budget_pattern: bool = Field(default=False, alias="overBudgetPattern")
+
+
+class PersonalizationFeedbackSignals(APIModel):
+    liked_destinations: list[str] = Field(default_factory=list, alias="likedDestinations")
+    disliked_destinations: list[str] = Field(default_factory=list, alias="dislikedDestinations")
+    liked_styles: list[str] = Field(default_factory=list, alias="likedStyles")
+    disliked_styles: list[str] = Field(default_factory=list, alias="dislikedStyles")
+    too_expensive_count: int = Field(default=0, alias="tooExpensiveCount")
+    too_much_walking_count: int = Field(default=0, alias="tooMuchWalkingCount")
+    prefer_train_count: int = Field(default=0, alias="preferTrainCount")
+    budget_sensitivity: str = Field(default="medium", alias="budgetSensitivity")
+    walking_sensitivity: str = Field(default="moderate", alias="walkingSensitivity")
+    recent_feedback_count: int = Field(default=0, alias="recentFeedbackCount")
+
+
+class PersonalizationSummary(APIModel):
+    schema_version: str = Field(default="personalization_v2", alias="schemaVersion")
+    completeness_score: int = Field(default=0, ge=0, le=100, alias="completenessScore")
+    travel_styles: list[str] = Field(default_factory=list, alias="travelStyles")
+    transport_bias: list[str] = Field(default_factory=list, alias="transportBias")
+    activity_bias: list[str] = Field(default_factory=list, alias="activityBias")
+    avoid_bias: list[str] = Field(default_factory=list, alias="avoidBias")
+    budget_comfort: str = Field(default="medium", alias="budgetComfort")
+    walking_tolerance: str = Field(default="moderate", alias="walkingTolerance")
+    past_trip_signals: PersonalizationPastTripSignals = Field(
+        default_factory=PersonalizationPastTripSignals, alias="pastTripSignals"
+    )
+    feedback_signals: PersonalizationFeedbackSignals = Field(
+        default_factory=PersonalizationFeedbackSignals, alias="feedbackSignals"
+    )
+    explanation_inputs: list[str] = Field(default_factory=list, alias="explanationInputs")
+
+
 class PlanningConstraintPrompt(APIModel):
     user_prompt: str | None = Field(default=None, alias="userPrompt")
     quick_chips: list[str] = Field(default_factory=list, alias="quickChips")
@@ -236,6 +286,7 @@ class PlanningConstraints(APIModel):
         default=None,
         alias="previousTripSignals",
     )
+    personalization: PersonalizationSummary | None = None
     prompt: PlanningConstraintPrompt | None = None
     warnings: list[PlanningConstraintIssue] = Field(default_factory=list)
     blockers: list[PlanningConstraintIssue] = Field(default_factory=list)

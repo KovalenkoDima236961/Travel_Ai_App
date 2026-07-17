@@ -14,6 +14,8 @@ import { budgetKeys, getTripBudgetSummary, updateTripBudget } from "@/lib/api/bu
 import { tripHealthKeys } from "@/lib/api/trip-health";
 import { tripKeys } from "@/lib/api/trips";
 import { useBudgetConfidence } from "@/hooks/useBudgetConfidence";
+import { useBudgetSuggestion } from "@/hooks/usePersonalization";
+import { PersonalizedBudgetSuggestionCard } from "@/components/personalization";
 import { formatApproxMoney, formatMoney } from "@/entities/budget/model";
 import { getErrorMessage } from "@/lib/utils";
 import type { Budget, BudgetSummary } from "@/entities/budget/model";
@@ -78,6 +80,7 @@ export function BudgetPanel({
     currency,
     enabled: !offline
   });
+  const suggestionQuery = useBudgetSuggestion(offline ? undefined : trip.id);
 
   return (
     <Card>
@@ -92,6 +95,18 @@ export function BudgetPanel({
 
       {message ? <p className="mt-2 text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
+
+      {suggestionQuery.data ? (
+        <div className="mt-4">
+          <PersonalizedBudgetSuggestionCard
+            suggestion={suggestionQuery.data}
+            onUse={canEdit ? () => {
+              const { min, max } = suggestionQuery.data.suggestedRange;
+              updateMutation.mutate({ amount: (min.amount + max.amount) / 2, currency: min.currency });
+            } : undefined}
+          />
+        </div>
+      ) : null}
 
       {isEditing ? (
         <div className="mt-4">

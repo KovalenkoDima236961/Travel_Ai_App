@@ -27,6 +27,7 @@ import (
 	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/jobqueue"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/closer"
@@ -77,6 +78,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 
 	repo := triprepo.New(db)
+	personalizationSvc := personalization.New(personalization.NewRepository(db), log)
 	gen, err := generator.NewItineraryGenerator(cfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("init itinerary generator: %w", err)
@@ -198,6 +200,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 
 	opts := []service.Option{
+		service.WithPersonalization(personalizationSvc),
 		service.WithUserContext(
 			userContextClient,
 			cfg.UserContext.Enabled,
@@ -429,6 +432,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		userContextClient,
 		workspaceClient,
 		policySvc,
+		personalizationSvc,
 		tripdiscovery.Config{
 			Enabled:                cfg.TripDiscovery.Enabled,
 			MaxPreviousTrips:       cfg.TripDiscovery.MaxPreviousTrips,

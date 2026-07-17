@@ -24,6 +24,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
@@ -397,6 +398,12 @@ func WithWorkspacePolicies(provider workspacePolicyProvider) Option {
 	}
 }
 
+// WithPersonalization supplies the deterministic user-scoped context builder.
+// The service remains fully functional when it is omitted.
+func WithPersonalization(personalizer *personalization.Service) Option {
+	return func(s *Service) { s.personalization = personalizer }
+}
+
 func WithTripHealthConfig(cfg triphealth.Config) Option {
 	return func(s *Service) {
 		s.tripHealthConfig = cfg
@@ -485,6 +492,7 @@ type Service struct {
 	transportSearchFailOpen            bool
 	workspaceProvider                  workspaceProvider
 	workspacePolicyProvider            workspacePolicyProvider
+	personalization                    *personalization.Service
 	workspacesEnabled                  bool
 	receiptStorage                     receipts.Storage
 	receiptOCRProvider                 receipts.OCRProvider

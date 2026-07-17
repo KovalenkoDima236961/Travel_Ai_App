@@ -115,6 +115,22 @@ func (s *Service) GetPreferences(ctx context.Context) (*entity.Preferences, erro
 	return normalisePreferenceSlices(created), nil
 }
 
+// GetPreferenceCompleteness reports how much of the optional travel profile is
+// available for deterministic personalization. It deliberately reads only the
+// caller's profile and preferences; no trip history or workspace data lives in
+// User Service.
+func (s *Service) GetPreferenceCompleteness(ctx context.Context) (appdto.PreferenceCompleteness, error) {
+	profile, err := s.GetProfile(ctx)
+	if err != nil {
+		return appdto.PreferenceCompleteness{}, err
+	}
+	preferences, err := s.GetPreferences(ctx)
+	if err != nil {
+		return appdto.PreferenceCompleteness{}, err
+	}
+	return calculatePreferenceCompleteness(profile, preferences), nil
+}
+
 // PatchPreferences merges provided fields with existing preferences and upserts
 // the resulting full preferences row.
 func (s *Service) PatchPreferences(ctx context.Context, in appdto.PatchPreferencesInput) (*entity.Preferences, error) {

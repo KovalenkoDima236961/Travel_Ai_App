@@ -11,6 +11,8 @@ import { instrumentSans, newsreader } from "./fonts";
 import { SearchIcon, TagIcon } from "./icons";
 import { TemplateCard } from "./TemplateCard";
 import { TemplatesHeader } from "./TemplatesHeader";
+import { RecommendedTemplatesSection } from "@/components/personalization";
+import { useRecommendedTemplates } from "@/hooks/usePersonalization";
 
 const FILTERS: { value: TripTemplateVisibility | "all"; label: string }[] = [
   { value: "all", label: "All accessible" },
@@ -35,6 +37,7 @@ export function TemplatesPageContent() {
     [search, tag, visibility]
   );
   const templatesQuery = useTripTemplates(params);
+  const recommendedQuery = useRecommendedTemplates();
   const templates = templatesQuery.data?.templates ?? [];
 
   return (
@@ -104,6 +107,8 @@ export function TemplatesPageContent() {
             </div>
           </div>
         </div>
+
+        {recommendedQuery.data?.items?.length ? <div className="mt-8"><RecommendedTemplatesSection items={recommendedQuery.data.items} /></div> : null}
 
         {templatesQuery.isPending ? (
           <div className="mt-8 rounded-[20px] border border-sand-300 bg-white/60 p-7 text-[14.5px] text-cocoa-500">

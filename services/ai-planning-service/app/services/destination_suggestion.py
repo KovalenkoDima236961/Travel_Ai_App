@@ -119,6 +119,8 @@ class MockDestinationSuggestionGenerator:
             amount = min(amount, requested_budget * (0.72 + index * 0.04))
         language = request.output_language
         destination = f"{city}, {info['country']}"
+
+        fit_reasons, fit_tags, tradeoffs = _personalization_fit(request, info)
         return DestinationSuggestion(
             id=f"{_slug(city)}-{_slug(str(info['country']))}",
             destination=destination,
@@ -135,6 +137,9 @@ class MockDestinationSuggestionGenerator:
             ),
             bestTimeToGo=_text(language, "best_time"),
             whyItFits=_format_text(language, "why", destination=destination),
+            whyThisFitsYou=fit_reasons,
+            personalizationTags=fit_tags,
+            tradeoffs=tradeoffs,
             possibleDownsides=[_text(language, "downside")],
             tripPreview=DestinationTripPreview(
                 title=_format_text(language, "preview_title", destination=city),
@@ -253,11 +258,21 @@ class MockDestinationSuggestionGenerator:
             ),
             bestTimeToGo=_text(language, "best_time"),
             whyItFits=_format_text(language, "why", destination="Austria train route"),
+            whyThisFitsYou=_personalization_fit(request, {"tags": ["train", "culture"]})[0],
+            personalizationTags=_personalization_fit(request, {"tags": ["train", "culture"]})[1],
+            tradeoffs=_personalization_fit(request, {"tags": ["train", "culture"]})[2],
             possibleDownsides=["Train times and transfer costs are estimates only."],
             tripPreview=DestinationTripPreview(
                 title="Austria train route",
-                summary="A compact Bratislava, Vienna, and Salzburg route with realistic train transfer days.",
-                sampleDay=["Bratislava to Vienna by train", "Vienna culture day", "Train to Salzburg"],
+                summary=(
+                    "A compact Bratislava, Vienna, and Salzburg route with realistic "
+                    "train transfer days."
+                ),
+                sampleDay=[
+                    "Bratislava to Vienna by train",
+                    "Vienna culture day",
+                    "Train to Salzburg",
+                ],
             ),
             tags=["route", "train_trip", "culture", "city_break"],
             suggestedPromptForItinerary=(
@@ -322,6 +337,33 @@ class OllamaDestinationSuggestionGenerator:
         if not isinstance(result, str) or not result.strip():
             raise ValueError("Ollama response is missing response text")
         return result
+
+
+def _personalization_fit(
+    request: DestinationSuggestionRequest, info: dict[str, object]
+) -> tuple[list[str], list[str], list[str]]:
+    """Build deterministic explanation copy from the privacy-minimized context."""
+    summary = request.planning_constraints.personalization if request.planning_constraints else None
+    if summary is None:
+        return ([], [], [])
+    tags = {str(value).casefold() for value in info.get("tags", []) if isinstance(value, str)}
+    reasons: list[str] = []
+    fit_tags: list[str] = []
+    if tags.intersection(value.casefold() for value in summary.activity_bias):
+        reasons.append("Matches your saved activity and travel-style preferences.")
+        fit_tags.append("style-match")
+    if "train" in (value.casefold() for value in summary.transport_bias):
+        reasons.append("Works well with your preference for train travel.")
+        fit_tags.append("train-friendly")
+    if summary.walking_tolerance in {"low", "moderate"}:
+        reasons.append(f"Can be planned around your {summary.walking_tolerance} walking tolerance.")
+        fit_tags.append(f"{summary.walking_tolerance}-walking")
+    tradeoffs: list[str] = []
+    if summary.budget_comfort == "low":
+        tradeoffs.append("Peak-season accommodation may need a lower-cost alternative.")
+    if not reasons:
+        reasons.append("Uses your saved preferences alongside the trip details you requested.")
+    return (reasons[:3], fit_tags[:4], tradeoffs[:2])
 
 
 def get_destination_suggestion_generator(settings: Settings) -> DestinationSuggestionGenerator:

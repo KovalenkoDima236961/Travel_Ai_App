@@ -22,6 +22,7 @@ from app.schemas.route_alternatives import (
     RouteAlternative,
     RouteAlternativeBudgetEstimate,
     RouteAlternativeComparisonSummary,
+    RouteAlternativePersonalizationFit,
     RouteAlternativeRequest,
     RouteAlternativeResponse,
     RouteAlternativeScores,
@@ -46,7 +47,7 @@ class MockRouteAlternativeGenerator:
     def suggest(self, request: RouteAlternativeRequest) -> RouteAlternativeResponse:
         alternatives = self._alternatives(request)
         count = max(1, min(request.suggestion_count, len(alternatives)))
-        selected = alternatives[:count]
+        selected = [_with_personalization(item, request) for item in alternatives[:count]]
         return RouteAlternativeResponse(
             sessionTitle=_text(request.output_language, "session_title"),
             alternatives=selected,
@@ -132,6 +133,34 @@ def get_route_alternative_generator(settings: Settings) -> RouteAlternativeGener
     if mode == "ollama":
         return OllamaRouteAlternativeGenerator(settings)
     return MockRouteAlternativeGenerator()
+
+
+def _with_personalization(
+    alternative: RouteAlternative, request: RouteAlternativeRequest
+) -> RouteAlternative:
+    summary = request.planning_constraints.personalization if request.planning_constraints else None
+    if summary is None:
+        return alternative
+    reasons: list[str] = []
+    concerns: list[str] = []
+    modes = [leg.mode.casefold() for leg in alternative.route.legs]
+    if "train" in {mode.casefold() for mode in summary.transport_bias} and "train" in modes:
+        reasons.append("Mostly train-based, matching your saved transport preference.")
+    if summary.walking_tolerance in {"low", "moderate"}:
+        reasons.append("Balances route movement with your walking tolerance.")
+    if summary.budget_comfort == "low" and alternative.scores.budget_fit < 70:
+        concerns.append("Its estimated budget may be above your usual comfort range.")
+    if not reasons:
+        reasons.append("Balances your saved preferences with the route you requested.")
+    return alternative.model_copy(
+        update={
+            "personalization_fit": RouteAlternativePersonalizationFit(
+                score=alternative.scores.overall_fit,
+                reasons=reasons[:3],
+                concerns=concerns[:2],
+            )
+        }
+    )
 
 
 def _austria_alternatives(request: RouteAlternativeRequest) -> list[RouteAlternative]:

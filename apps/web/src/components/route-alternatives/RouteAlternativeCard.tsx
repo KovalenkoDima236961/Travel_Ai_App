@@ -2,6 +2,7 @@
 
 import { formatMoney } from "@/entities/budget/model";
 import { transportModeLabel } from "@/components/routes/route-options";
+import { FeedbackChips, WhyThisFitsYou } from "@/components/personalization";
 import type { RouteAlternative } from "@/types/route-alternatives";
 import { RouteAlternativeMapPreview } from "./RouteAlternativeMapPreview";
 import { RouteAlternativeScores } from "./RouteAlternativeScores";
@@ -81,6 +82,8 @@ export function RouteAlternativeCard({
         <RouteAlternativeScores scores={alternative.scores} compact />
       </div>
 
+      {alternative.personalizationFit ? <div className="mt-4"><WhyThisFitsYou fit={{ score: alternative.personalizationFit.score, reasons: alternative.personalizationFit.reasons, concerns: alternative.personalizationFit.concerns }} /></div> : null}
+
       {alternative.bestFor.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-2">
           {alternative.bestFor.map((tag) => (
@@ -104,6 +107,10 @@ export function RouteAlternativeCard({
           {alternative.warnings.join(" ")}
         </div>
       ) : null}
+
+      <div className="mt-4 border-t border-sand-200 pt-3">
+        <FeedbackChips input={{ entityType: "route_alternative", entityId: alternative.id, metadata: { transport: modes, source: "route_alternatives" } }} chips={[{ type: "too_many_transfers", label: "Too many transfers" }, { type: "prefer_trains", label: "Prefer trains" }, { type: "more_nature", label: "More nature" }, { type: "too_expensive", label: "Cheaper route" }]} />
+      </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
         <button

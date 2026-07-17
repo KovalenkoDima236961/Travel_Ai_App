@@ -74,6 +74,12 @@ class RouteAlternativeScores(APIModel):
         return min(100, max(0, score))
 
 
+class RouteAlternativePersonalizationFit(APIModel):
+    score: int = Field(default=70, ge=0, le=100)
+    reasons: list[str] = Field(default_factory=list, max_length=5)
+    concerns: list[str] = Field(default_factory=list, max_length=5)
+
+
 class RouteAlternative(APIModel):
     id: str = Field(min_length=1, max_length=100)
     title: str = Field(min_length=1, max_length=160)
@@ -102,6 +108,9 @@ class RouteAlternative(APIModel):
         default=None,
         max_length=1000,
         alias="suggestedItineraryPrompt",
+    )
+    personalization_fit: RouteAlternativePersonalizationFit | None = Field(
+        default=None, alias="personalizationFit"
     )
 
     @field_validator("id", mode="before")

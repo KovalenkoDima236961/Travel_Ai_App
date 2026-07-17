@@ -25,6 +25,8 @@ import {
   TripRouteBuilder
 } from "@/components/routes/TripRouteBuilder";
 import { usePlanningConstraintsPreview } from "@/hooks/usePlanningConstraintsPreview";
+import { usePreferenceCompleteness } from "@/hooks/usePersonalization";
+import { PreferenceReviewPrompt } from "@/components/personalization";
 import type { TransportMode, TripRoute, TripStyle } from "@/entities/route/model";
 import type { PlanningConstraintsPreviewRequest } from "@/types/planning-constraints";
 import { CheckCircleIcon, MapPinIcon, SparklesIcon } from "./icons";
@@ -89,6 +91,7 @@ export function CreateTripForm({ initialTripMode = "single_destination" }: { ini
   const preferenceDefaultsApplied = useRef(false);
   const profileQuery = useQuery({ queryKey: userKeys.profile(), queryFn: getMyProfile });
   const preferencesQuery = useQuery({ queryKey: userKeys.preferences(), queryFn: getMyPreferences });
+  const completenessQuery = usePreferenceCompleteness();
   const [route, setRoute] = useState(createDefaultTripRoute);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [advancedPreferences, setAdvancedPreferences] = useState<AdvancedTripPreferencesValue>({
@@ -329,6 +332,7 @@ export function CreateTripForm({ initialTripMode = "single_destination" }: { ini
       onSubmit={handleSubmit(onSubmit)}
       className="flex flex-col gap-9 rounded-[22px] border border-sand-300 bg-white px-6 py-9 shadow-[0_1px_2px_rgba(34,26,20,0.04),0_14px_36px_rgba(34,26,20,0.06)] sm:px-10"
     >
+      {completenessQuery.data && completenessQuery.data.score < 70 ? <PreferenceReviewPrompt compact /> : null}
       <section>
         <h2 className="font-newsreader text-[22px] font-semibold text-cocoa-900">
           {translate("basics")}

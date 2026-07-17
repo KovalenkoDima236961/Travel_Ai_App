@@ -1124,6 +1124,25 @@ if [[ "${PATCHED_STYLE_COUNT}" -ne 3 || "${PATCHED_WALKING}" != "8" || "${PATCHE
   exit 1
 fi
 
+echo "Checking personalization completeness and feedback..."
+request_with_bearer GET "${USER_SERVICE_URL}/users/me/preferences/completeness" "${ACCESS_TOKEN}"
+assert_2xx "Get preference completeness"
+if ! jq -e '.score > 0 and (.missingFields | type == "array")' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Preference completeness response did not include a score and missing fields." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+PERSONALIZATION_FEEDBACK_PAYLOAD='{"entityType":"destination_suggestion","entityId":"smoke-vienna","feedbackType":"too_expensive","metadata":{"destination":"Vienna","source":"trip_discovery"}}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/personalization/feedback" "${ACCESS_TOKEN}" "${PERSONALIZATION_FEEDBACK_PAYLOAD}"
+assert_status "Submit personalization feedback" "201"
+request_with_bearer GET "${TRIP_SERVICE_URL}/personalization/feedback/summary" "${ACCESS_TOKEN}"
+assert_2xx "Get personalization feedback summary"
+if ! jq -e '.tooExpensiveCount >= 1' >/dev/null <<<"${LAST_BODY}"; then
+  echo "Personalization feedback summary did not aggregate feedback." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+
 echo "Checking route alternatives workflow..."
 ROUTE_ALT_SUGGEST_PAYLOAD="$(
   jq -nc '{
@@ -1154,6 +1173,7 @@ if ! jq -e '
   and (.alternatives[0].route.legs | length) >= 1
   and (.alternatives[0].scores.overallFit >= 0)
   and ((.alternatives[0].difficulty // "") | length > 0)
+  and ((.alternatives[0].personalizationFit.reasons // []) | length > 0)
 ' >/dev/null <<<"${LAST_BODY}"; then
   echo "Route alternatives response did not include expected route, score, and difficulty data." >&2
   echo "${LAST_BODY}" >&2

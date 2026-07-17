@@ -170,6 +170,11 @@ class DestinationSuggestion(APIModel):
     estimated_budget: DestinationBudgetEstimate = Field(alias="estimatedBudget")
     best_time_to_go: str = Field(alias="bestTimeToGo", min_length=1, max_length=300)
     why_it_fits: str = Field(alias="whyItFits", min_length=1, max_length=1000)
+    why_this_fits_you: list[str] = Field(default_factory=list, alias="whyThisFitsYou", max_length=5)
+    personalization_tags: list[str] = Field(
+        default_factory=list, alias="personalizationTags", max_length=8
+    )
+    tradeoffs: list[str] = Field(default_factory=list, max_length=5)
     possible_downsides: list[str] = Field(
         default_factory=list,
         alias="possibleDownsides",

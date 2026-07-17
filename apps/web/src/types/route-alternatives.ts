@@ -37,6 +37,7 @@ export type RouteAlternative = {
   cons: string[];
   warnings: string[];
   suggestedItineraryPrompt?: string;
+  personalizationFit?: { score: number; reasons: string[]; concerns: string[] } | null;
 };
 
 export type RouteAlternativeComparisonSummary = {

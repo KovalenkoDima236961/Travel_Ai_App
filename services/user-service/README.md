@@ -167,3 +167,6 @@ make build
   and included in logs.
 - Do not log access tokens, full preference payloads, private profile payloads,
   or raw Authorization headers.
+# Preference completeness
+
+`GET /users/me/preferences/completeness` returns a deterministic 0–100 score, missing fields, and a settings deep link. It only evaluates the authenticated user's saved profile and preferences; trip history and feedback are intentionally handled by Trip Service.

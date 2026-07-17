@@ -1127,3 +1127,6 @@ Trip detail exposes trip/category mutes with optional expiry. The notification
 page previews pending digests, filters categories, groups by date/trip/category,
 shows priority/grouped counts, and supports global or trip-level read actions.
 Digest text is deterministic rather than AI-generated.
+# Personalization v2
+
+The web app includes a Settings preference-completeness card, reusable explainability and feedback-chip components, and personalized match reasons on discovery and route-alternative cards. Feedback is sent only to the authenticated Trip Service and settings make clear that it is used inside the app, not for advertising.
