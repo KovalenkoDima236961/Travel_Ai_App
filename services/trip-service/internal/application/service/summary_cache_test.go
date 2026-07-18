@@ -61,3 +61,18 @@ func TestSummaryCacheEvictsOldestAtCapacity(t *testing.T) {
 		t.Fatalf("newest entry should remain, got value=%v hit=%v", value, ok)
 	}
 }
+
+func TestSummaryCacheCustomTTLAndClear(t *testing.T) {
+	now := time.Date(2026, time.July, 17, 10, 0, 0, 0, time.UTC)
+	cache := newSummaryCache(true, 30*time.Second, 10)
+	cache.now = func() time.Time { return now }
+	cache.setWithTTL("library_insights", "insights", "value", 5*time.Minute)
+	now = now.Add(31 * time.Second)
+	if value, ok := cache.get("library_insights", "insights"); !ok || value != "value" {
+		t.Fatalf("custom cache TTL should keep entry alive, got value=%v hit=%v", value, ok)
+	}
+	cache.clear("library_insights")
+	if _, ok := cache.get("library_insights", "insights"); ok {
+		t.Fatal("cleared summary should not remain cached")
+	}
+}

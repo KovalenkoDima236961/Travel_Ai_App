@@ -74,6 +74,7 @@ func (s *Service) ArchiveTrip(ctx context.Context, tripID uuid.UUID, input appdt
 		Metadata: map[string]any{"reason": reason, "tripTitle": trip.Destination},
 	})
 	s.log.Info("trip archived", zap.String("trip_id", tripID.String()), zap.String("user_id", user.ID.String()), zap.String("scope", tripWorkspaceScope(trip)))
+	s.summaryCache.clear("library_insights")
 	tripobs.RecordTripArchive("success", tripWorkspaceScope(trip))
 	return appdto.ArchiveTripResult{TripID: archived.ID, ArchivedAt: archived.ArchivedAt, Lifecycle: s.deriveLifecycle(archived)}, nil
 }
@@ -108,6 +109,7 @@ func (s *Service) RestoreTrip(ctx context.Context, tripID uuid.UUID) (appdto.Arc
 		Metadata: map[string]any{"tripTitle": trip.Destination},
 	})
 	s.log.Info("trip restored", zap.String("trip_id", tripID.String()), zap.String("user_id", user.ID.String()), zap.String("scope", tripWorkspaceScope(trip)))
+	s.summaryCache.clear("library_insights")
 	tripobs.RecordTripRestore("success", tripWorkspaceScope(trip))
 	return appdto.ArchiveTripResult{TripID: restored.ID, ArchivedAt: nil, Lifecycle: s.deriveLifecycle(restored)}, nil
 }
@@ -219,16 +221,39 @@ func (s *Service) getTripLibrary(ctx context.Context, filters appdto.TripLibrary
 }
 
 func (s *Service) GetTripLibraryInsights(ctx context.Context, workspaceID *uuid.UUID, year *int) (appdto.TripLibraryInsights, error) {
+	started := time.Now()
 	if !s.tripLibraryEnabled {
 		return appdto.TripLibraryInsights{}, apperrs.NewDependencyError("trip library is disabled")
+	}
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return appdto.TripLibraryInsights{}, err
+	}
+	workspaceScope := "all"
+	if workspaceID != nil {
+		workspaceScope = workspaceID.String()
+	}
+	yearScope := "all"
+	if year != nil {
+		yearScope = strconv.Itoa(*year)
+	}
+	cacheKey := summaryCacheKey("library_insights", nil, user.ID, workspaceScope, yearScope)
+	if cached, ok := s.summaryCache.get("library_insights", cacheKey); ok {
+		if result, valid := cached.(appdto.TripLibraryInsights); valid {
+			tripobs.RecordTripLibraryInsights(libraryScope(workspaceID))
+			return result, nil
+		}
 	}
 	filters := appdto.TripLibraryFilters{WorkspaceID: workspaceID, Year: year, Limit: maxLibraryLimit, Sort: appdto.TripLibrarySortRecentlyUpdated}
 	result, err := s.GetTripLibrary(ctx, filters)
 	if err != nil {
 		return appdto.TripLibraryInsights{}, err
 	}
+	insights := buildTripLibraryInsights(result.Items)
+	tripobs.RecordSummaryCompute("library_insights", time.Since(started))
+	s.summaryCache.setWithTTL("library_insights", cacheKey, insights, s.libraryInsightsCacheTTL)
 	tripobs.RecordTripLibraryInsights(libraryScope(workspaceID))
-	return buildTripLibraryInsights(result.Items), nil
+	return insights, nil
 }
 
 func (s *Service) deriveLifecycle(trip *entity.Trip) entity.TripLifecycle {

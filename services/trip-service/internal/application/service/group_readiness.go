@@ -18,6 +18,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/groupreadiness"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 const (
@@ -62,6 +63,7 @@ func (s *Service) GetGroupReadiness(
 		zap.Int("member_count", len(response.Members)),
 		zap.Duration("duration", time.Since(started)),
 	)
+	tripobs.RecordSummaryCompute("group_readiness", time.Since(started))
 	s.summaryCache.set("group_readiness", cacheKey, response)
 	return response, nil
 }
@@ -214,12 +216,21 @@ func (s *Service) groupReadinessSnapshot(
 	if err != nil {
 		snapshot.SubsystemFailures = append(snapshot.SubsystemFailures, "polls")
 	} else {
+		pollIDs := make([]uuid.UUID, 0, len(polls))
 		for _, poll := range polls {
-			votes, err := s.repo.ListPollVotesByPoll(ctx, poll.ID)
-			if err != nil {
-				snapshot.SubsystemFailures = append(snapshot.SubsystemFailures, "poll_votes")
+			pollIDs = append(pollIDs, poll.ID)
+		}
+		votes, voteErr := s.repo.ListPollVotesByPolls(ctx, pollIDs)
+		votesByPoll := make(map[uuid.UUID][]entity.TripPollVote, len(polls))
+		if voteErr != nil {
+			snapshot.SubsystemFailures = append(snapshot.SubsystemFailures, "poll_votes")
+		} else {
+			for _, vote := range votes {
+				votesByPoll[vote.PollID] = append(votesByPoll[vote.PollID], vote)
 			}
-			snapshot.Polls = append(snapshot.Polls, groupreadiness.PollSnapshot{Poll: poll, Votes: votes})
+		}
+		for _, poll := range polls {
+			snapshot.Polls = append(snapshot.Polls, groupreadiness.PollSnapshot{Poll: poll, Votes: votesByPoll[poll.ID]})
 		}
 	}
 

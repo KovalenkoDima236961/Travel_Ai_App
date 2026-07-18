@@ -2603,6 +2603,20 @@ func (r *routeTestRepo) ListPollVotesByPoll(_ context.Context, pollID uuid.UUID)
 	return out, nil
 }
 
+func (r *routeTestRepo) ListPollVotesByPolls(_ context.Context, pollIDs []uuid.UUID) ([]entity.TripPollVote, error) {
+	selected := make(map[uuid.UUID]struct{}, len(pollIDs))
+	for _, pollID := range pollIDs {
+		selected[pollID] = struct{}{}
+	}
+	out := make([]entity.TripPollVote, 0)
+	for _, vote := range r.pollVotes {
+		if _, ok := selected[vote.PollID]; ok {
+			out = append(out, vote)
+		}
+	}
+	return out, nil
+}
+
 func (r *routeTestRepo) ReplaceUserPollVotes(
 	_ context.Context,
 	pollID,

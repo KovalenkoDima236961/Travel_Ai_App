@@ -40,6 +40,14 @@ var (
 		prometheus.CounterOpts{Name: "summary_cache_evictions_total", Help: "Total trip summary cache evictions."},
 		[]string{"summary"},
 	)
+	summaryComputeDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "trip_summary_compute_duration_seconds",
+			Help:    "Cold-compute duration for bounded trip summaries.",
+			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"summary"},
+	)
 	verificationRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "trip_verification_requests_total", Help: "Total private trip verification reads."},
 		[]string{"result"},
@@ -115,6 +123,7 @@ func init() {
 		summaryCacheHits,
 		summaryCacheMisses,
 		summaryCacheEvictions,
+		summaryComputeDuration,
 		verificationRequests,
 		verificationDuration,
 		verificationScore,
@@ -144,6 +153,10 @@ func RecordSummaryCacheMiss(summary string) {
 
 func RecordSummaryCacheEviction(summary string) {
 	summaryCacheEvictions.WithLabelValues(summary).Inc()
+}
+
+func RecordSummaryCompute(summary string, duration time.Duration) {
+	summaryComputeDuration.WithLabelValues(summary).Observe(duration.Seconds())
 }
 
 func RecordActivityEventCreated(eventType string) {

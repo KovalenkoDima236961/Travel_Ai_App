@@ -275,6 +275,13 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			cfg.SummaryCache.MaxItems,
 			time.Duration(cfg.SummaryCache.EndpointTimeoutSeconds)*time.Second,
 		),
+		service.WithCommandCenterPerformance(
+			time.Duration(cfg.SummaryCache.CommandCenterSectionMS)*time.Millisecond,
+			cfg.SummaryCache.CommandCenterParallel,
+		),
+		service.WithLibraryInsightsCacheTTL(
+			time.Duration(cfg.SummaryCache.LibraryInsightsTTLSeconds) * time.Second,
+		),
 	}
 	if cfg.TripRecap.AIEnabled {
 		recapClient, err := recap.NewHTTPClient(

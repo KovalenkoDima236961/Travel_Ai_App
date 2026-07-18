@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 )
 
@@ -74,6 +75,7 @@ func (s *Service) GetTripHealth(
 		zap.Duration("duration", time.Since(started)),
 		zap.Strings("subsystem_failures", snapshot.SubsystemFailures),
 	)
+	tripobs.RecordSummaryCompute("trip_health", time.Since(started))
 	s.summaryCache.set("trip_health", cacheKey, response)
 	return response, nil
 }
@@ -173,6 +175,20 @@ func (s *Service) loadHealthExpenses(ctx context.Context, tripID uuid.UUID, snap
 		snapshot.SubsystemFailures = append(snapshot.SubsystemFailures, "receipts")
 		return
 	}
+	receiptIDs := make([]uuid.UUID, 0, len(receipts))
+	for _, receipt := range receipts {
+		if receipt.DeletedAt == nil {
+			receiptIDs = append(receiptIDs, receipt.ID)
+		}
+	}
+	ocrResults, err := s.repo.ListLatestReceiptOCRResults(ctx, tripID, receiptIDs)
+	if err != nil {
+		snapshot.SubsystemFailures = append(snapshot.SubsystemFailures, "receipt OCR")
+	}
+	ocrByReceipt := make(map[uuid.UUID]entity.ReceiptOCRResult, len(ocrResults))
+	for _, result := range ocrResults {
+		ocrByReceipt[result.ReceiptID] = result
+	}
 	receiptCountByExpense := map[uuid.UUID]int{}
 	for _, receipt := range receipts {
 		if receipt.DeletedAt != nil {
@@ -181,14 +197,7 @@ func (s *Service) loadHealthExpenses(ctx context.Context, tripID uuid.UUID, snap
 		if receipt.ExpenseID != nil {
 			receiptCountByExpense[*receipt.ExpenseID]++
 		}
-		ocr, err := s.repo.GetLatestReceiptOCRResult(ctx, tripID, receipt.ID)
-		if err != nil {
-			if !errors.Is(err, domainerrs.ErrNotFound) {
-				snapshot.SubsystemFailures = append(snapshot.SubsystemFailures, "receipt OCR")
-			}
-			continue
-		}
-		if ocr != nil {
+		if ocr, ok := ocrByReceipt[receipt.ID]; ok {
 			snapshot.ReceiptOCRSignals = append(snapshot.ReceiptOCRSignals, triphealth.ReceiptOCRSignal{
 				ReceiptID:  receipt.ID,
 				Confidence: ocr.Confidence,

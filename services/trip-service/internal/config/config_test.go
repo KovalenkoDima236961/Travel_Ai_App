@@ -64,6 +64,9 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 		"SUMMARY_CACHE_TTL_SECONDS",
 		"SUMMARY_CACHE_MAX_ITEMS",
 		"SUMMARY_ENDPOINT_TIMEOUT_SECONDS",
+		"SUMMARY_CACHE_LIBRARY_INSIGHTS_TTL_SECONDS",
+		"COMMAND_CENTER_SECTION_TIMEOUT_MS",
+		"COMMAND_CENTER_PARALLEL_ENABLED",
 	)
 	t.Setenv("POSTGRES_DB", "trip_service")
 	t.Setenv("POSTGRES_USER", "postgres")
@@ -91,7 +94,7 @@ func TestLoadAppliesAIGenerationTimeoutDefaults(t *testing.T) {
 	if cfg.Postgres.QueryTimeoutSeconds != 10 || cfg.Postgres.SlowQueryThresholdMS != 250 {
 		t.Fatalf("unexpected DB performance defaults: timeout=%d slow=%d", cfg.Postgres.QueryTimeoutSeconds, cfg.Postgres.SlowQueryThresholdMS)
 	}
-	if !cfg.SummaryCache.Enabled || cfg.SummaryCache.TTLSeconds != 30 || cfg.SummaryCache.MaxItems != 1000 || cfg.SummaryCache.EndpointTimeoutSeconds != 8 {
+	if !cfg.SummaryCache.Enabled || cfg.SummaryCache.TTLSeconds != 30 || cfg.SummaryCache.MaxItems != 1000 || cfg.SummaryCache.EndpointTimeoutSeconds != 8 || cfg.SummaryCache.LibraryInsightsTTLSeconds != 300 || cfg.SummaryCache.CommandCenterSectionMS != 300 || !cfg.SummaryCache.CommandCenterParallel {
 		t.Fatalf("unexpected summary cache defaults: %+v", cfg.SummaryCache)
 	}
 	if cfg.CORS.AllowedOrigins != "http://localhost:3000" {

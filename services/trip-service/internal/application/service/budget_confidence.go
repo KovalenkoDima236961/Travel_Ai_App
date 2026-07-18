@@ -14,7 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
-	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 var ErrBudgetConfidenceDisabled = errors.New("budget confidence is disabled")
@@ -24,6 +24,7 @@ func (s *Service) GetBudgetConfidence(
 	tripID uuid.UUID,
 	options budgetconfidence.Options,
 ) (budgetconfidence.Response, error) {
+	started := time.Now()
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return budgetconfidence.Response{}, err
@@ -43,6 +44,7 @@ func (s *Service) GetBudgetConfidence(
 		}
 	}
 	response := s.budgetConfidenceForTrip(ctx, trip, options)
+	tripobs.RecordSummaryCompute("budget_confidence", time.Since(started))
 	s.summaryCache.set("budget_confidence", cacheKey, response)
 	return response, nil
 }
@@ -140,27 +142,26 @@ func (s *Service) loadBudgetConfidenceReceipts(
 		)
 		return nil, nil, true
 	}
-	ocrByReceipt := make(map[uuid.UUID]*entity.ReceiptOCRResult, len(receipts))
-	failed := false
+	receiptIDs := make([]uuid.UUID, 0, len(receipts))
 	for _, receipt := range receipts {
 		if receipt.DeletedAt != nil {
 			continue
 		}
-		ocr, err := s.repo.GetLatestReceiptOCRResult(ctx, tripID, receipt.ID)
-		if err != nil {
-			if !errors.Is(err, domainerrs.ErrNotFound) {
-				failed = true
-				s.warn("budget confidence: failed to load receipt OCR",
-					zap.String("trip_id", tripID.String()),
-					zap.String("receipt_id", receipt.ID.String()),
-					zap.Error(err),
-				)
-			}
-			continue
-		}
-		if ocr != nil {
-			ocrByReceipt[receipt.ID] = ocr
-		}
+		receiptIDs = append(receiptIDs, receipt.ID)
 	}
-	return receipts, ocrByReceipt, failed
+	results, err := s.repo.ListLatestReceiptOCRResults(ctx, tripID, receiptIDs)
+	if err != nil {
+		s.warn("budget confidence: failed to load receipt OCR batch",
+			zap.String("trip_id", tripID.String()),
+			zap.Int("receipt_count", len(receiptIDs)),
+			zap.Error(err),
+		)
+		return receipts, nil, true
+	}
+	ocrByReceipt := make(map[uuid.UUID]*entity.ReceiptOCRResult, len(results))
+	for i := range results {
+		result := results[i]
+		ocrByReceipt[result.ReceiptID] = &result
+	}
+	return receipts, ocrByReceipt, false
 }

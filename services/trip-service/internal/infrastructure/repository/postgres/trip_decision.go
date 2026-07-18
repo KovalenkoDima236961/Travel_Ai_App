@@ -173,18 +173,31 @@ func (r *Repository) ListPollOptions(ctx context.Context, pollID uuid.UUID) ([]e
 }
 
 func (r *Repository) ListPollVotesByPoll(ctx context.Context, pollID uuid.UUID) ([]entity.TripPollVote, error) {
+	return r.ListPollVotesByPolls(ctx, []uuid.UUID{pollID})
+}
+
+// ListPollVotesByPolls returns votes for several polls in one ordered query.
+// Readiness summaries use it to avoid one round trip per poll.
+func (r *Repository) ListPollVotesByPolls(ctx context.Context, pollIDs []uuid.UUID) ([]entity.TripPollVote, error) {
+	if len(pollIDs) == 0 {
+		return []entity.TripPollVote{}, nil
+	}
+	ids := make([]any, 0, len(pollIDs))
+	for _, pollID := range pollIDs {
+		ids = append(ids, dto.IDArg(pollID))
+	}
 	query, args, err := r.db.Builder.
 		Select(dto.TripPollVoteColumns).
 		From("trip_poll_votes").
-		Where(sq.Eq{"poll_id": dto.IDArg(pollID)}).
-		OrderBy("created_at ASC", "id ASC").
+		Where(sq.Eq{"poll_id": ids}).
+		OrderBy("poll_id ASC", "created_at ASC", "id ASC").
 		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("build list poll votes: %w", err)
+		return nil, fmt.Errorf("build list poll votes batch: %w", err)
 	}
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query poll votes: %w", err)
+		return nil, fmt.Errorf("query poll votes batch: %w", err)
 	}
 	defer rows.Close()
 	return dto.ScanTripPollVoteRows(rows)

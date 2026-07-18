@@ -16,6 +16,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/groupreadiness"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/verification"
 )
@@ -145,6 +146,7 @@ type CommandCenterSectionError struct {
 }
 
 func (s *Service) GetCommandCenterSummary(ctx context.Context, tripID uuid.UUID) (CommandCenterSummary, error) {
+	started := time.Now()
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return CommandCenterSummary{}, err
@@ -177,14 +179,27 @@ func (s *Service) GetCommandCenterSummary(ctx context.Context, tripID uuid.UUID)
 	var wg sync.WaitGroup
 	var errorMu sync.Mutex
 	run := func(section string, load func(context.Context) error) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if loadErr := load(summaryCtx); loadErr != nil {
+		execute := func() {
+			sectionCtx := summaryCtx
+			cancelSection := func() {}
+			if s.commandCenterSectionTimeout > 0 {
+				sectionCtx, cancelSection = context.WithTimeout(summaryCtx, s.commandCenterSectionTimeout)
+			}
+			defer cancelSection()
+			if loadErr := load(sectionCtx); loadErr != nil {
 				errorMu.Lock()
 				response.SectionErrors = append(response.SectionErrors, commandCenterSectionError(section, loadErr))
 				errorMu.Unlock()
 			}
+		}
+		if !s.commandCenterParallel {
+			execute()
+			return
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			execute()
 		}()
 	}
 
@@ -271,6 +286,7 @@ func (s *Service) GetCommandCenterSummary(ctx context.Context, tripID uuid.UUID)
 	})
 
 	wg.Wait()
+	tripobs.RecordSummaryCompute("command_center", time.Since(started))
 	s.summaryCache.set("command_center", cacheKey, response)
 	return response, nil
 }

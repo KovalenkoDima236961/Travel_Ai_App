@@ -192,6 +192,15 @@ search:
   min_query_length: 2
   query_timeout_seconds: 3
 
+summary_cache:
+  enabled: true
+  ttl_seconds: 30
+  max_items: 1000
+  endpoint_timeout_seconds: 8
+  library_insights_ttl_seconds: 300
+  command_center_section_timeout_ms: 300
+  command_center_parallel_enabled: true
+
 generation_jobs:
   enabled: true
   worker_enabled: true

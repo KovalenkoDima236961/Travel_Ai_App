@@ -172,6 +172,7 @@ type tripRepository interface {
 	ListTripPollsByTrip(ctx context.Context, tripID uuid.UUID, includeArchived bool) ([]entity.TripPoll, error)
 	ListPollOptions(ctx context.Context, pollID uuid.UUID) ([]entity.TripPollOption, error)
 	ListPollVotesByPoll(ctx context.Context, pollID uuid.UUID) ([]entity.TripPollVote, error)
+	ListPollVotesByPolls(ctx context.Context, pollIDs []uuid.UUID) ([]entity.TripPollVote, error)
 	ReplaceUserPollVotes(ctx context.Context, pollID, userID uuid.UUID, votes []entity.TripPollVote) ([]entity.TripPollVote, error)
 	CloseTripPoll(ctx context.Context, tripID, pollID, actorUserID uuid.UUID) (*entity.TripPoll, error)
 	ArchiveTripPoll(ctx context.Context, tripID, pollID uuid.UUID) (*entity.TripPoll, error)
@@ -533,6 +534,9 @@ type Service struct {
 	verificationCache                  *summaryCache
 	summaryCache                       *summaryCache
 	summaryEndpointTimeout             time.Duration
+	commandCenterSectionTimeout        time.Duration
+	commandCenterParallel              bool
+	libraryInsightsCacheTTL            time.Duration
 	generationReliability              aivalidation.GenerationReliabilityPipeline
 	recapClient                        recap.Client
 	recapEnabled                       bool
@@ -584,6 +588,28 @@ func WithSummaryCache(enabled bool, ttl time.Duration, maxItems int, endpointTim
 	}
 }
 
+// WithCommandCenterPerformance bounds optional section work without making a
+// slow readiness source fail the compact overview. The serial mode is useful
+// for deterministic diagnostics in local environments.
+func WithCommandCenterPerformance(sectionTimeout time.Duration, parallel bool) Option {
+	return func(s *Service) {
+		if sectionTimeout > 0 {
+			s.commandCenterSectionTimeout = sectionTimeout
+		}
+		s.commandCenterParallel = parallel
+	}
+}
+
+// WithLibraryInsightsCacheTTL gives the expensive, viewer-scoped historical
+// aggregate a longer bounded lifetime than live trip summaries.
+func WithLibraryInsightsCacheTTL(ttl time.Duration) Option {
+	return func(s *Service) {
+		if ttl > 0 {
+			s.libraryInsightsCacheTTL = ttl
+		}
+	}
+}
+
 // New constructs the trip service.
 func New(repo tripRepository, generator application.ItineraryGenerator, log *zap.Logger, opts ...Option) *Service {
 	s := &Service{
@@ -604,6 +630,9 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		verificationCache:               newSummaryCache(true, time.Minute, 1000),
 		summaryCache:                    newSummaryCache(true, 30*time.Second, 1000),
 		summaryEndpointTimeout:          8 * time.Second,
+		commandCenterSectionTimeout:     300 * time.Millisecond,
+		commandCenterParallel:           true,
+		libraryInsightsCacheTTL:         5 * time.Minute,
 		recapEnabled:                    true,
 		recapFailOpen:                   true,
 		recapMaxSourceChars:             16000,

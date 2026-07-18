@@ -1211,6 +1211,20 @@ func (m *mockRepo) ListPollVotesByPoll(_ context.Context, pollID uuid.UUID) ([]e
 	return out, nil
 }
 
+func (m *mockRepo) ListPollVotesByPolls(_ context.Context, pollIDs []uuid.UUID) ([]entity.TripPollVote, error) {
+	selected := make(map[uuid.UUID]struct{}, len(pollIDs))
+	for _, pollID := range pollIDs {
+		selected[pollID] = struct{}{}
+	}
+	out := make([]entity.TripPollVote, 0)
+	for _, vote := range m.pollVotes {
+		if _, ok := selected[vote.PollID]; ok {
+			out = append(out, vote)
+		}
+	}
+	return out, nil
+}
+
 func (m *mockRepo) ReplaceUserPollVotes(_ context.Context, pollID, userID uuid.UUID, votes []entity.TripPollVote) ([]entity.TripPollVote, error) {
 	if m.replacePollVotesErr != nil {
 		return nil, m.replacePollVotesErr

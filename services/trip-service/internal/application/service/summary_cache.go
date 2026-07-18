@@ -83,8 +83,15 @@ func (c *summaryCache) get(summary, key string) (any, bool) {
 }
 
 func (c *summaryCache) set(summary, key string, value any) {
+	c.setWithTTL(summary, key, value, 0)
+}
+
+func (c *summaryCache) setWithTTL(summary, key string, value any, ttl time.Duration) {
 	if c == nil || !c.enabled {
 		return
+	}
+	if ttl <= 0 {
+		ttl = c.ttl
 	}
 	now := c.now()
 	c.mu.Lock()
@@ -112,8 +119,22 @@ func (c *summaryCache) set(summary, key string, value any) {
 	}
 	c.items[key] = summaryCacheEntry{
 		value:     value,
-		expiresAt: now.Add(c.ttl),
+		expiresAt: now.Add(ttl),
 		createdAt: now,
 		summary:   summary,
+	}
+}
+
+func (c *summaryCache) clear(summary string) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, entry := range c.items {
+		if entry.summary == summary {
+			delete(c.items, key)
+			tripobs.RecordSummaryCacheEviction(entry.summary)
+		}
 	}
 }

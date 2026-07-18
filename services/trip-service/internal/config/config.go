@@ -121,10 +121,13 @@ type SearchConfig struct {
 // deterministic trip summaries. Cache keys include the viewer and trip
 // revision/update timestamp so responses are never shared across users.
 type SummaryCacheConfig struct {
-	Enabled                bool `yaml:"enabled" env:"SUMMARY_CACHE_ENABLED" env-default:"true"`
-	TTLSeconds             int  `yaml:"ttl_seconds" env:"SUMMARY_CACHE_TTL_SECONDS" env-default:"30" validate:"min=1,max=300"`
-	MaxItems               int  `yaml:"max_items" env:"SUMMARY_CACHE_MAX_ITEMS" env-default:"1000" validate:"min=1,max=10000"`
-	EndpointTimeoutSeconds int  `yaml:"endpoint_timeout_seconds" env:"SUMMARY_ENDPOINT_TIMEOUT_SECONDS" env-default:"8" validate:"min=1,max=30"`
+	Enabled                   bool `yaml:"enabled" env:"SUMMARY_CACHE_ENABLED" env-default:"true"`
+	TTLSeconds                int  `yaml:"ttl_seconds" env:"SUMMARY_CACHE_TTL_SECONDS" env-default:"30" validate:"min=1,max=300"`
+	MaxItems                  int  `yaml:"max_items" env:"SUMMARY_CACHE_MAX_ITEMS" env-default:"1000" validate:"min=1,max=10000"`
+	EndpointTimeoutSeconds    int  `yaml:"endpoint_timeout_seconds" env:"SUMMARY_ENDPOINT_TIMEOUT_SECONDS" env-default:"8" validate:"min=1,max=30"`
+	LibraryInsightsTTLSeconds int  `yaml:"library_insights_ttl_seconds" env:"SUMMARY_CACHE_LIBRARY_INSIGHTS_TTL_SECONDS" env-default:"300" validate:"min=1,max=3600"`
+	CommandCenterSectionMS    int  `yaml:"command_center_section_timeout_ms" env:"COMMAND_CENTER_SECTION_TIMEOUT_MS" env-default:"300" validate:"min=50,max=5000"`
+	CommandCenterParallel     bool `yaml:"command_center_parallel_enabled" env:"COMMAND_CENTER_PARALLEL_ENABLED" env-default:"true"`
 }
 
 // AIObservabilityConfig keeps persisted generation traces privacy-safe. Raw
