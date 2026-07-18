@@ -605,13 +605,18 @@ export function TripChecklistPanel({
                   key={item.id}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                    <input
-                      checked={item.checked}
-                      className="mt-1 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                      disabled={!canToggle || busy}
-                      onChange={() => toggleItem(item)}
-                      type="checkbox"
-                    />
+                    <label
+                      aria-label={`${item.checked ? "Mark incomplete" : "Mark complete"}: ${item.title}`}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-slate-50"
+                    >
+                      <input
+                        checked={item.checked}
+                        className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        disabled={!canToggle || busy}
+                        onChange={() => toggleItem(item)}
+                        type="checkbox"
+                      />
+                    </label>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p

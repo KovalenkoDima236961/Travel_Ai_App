@@ -2492,7 +2492,7 @@ export function TripDetailPageContent() {
       )}
     >
       <TripDetailChromeHeader />
-      <div className="mx-auto max-w-[1360px] px-6 pb-20 pt-9 sm:px-10">
+      <div className="mx-auto max-w-[1360px] px-4 pb-20 pt-6 sm:px-10 sm:pt-9">
         <OfflineBanner
           cachedAt={cachedTripRecord?.cachedAt}
           className="mb-6"
@@ -2526,7 +2526,7 @@ export function TripDetailPageContent() {
 
         <TripMuteSettings tripId={trip.id} className="mt-5" />
 
-        <div className="mt-8 grid grid-cols-1 gap-8 xl:grid-cols-[224px_minmax(0,1fr)_372px]">
+        <div className="mt-6 grid grid-cols-1 gap-6 xl:mt-8 xl:grid-cols-[224px_minmax(0,1fr)_372px] xl:gap-8">
           <TripDetailSidebar
             budgetCurrency={trip.budgetCurrency}
             budgetLoading={onlineActionsEnabled && budgetSummaryQuery.isLoading}
@@ -3369,7 +3369,7 @@ function DetailShell({ children }: { children: ReactNode }) {
       )}
     >
       <TripDetailChromeHeader />
-      <div className="mx-auto max-w-[1360px] px-6 pb-20 pt-9 sm:px-10">{children}</div>
+      <div className="mx-auto max-w-[1360px] px-4 pb-20 pt-6 sm:px-10 sm:pt-9">{children}</div>
     </div>
   );
 }

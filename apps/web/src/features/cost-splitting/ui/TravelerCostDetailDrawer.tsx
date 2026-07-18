@@ -21,7 +21,12 @@ export function TravelerCostDetailDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/30">
-      <aside className="h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-xl">
+      <aside
+        aria-label={`${traveler.name} allocation details`}
+        aria-modal="true"
+        className="h-[100dvh] w-full overflow-y-auto border-l border-slate-200 bg-white p-4 shadow-xl sm:max-w-xl sm:p-5"
+        role="dialog"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">{traveler.name}</h2>
@@ -29,7 +34,7 @@ export function TravelerCostDetailDrawer({
               {formatMoney(traveler.allocatedTotal, currency)} estimated allocation
             </p>
           </div>
-          <Button onClick={onClose} size="sm" type="button" variant="ghost">
+          <Button aria-label="Close allocation details" onClick={onClose} size="sm" type="button" variant="ghost">
             Close
           </Button>
         </div>

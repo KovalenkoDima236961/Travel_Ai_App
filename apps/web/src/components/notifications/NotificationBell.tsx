@@ -56,7 +56,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2"
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-md text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2"
         aria-label={count > 0 ? `Notifications (${count} unread)` : "Notifications"}
         aria-haspopup="dialog"
         aria-expanded={open}

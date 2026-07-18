@@ -3,7 +3,7 @@
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 
 const SEG_BASE =
-  "h-[34px] rounded-full px-4 text-[13.5px] transition disabled:cursor-not-allowed disabled:opacity-40";
+  "h-11 rounded-full px-4 text-[13.5px] transition disabled:cursor-not-allowed disabled:opacity-40";
 const SEG_ACTIVE = "bg-cocoa-900 font-semibold text-sand-150";
 const SEG_IDLE = "font-medium text-cocoa-500 hover:bg-sand-200";
 
@@ -33,7 +33,7 @@ export function ScopeSegmentedControl() {
   }
 
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-sand-300 bg-white p-1">
+    <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-sand-300 bg-white p-1 [scrollbar-width:thin]">
       <button
         type="button"
         onClick={setAllTrips}

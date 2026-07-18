@@ -36,8 +36,9 @@ export function NotificationsDropdown({ open, onClose }: NotificationsDropdownPr
 
   return (
     <div
-      className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+      className="fixed inset-x-3 top-[4.5rem] z-50 max-h-[calc(100dvh-5.25rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:max-h-none sm:w-80 sm:max-w-[calc(100vw-2rem)]"
       role="dialog"
+      aria-modal="true"
       aria-label="Notifications"
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -52,7 +53,7 @@ export function NotificationsDropdown({ open, onClose }: NotificationsDropdownPr
         </button>
       </div>
 
-      <div className="max-h-96 overflow-y-auto">
+      <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto sm:max-h-96">
         {list.isLoading ? (
           <p className="px-4 py-6 text-center text-sm text-slate-500">Loading…</p>
         ) : list.isError ? (

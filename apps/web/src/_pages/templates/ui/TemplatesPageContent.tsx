@@ -52,7 +52,7 @@ export function TemplatesPageContent() {
 
       {/* Content region is a div, not <main> — the root layout already provides
           the <main> landmark, and nesting a second one is invalid. */}
-      <div className="mx-auto max-w-[1280px] px-6 pb-[72px] pt-12 sm:px-10">
+      <div className="mx-auto max-w-[1280px] px-4 pb-[72px] pt-8 sm:px-10 sm:pt-12">
         <div className="max-w-[640px]">
           <h1 className="font-newsreader text-[38px] font-medium leading-[1.05] tracking-[-0.02em] text-cocoa-900 sm:text-[44px]">
             Template library
@@ -63,7 +63,7 @@ export function TemplatesPageContent() {
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2 rounded-full border border-sand-300 bg-white p-1">
+          <div className="flex max-w-full overflow-x-auto rounded-full border border-sand-300 bg-white p-1 [scrollbar-width:thin]">
             {FILTERS.map((filter) => {
               const active = visibility === filter.value;
               return (
@@ -72,7 +72,7 @@ export function TemplatesPageContent() {
                   type="button"
                   onClick={() => setVisibility(filter.value)}
                   className={cn(
-                    "h-[34px] rounded-full px-4 text-[13.5px] transition",
+                    "h-11 shrink-0 rounded-full px-4 text-[13.5px] transition",
                     active
                       ? "bg-cocoa-900 font-semibold text-sand-150"
                       : "font-medium text-cocoa-500 hover:bg-sand-200"
@@ -84,8 +84,8 @@ export function TemplatesPageContent() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-11 items-center gap-2.5 rounded-full border border-sand-400 bg-white px-4">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+            <div className="flex h-11 w-full items-center gap-2.5 rounded-full border border-sand-400 bg-white px-4 sm:w-auto">
               <TagIcon className="h-4 w-4 text-[#A08D78]" />
               <input
                 aria-label="Filter by tag"
@@ -95,7 +95,7 @@ export function TemplatesPageContent() {
                 className="w-[130px] border-none bg-transparent text-[14.5px] text-cocoa-900 outline-none placeholder:text-cocoa-400"
               />
             </div>
-            <div className="flex h-11 min-w-[300px] items-center gap-2.5 rounded-full border border-sand-400 bg-white px-4">
+            <div className="flex h-11 w-full items-center gap-2.5 rounded-full border border-sand-400 bg-white px-4 sm:min-w-[300px]">
               <SearchIcon className="h-[17px] w-[17px] text-[#A08D78]" />
               <input
                 aria-label="Search templates"

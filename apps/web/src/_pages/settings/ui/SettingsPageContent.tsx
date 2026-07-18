@@ -74,7 +74,7 @@ export function SettingsPageContent() {
 
       {/* Content region is a div, not <main> — the root layout already provides
           the <main> landmark, and nesting a second one is invalid. */}
-      <div className="mx-auto max-w-[960px] px-6 pb-[72px] pt-12 sm:px-10">
+      <div className="mx-auto max-w-[960px] px-4 pb-[72px] pt-8 sm:px-10 sm:pt-12">
         <div className="max-w-[640px]">
           <h1 className="font-newsreader text-[44px] font-medium leading-[1.05] tracking-[-0.02em] text-cocoa-900">
             {translate("title")}

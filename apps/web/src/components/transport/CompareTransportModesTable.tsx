@@ -12,7 +12,15 @@ export function CompareTransportModesTable({ options }: Props) {
     return null;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-sand-300">
+    <div
+      aria-label="Transport comparison. Scroll sideways to see all columns."
+      className="overflow-x-auto rounded-lg border border-sand-300"
+      role="region"
+      tabIndex={0}
+    >
+      <p className="border-b border-sand-200 px-3 py-2 text-xs text-cocoa-500 sm:hidden">
+        Scroll sideways to see all transport details.
+      </p>
       <table className="min-w-full divide-y divide-sand-200 text-left text-[12.5px]">
         <thead className="bg-sand-100 text-cocoa-500">
           <tr>

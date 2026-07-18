@@ -52,7 +52,7 @@ export function NewTripPageContent() {
 
       {/* Content region is a div, not <main> — the root layout already provides
           the single <main> landmark. */}
-      <div className="mx-auto max-w-[1120px] px-6 pb-20 pt-12 sm:px-10">
+      <div className="mx-auto max-w-[1120px] px-4 pb-20 pt-8 sm:px-10 sm:pt-12">
         <Link
           href="/trips"
           className="inline-flex items-center gap-2 text-[14px] font-medium text-clay-deep transition hover:text-clay"

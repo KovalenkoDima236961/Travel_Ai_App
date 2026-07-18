@@ -23,7 +23,15 @@ export function RouteAlternativeComparisonTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-[16px] border border-sand-300 bg-white">
+    <div
+      aria-label="Route alternatives comparison. Scroll sideways to see every comparison field."
+      className="overflow-x-auto rounded-[16px] border border-sand-300 bg-white"
+      role="region"
+      tabIndex={0}
+    >
+      <p className="border-b border-sand-200 px-3 py-2 text-xs text-cocoa-500 md:hidden">
+        Scroll sideways to compare every route detail.
+      </p>
       <table className="min-w-[980px] w-full border-collapse text-left text-[13px]">
         <thead className="bg-sand-50 text-[11px] uppercase tracking-[0.08em] text-cocoa-500">
           <tr>

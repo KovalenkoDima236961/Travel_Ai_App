@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ResponsiveDataView } from "@/components/ui";
 import { Card } from "@/shared/ui/card";
 import {
   formatAnalyticsDate,
@@ -21,8 +22,13 @@ export function WorkspaceTripsCostTable({ trips, currency }: WorkspaceTripsCostT
       {trips.length === 0 ? (
         <p className="px-5 pb-5 text-sm text-slate-500">No workspace trips match these filters.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
+        <ResponsiveDataView
+          className="px-4 pb-4 md:px-0 md:pb-0"
+          getKey={(trip) => trip.tripId}
+          items={trips}
+          desktop={
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Trip</th>
@@ -64,8 +70,46 @@ export function WorkspaceTripsCostTable({ trips, currency }: WorkspaceTripsCostT
                 );
               })}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          }
+          renderMobileCard={(trip) => {
+            const over = (trip.overBudgetAmount ?? 0) > 0;
+            return (
+              <article className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link className="block truncate font-semibold text-primary-700 hover:text-primary-600" href={`/trips/${trip.tripId}/analytics`}>
+                      {trip.title || trip.destination}
+                    </Link>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {formatAnalyticsDate(trip.startDate)}
+                      {trip.endDate ? ` – ${formatAnalyticsDate(trip.endDate)}` : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-right text-sm font-semibold text-slate-950">
+                    {formatAnalyticsMoney(trip.estimatedTotal, currency)}
+                  </p>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <dt className="text-slate-500">Budget</dt>
+                    <dd className="mt-1 font-medium text-slate-800">{formatPlainMoney(trip.budgetAmount, currency)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Missing estimates</dt>
+                    <dd className="mt-1 font-medium text-slate-800">{trip.missingEstimateCount}</dd>
+                  </div>
+                </dl>
+                {over ? (
+                  <p className="mt-3 text-xs font-semibold text-red-700">
+                    {formatPlainMoney(trip.overBudgetAmount, currency)} over budget
+                  </p>
+                ) : null}
+              </article>
+            );
+          }}
+        />
       )}
     </Card>
   );

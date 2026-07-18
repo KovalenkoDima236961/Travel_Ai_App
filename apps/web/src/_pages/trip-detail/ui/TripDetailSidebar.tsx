@@ -61,60 +61,62 @@ export function TripDetailSidebar({
   const visibleTravelers = travelers.slice(0, 4);
 
   return (
-    <aside className="flex flex-col gap-6 lg:sticky lg:top-[84px]">
+    <aside className="flex flex-col gap-6 xl:sticky xl:top-[84px]">
       <SectionNav navigationGroups={navigationGroups} tripId={tripId} />
 
-      <BudgetSummaryCard
-        summary={budgetSummary}
-        currency={budgetCurrency}
-        isLoading={budgetLoading}
-        canEdit={canMutateTrip}
-        optimizationDisabled={optimizationDisabled}
-        perPersonAverage={perPersonAverage}
-        onOpenBudgetOptimization={onOpenBudgetOptimization}
-      />
+      <div className="hidden space-y-6 xl:block">
+        <BudgetSummaryCard
+          summary={budgetSummary}
+          currency={budgetCurrency}
+          isLoading={budgetLoading}
+          canEdit={canMutateTrip}
+          optimizationDisabled={optimizationDisabled}
+          perPersonAverage={perPersonAverage}
+          onOpenBudgetOptimization={onOpenBudgetOptimization}
+        />
 
-      {accommodation ? (
+        {accommodation ? (
+          <div className="rounded-[18px] border border-sand-300 bg-white p-5">
+            <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#A08D78]">
+              Stay
+            </h2>
+            <p className="mt-3 text-[14.5px] font-semibold text-cocoa-900">{accommodation.name}</p>
+            {stayMeta ? (
+              <p className="mt-1 text-[13px] leading-[1.5] text-cocoa-400">{stayMeta}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="rounded-[18px] border border-sand-300 bg-white p-5">
           <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#A08D78]">
-            Stay
+            Traveling with
           </h2>
-          <p className="mt-3 text-[14.5px] font-semibold text-cocoa-900">{accommodation.name}</p>
-          {stayMeta ? (
-            <p className="mt-1 text-[13px] leading-[1.5] text-cocoa-400">{stayMeta}</p>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="rounded-[18px] border border-sand-300 bg-white p-5">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#A08D78]">
-          Traveling with
-        </h2>
-        <div className="mt-3 flex items-center gap-2.5">
-          {visibleTravelers.length > 0 ? (
-            <div className="flex">
-              {visibleTravelers.map((traveler, index) => (
-                <span
-                  key={traveler.id}
-                  title={traveler.name}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[12px] font-semibold ${
-                    AVATAR_COLORS[index % AVATAR_COLORS.length]
-                  } ${index > 0 ? "-ml-2" : ""}`}
-                >
-                  {initials(traveler.name)}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="text-[13px] text-cocoa-400">Just you so far</span>
-          )}
-          <a
-            href="#sharing"
-            aria-label="Invite collaborator"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-sand-600 text-[#A08D78] transition hover:border-clay hover:text-clay"
-          >
-            <PlusIcon className="h-3.5 w-3.5" />
-          </a>
+          <div className="mt-3 flex items-center gap-2.5">
+            {visibleTravelers.length > 0 ? (
+              <div className="flex">
+                {visibleTravelers.map((traveler, index) => (
+                  <span
+                    key={traveler.id}
+                    title={traveler.name}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[12px] font-semibold ${
+                      AVATAR_COLORS[index % AVATAR_COLORS.length]
+                    } ${index > 0 ? "-ml-2" : ""}`}
+                  >
+                    {initials(traveler.name)}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[13px] text-cocoa-400">Just you so far</span>
+            )}
+            <a
+              href="#sharing"
+              aria-label="Invite collaborator"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-sand-600 text-[#A08D78] transition hover:border-clay hover:text-clay"
+            >
+              <PlusIcon className="h-3.5 w-3.5" />
+            </a>
+          </div>
         </div>
       </div>
     </aside>

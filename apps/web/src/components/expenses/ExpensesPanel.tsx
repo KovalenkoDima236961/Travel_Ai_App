@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ConfirmDialog, EmptyState, SectionLoadingState } from "@/components/ui";
+import { ConfirmDialog, EmptyState, FullScreenMobileDialog, SectionLoadingState } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
@@ -769,8 +769,13 @@ function AddExpenseDialog({
   );
 
   return (
-    <Card>
-      <form className="space-y-4" onSubmit={submit}>
+    <FullScreenMobileDialog
+      closeLabel={t("cancel")}
+      description={t("subtitle")}
+      onClose={onCancel}
+      title={t("addExpense")}
+    >
+      <form className="space-y-5 pb-20" onSubmit={submit}>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm font-medium text-slate-700">
             {t("form.title")}
@@ -929,16 +934,16 @@ function AddExpenseDialog({
           <Textarea onChange={(event) => setNotes(event.target.value)} value={notes} />
         </label>
 
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={isSaving || users.length === 0} type="submit">
-            {isSaving ? t("saving") : t("save")}
-          </Button>
-          <Button onClick={onCancel} type="button" variant="ghost">
+        <div className="sticky bottom-[-1rem] -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur sm:static sm:mx-0 sm:justify-end sm:border-0 sm:bg-transparent sm:p-0">
+          <Button className="flex-1 sm:flex-none" onClick={onCancel} type="button" variant="secondary">
             {t("cancel")}
+          </Button>
+          <Button className="flex-1 sm:flex-none" disabled={isSaving || users.length === 0} type="submit">
+            {isSaving ? t("saving") : t("save")}
           </Button>
         </div>
       </form>
-    </Card>
+    </FullScreenMobileDialog>
   );
 }
 

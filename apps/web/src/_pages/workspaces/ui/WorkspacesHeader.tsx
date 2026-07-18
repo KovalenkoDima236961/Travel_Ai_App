@@ -18,13 +18,13 @@ const NAV_IDLE = "font-medium text-cocoa-500 hover:bg-sand-200 hover:text-cocoa-
 export function WorkspacesHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-sand-300 bg-sand-50/95 backdrop-blur">
-      <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-6 px-6 py-3 sm:px-10">
-        <div className="flex items-center gap-6 lg:gap-9">
-          <Link href="/" className="flex items-center gap-2.5 text-cocoa-900">
+      <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 px-4 py-2 sm:gap-6 sm:px-10 sm:py-3">
+        <div className="flex min-w-0 items-center gap-6 lg:gap-9">
+          <Link aria-label="Travel AI Planner" href="/" className="flex shrink-0 items-center gap-2.5 text-cocoa-900">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-clay text-sand-100">
               <GlobeIcon className="h-[18px] w-[18px]" />
             </span>
-            <span className="font-newsreader text-[19px] font-semibold tracking-[-0.01em]">
+            <span className="hidden font-newsreader text-[19px] font-semibold tracking-[-0.01em] sm:inline">
               Travel AI Planner
             </span>
           </Link>
@@ -40,7 +40,7 @@ export function WorkspacesHeader() {
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
           <NotificationBell />
           <AccountMenu />
         </div>

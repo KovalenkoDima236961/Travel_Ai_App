@@ -59,7 +59,7 @@ export function AccountMenu() {
         aria-label={translate("account")}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#3E6B5A] text-[13px] font-semibold text-[#EFF5F1] transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-clay/40"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#3E6B5A] text-[13px] font-semibold text-[#EFF5F1] transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-clay/40"
       >
         {initialsFromEmail(user?.email)}
       </button>

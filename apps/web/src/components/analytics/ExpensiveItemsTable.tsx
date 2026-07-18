@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ResponsiveDataView } from "@/components/ui";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import {
@@ -31,8 +32,13 @@ export function ExpensiveItemsTable({
       {items.length === 0 ? (
         <p className="px-5 pb-5 text-sm text-slate-500">No estimated item costs yet.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
+        <ResponsiveDataView
+          className="px-4 pb-4 md:px-0 md:pb-0"
+          getKey={(item, index) => `${item.tripId ?? "trip"}-${item.dayNumber ?? 0}-${item.itemIndex ?? index}-${item.name}`}
+          items={items}
+          desktop={
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
               <tr>
                 {showTrip ? <th className="px-4 py-3">Trip</th> : null}
@@ -105,8 +111,49 @@ export function ExpensiveItemsTable({
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          }
+          renderMobileCard={(item) => (
+            <article className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  {showTrip && item.tripId ? (
+                    <Link className="block truncate font-semibold text-primary-700 hover:text-primary-600" href={`/trips/${item.tripId}`}>
+                      {item.tripTitle || item.destination || item.tripId}
+                    </Link>
+                  ) : null}
+                  <p className="truncate font-semibold text-slate-900">{item.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.dayNumber ? `Day ${item.dayNumber}` : "Trip cost"} · {formatAnalyticsLabel(item.category)}
+                  </p>
+                </div>
+                <p className="shrink-0 text-right text-sm font-semibold text-slate-950">
+                  {formatAnalyticsMoney(item.convertedAmount ?? item.amount, currency)}
+                </p>
+              </div>
+              <p className="mt-3 text-xs text-slate-600">
+                {formatAnalyticsLabel(item.source)} · {formatAnalyticsLabel(item.confidence)} · {formatPercent(item.percentageOfTrip)} of trip
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.tripId && item.dayNumber ? (
+                  <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary-700" href={`/trips/${item.tripId}#day-${item.dayNumber}-item-${item.itemIndex ?? 0}`}>
+                    Open item
+                  </Link>
+                ) : item.dayNumber ? (
+                  <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary-700" href={`#day-${item.dayNumber}-item-${item.itemIndex ?? 0}`}>
+                    Open item
+                  </Link>
+                ) : null}
+                {canEdit && item.dayNumber && onOptimizeDay ? (
+                  <Button onClick={() => onOptimizeDay(item.dayNumber ?? 1)} size="sm" type="button" variant="ghost">
+                    Optimize
+                  </Button>
+                ) : null}
+              </div>
+            </article>
+          )}
+        />
       )}
     </Card>
   );
