@@ -26,6 +26,17 @@ Add a key to `messages/en.json` first, then translate it in the other catalogs.
 The settings selector applies changes immediately and persists them to the
 profile when signed in.
 
+## Travel Library
+
+`/library` is the private long-term trip view. It uses
+`src/lib/api/library.ts`, `src/hooks/useTripLibrary.ts`, and compact server
+responses to browse completed and archived trips without loading full
+itineraries, receipts, comments, or calendar data. Lifecycle labels are derived
+by Trip Service; archive/restore uses a confirmation dialog and is reversible.
+The page provides recap/template links, budget/completion/route summaries, and
+deterministic history cards. `/trips` remains focused on active and upcoming
+plans and links users to the library for past trips.
+
 ## Onboarding and first run
 
 New users with no trips see a lightweight first-run dashboard with direct

@@ -56,6 +56,20 @@ After the baseline flow, verify in a private/incognito browser pair:
 
 The automated counterpart is `./scripts/security-smoke-test.sh`.
 
+## Trip Archive & Travel Library v1
+
+1. Open `/trips` and confirm the **Open Library** link is visible.
+2. Open `/library`, switch between Completed and Archived, then change year,
+   destination, and sort filters.
+3. Open a completed card's recap and budget links.
+4. Archive a permitted trip and confirm the explicit confirmation copy says that
+   nothing is deleted.
+5. Confirm the trip is absent from the normal list and present under Archived.
+6. Restore it and confirm it returns to normal lifecycle-derived placement.
+7. Verify history insight cards render without receipt text, comments, share
+   tokens, or calendar details.
+8. Verify a viewer receives no successful archive/restore action.
+
 ## AI Generation Observability
 
 After an administrator completes at least one itinerary generation, open

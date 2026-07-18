@@ -536,6 +536,9 @@ type Service struct {
 	recapAIEnabled                     bool
 	recapFailOpen                      bool
 	recapMaxSourceChars                int
+	tripLibraryEnabled                 bool
+	readyHealthScoreThreshold          int
+	readyVerificationScoreThreshold    int
 	log                                *zap.Logger
 }
 
@@ -549,6 +552,20 @@ func WithTripRecap(client recap.Client, enabled, aiEnabled, failOpen bool, maxSo
 		s.recapFailOpen = failOpen
 		if maxSourceChars > 0 {
 			s.recapMaxSourceChars = maxSourceChars
+		}
+	}
+}
+
+// WithTripLibrary configures derived lifecycle thresholds. The feature never
+// archives trips automatically; it only gates the private library endpoints.
+func WithTripLibrary(enabled bool, healthThreshold, verificationThreshold int) Option {
+	return func(s *Service) {
+		s.tripLibraryEnabled = enabled
+		if healthThreshold > 0 {
+			s.readyHealthScoreThreshold = healthThreshold
+		}
+		if verificationThreshold > 0 {
+			s.readyVerificationScoreThreshold = verificationThreshold
 		}
 	}
 }
@@ -567,26 +584,29 @@ func WithSummaryCache(enabled bool, ttl time.Duration, maxItems int, endpointTim
 // New constructs the trip service.
 func New(repo tripRepository, generator application.ItineraryGenerator, log *zap.Logger, opts ...Option) *Service {
 	s := &Service{
-		repo:                     repo,
-		generator:                generator,
-		publicSharingEnabled:     true,
-		publicWebBaseURL:         "http://localhost:3000",
-		shareTokenBytes:          32,
-		publicShareTokens:        sharing.NewPublicShareTokenManager("dev-public-share-secret-change-me", time.Hour),
-		budgetConversionFailOpen: true,
-		transportSearchFailOpen:  true,
-		receiptConfig:            receipts.DefaultConfig(),
-		receiptFileScanner:       receipts.NoopFileScanner{},
-		tripHealthConfig:         triphealth.DefaultConfig(),
-		budgetConfidenceConfig:   budgetconfidence.DefaultConfig(),
-		verificationConfig:       verification.DefaultConfig(),
-		verificationCache:        newSummaryCache(true, time.Minute, 1000),
-		summaryCache:             newSummaryCache(true, 30*time.Second, 1000),
-		summaryEndpointTimeout:   8 * time.Second,
-		recapEnabled:             true,
-		recapFailOpen:            true,
-		recapMaxSourceChars:      16000,
-		log:                      log,
+		repo:                            repo,
+		generator:                       generator,
+		publicSharingEnabled:            true,
+		publicWebBaseURL:                "http://localhost:3000",
+		shareTokenBytes:                 32,
+		publicShareTokens:               sharing.NewPublicShareTokenManager("dev-public-share-secret-change-me", time.Hour),
+		budgetConversionFailOpen:        true,
+		transportSearchFailOpen:         true,
+		receiptConfig:                   receipts.DefaultConfig(),
+		receiptFileScanner:              receipts.NoopFileScanner{},
+		tripHealthConfig:                triphealth.DefaultConfig(),
+		budgetConfidenceConfig:          budgetconfidence.DefaultConfig(),
+		verificationConfig:              verification.DefaultConfig(),
+		verificationCache:               newSummaryCache(true, time.Minute, 1000),
+		summaryCache:                    newSummaryCache(true, 30*time.Second, 1000),
+		summaryEndpointTimeout:          8 * time.Second,
+		recapEnabled:                    true,
+		recapFailOpen:                   true,
+		recapMaxSourceChars:             16000,
+		tripLibraryEnabled:              true,
+		readyHealthScoreThreshold:       80,
+		readyVerificationScoreThreshold: 75,
+		log:                             log,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -741,6 +761,15 @@ func (s *Service) ListWithFilters(ctx context.Context, in appdto.ListTripsInput)
 	trips, err := s.repo.ListAccessible(ctx, user.ID, workspaceIDs, normalizeTripListScope(in.Scope), in.WorkspaceID, limit, offset)
 	if err != nil {
 		return nil, 0, 0, err
+	}
+	if !in.IncludeArchived {
+		visible := make([]entity.Trip, 0, len(trips))
+		for i := range trips {
+			if trips[i].ArchivedAt == nil {
+				visible = append(visible, trips[i])
+			}
+		}
+		trips = visible
 	}
 	return trips, limit, offset, nil
 }

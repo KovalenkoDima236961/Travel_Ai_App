@@ -31,6 +31,9 @@ may explicitly confirm early generation through `generateEarly`.
 The web route is `/trips/{id}/recap`, linked from Trip detail, Command Center,
 post-trip Travel Day Mode, and the global command palette.
 
+The private Travel Library also links to an accessible trip's recap and template
+flow. Archiving a trip never archives or removes its recap or template.
+
 ## Privacy boundary
 
 The AI request contains bounded, sanitized aggregate data only: itinerary

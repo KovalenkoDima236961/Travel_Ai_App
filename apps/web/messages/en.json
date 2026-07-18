@@ -1273,6 +1273,8 @@
     "commands": {
       "createTrip": { "title": "Create new trip", "description": "Start a new AI travel plan." },
       "openTrips": { "title": "Open my trips", "description": "Go to your trip list." },
+      "travelLibrary": { "title": "Open travel library", "description": "Browse completed, archived, and reusable trips." },
+      "archivedTrips": { "title": "View archived trips", "description": "Browse trips hidden from your active list." },
       "commandCenter": { "title": "Open Command Center", "description": "Open the current trip overview." },
       "recap": { "title": "Open Trip Recap", "description": "Review the completed trip and save useful lessons." },
       "travelDay": { "title": "Open Travel Day Mode", "description": "See what is happening today and what is next." },
@@ -1385,6 +1387,9 @@
   },
   "travelDay": {
     "today": "Today", "travelMode": "Travel mode", "nextUp": "Next up", "now": "Now", "afterThat": "After that", "timeline": "Today’s timeline", "items": "{count} items", "anyTime": "Any", "selectedTransport": "Selected transport", "openMap": "Open map", "markDone": "Mark done", "markSkipped": "Mark skipped", "markDelayed": "Mark delayed", "addExpense": "Add expense", "uploadReceipt": "Upload receipt", "askCopilot": "Ask Copilot", "openPlanner": "Open in planner", "noPlan": "No plan for today", "doneToday": "You’re done for today", "offlineCopy": "Offline copy", "lastCached": "Last cached", "recently": "recently", "staleNotice": "Travel times and verification may be stale.", "syncPending": "Sync pending", "transportNotVerified": "Transport not verified", "activityMayBeClosed": "Activity may be closed", "weatherWarning": "Weather warning", "availabilityNotChecked": "Availability not checked", "verifyNow": "Verify now", "checklist": "Today’s checklist", "reminders": "Today’s reminders", "accommodation": "Accommodation tonight", "notBooking": "This is not a booking confirmation"
+  },
+  "library": {
+    "title": "Travel library", "subtitle": "Browse completed, archived, and reusable trips.", "active": "Active", "draft": "Draft", "planning": "Planning", "ready": "Ready", "completed": "Completed", "archived": "Archived", "archiveTrip": "Archive trip", "restoreTrip": "Restore trip", "archivedNotice": "This trip is archived", "archiveDescription": "Archived trips are hidden from your active trip list. This does not delete trip data.", "viewRecap": "View recap", "createRecap": "Create recap", "createTemplate": "Create template", "duplicateTrip": "Duplicate trip", "planSimilar": "Plan similar trip", "adaptTrip": "Adapt this trip", "compareBudget": "Compare budget", "viewExpenses": "View expenses", "pastTrips": "Past trips", "completedTrips": "Completed trips", "archivedTrips": "Archived trips", "tripsWithRecaps": "Trips with recaps", "templatesCreated": "Templates created from trips", "favoriteDestinations": "Favorite destinations", "budgetHistory": "Budget history", "lessonsLearned": "Lessons learned", "noArchived": "No archived trips", "noCompleted": "No completed trips yet", "noResults": "No results found", "filterYear": "Filter by year", "filterWorkspace": "Filter by workspace", "sortTripDate": "Sort by trip date", "sortUpdated": "Sort by recently updated"
   },
   "verification": {
     "eyebrow": "Real-world readiness",

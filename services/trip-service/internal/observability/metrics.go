@@ -80,6 +80,29 @@ var (
 		prometheus.CounterOpts{Name: "travel_status_update_failures_total", Help: "Failed travel itinerary status updates by role."},
 		[]string{"role"},
 	)
+	tripArchiveTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "trip_archive_total", Help: "Total user-initiated trip archive actions."},
+		[]string{"status", "workspace_scope"},
+	)
+	tripRestoreTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "trip_restore_total", Help: "Total user-initiated trip restore actions."},
+		[]string{"status", "workspace_scope"},
+	)
+	tripLibraryRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "trip_library_requests_total", Help: "Total private trip library requests."},
+		[]string{"status"},
+	)
+	tripLibraryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "trip_library_duration_seconds", Help: "Duration of private trip library reads."},
+		[]string{"status"},
+	)
+	tripLibraryResults = prometheus.NewHistogram(
+		prometheus.HistogramOpts{Name: "trip_library_results_count", Help: "Number of results returned by private trip library queries."},
+	)
+	tripLibraryInsightsRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "trip_library_insights_requests_total", Help: "Total private trip library insights requests."},
+		[]string{"workspace_scope"},
+	)
 )
 
 func init() {
@@ -102,6 +125,12 @@ func init() {
 		travelDayDuration,
 		travelStatusUpdates,
 		travelStatusUpdateFailures,
+		tripArchiveTotal,
+		tripRestoreTotal,
+		tripLibraryRequests,
+		tripLibraryDuration,
+		tripLibraryResults,
+		tripLibraryInsightsRequests,
 	)
 }
 
@@ -156,6 +185,26 @@ func RecordTravelStatusUpdate(status, role string) {
 
 func RecordTravelStatusUpdateFailure(role string) {
 	travelStatusUpdateFailures.WithLabelValues(role).Inc()
+}
+
+func RecordTripArchive(status, workspaceScope string) {
+	tripArchiveTotal.WithLabelValues(status, workspaceScope).Inc()
+}
+
+func RecordTripRestore(status, workspaceScope string) {
+	tripRestoreTotal.WithLabelValues(status, workspaceScope).Inc()
+}
+
+func RecordTripLibraryRead(status string, duration time.Duration, resultCount int) {
+	tripLibraryRequests.WithLabelValues(status).Inc()
+	tripLibraryDuration.WithLabelValues(status).Observe(duration.Seconds())
+	if resultCount >= 0 {
+		tripLibraryResults.Observe(float64(resultCount))
+	}
+}
+
+func RecordTripLibraryInsights(workspaceScope string) {
+	tripLibraryInsightsRequests.WithLabelValues(workspaceScope).Inc()
 }
 
 // RecordVerificationComputed intentionally records only aggregate, private

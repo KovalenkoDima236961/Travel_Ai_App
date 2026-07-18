@@ -78,6 +78,22 @@ export function getCommandRegistry(t: Translator): CommandPaletteCommand[] {
       href: "/trips",
       visibleIf: () => true
     },
+    {
+      id: "library.open",
+      title: t("commands.travelLibrary.title"),
+      description: t("commands.travelLibrary.description"),
+      category: t("categories.trips"),
+      href: "/library",
+      visibleIf: () => true
+    },
+    {
+      id: "library.archived",
+      title: t("commands.archivedTrips.title"),
+      description: t("commands.archivedTrips.description"),
+      category: t("categories.trips"),
+      href: "/library?lifecycle=archived",
+      visibleIf: () => true
+    },
     tripSectionCommand("trip.commandCenter", "commandCenter", "command_center", t),
     {
       id: "trip.recap",

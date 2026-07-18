@@ -35,10 +35,11 @@ type CreateTripInput struct {
 }
 
 type ListTripsInput struct {
-	Limit       int
-	Offset      int
-	Scope       TripListScope
-	WorkspaceID *uuid.UUID
+	Limit           int
+	Offset          int
+	Scope           TripListScope
+	WorkspaceID     *uuid.UUID
+	IncludeArchived bool
 }
 
 // UpdateItineraryInput is the application-level payload for replacing a trip's

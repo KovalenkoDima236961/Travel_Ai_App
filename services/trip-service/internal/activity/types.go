@@ -5,6 +5,8 @@ package activity
 const (
 	// Trip.
 	EventTripCreated                         = "trip_created"
+	EventTripArchived                        = "trip_archived"
+	EventTripRestored                        = "trip_restored"
 	EventTripBudgetUpdated                   = "trip_budget_updated"
 	EventRouteUpdated                        = "route_updated"
 	EventTransportOptionAttached             = "transport_option_attached"
@@ -153,6 +155,8 @@ const (
 // an unknown type is allowed (forward-compat) but is logged so typos surface.
 var knownEventTypes = map[string]struct{}{
 	EventTripCreated:                         {},
+	EventTripArchived:                        {},
+	EventTripRestored:                        {},
 	EventTripBudgetUpdated:                   {},
 	EventRouteUpdated:                        {},
 	EventTransportOptionAttached:             {},

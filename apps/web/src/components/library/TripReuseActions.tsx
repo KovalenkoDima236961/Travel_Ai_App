@@ -1,0 +1,7 @@
+import Link from "next/link";
+import type { TripLibraryItem } from "@/types/library";
+
+export function TripReuseActions({ item, onArchive, onRestore }: { item: TripLibraryItem; onArchive: () => void; onRestore: () => void }) {
+  const id = item.trip.id;
+  return <div className="flex flex-wrap gap-2 border-t border-sand-200 pt-3 text-xs font-semibold"><Link className="text-clay hover:underline" href={`/trips/${id}`}>View trip</Link>{item.recap.hasRecap ? <Link className="text-cocoa-600 hover:text-cocoa-900 hover:underline" href={`/trips/${id}/recap`}>View recap</Link> : <Link className="text-cocoa-600 hover:text-cocoa-900 hover:underline" href={`/trips/${id}/recap`}>Create recap</Link>}{!item.template.hasTemplate ? <Link className="text-cocoa-600 hover:text-cocoa-900 hover:underline" href={`/trips/${id}/recap`}>Create template</Link> : null}<Link className="text-cocoa-600 hover:text-cocoa-900 hover:underline" href={`/trips/new?similarToTripId=${id}`}>Plan similar</Link><Link className="text-cocoa-600 hover:text-cocoa-900 hover:underline" href={`/trips/${id}/analytics`}>Compare budget</Link>{item.actions.includes("restore_trip") ? <button type="button" onClick={onRestore} className="text-cocoa-900 hover:underline">Restore</button> : null}{item.actions.includes("archive_trip") ? <button type="button" onClick={onArchive} className="text-clay hover:underline">Archive</button> : null}</div>;
+}

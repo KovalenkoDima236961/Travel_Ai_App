@@ -204,6 +204,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 
 	opts := []service.Option{
 		service.WithTripRecap(nil, cfg.TripRecap.Enabled, cfg.TripRecap.AIEnabled, cfg.TripRecap.FailOpenWithDeterministic, cfg.TripRecap.MaxSourceChars),
+		service.WithTripLibrary(cfg.TripLibrary.Enabled, cfg.TripLibrary.ReadyHealthScoreThreshold, cfg.TripLibrary.ReadyVerificationScoreThreshold),
 		service.WithPersonalization(personalizationSvc),
 		service.WithUserContext(
 			userContextClient,

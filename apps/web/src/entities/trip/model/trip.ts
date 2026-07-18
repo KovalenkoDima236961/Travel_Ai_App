@@ -10,6 +10,7 @@ export type Pace = "relaxed" | "balanced" | "packed" | "intensive" | string;
 export type TripScope = "personal" | "workspace";
 
 export type TripType = "single_destination" | "multi_destination";
+export type TripLifecycle = "draft" | "planning" | "ready" | "active" | "completed" | "archived";
 
 export type PlaceEnrichmentReviewStatus = "pending" | "accepted" | "changed" | "removed";
 
@@ -135,6 +136,9 @@ export type Trip = {
   status: TripStatus;
   itinerary?: Itinerary | null;
   itineraryRevision: number;
+  lifecycle?: TripLifecycle;
+  archivedAt?: string | null;
+  archivedByUserId?: string | null;
   access?: TripAccess | null;
   createdAt: string;
   updatedAt: string;

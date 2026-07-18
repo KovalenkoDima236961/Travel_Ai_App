@@ -9,6 +9,23 @@ enrichment metadata.
 Trip Service is the orchestration point between user-facing APIs, AI generation,
 external provider data, notifications, and background workers.
 
+## Trip Archive & Long-Term Library
+
+Migration `000037_add_trip_archive_fields` adds non-destructive archive state to
+`trips`. `POST /trips/{id}/archive` and `POST /trips/{id}/restore` are limited
+to a personal trip owner, workspace owner/admin, or the recorded trip owner.
+They preserve all trip data and activity records; archive/restore creates
+`trip_archived`/`trip_restored` activity events and does not send notifications.
+
+`GET /trips` hides archived trips by default (`includeArchived=true` is
+explicit). `GET /trips/library` supports lifecycle, year, destination,
+workspace, route/style/budget, recap/template/expense filters and deterministic
+sorting with a cursor. `GET /trips/library/insights` exposes only private,
+permission-scoped counts and averages. Compact library responses omit raw OCR,
+expense notes, comments, calendar data, share controls, provider metadata, and
+AI prompts. See [`docs/trip-library.md`](../../docs/trip-library.md) for the
+lifecycle rules, currency limitation, privacy model, and configuration.
+
 ## Post-Trip Recap & Learning Loop
 
 Trip Service stores private versioned recap JSON and user-scoped recap feedback

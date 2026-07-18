@@ -45,6 +45,11 @@ trip_discovery:
   max_previous_trips: 15
   default_suggestion_count: 5
 
+trip_library:
+  enabled: true
+  ready_health_score_threshold: 80
+  ready_verification_score_threshold: 75
+
 trip_health:
   enabled: true
   cache_ttl_seconds: 60

@@ -89,6 +89,13 @@ export function TripDetailHeader({
             {formatPaceLabel(trip.pace)} pace
           </span>
         </p>
+        {trip.archivedAt ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-sand-300 bg-sand-100 px-3.5 py-2.5 text-sm text-cocoa-700">
+            <span className="font-semibold text-cocoa-900">This trip is archived.</span>
+            <span>It remains available in your travel library.</span>
+            <Link href="/library?lifecycle=archived" className="font-semibold text-clay hover:underline">Open Library</Link>
+          </div>
+        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2.5"><Link className="inline-flex items-center rounded-md border border-sand-300 bg-white px-3 py-2 text-sm font-medium text-cocoa-700 transition hover:border-sand-400 hover:text-cocoa-900" href={`/trips/${trip.id}/recap`}>Trip recap</Link>{actions}</div>
     </div>

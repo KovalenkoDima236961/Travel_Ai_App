@@ -23,7 +23,7 @@ import (
 // Columns is the canonical column order used by all SELECT/RETURNING statements
 // and the Scan helper.
 const Columns = "id, user_id, destination, start_date, days, budget_amount, " +
-	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, workspace_id, creation_metadata, trip_type, route_json, created_at, updated_at"
+	"budget_currency, travelers, interests, pace, status, itinerary, itinerary_revision, accommodation, workspace_id, creation_metadata, trip_type, route_json, archived_at, archived_by_user_id, archive_reason, created_at, updated_at"
 
 // InsertColumns returns the columns set on INSERT (DB-defaulted columns omitted),
 // in the same order as InsertValues.
@@ -88,29 +88,31 @@ func TextArg(s string) pgtype.Text {
 // domain errs.ErrNotFound when the row is absent.
 func Scan(row pgx.Row) (*entity.Trip, error) {
 	var (
-		id, userID, workspaceID pgtype.UUID
-		destination             string
-		startDate               pgtype.Date
-		days                    int32
-		budgetAmount            pgtype.Numeric
-		budgetCurrency          pgtype.Text
-		travelers               pgtype.Int4
-		interestsRaw            []byte
-		pace, status            string
-		itineraryRaw            []byte
-		accommodationRaw        []byte
-		creationMetadataRaw     []byte
-		tripType                string
-		routeRaw                []byte
-		itineraryRevision       int32
-		createdAt, updatedAt    pgtype.Timestamp
+		id, userID, workspaceID          pgtype.UUID
+		destination                      string
+		startDate                        pgtype.Date
+		days                             int32
+		budgetAmount                     pgtype.Numeric
+		budgetCurrency                   pgtype.Text
+		travelers                        pgtype.Int4
+		interestsRaw                     []byte
+		pace, status                     string
+		itineraryRaw                     []byte
+		accommodationRaw                 []byte
+		creationMetadataRaw              []byte
+		tripType                         string
+		routeRaw                         []byte
+		itineraryRevision                int32
+		archivedAt, createdAt, updatedAt pgtype.Timestamp
+		archivedByUserID                 pgtype.UUID
+		archiveReason                    pgtype.Text
 	)
 
 	err := row.Scan(
 		&id, &userID, &destination, &startDate, &days, &budgetAmount,
 		&budgetCurrency, &travelers, &interestsRaw, &pace, &status,
 		&itineraryRaw, &itineraryRevision, &accommodationRaw, &workspaceID, &creationMetadataRaw,
-		&tripType, &routeRaw,
+		&tripType, &routeRaw, &archivedAt, &archivedByUserID, &archiveReason,
 		&createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -140,8 +142,14 @@ func Scan(row pgx.Row) (*entity.Trip, error) {
 		Pace:              pace,
 		Status:            entity.Status(status),
 		ItineraryRevision: int(itineraryRevision),
+		ArchivedAt:        fromPgTimestamp(archivedAt),
+		ArchivedByUserID:  fromPgUUID(archivedByUserID),
 		CreatedAt:         createdAt.Time,
 		UpdatedAt:         updatedAt.Time,
+	}
+	if archiveReason.Valid {
+		value := archiveReason.String
+		t.ArchiveReason = &value
 	}
 	if len(itineraryRaw) > 0 {
 		t.Itinerary = json.RawMessage(itineraryRaw)

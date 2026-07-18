@@ -31,6 +31,9 @@ export function TripsHeader() {
             <Link href="/trips" aria-current="page" className={`${NAV_BASE} ${NAV_ACTIVE}`}>
               Trips
             </Link>
+            <Link href="/library" className={`${NAV_BASE} ${NAV_IDLE}`}>
+              Library
+            </Link>
             <Link href="/templates" className={`${NAV_BASE} ${NAV_IDLE}`}>
               Templates
             </Link>

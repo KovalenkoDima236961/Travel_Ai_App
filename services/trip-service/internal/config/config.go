@@ -58,6 +58,15 @@ type Config struct {
 	AIObservability    AIObservabilityConfig    `yaml:"ai_observability"`
 	Copilot            CopilotConfig            `yaml:"copilot"`
 	TripRecap          TripRecapConfig          `yaml:"trip_recap"`
+	TripLibrary        TripLibraryConfig        `yaml:"trip_library"`
+}
+
+// TripLibraryConfig controls private archive and historical-library behavior.
+// Archiving is always user initiated; this setting never enables auto-archive.
+type TripLibraryConfig struct {
+	Enabled                         bool `yaml:"enabled" env:"TRIP_LIBRARY_ENABLED" env-default:"true"`
+	ReadyHealthScoreThreshold       int  `yaml:"ready_health_score_threshold" env:"TRIP_READY_HEALTH_SCORE_THRESHOLD" env-default:"80" validate:"min=1,max=100"`
+	ReadyVerificationScoreThreshold int  `yaml:"ready_verification_score_threshold" env:"TRIP_READY_VERIFICATION_SCORE_THRESHOLD" env-default:"75" validate:"min=1,max=100"`
 }
 
 // TripRecapConfig controls private, post-trip recap generation. The feature

@@ -133,8 +133,12 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/trips", func(r chi.Router) {
 		r.Post("/", h.Create)
 		r.Get("/", h.List)
+		r.Get("/library", h.GetTripLibrary)
+		r.Get("/library/insights", h.GetTripLibraryInsights)
 		r.Get("/shared-with-me", h.ListSharedTrips)
 		r.Get("/{id}", h.Get)
+		r.Post("/{id}/archive", h.ArchiveTrip)
+		r.Post("/{id}/restore", h.RestoreTrip)
 		r.Get("/{id}/command-center-summary", h.GetCommandCenterSummary)
 		r.Get("/{id}/recap/status", h.GetTripRecapStatus)
 		r.Get("/{id}/recap", h.GetTripRecap)
@@ -440,6 +444,10 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	includeArchived, ok := parseBoolQuery(w, r, "includeArchived")
+	if !ok {
+		return
+	}
 	scope := appdto.TripListScope(strings.TrimSpace(r.URL.Query().Get("scope")))
 	var workspaceID *uuid.UUID
 	if rawWorkspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId")); rawWorkspaceID != "" {
@@ -452,10 +460,11 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	trips, appliedLimit, appliedOffset, err := h.svc.ListWithFilters(r.Context(), appdto.ListTripsInput{
-		Limit:       limit,
-		Offset:      offset,
-		Scope:       scope,
-		WorkspaceID: workspaceID,
+		Limit:           limit,
+		Offset:          offset,
+		Scope:           scope,
+		WorkspaceID:     workspaceID,
+		IncludeArchived: includeArchived,
 	})
 	if err != nil {
 		h.writeServiceError(w, err)

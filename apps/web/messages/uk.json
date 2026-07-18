@@ -781,6 +781,8 @@
     "commands": {
       "createTrip": { "title": "Створити подорож", "description": "Почати новий AI-план." },
       "openTrips": { "title": "Відкрити мої подорожі", "description": "Перейти до списку подорожей." },
+      "travelLibrary": { "title": "Відкрити бібліотеку подорожей", "description": "Переглядайте завершені, архівні та повторно придатні подорожі." },
+      "archivedTrips": { "title": "Переглянути архівні подорожі", "description": "Переглядайте подорожі, приховані з активного списку." },
       "commandCenter": { "title": "Відкрити Command Center", "description": "Відкрити огляд поточної подорожі." },
       "recap": { "title": "Відкрити підсумок подорожі", "description": "Перегляньте завершену подорож і збережіть корисні уроки." },
       "travelDay": { "title": "Відкрити режим подорожі", "description": "Переглянути план на сьогодні й наступне." },
@@ -840,6 +842,9 @@
   },
   "travelDay": {
     "today": "Сьогодні", "travelMode": "Режим подорожі", "nextUp": "Далі", "now": "Зараз", "afterThat": "Потім", "timeline": "План на сьогодні", "items": "Елементів: {count}", "anyTime": "Будь-коли", "selectedTransport": "Вибраний транспорт", "openMap": "Відкрити карту", "markDone": "Позначити виконаним", "markSkipped": "Пропустити", "markDelayed": "Позначити затриманим", "addExpense": "Додати витрату", "uploadReceipt": "Завантажити чек", "askCopilot": "Запитати Copilot", "openPlanner": "Відкрити план", "noPlan": "На сьогодні плану немає", "doneToday": "На сьогодні все", "offlineCopy": "Офлайн-копія", "lastCached": "Останнє збереження", "recently": "нещодавно", "staleNotice": "Час у дорозі та перевірка можуть бути застарілими.", "syncPending": "Очікує синхронізації", "transportNotVerified": "Транспорт не перевірено", "activityMayBeClosed": "Заклад може бути зачинений", "weatherWarning": "Попередження про погоду", "availabilityNotChecked": "Доступність не перевірено", "verifyNow": "Перевірити", "checklist": "Список на сьогодні", "reminders": "Нагадування на сьогодні", "accommodation": "Проживання сьогодні", "notBooking": "Це не підтвердження бронювання"
+  },
+  "library": {
+    "title": "Бібліотека подорожей", "subtitle": "Переглядайте завершені, архівні та повторно придатні подорожі.", "active": "Активна", "draft": "Чернетка", "planning": "Планування", "ready": "Готово", "completed": "Завершено", "archived": "Архівовано", "archiveTrip": "Архівувати подорож", "restoreTrip": "Відновити подорож", "archivedNotice": "Цю подорож архівовано", "archiveDescription": "Архівні подорожі приховано з активного списку. Дані не видаляються.", "viewRecap": "Переглянути підсумок", "createRecap": "Створити підсумок", "createTemplate": "Створити шаблон", "duplicateTrip": "Дублювати подорож", "planSimilar": "Спланувати схожу подорож", "adaptTrip": "Адаптувати цю подорож", "compareBudget": "Порівняти бюджет", "viewExpenses": "Переглянути витрати", "pastTrips": "Минулі подорожі", "completedTrips": "Завершені подорожі", "archivedTrips": "Архівні подорожі", "tripsWithRecaps": "Подорожі з підсумками", "templatesCreated": "Шаблони, створені з подорожей", "favoriteDestinations": "Улюблені напрямки", "budgetHistory": "Історія бюджету", "lessonsLearned": "Засвоєні уроки", "noArchived": "Немає архівних подорожей", "noCompleted": "Ще немає завершених подорожей", "noResults": "Нічого не знайдено", "filterYear": "Фільтр за роком", "filterWorkspace": "Фільтр за робочим простором", "sortTripDate": "Сортувати за датою", "sortUpdated": "Сортувати за останнім оновленням"
   },
   "verification": {
     "eyebrow": "Готовність до реальних умов",

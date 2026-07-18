@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Trip, TripStatus } from "@/entities/trip/model";
 import { formatBudget, formatInterestLabel } from "@/lib/utils";
 import { BriefcaseIcon, CalendarIcon, UsersIcon, WalletIcon } from "./icons";
+import { TripLifecycleBadge } from "@/components/library/TripLifecycleBadge";
 
 type StatusStyle = { label: string; dot: string; text: string };
 
@@ -76,6 +77,7 @@ export function TripCard({ trip, workspaceName }: TripCardProps) {
           <span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: status.dot }} />
           {status.label}
         </span>
+        {trip.lifecycle ? <span className="pointer-events-none absolute bottom-3.5 left-3.5"><TripLifecycleBadge lifecycle={trip.lifecycle} /></span> : null}
         {trip.workspaceId ? (
           <span className="pointer-events-none absolute right-3.5 top-3.5 inline-flex items-center gap-1.5 rounded-full bg-cocoa-900/[0.78] px-3 py-1.5 text-xs font-semibold text-sand-150">
             <BriefcaseIcon className="h-3 w-3" strokeWidth={1.8} />

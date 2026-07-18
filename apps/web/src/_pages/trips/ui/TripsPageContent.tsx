@@ -89,6 +89,9 @@ export function TripsPageContent() {
             <p className="mt-3 text-[15px] text-cocoa-400">
               {subtitle ?? " "}
             </p>
+            <Link href="/library" className="mt-2 inline-flex text-sm font-semibold text-clay hover:underline">
+              Looking for past trips? Open Library.
+            </Link>
           </div>
           <ScopeSegmentedControl />
         </div>

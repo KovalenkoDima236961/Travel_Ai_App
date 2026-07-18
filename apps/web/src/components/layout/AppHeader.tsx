@@ -48,6 +48,7 @@ export function AppHeader() {
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/trips" ||
+    pathname === "/library" ||
     pathname === "/trips/new" ||
     isRedesignedTripDetail ||
     isRedesignedTripAnalytics ||

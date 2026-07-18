@@ -1,0 +1,1 @@
+export function LibraryErrorState({ message }: { message?: string }) { return <div className="rounded-2xl border border-clay/30 bg-clay-tint/50 p-6 text-sm text-clay-deep">{message ?? "Could not load your travel library."}</div>; }

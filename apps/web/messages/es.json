@@ -782,6 +782,8 @@
     "commands": {
       "createTrip": { "title": "Crear viaje", "description": "Inicia un nuevo plan de viaje con IA." },
       "openTrips": { "title": "Abrir mis viajes", "description": "Ve a tu lista de viajes." },
+      "travelLibrary": { "title": "Abrir biblioteca de viajes", "description": "Explora viajes completados, archivados y reutilizables." },
+      "archivedTrips": { "title": "Ver viajes archivados", "description": "Explora viajes ocultos de tu lista activa." },
       "commandCenter": { "title": "Abrir Command Center", "description": "Abre el resumen del viaje actual." },
       "recap": { "title": "Abrir resumen del viaje", "description": "Revisa el viaje completado y guarda lecciones útiles." },
       "travelDay": { "title": "Abrir modo viaje", "description": "Consulta el plan de hoy y lo que sigue." },
@@ -841,6 +843,9 @@
   },
   "travelDay": {
     "today": "Hoy", "travelMode": "Modo viaje", "nextUp": "Siguiente", "now": "Ahora", "afterThat": "Después", "timeline": "Plan de hoy", "items": "{count} elementos", "anyTime": "Cualquier hora", "selectedTransport": "Transporte seleccionado", "openMap": "Abrir mapa", "markDone": "Marcar completado", "markSkipped": "Omitir", "markDelayed": "Marcar retrasado", "addExpense": "Añadir gasto", "uploadReceipt": "Subir recibo", "askCopilot": "Preguntar a Copilot", "openPlanner": "Abrir planificador", "noPlan": "No hay plan para hoy", "doneToday": "Has terminado por hoy", "offlineCopy": "Copia sin conexión", "lastCached": "Última copia", "recently": "recientemente", "staleNotice": "Los horarios y la verificación pueden estar desactualizados.", "syncPending": "Sincronización pendiente", "transportNotVerified": "Transporte sin verificar", "activityMayBeClosed": "La actividad podría estar cerrada", "weatherWarning": "Aviso meteorológico", "availabilityNotChecked": "Disponibilidad sin comprobar", "verifyNow": "Verificar ahora", "checklist": "Lista de hoy", "reminders": "Recordatorios de hoy", "accommodation": "Alojamiento esta noche", "notBooking": "Esto no es una confirmación de reserva"
+  },
+  "library": {
+    "title": "Biblioteca de viajes", "subtitle": "Explora viajes completados, archivados y reutilizables.", "active": "Activo", "draft": "Borrador", "planning": "Planificación", "ready": "Listo", "completed": "Completado", "archived": "Archivado", "archiveTrip": "Archivar viaje", "restoreTrip": "Restaurar viaje", "archivedNotice": "Este viaje está archivado", "archiveDescription": "Los viajes archivados se ocultan de tu lista activa. Esto no elimina datos.", "viewRecap": "Ver resumen", "createRecap": "Crear resumen", "createTemplate": "Crear plantilla", "duplicateTrip": "Duplicar viaje", "planSimilar": "Planear un viaje similar", "adaptTrip": "Adaptar este viaje", "compareBudget": "Comparar presupuesto", "viewExpenses": "Ver gastos", "pastTrips": "Viajes anteriores", "completedTrips": "Viajes completados", "archivedTrips": "Viajes archivados", "tripsWithRecaps": "Viajes con resúmenes", "templatesCreated": "Plantillas creadas desde viajes", "favoriteDestinations": "Destinos favoritos", "budgetHistory": "Historial de presupuesto", "lessonsLearned": "Lecciones aprendidas", "noArchived": "No hay viajes archivados", "noCompleted": "Aún no hay viajes completados", "noResults": "No se encontraron resultados", "filterYear": "Filtrar por año", "filterWorkspace": "Filtrar por espacio de trabajo", "sortTripDate": "Ordenar por fecha", "sortUpdated": "Ordenar por actualización reciente"
   },
   "verification": {
     "eyebrow": "Preparación para el mundo real",

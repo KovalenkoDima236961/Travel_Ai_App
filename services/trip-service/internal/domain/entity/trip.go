@@ -45,6 +45,9 @@ type Trip struct {
 	Accommodation     *aggregate.Accommodation
 	CreationMetadata  map[string]any
 	ItineraryRevision int
+	ArchivedAt        *time.Time
+	ArchivedByUserID  *uuid.UUID
+	ArchiveReason     *string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
