@@ -13,6 +13,7 @@ import { TopFixesPanel } from "./TopFixesPanel";
 import { TripOverviewHeader } from "./TripOverviewHeader";
 import { TripReadinessSummary } from "./TripReadinessSummary";
 import { TripSetupChecklist } from "@/components/onboarding/TripSetupChecklist";
+import { RealWorldReadinessCard } from "@/components/verification";
 import type { TripApprovalState } from "@/entities/approval/model";
 import type { Trip } from "@/entities/trip/model";
 import type {
@@ -21,11 +22,13 @@ import type {
   TripCommandCenterData
 } from "@/types/trip-command-center";
 import type { TripHealth } from "@/types/trip-health";
+import type { RealWorldReadiness } from "@/types/verification";
 
 type TripCommandCenterProps = {
   trip: Trip;
   data: TripCommandCenterData;
   health?: TripHealth | null;
+  verification?: RealWorldReadiness | null;
   approval?: TripApprovalState | null;
   offlineStatus: OfflineCommandCenterStatus;
   workspaceName?: string | null;
@@ -43,6 +46,7 @@ export function TripCommandCenter({
   trip,
   data,
   health,
+  verification,
   approval,
   offlineStatus,
   workspaceName,
@@ -72,6 +76,7 @@ export function TripCommandCenter({
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {cardsById.health ? <ReadinessCard card={cardsById.health} /> : null}
+        {verification ? <RealWorldReadinessCard readiness={verification} sectionId="real-world-readiness" /> : null}
         {cardsById.route_transport ? <RouteReadinessCard card={cardsById.route_transport} /> : null}
         {cardsById.budget ? <BudgetReadinessCard card={cardsById.budget} /> : null}
         {cardsById.group ? <GroupReadinessCard card={cardsById.group} /> : null}

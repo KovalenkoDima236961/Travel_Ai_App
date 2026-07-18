@@ -144,7 +144,12 @@ type SelectedTransportOption struct {
 	AccessibilityNotes *string         `json:"accessibilityNotes,omitempty"`
 	Warnings           []string        `json:"warnings,omitempty"`
 	SelectedAt         string          `json:"selectedAt,omitempty"`
-	SelectedByUserID   string          `json:"selectedByUserId,omitempty"`
+	// CheckedAt and FallbackUsed retain the freshness/source quality returned
+	// by a user-triggered transport recheck. They are optional so existing
+	// persisted route JSON remains fully compatible.
+	CheckedAt        string `json:"checkedAt,omitempty"`
+	FallbackUsed     bool   `json:"fallbackUsed,omitempty"`
+	SelectedByUserID string `json:"selectedByUserId,omitempty"`
 }
 
 type RoutePreferences struct {

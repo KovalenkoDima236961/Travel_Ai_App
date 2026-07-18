@@ -63,6 +63,7 @@ const (
 	SourceSchedule          FactorSource = "schedule"
 	SourceAccommodation     FactorSource = "accommodation"
 	SourceRoute             FactorSource = "route"
+	SourceVerification      FactorSource = "verification"
 )
 
 type SuggestedActionPriority string
@@ -170,6 +171,16 @@ type MetadataSignal struct {
 	ValidationRepairUsed bool
 }
 
+// VerificationSignal is a small summary only; it deliberately excludes raw
+// provider results and any private calendar or receipt data.
+type VerificationSignal struct {
+	Score            int
+	Level            string
+	StaleCount       int
+	MissingCount     int
+	UnavailableCount int
+}
+
 type TripContext struct {
 	BudgetAmount   *float64
 	BudgetCurrency string
@@ -188,6 +199,7 @@ type Input struct {
 	Itinerary              aggregate.Itinerary
 	WorkspaceBudget        *WorkspaceBudgetSignal
 	BudgetConfidence       *BudgetConfidenceSignal
+	Verification           *VerificationSignal
 	Metadata               MetadataSignal
 	SignalUnavailableNames []string
 }

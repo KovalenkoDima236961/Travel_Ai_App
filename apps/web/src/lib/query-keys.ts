@@ -26,6 +26,7 @@ export const queryKeys = {
     commandCenter: (tripId: string) =>
       [...queryKeys.trip.detail(tripId), "command-center-summary"] as const,
     health: (tripId: string) => [...queryKeys.trip.detail(tripId), "health"] as const,
+    verification: (tripId: string) => [...queryKeys.trip.detail(tripId), "verification"] as const,
     budgetSummary: (tripId: string) =>
       [...queryKeys.trip.detail(tripId), "budget-summary"] as const,
     budgetConfidence: (tripId: string, currency?: string | null) =>
@@ -61,4 +62,3 @@ export const queryKeys = {
     aiGeneration: (id: string) => ["ops", "ai-generations", "detail", id] as const
   }
 } as const;
-

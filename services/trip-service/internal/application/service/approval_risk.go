@@ -101,6 +101,7 @@ func (s *Service) calculateApprovalRiskForTrip(
 		metadata = s.approvalRiskMetadataSignal(ctx, trip.ID, &signalsUnavailable)
 	}
 	budgetConfidenceSignal := s.approvalRiskBudgetConfidenceSignal(ctx, trip, includeHeavySignals, &signalsUnavailable)
+	verificationSignal := s.approvalRiskVerificationSignal(ctx, trip, includeHeavySignals, &signalsUnavailable)
 
 	return approvalrisk.Score(approvalrisk.Input{
 		TripID:      trip.ID,
@@ -118,9 +119,33 @@ func (s *Service) calculateApprovalRiskForTrip(
 		Itinerary:              itinerary,
 		WorkspaceBudget:        workspaceBudgetSignal,
 		BudgetConfidence:       budgetConfidenceSignal,
+		Verification:           verificationSignal,
 		Metadata:               metadata,
 		SignalUnavailableNames: dedupeSignalNames(signalsUnavailable),
 	})
+}
+
+func (s *Service) approvalRiskVerificationSignal(
+	ctx context.Context,
+	trip *entity.Trip,
+	includeHeavySignals bool,
+	signalsUnavailable *[]string,
+) *approvalrisk.VerificationSignal {
+	if trip == nil || !includeHeavySignals || !s.verificationConfig.Enabled {
+		return nil
+	}
+	response := s.verificationForTrip(ctx, trip)
+	if len(response.Sections) == 0 {
+		*signalsUnavailable = append(*signalsUnavailable, "verification")
+		return nil
+	}
+	return &approvalrisk.VerificationSignal{
+		Score:            response.Score,
+		Level:            string(response.Level),
+		StaleCount:       response.Summary.StaleCount,
+		MissingCount:     response.Summary.MissingCount,
+		UnavailableCount: response.Summary.UnavailableCount,
+	}
 }
 
 func (s *Service) approvalRiskBudgetConfidenceSignal(

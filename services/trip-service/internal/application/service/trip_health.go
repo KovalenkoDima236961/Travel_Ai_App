@@ -48,6 +48,10 @@ func (s *Service) GetTripHealth(
 		Now:       time.Now().UTC(),
 		Config:    s.tripHealthConfig,
 	}
+	if s.verificationConfig.Enabled {
+		verificationResponse := s.verificationForTrip(ctx, trip)
+		snapshot.Verification = &verificationResponse
+	}
 
 	s.loadHealthBudget(ctx, trip, &snapshot)
 	s.loadHealthBudgetConfidence(ctx, trip, &snapshot, options)

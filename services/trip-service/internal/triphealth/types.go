@@ -10,6 +10,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/verification"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
@@ -169,6 +170,7 @@ type Snapshot struct {
 	ApprovalRiskLoadFailed     bool
 	Approval                   *entity.TripApprovalFields
 	ApprovalLoadFailed         bool
+	Verification               *verification.Response
 	SubsystemFailures          []string
 	Now                        time.Time
 	Config                     Config

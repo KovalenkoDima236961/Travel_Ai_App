@@ -51,6 +51,7 @@ type Config struct {
 	TripDiscovery      TripDiscoveryConfig      `yaml:"trip_discovery"`
 	TripHealth         TripHealthConfig         `yaml:"trip_health"`
 	BudgetConfidence   BudgetConfidenceConfig   `yaml:"budget_confidence"`
+	Verification       VerificationConfig       `yaml:"verification"`
 	SummaryCache       SummaryCacheConfig       `yaml:"summary_cache"`
 	Search             SearchConfig             `yaml:"search"`
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
@@ -136,6 +137,26 @@ type BudgetConfidenceConfig struct {
 	ActualSpendHighThresholdPercent float64 `yaml:"actual_spend_high_threshold_percent" env:"BUDGET_CONFIDENCE_ACTUAL_SPEND_HIGH_THRESHOLD_PERCENT" env-default:"80" validate:"min=1,max=1000"`
 	PlannedActualGapWarningPercent  float64 `yaml:"planned_actual_gap_warning_percent" env:"BUDGET_CONFIDENCE_PLANNED_ACTUAL_GAP_WARNING_PERCENT" env-default:"20" validate:"min=1,max=1000"`
 	PlannedActualGapHighPercent     float64 `yaml:"planned_actual_gap_high_percent" env:"BUDGET_CONFIDENCE_PLANNED_ACTUAL_GAP_HIGH_PERCENT" env-default:"40" validate:"min=1,max=1000"`
+}
+
+// VerificationConfig controls the advisory real-world data evaluator. It
+// never enables background provider polling; provider calls remain explicit
+// user actions and reuse the configured integration clients.
+type VerificationConfig struct {
+	Enabled                   bool    `yaml:"enabled" env:"VERIFICATION_ENABLED" env-default:"true"`
+	CacheEnabled              bool    `yaml:"cache_enabled" env:"VERIFICATION_CACHE_ENABLED" env-default:"true"`
+	CacheTTLSeconds           int     `yaml:"cache_ttl_seconds" env:"VERIFICATION_CACHE_TTL_SECONDS" env-default:"60" validate:"min=1,max=300"`
+	WeatherStaleHoursNearTrip int     `yaml:"weather_stale_hours_near_trip" env:"VERIFICATION_WEATHER_STALE_HOURS_NEAR_TRIP" env-default:"12" validate:"min=1,max=168"`
+	WeatherStaleHoursFarTrip  int     `yaml:"weather_stale_hours_far_trip" env:"VERIFICATION_WEATHER_STALE_HOURS_FAR_TRIP" env-default:"24" validate:"min=1,max=336"`
+	TransportStaleDays        int     `yaml:"transport_stale_days" env:"VERIFICATION_TRANSPORT_STALE_DAYS" env-default:"7" validate:"min=1,max=90"`
+	AvailabilityStaleHours    int     `yaml:"availability_stale_hours" env:"VERIFICATION_AVAILABILITY_STALE_HOURS" env-default:"48" validate:"min=1,max=336"`
+	PriceStaleDays            int     `yaml:"price_stale_days" env:"VERIFICATION_PRICE_STALE_DAYS" env-default:"7" validate:"min=1,max=90"`
+	PlaceStaleDays            int     `yaml:"place_stale_days" env:"VERIFICATION_PLACE_STALE_DAYS" env-default:"30" validate:"min=1,max=365"`
+	RouteEstimateStaleDays    int     `yaml:"route_estimate_stale_days" env:"VERIFICATION_ROUTE_ESTIMATE_STALE_DAYS" env-default:"14" validate:"min=1,max=180"`
+	CalendarSyncStaleDays     int     `yaml:"calendar_sync_stale_days" env:"VERIFICATION_CALENDAR_SYNC_STALE_DAYS" env-default:"7" validate:"min=1,max=90"`
+	NearTripDays              int     `yaml:"near_trip_days" env:"VERIFICATION_NEAR_TRIP_DAYS" env-default:"7" validate:"min=0,max=90"`
+	MaxDetails                int     `yaml:"max_details" env:"VERIFICATION_MAX_DETAILS" env-default:"100" validate:"min=1,max=500"`
+	PlaceMinConfidence        float64 `yaml:"place_min_confidence" env:"VERIFICATION_PLACE_MIN_CONFIDENCE" env-default:"0.75" validate:"min=0,max=1"`
 }
 
 type ReceiptsConfig struct {

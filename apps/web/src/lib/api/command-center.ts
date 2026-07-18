@@ -7,6 +7,7 @@ import type {
   BudgetConfidenceMoney as Money,
   BudgetRiskLevel
 } from "@/types/budget-confidence";
+import type { RealWorldReadiness } from "@/types/verification";
 
 export type CommandCenterSectionError = {
   section: string;
@@ -68,6 +69,12 @@ export type CommandCenterSummary = {
     membersNeedingAttention: number;
     topActionLabel?: string;
     topActionHref?: string;
+  };
+  realWorldReadiness?: Pick<RealWorldReadiness, "score" | "level"> & {
+    topIssueCount: number;
+    verifiedCount: number;
+    staleCount: number;
+    missingCount: number;
   };
   route: {
     stopCount: number;

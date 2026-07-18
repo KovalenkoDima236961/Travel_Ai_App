@@ -36,6 +36,9 @@ func ClassifyIntent(message string) Intent {
 	if containsAny(text, "trip health", "health low", "health score", "salud del viaje", "santé du voyage", "стан подорожі") {
 		return IntentExplainHealth
 	}
+	if containsAny(text, "verification", "verify", "realistic", "real world", "prices verified", "weather fresh", "transport ready", "what needs checking", "verificación", "verificar", "realista", "vérification", "vérifier", "réaliste", "перевір", "реалістич") {
+		return IntentExplainVerification
+	}
 	if containsAny(text, "budget confidence", "budget", "cheaper", "cost", "presupuesto", "fiabilidad del presupuesto", "budget", "fiabilité du budget", "бюджет", "надійність бюджету") {
 		return IntentExplainBudget
 	}

@@ -37,6 +37,7 @@ import (
 	tripsecurity "github.com/KovalenkoDima236961/Travel_Ai_App/internal/security"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/verification"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
@@ -136,6 +137,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}", h.Get)
 		r.Get("/{id}/command-center-summary", h.GetCommandCenterSummary)
 		r.Get("/{id}/health", h.GetTripHealth)
+		r.Get("/{id}/verification", h.GetTripVerification)
+		r.Post("/{id}/verification/actions", h.RunTripVerificationAction)
 		r.Get("/{id}/group-readiness", h.GetGroupReadiness)
 		r.Post("/{id}/group-readiness/nudge", h.SendGroupReadinessNudge)
 		r.Post("/{id}/group-readiness/nudge-missing-availability", h.NudgeMissingAvailability)
@@ -712,6 +715,41 @@ func (h *Handler) GetTripHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, health)
+}
+
+// GetTripVerification returns the private, advisory real-world readiness
+// report. Public-share routes intentionally do not expose this data.
+func (h *Handler) GetTripVerification(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	result, err := h.svc.GetTripVerification(r.Context(), id)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// RunTripVerificationAction executes an explicit, permission-checked refresh
+// only. It never books or purchases travel.
+func (h *Handler) RunTripVerificationAction(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	var input verification.ActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.RunTripVerificationAction(r.Context(), id, input)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 // GetTripCostAnalytics handles GET /trips/{id}/analytics/costs.
@@ -1923,6 +1961,8 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusServiceUnavailable, "trip health is disabled")
 	case errors.Is(err, service.ErrBudgetConfidenceDisabled):
 		writeError(w, http.StatusServiceUnavailable, "budget confidence is disabled")
+	case errors.Is(err, service.ErrVerificationDisabled):
+		writeError(w, http.StatusServiceUnavailable, "verification is disabled")
 	case errors.Is(err, apperrs.ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, service.ErrRegisteredUserNotFound):

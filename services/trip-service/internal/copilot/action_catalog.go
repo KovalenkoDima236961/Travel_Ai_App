@@ -22,6 +22,7 @@ type actionDefinition struct {
 var actionDefinitions = []actionDefinition{
 	{"open_command_center", "Open Command Center", "overview", tripsecurity.PermissionCommandCenterView, RiskSafeNavigation},
 	{"open_trip_health", "Open Trip Health", "health", tripsecurity.PermissionHealthView, RiskSafeNavigation},
+	{"open_verification", "Open Real-world readiness", "verification", tripsecurity.PermissionTripView, RiskSafeNavigation},
 	{"open_route", "Open Route & Transport", "route", tripsecurity.PermissionRouteView, RiskSafeNavigation},
 	{"open_route_leg", "Open Route & Transport", "route", tripsecurity.PermissionRouteView, RiskSafeNavigation},
 	{"find_transport", "Find transport", "route", tripsecurity.PermissionRouteEdit, RiskMediumReview},
@@ -93,6 +94,7 @@ func preferredActions(intent Intent, actions []Action) []Action {
 	wanted := map[Intent][]string{
 		IntentNextAction:            {"open_command_center", "open_trip_health", "open_route"},
 		IntentExplainHealth:         {"open_trip_health", "open_command_center"},
+		IntentExplainVerification:   {"open_verification", "open_route"},
 		IntentExplainBudget:         {"open_budget_confidence", "open_budget"},
 		IntentExplainRoute:          {"open_route_leg", "find_transport", "open_route"},
 		IntentExplainGroupReadiness: {"open_group_readiness", "request_availability_screen"},

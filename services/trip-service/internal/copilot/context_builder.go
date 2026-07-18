@@ -64,6 +64,13 @@ func BuildSafeContext(
 				"level":                   summaryString(summary.GroupReadiness, func(value *service.CommandCenterGroupSummary) string { return string(value.Level) }),
 				"membersNeedingAttention": summaryValue(summary.GroupReadiness, func(value *service.CommandCenterGroupSummary) int { return value.MembersNeedingAttention }),
 			},
+			"realWorldReadiness": map[string]any{
+				"score":         summaryValue(summary.RealWorldReadiness, func(value *service.CommandCenterVerificationSummary) int { return value.Score }),
+				"level":         summaryString(summary.RealWorldReadiness, func(value *service.CommandCenterVerificationSummary) string { return string(value.Level) }),
+				"topIssueCount": summaryValue(summary.RealWorldReadiness, func(value *service.CommandCenterVerificationSummary) int { return value.TopIssueCount }),
+				"staleCount":    summaryValue(summary.RealWorldReadiness, func(value *service.CommandCenterVerificationSummary) int { return value.StaleCount }),
+				"missingCount":  summaryValue(summary.RealWorldReadiness, func(value *service.CommandCenterVerificationSummary) int { return value.MissingCount }),
+			},
 			"activity": map[string]any{
 				"recentCount": summaryValue(summary.Activity, func(value *service.CommandCenterActivitySummary) int { return value.RecentCount }),
 				"hasRecent":   summary.Activity != nil && summary.Activity.RecentCount > 0,
@@ -102,6 +109,17 @@ func BuildSafeContext(
 		}
 	} else {
 		out.Unavailable = append(out.Unavailable, "command_center_unavailable")
+	}
+	if readiness, loadErr := svc.GetTripVerification(ctx, tripID); loadErr == nil {
+		out.Verification = map[string]any{
+			"score":         readiness.Score,
+			"level":         string(readiness.Level),
+			"topIssueCount": len(readiness.TopIssues),
+			"staleCount":    readiness.Summary.StaleCount,
+			"missingCount":  readiness.Summary.MissingCount,
+		}
+	} else {
+		out.Unavailable = append(out.Unavailable, "verification_unavailable")
 	}
 
 	if health, loadErr := svc.GetTripHealth(ctx, tripID, triphealth.Options{}); loadErr == nil {

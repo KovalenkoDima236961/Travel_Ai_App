@@ -39,6 +39,7 @@ export type TripCommandCenterSection =
   | "activity"
   | "comments"
   | "health"
+  | "verification"
   | "approval"
   | "policy"
   | "versions";

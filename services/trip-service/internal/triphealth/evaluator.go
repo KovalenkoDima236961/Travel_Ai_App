@@ -15,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/verification"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
@@ -76,6 +77,7 @@ func Evaluate(snapshot Snapshot, options Options) Response {
 	builder.evaluateExpenses(snapshot, cfg, now)
 	builder.evaluatePolicy(snapshot)
 	builder.evaluateApproval(snapshot, now)
+	builder.evaluateVerification(snapshot)
 	builder.evaluateDataQuality(snapshot)
 
 	issues := builder.issues
@@ -104,6 +106,87 @@ func Evaluate(snapshot Snapshot, options Options) Response {
 		}
 	}
 	return resp
+}
+
+// evaluateVerification brings only the most important real-world gaps into
+// Trip Health. Full details stay on the dedicated verification response, so
+// these signals complement rather than dominate existing health checks.
+func (b *issueBuilder) evaluateVerification(snapshot Snapshot) {
+	if snapshot.Verification == nil {
+		return
+	}
+	added := 0
+	for _, detail := range snapshot.Verification.TopIssues {
+		if added == 3 || detail.Status == verification.StatusVerified || detail.Status == verification.StatusNotApplicable {
+			continue
+		}
+		var actionValue *Action
+		if detail.Action != nil {
+			actionValue = &Action{Type: detail.Action.Type, Label: detail.Action.Label, Href: detail.Action.Href}
+		}
+		b.issue(
+			"verification_"+string(detail.Scope)+"_"+string(detail.Status)+":"+normalizeToken(detail.EntityID),
+			verificationCategory(detail.Scope),
+			verificationSeverity(detail),
+			verificationIssueTitle(detail),
+			detail.Message,
+			"Real-world trip data should be reviewed before relying on it.",
+			"Review the verification details and refresh provider data when available.",
+			actionValue,
+			map[string]any{"scope": detail.Scope, "status": detail.Status, "source": detail.Source},
+		)
+		added++
+	}
+}
+
+func verificationCategory(scope verification.Scope) Category {
+	switch scope {
+	case verification.ScopeTransport:
+		return CategoryTransport
+	case verification.ScopeRouteEstimate:
+		return CategoryRoute
+	case verification.ScopePrice:
+		return CategoryBudget
+	case verification.ScopeAvailability:
+		return CategoryAvailability
+	case verification.ScopeAccommodation:
+		return CategoryAccommodation
+	default:
+		return CategoryDataQuality
+	}
+}
+
+func verificationSeverity(detail verification.Detail) Severity {
+	if detail.Status == verification.StatusUnavailable {
+		if detail.Scope == verification.ScopeTransport {
+			return SeverityCritical
+		}
+		return SeverityHigh
+	}
+	if detail.Status == verification.StatusMissing && detail.Scope == verification.ScopeTransport {
+		return SeverityHigh
+	}
+	return SeverityWarning
+}
+
+func verificationIssueTitle(detail verification.Detail) string {
+	prefix := "Verification needs review"
+	switch detail.Status {
+	case verification.StatusStale:
+		prefix = "Verification is stale"
+	case verification.StatusMissing:
+		prefix = "Verification data is missing"
+	case verification.StatusUnavailable:
+		prefix = "Provider reports unavailable"
+	case verification.StatusEstimated:
+		prefix = "Data is estimated"
+	case verification.StatusFailed:
+		prefix = "Verification failed"
+	}
+	if detail.Title == "" {
+		return prefix
+	}
+	return prefix + ": " + detail.Title
 }
 
 func (b *issueBuilder) add(issue Issue) {

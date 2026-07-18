@@ -44,6 +44,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/users"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/verification"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
@@ -247,6 +248,22 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			ActualSpendHighThresholdPercent: cfg.BudgetConfidence.ActualSpendHighThresholdPercent,
 			PlannedActualGapWarningPercent:  cfg.BudgetConfidence.PlannedActualGapWarningPercent,
 			PlannedActualGapHighPercent:     cfg.BudgetConfidence.PlannedActualGapHighPercent,
+		}),
+		service.WithVerificationConfig(verification.Config{
+			Enabled:                   cfg.Verification.Enabled,
+			CacheEnabled:              cfg.Verification.CacheEnabled,
+			CacheTTLSeconds:           cfg.Verification.CacheTTLSeconds,
+			WeatherStaleHoursNearTrip: cfg.Verification.WeatherStaleHoursNearTrip,
+			WeatherStaleHoursFarTrip:  cfg.Verification.WeatherStaleHoursFarTrip,
+			TransportStaleDays:        cfg.Verification.TransportStaleDays,
+			AvailabilityStaleHours:    cfg.Verification.AvailabilityStaleHours,
+			PriceStaleDays:            cfg.Verification.PriceStaleDays,
+			PlaceStaleDays:            cfg.Verification.PlaceStaleDays,
+			RouteEstimateStaleDays:    cfg.Verification.RouteEstimateStaleDays,
+			CalendarSyncStaleDays:     cfg.Verification.CalendarSyncStaleDays,
+			NearTripDays:              cfg.Verification.NearTripDays,
+			MaxDetails:                cfg.Verification.MaxDetails,
+			PlaceMinConfidence:        cfg.Verification.PlaceMinConfidence,
 		}),
 		service.WithSummaryCache(
 			cfg.SummaryCache.Enabled,

@@ -66,6 +66,7 @@ func Score(in Input) Response {
 	builder.add(costEstimateFactors(in)...)
 	builder.add(costSplittingFactors(in)...)
 	builder.add(availabilityFactors(in)...)
+	builder.add(verificationFactors(in)...)
 	builder.add(metadataFactors(in)...)
 	builder.add(routeFactors(in)...)
 	builder.add(scheduleFactors(in)...)
@@ -112,6 +113,44 @@ func Score(in Input) Response {
 			"Risk score is a planning aid, not an approval decision.",
 		},
 	}
+}
+
+func verificationFactors(in Input) []Factor {
+	signal := in.Verification
+	if signal == nil {
+		return nil
+	}
+	out := make([]Factor, 0, 2)
+	if signal.UnavailableCount > 0 {
+		out = append(out, Factor{
+			Type:     "unavailable_travel_assumption",
+			Severity: FactorSeverityHigh,
+			Points:   minInt(signal.UnavailableCount*18, 36),
+			Title:    "Travel details reported unavailable",
+			Message:  fmt.Sprintf("%d transport or activity verification item(s) are unavailable.", signal.UnavailableCount),
+			Source:   SourceVerification,
+			Affected: affected("verification", signal.UnavailableCount, nil),
+			SuggestedActions: []SuggestedAction{
+				action("review_verification", "Review verification", ActionPriorityHigh),
+			},
+		})
+	}
+	attention := signal.StaleCount + signal.MissingCount
+	if attention > 0 {
+		out = append(out, Factor{
+			Type:     "travel_assumptions_need_verification",
+			Severity: severityFromPoints(minInt(attention*6, 24)),
+			Points:   minInt(attention*6, 24),
+			Title:    "Travel assumptions need verification",
+			Message:  fmt.Sprintf("%d real-world travel detail(s) are stale or missing.", attention),
+			Source:   SourceVerification,
+			Affected: affected("verification", attention, nil),
+			SuggestedActions: []SuggestedAction{
+				action("review_verification", "Review verification", ActionPriorityMedium),
+			},
+		})
+	}
+	return out
 }
 
 type factorBuilder struct {

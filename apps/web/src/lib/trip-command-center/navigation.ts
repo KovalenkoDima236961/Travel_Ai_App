@@ -24,6 +24,7 @@ export const TAB_TO_ANCHOR: Record<string, string> = {
   activity: "activity",
   comments: "itinerary",
   health: "health",
+  verification: "verification",
   approval: "approval",
   policy: "workspace-policy",
   versions: "itinerary"
@@ -81,6 +82,7 @@ export function buildNavigationGroups({
       label: "Control",
       items: [
         { id: "health", label: "Health", href: "#health", badge: badges.health },
+        { id: "verification", label: "Verification", href: "#verification", badge: badges.verification },
         { id: "approval", label: "Approval", href: "#approval", badge: badges.approval },
         { id: "policy", label: "Policy", href: "#workspace-policy", badge: badges.policy },
         { id: "versions", label: "Versions", href: "#itinerary" },

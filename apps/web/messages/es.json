@@ -833,5 +833,17 @@
     "unavailableDescription": "Aún puedes usar Trip Health y Command Center para revisar los siguientes pasos.",
     "openHealth": "Abrir Trip Health",
     "retry": "Reintentar"
+  },
+  "verification": {
+    "eyebrow": "Preparación para el mundo real",
+    "disclaimer": "Las comprobaciones del proveedor, las confirmaciones manuales y las estimaciones se muestran por separado. Esto no es una confirmación de reserva.",
+    "score": "Puntuación de preparación {score} de 100",
+    "lastChecked": "Última comprobación: {value}.",
+    "checking": "Comprobando…",
+    "refreshFailed": "No se pudo actualizar la verificación. Inténtalo de nuevo más tarde.",
+    "allCurrent": "Las suposiciones principales del viaje tienen datos de verificación recientes.",
+    "level": { "ready": "Listo", "mostly_ready": "Casi listo", "needs_review": "Requiere revisión", "not_ready": "No está listo" },
+    "status": { "verified": "Verificado", "needs_review": "Requiere revisión", "estimated": "Estimado", "stale": "Desactualizado", "missing": "Falta", "unavailable": "No disponible", "failed": "Falló", "not_applicable": "No aplicable" },
+    "actions": { "refresh_weather": "Actualizar el tiempo", "recheck_transport": "Comprobar transporte", "check_availability": "Comprobar disponibilidad", "refresh_place_details": "Actualizar datos del lugar", "refresh_price": "Actualizar precio", "review_opening_hours": "Revisar horarios", "update_calendar_sync": "Actualizar sincronización del calendario", "add_accommodation": "Añadir alojamiento", "attach_place": "Vincular lugar", "open_route": "Abrir ruta", "open_budget": "Abrir presupuesto", "open_itinerary_item": "Abrir elemento del itinerario" }
   }
 }

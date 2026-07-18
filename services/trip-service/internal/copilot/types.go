@@ -44,6 +44,7 @@ type Intent string
 const (
 	IntentNextAction            Intent = "next_action"
 	IntentExplainHealth         Intent = "explain_health"
+	IntentExplainVerification   Intent = "explain_verification"
 	IntentExplainBudget         Intent = "explain_budget"
 	IntentExplainRoute          Intent = "explain_route"
 	IntentExplainGroupReadiness Intent = "explain_group_readiness"
@@ -139,6 +140,7 @@ type SafeContext struct {
 	Trip            map[string]any `json:"trip"`
 	CommandCenter   map[string]any `json:"commandCenter,omitempty"`
 	Health          map[string]any `json:"health,omitempty"`
+	Verification    map[string]any `json:"verification,omitempty"`
 	Budget          map[string]any `json:"budget,omitempty"`
 	Group           map[string]any `json:"groupReadiness,omitempty"`
 	Route           map[string]any `json:"route,omitempty"`

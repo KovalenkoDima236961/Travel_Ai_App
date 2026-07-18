@@ -59,6 +59,13 @@ receipts/OCR, currency conversion, and budget limits. Trip Service exposes
 Budget panel and Trip Command Center, and approval risk uses it as an advisory
 factor.
 
+Real-World Travel Data Verification v1 adds a private, advisory readiness
+score across persisted transport, places, opening hours, prices, availability,
+weather, route estimates, calendar sync, and accommodation. It explicitly
+distinguishes provider-backed checks from manual, AI, mock, fallback, and
+heuristic data; user-requested refreshes reuse existing integrations and never
+book or purchase. See [verification details](docs/verification.md).
+
 AI Generation Reliability & Repair Pipeline v1 validates AI-created itineraries
 before Trip Service persists them. Critical schema, route, selected-transport,
 budget, and workspace-policy issues block saves; repairable issues can be sent

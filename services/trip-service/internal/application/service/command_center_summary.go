@@ -17,21 +17,23 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/groupreadiness"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/verification"
 )
 
 type CommandCenterSummary struct {
-	TripID         uuid.UUID                      `json:"tripId"`
-	Trip           CommandCenterTripSummary       `json:"trip"`
-	Health         *CommandCenterHealthSummary    `json:"health,omitempty"`
-	Budget         *CommandCenterBudgetSummary    `json:"budget,omitempty"`
-	GroupReadiness *CommandCenterGroupSummary     `json:"groupReadiness,omitempty"`
-	Route          CommandCenterRouteSummary      `json:"route"`
-	Checklist      *CommandCenterChecklistSummary `json:"checklist,omitempty"`
-	Reminders      *CommandCenterReminderSummary  `json:"reminders,omitempty"`
-	Expenses       *CommandCenterExpenseSummary   `json:"expenses,omitempty"`
-	Activity       *CommandCenterActivitySummary  `json:"activity,omitempty"`
-	SectionErrors  []CommandCenterSectionError    `json:"sectionErrors"`
-	ComputedAt     time.Time                      `json:"computedAt"`
+	TripID             uuid.UUID                         `json:"tripId"`
+	Trip               CommandCenterTripSummary          `json:"trip"`
+	Health             *CommandCenterHealthSummary       `json:"health,omitempty"`
+	Budget             *CommandCenterBudgetSummary       `json:"budget,omitempty"`
+	GroupReadiness     *CommandCenterGroupSummary        `json:"groupReadiness,omitempty"`
+	RealWorldReadiness *CommandCenterVerificationSummary `json:"realWorldReadiness,omitempty"`
+	Route              CommandCenterRouteSummary         `json:"route"`
+	Checklist          *CommandCenterChecklistSummary    `json:"checklist,omitempty"`
+	Reminders          *CommandCenterReminderSummary     `json:"reminders,omitempty"`
+	Expenses           *CommandCenterExpenseSummary      `json:"expenses,omitempty"`
+	Activity           *CommandCenterActivitySummary     `json:"activity,omitempty"`
+	SectionErrors      []CommandCenterSectionError       `json:"sectionErrors"`
+	ComputedAt         time.Time                         `json:"computedAt"`
 }
 
 type CommandCenterTripSummary struct {
@@ -91,6 +93,17 @@ type CommandCenterGroupSummary struct {
 	MembersNeedingAttention int                  `json:"membersNeedingAttention"`
 	TopActionLabel          string               `json:"topActionLabel,omitempty"`
 	TopActionHref           string               `json:"topActionHref,omitempty"`
+}
+
+// CommandCenterVerificationSummary is deliberately compact. Detailed
+// provider data remains private to GET /trips/{id}/verification.
+type CommandCenterVerificationSummary struct {
+	Score         int                `json:"score"`
+	Level         verification.Level `json:"level"`
+	TopIssueCount int                `json:"topIssueCount"`
+	VerifiedCount int                `json:"verifiedCount"`
+	StaleCount    int                `json:"staleCount"`
+	MissingCount  int                `json:"missingCount"`
 }
 
 type CommandCenterRouteSummary struct {
@@ -197,6 +210,14 @@ func (s *Service) GetCommandCenterSummary(ctx context.Context, tripID uuid.UUID)
 			return loadErr
 		}
 		response.GroupReadiness = commandCenterGroupReadinessSummary(readiness)
+		return nil
+	})
+	run("verification", func(runCtx context.Context) error {
+		readiness, loadErr := s.GetTripVerification(runCtx, tripID)
+		if loadErr != nil {
+			return loadErr
+		}
+		response.RealWorldReadiness = commandCenterVerificationSummary(readiness)
 		return nil
 	})
 	run("checklist", func(runCtx context.Context) error {
@@ -380,6 +401,17 @@ func commandCenterGroupReadinessSummary(readiness groupreadiness.Response) *Comm
 		out.TopActionHref = readiness.TopActions[0].Href
 	}
 	return out
+}
+
+func commandCenterVerificationSummary(readiness verification.Response) *CommandCenterVerificationSummary {
+	return &CommandCenterVerificationSummary{
+		Score:         readiness.Score,
+		Level:         readiness.Level,
+		TopIssueCount: len(readiness.TopIssues),
+		VerifiedCount: readiness.Summary.VerifiedCount,
+		StaleCount:    readiness.Summary.StaleCount,
+		MissingCount:  readiness.Summary.MissingCount,
+	}
 }
 
 func commandCenterChecklistSummary(checklist *appdto.ChecklistViewResponse) *CommandCenterChecklistSummary {

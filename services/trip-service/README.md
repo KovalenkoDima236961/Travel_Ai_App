@@ -9,6 +9,17 @@ enrichment metadata.
 Trip Service is the orchestration point between user-facing APIs, AI generation,
 external provider data, notifications, and background workers.
 
+## Real-World Travel Data Verification
+
+`GET /trips/{id}/verification` provides an authenticated, private, advisory
+readiness score over persisted transport, place, opening-hours, price,
+availability, weather, route, calendar-sync, and accommodation data. It keeps
+provider-backed, manual, AI, mock, fallback, and heuristic sources distinct;
+it never represents a booking confirmation. `POST /trips/{id}/verification/actions`
+only performs explicit owner/editor refreshes through existing integrations and
+does not purchase or reserve anything. Configuration, privacy boundaries, and
+freshness policy are documented in [`docs/verification.md`](../../docs/verification.md).
+
 ## Performance endpoints and safeguards
 
 `GET /trips/{id}/command-center-summary` returns a compact, private, viewer-scoped overview. Health, budget, group, checklist, reminder, expense, and activity sections compute concurrently and fail independently through `sectionErrors`; the response excludes receipt bytes/raw OCR, comments, notes, prompts, and full itinerary payloads. Summary, health, confidence, and readiness calculations use a bounded short-TTL in-process cache keyed by viewer/role/revision/options.

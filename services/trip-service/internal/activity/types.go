@@ -49,6 +49,7 @@ const (
 	EventSettlementMarkedPaid                = "settlement_marked_paid"
 	EventSettlementCancelled                 = "settlement_cancelled"
 	EventGroupReadinessNudgeSent             = "group_readiness_nudge_sent"
+	EventVerificationRefreshed               = "verification_refreshed"
 
 	// Templates.
 	EventTemplateCreated  = "template_created"
@@ -189,6 +190,7 @@ var knownEventTypes = map[string]struct{}{
 	EventSettlementMarkedPaid:                {},
 	EventSettlementCancelled:                 {},
 	EventGroupReadinessNudgeSent:             {},
+	EventVerificationRefreshed:               {},
 	EventTemplateCreated:                     {},
 	EventTemplateArchived:                    {},
 	EventAccommodationAdded:                  {},

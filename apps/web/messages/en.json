@@ -1324,5 +1324,17 @@
     "unavailableDescription": "You can still use Trip Health and Command Center to review next steps.",
     "openHealth": "Open Trip Health",
     "retry": "Retry"
+  },
+  "verification": {
+    "eyebrow": "Real-world readiness",
+    "disclaimer": "Provider checks, manual confirmations, and estimates are shown separately. This is not a booking confirmation.",
+    "score": "Readiness score {score} out of 100",
+    "lastChecked": "Last checked {value}.",
+    "checking": "Checking…",
+    "refreshFailed": "Verification could not be refreshed. Try again later.",
+    "allCurrent": "Key trip assumptions have current verification data.",
+    "level": { "ready": "Ready", "mostly_ready": "Mostly ready", "needs_review": "Needs review", "not_ready": "Not ready" },
+    "status": { "verified": "Verified", "needs_review": "Needs review", "estimated": "Estimated", "stale": "Stale", "missing": "Missing", "unavailable": "Unavailable", "failed": "Failed", "not_applicable": "Not applicable" },
+    "actions": { "refresh_weather": "Refresh weather", "recheck_transport": "Recheck transport", "check_availability": "Check availability", "refresh_place_details": "Refresh place details", "refresh_price": "Refresh price", "review_opening_hours": "Review opening hours", "update_calendar_sync": "Update calendar sync", "add_accommodation": "Add accommodation", "attach_place": "Attach place", "open_route": "Open route", "open_budget": "Open budget", "open_itinerary_item": "Open itinerary item" }
   }
 }

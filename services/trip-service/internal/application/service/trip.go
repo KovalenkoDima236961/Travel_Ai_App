@@ -35,6 +35,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/transportclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triphealth"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/verification"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
@@ -416,6 +417,22 @@ func WithBudgetConfidenceConfig(cfg budgetconfidence.Config) Option {
 	}
 }
 
+// WithVerificationConfig configures the private, advisory verification
+// evaluator. It does not add any scheduled provider polling.
+func WithVerificationConfig(cfg verification.Config) Option {
+	return func(s *Service) {
+		if cfg.CacheTTLSeconds <= 0 {
+			cfg.CacheTTLSeconds = verification.DefaultConfig().CacheTTLSeconds
+		}
+		s.verificationConfig = cfg
+		s.verificationCache = newSummaryCache(
+			cfg.CacheEnabled,
+			time.Duration(cfg.CacheTTLSeconds)*time.Second,
+			1000,
+		)
+	}
+}
+
 func WithGenerationReliability(pipeline aivalidation.GenerationReliabilityPipeline) Option {
 	return func(s *Service) {
 		s.generationReliability = pipeline
@@ -508,6 +525,8 @@ type Service struct {
 	publicShareTokens                  *sharing.PublicShareTokenManager
 	tripHealthConfig                   triphealth.Config
 	budgetConfidenceConfig             budgetconfidence.Config
+	verificationConfig                 verification.Config
+	verificationCache                  *summaryCache
 	summaryCache                       *summaryCache
 	summaryEndpointTimeout             time.Duration
 	generationReliability              aivalidation.GenerationReliabilityPipeline
@@ -540,6 +559,8 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		receiptFileScanner:       receipts.NoopFileScanner{},
 		tripHealthConfig:         triphealth.DefaultConfig(),
 		budgetConfidenceConfig:   budgetconfidence.DefaultConfig(),
+		verificationConfig:       verification.DefaultConfig(),
+		verificationCache:        newSummaryCache(true, time.Minute, 1000),
 		summaryCache:             newSummaryCache(true, 30*time.Second, 1000),
 		summaryEndpointTimeout:   8 * time.Second,
 		log:                      log,

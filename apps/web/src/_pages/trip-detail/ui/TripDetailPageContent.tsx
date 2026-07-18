@@ -16,6 +16,7 @@ import { TripApprovalPanel, useTripApproval } from "@/features/trip-approval";
 import { TripPolicyPanel } from "@/components/workspace-policy/TripPolicyPanel";
 import { CommandCenterSkeleton, TripCommandCenter } from "@/components/trip-command-center";
 import { TripCopilot } from "@/components/copilot";
+import { VerificationPanel } from "@/components/verification";
 import { BudgetPanel } from "@/features/trip-budget";
 import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
@@ -106,6 +107,7 @@ import { useGenerationJob } from "@/features/trip-generation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTripChecklist } from "@/hooks/useTripChecklist";
 import { useTripHealth } from "@/hooks/useTripHealth";
+import { useTripVerification } from "@/hooks/useTripVerification";
 import { useGroupReadiness } from "@/hooks/useGroupReadiness";
 import { useBudgetConfidence } from "@/hooks/useBudgetConfidence";
 import { useTripExpenses } from "@/hooks/useTripExpenses";
@@ -672,6 +674,13 @@ export function TripDetailPageContent() {
     enabled:
       onlineActionsEnabled &&
       sectionEnabled("health", "route") &&
+      Boolean(tripId) &&
+      Boolean(tripAccess) &&
+      canUsePrivateCollaboration
+  });
+  const tripVerificationQuery = useTripVerification(tripId, {
+    enabled:
+      onlineActionsEnabled &&
       Boolean(tripId) &&
       Boolean(tripAccess) &&
       canUsePrivateCollaboration
@@ -2517,6 +2526,7 @@ export function TripDetailPageContent() {
                 onSyncNow={offlineSync.syncNow}
                 syncing={offlineSync.syncing}
                 trip={trip}
+                verification={tripVerificationQuery.data ?? null}
                 workspaceName={workspaceName}
                 setupChecklist={{
                   checklistExists: Boolean(
@@ -2548,6 +2558,12 @@ export function TripDetailPageContent() {
                   onRetry={() => void tripHealthQuery.refetch()}
                   retrying={tripHealthQuery.isFetching}
                 />
+              </DeferredSection>
+            ) : null}
+
+            {canUsePrivateCollaboration && onlineActionsEnabled ? (
+              <DeferredSection active={sectionEnabled("verification", "health", "route")} section="verification">
+                <VerificationPanel readiness={tripVerificationQuery.data ?? null} />
               </DeferredSection>
             ) : null}
 
