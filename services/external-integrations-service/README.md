@@ -503,3 +503,9 @@ production.
 ## Tests
 
 Run `go test ./...` for provider, cache, quota, mapping, fallback, handler, and security tests; `make test` enables race detection. All provider HTTP tests use deterministic mocks or local `httptest` servers. `../../scripts/test-backend-integration.sh` sets the guarded `EIS_TEST_DATABASE_URL`, applies fresh migrations, and runs the Postgres quota-store integration test. Never set that variable to a non-test database.
+
+## Developer navigation
+
+Use the [provider playbook](../../docs/development/playbooks/add-external-provider.md),
+[environment guide](../../docs/development/environment.md), and [quota runbook](../../docs/operations/runbooks/provider-quota-exceeded.md).
+Mock providers remain the expected local and CI default.

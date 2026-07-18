@@ -614,3 +614,10 @@ Planning schemas accept a privacy-minimized `planningConstraints.personalization
 ## Tests
 
 Run `python3 -m pytest` or `make test`; the root `../../scripts/test-python.sh` also runs Ruff. Tests cover Pydantic schemas, prompt builders, parsing/repair, privacy, deterministic mock generation, destination/RAG selection, checklist, Copilot, route alternatives, recap, and FastAPI endpoints. CI sets mock mode with RAG/Ollama disabled, so no model download or external provider is required.
+
+## Developer navigation
+
+See [AI generation](../../docs/features/ai-generation.md), the
+[generation-job playbook](../../docs/development/playbooks/add-generation-job.md),
+and [AI failure runbook](../../docs/operations/runbooks/ai-generation-failing.md).
+Treat Trip Service as the authority for trip permissions and persistence.

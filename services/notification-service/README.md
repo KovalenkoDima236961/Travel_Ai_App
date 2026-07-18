@@ -354,3 +354,9 @@ delivery remains best effort.
 ## Tests
 
 Run `go test ./...` or the race-enabled `make test`. Tests use fake repositories, fixed clocks, mock email/push senders, and bounded SSE channels to cover unread state, preferences, grouping/digests, quiet hours, internal-token authorization, and delivery filtering. CI disables real SMTP and push. Fresh migrations and the unread-count seam are exercised by the root integration/smoke jobs.
+
+## Developer navigation
+
+See the [notifications feature guide](../../docs/features/notifications.md),
+[notification-type playbook](../../docs/development/playbooks/add-notification-type.md),
+and [delivery runbook](../../docs/operations/runbooks/notifications-not-sending.md).

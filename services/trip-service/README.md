@@ -1569,3 +1569,11 @@ Trip Service builds a deterministic, user-scoped personalization context from th
 ## Tests
 
 Run `go test ./...` for the broad domain/handler suite or `make test` for the race-enabled check. Package-local fakes cover permissions, revision conflicts, generation transitions, budgets, routes, expenses, receipts, checklist/reminders, policies/approvals, public/export sanitization, and worker-facing behavior. Full-stack tests always set `TRIP_ITINERARY_GENERATOR_MODE=mock`; run `../../scripts/test-backend-integration.sh` for fresh migrations and `../../scripts/test-frontend-e2e.sh` for browser seams.
+
+## Developer navigation
+
+Use [trips](../../docs/features/trips.md) for the domain map,
+[key flows](../../docs/architecture/key-flows.md) for revisions/jobs/shares, the
+[API inventory](../../docs/api/endpoint-inventory.md) for route groups, and
+[runbooks](../../docs/operations/runbooks.md) for operations. New writes must
+preserve permission and `expectedItineraryRevision` behavior.

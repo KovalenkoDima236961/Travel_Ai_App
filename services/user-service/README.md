@@ -182,3 +182,9 @@ make build
 ## Tests
 
 Run `go test ./...` for package tests or `make test` for race detection. Profile, preferences, workspace roles/invitations, authorization middleware, and completeness behavior use fixed package-local fakes. Use `../../scripts/test-backend-integration.sh` for fresh migration validation and the root smoke script for the authenticated service boundary.
+
+## Developer navigation
+
+See [data ownership](../../docs/architecture/data-ownership.md) for service
+database rules, [workspaces guide](../../docs/features/workspaces-approvals-policies.md)
+for cross-service role behavior, and the [migration playbook](../../docs/development/playbooks/add-database-migration.md).

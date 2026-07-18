@@ -7,6 +7,105 @@ Prometheus/Grafana observability stack.
 
 The default development stack runs at `http://localhost:3000`.
 
+## Quick start
+
+Prerequisites: Docker Desktop with Compose v2, `curl`, and `jq`. Node.js 22,
+Go, and Python 3.12 are needed only for their respective host-side test loops.
+
+```bash
+cp infra/.env.example infra/.env
+./scripts/validate-env.sh local --env-file infra/.env
+./scripts/compose-validate.sh --env-file infra/.env
+./scripts/dev-setup.sh --build
+./scripts/smoke-test.sh --core
+```
+
+Open http://localhost:3000. `dev-setup.sh` is the copy-paste-friendly default:
+it creates the local environment when missing, runs migrations, starts the
+mock-first `core` profile, and waits for readiness. Use `--ai` for
+Ollama/FastAPI, `--rag` for RAG, and `--observability` for Prometheus/Grafana.
+
+## Architecture
+
+The Web App (Next.js) calls independently deployable Go services for auth,
+profiles/workspaces, trips, notifications, background work, and external data.
+FastAPI supplies AI planning. Each database-owning service has its own Postgres
+database; RabbitMQ transports jobs; all provider/AI modes are mock-first for
+local development and CI.
+
+| Service | Local URL | Responsibility |
+| --- | --- | --- |
+| Web App | http://localhost:3000 | Browser UI, PWA, offline cache and i18n |
+| Trip Service | http://localhost:8080 | Trips, revisions, collaboration, jobs, budget, exports |
+| Auth Service | http://localhost:8082 | Users, JWTs and refresh tokens |
+| User Service | http://localhost:8083 | Profiles, preferences and workspaces |
+| External Integrations | http://localhost:8084 | Mock/real providers and calendar OAuth |
+| Notification Service | http://localhost:8086 | In-app/email/push/SSE and preferences |
+| Worker Service | http://localhost:8090 | RabbitMQ jobs and schedules |
+| AI Planning Service | http://localhost:8000 | Generation/repair/discovery (`ai` profile) |
+
+See the [architecture overview](docs/architecture/overview.md) and
+[service boundaries](docs/architecture/service-boundaries.md).
+
+## Environment files and Compose profiles
+
+Copy `infra/.env.example` to `infra/.env` for normal local development.
+`infra/.env.local.example`, `.env.test.example`, `.env.staging.example`,
+`.env.production.example`, and `.env.ci.example` are environment-specific
+templates—see [environment](docs/development/environment.md) before using them.
+
+| Profile | Includes | Typical use |
+| --- | --- | --- |
+| `core` | Postgres, RabbitMQ, web app, and Go services | Default mock-first development |
+| `ai` | Ollama and AI Planning Service | Real local model experimentation |
+| `rag` | AI/RAG dependencies | RAG-enabled AI work (also use `ai`) |
+| `observability` | Prometheus and Grafana | Local metrics/dashboards |
+| `dev-tools` | Adminer and migration runner | One-shot migrations/local DB inspection |
+| `test` | Isolated mock-only service/test stack | Integration and Playwright scripts |
+
+## Common commands
+
+```bash
+# Run migrations and inspect their state
+./scripts/run-migrations.sh
+./scripts/migration-status.sh
+
+# Test / scan
+./scripts/test-all.sh
+./scripts/security-scan.sh
+
+# Local operational checks
+./scripts/wait-for-ready.sh core
+./scripts/smoke-test.sh --core
+
+# Backup/restore local Postgres (restore is destructive and requires --yes)
+./scripts/backup-postgres.sh --output ./backups --gzip
+./scripts/restore-postgres.sh <backup-file-or-directory> --yes
+```
+
+The core test commands are `./scripts/test-frontend.sh`,
+`./scripts/test-go.sh`, `./scripts/test-python.sh`,
+`./scripts/test-backend-integration.sh`, and `./scripts/test-frontend-e2e.sh`.
+Exact Compose profiles, URLs, health/ready endpoints, and environment files are
+listed in [ports](docs/development/ports.md) and
+[environment](docs/development/environment.md).
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Getting started](docs/development/getting-started.md)
+- [Troubleshooting](docs/development/troubleshooting.md)
+- [Ports](docs/development/ports.md)
+- [Testing strategy](docs/testing/strategy.md)
+- [Security audit](docs/security/audit.md)
+- [Backend performance](docs/backend/performance.md) and [frontend performance](docs/frontend/performance.md)
+- [Developer playbooks](docs/development/playbooks.md)
+- [Operational runbooks](docs/operations/runbooks.md)
+
+Health is `GET /health`; readiness is `GET /ready` for backend services and
+`GET /api/ready` for the web app. Consult [deployment backups](docs/deployment/backups.md)
+before any destructive recovery.
+
 ## Testing and quality gates
 
 The repository uses a practical test pyramid: Vitest/Testing Library/MSW for the web app, package-local Go tests, pytest/FastAPI tests in deterministic mock mode, isolated Postgres integration tests, a mock-only Compose `test` profile, and a small Chromium Playwright suite.
@@ -504,7 +603,7 @@ keys; use the tracked environment examples only.
 - Trip orchestration: [services/trip-service/README.md](services/trip-service/README.md)
 - AI generation and RAG: [services/ai-planning-service/README.md](services/ai-planning-service/README.md)
 
-The generated codebase graph starts at [graphify-out/wiki/index.md](graphify-out/wiki/index.md).
+The generated codebase graph report is [graphify-out/GRAPH_REPORT.md](graphify-out/GRAPH_REPORT.md).
 
 ## Workspace Policy Rules v1
 

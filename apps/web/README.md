@@ -1179,3 +1179,12 @@ for the selected day, and queues itinerary status changes when offline using the
 existing revision-aware itinerary outbox. The view is intentionally a quick
 reference, not a booking, payment, live-tracking, or rebooking surface. See
 [`docs/travel-day-mode.md`](../../docs/travel-day-mode.md).
+
+## Developer navigation
+
+Start with [getting started](../../docs/development/getting-started.md), then
+use the [frontend page](../../docs/development/playbooks/add-frontend-page.md)
+and [query hook](../../docs/development/playbooks/add-query-hook.md) checklists.
+The [offline/PWA guide](../../docs/features/offline-pwa.md),
+[API overview](../../docs/api/overview.md), and [testing strategy](../../docs/testing/strategy.md)
+cover the cross-cutting constraints.

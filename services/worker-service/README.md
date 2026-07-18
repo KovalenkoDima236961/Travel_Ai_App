@@ -291,3 +291,10 @@ pending batch.
 ## Tests
 
 Run `go test ./...` or `make test`. Queue and worker tests use fake clients/messages, deterministic retry settings, and short polling deadlines for claim, ack/nack, retry/DLQ, cancellation, terminal idempotency, correlation propagation, and reminder/digest scheduling. CI uses test RabbitMQ and mock generation; it does not download an Ollama model.
+
+## Developer navigation
+
+The direct Trip job-state write is an intentional v1 compatibility path, not a
+new cross-service persistence pattern. See [data ownership](../../docs/architecture/data-ownership.md),
+[generation-job playbook](../../docs/development/playbooks/add-generation-job.md),
+and the [stuck-jobs runbook](../../docs/operations/runbooks/rabbitmq-jobs-stuck.md).

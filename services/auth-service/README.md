@@ -134,3 +134,10 @@ curl -sS http://localhost:8082/auth/me \
 ## Tests
 
 Run `go test ./...` for the fast package suite or `make test` for the race-enabled service check. Tests use package-local repositories, deterministic JWT secrets/users, and `httptest`; they never target a real account database. Fresh cross-service migrations and authenticated smoke behavior run through `../../scripts/test-backend-integration.sh` and `../../scripts/smoke-test.sh`.
+
+## Developer navigation
+
+Use the [API inventory](../../docs/api/endpoint-inventory.md) for the public and
+internal route map, [service boundaries](../../docs/architecture/service-boundaries.md)
+before adding ownership, and the [backend endpoint playbook](../../docs/development/playbooks/add-backend-endpoint.md)
+for the handler/test/documentation checklist.
