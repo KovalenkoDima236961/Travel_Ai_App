@@ -128,6 +128,12 @@ require_provider_key() {
   fi
 }
 
+validate_boolean() {
+  local name="$1" value
+  value="$(value_of "${name}")"
+  [[ -z "${value}" || "${value}" == "true" || "${value}" == "false" ]] || issue "${name} must be true or false"
+}
+
 require POSTGRES_USER
 require POSTGRES_DB
 require RABBITMQ_URL
@@ -174,6 +180,47 @@ if [[ "${WEB_PUSH_ENABLED:-false}" == "true" ]]; then
 fi
 if [[ "${AI_ITINERARY_GENERATOR_MODE:-mock}" == "ollama" ]]; then require_http_url OLLAMA_BASE_URL; fi
 if [[ "${RAG_ENABLED:-false}" == "true" ]]; then require OLLAMA_EMBEDDING_MODEL; fi
+
+for flag_var in \
+  FEATURE_FLAGS_ENABLED FEATURE_FLAGS_FAIL_CLOSED \
+  FEATURE_AI_GENERATION_ENABLED FEATURE_AI_REPAIR_ENABLED FEATURE_COPILOT_ENABLED \
+  FEATURE_ROUTE_ALTERNATIVES_ENABLED FEATURE_TEMPLATE_ADAPTATION_ENABLED \
+  FEATURE_PUBLIC_SHARING_ENABLED FEATURE_DATA_EXPORTS_ENABLED FEATURE_REAL_PROVIDERS_ENABLED \
+  FEATURE_CALENDAR_SYNC_ENABLED FEATURE_AVAILABILITY_SEARCH_ENABLED FEATURE_TRANSPORT_SEARCH_ENABLED \
+  FEATURE_RECEIPT_OCR_ENABLED FEATURE_WORKSPACE_APPROVALS_ENABLED FEATURE_POLICY_REPAIR_ENABLED \
+  FEATURE_WEB_PUSH_ENABLED FEATURE_EMAIL_NOTIFICATIONS_ENABLED FEATURE_NOTIFICATION_DIGESTS_ENABLED \
+  FEATURE_OFFLINE_MODE_ENABLED FEATURE_OPS_DASHBOARD_ENABLED; do
+  validate_boolean "${flag_var}"
+done
+
+if [[ -n "${FEATURE_FLAGS_CACHE_TTL_SECONDS:-}" ]] && ! [[ "${FEATURE_FLAGS_CACHE_TTL_SECONDS}" =~ ^[1-9][0-9]*$ ]] ; then
+  issue "FEATURE_FLAGS_CACHE_TTL_SECONDS must be a positive integer"
+fi
+
+if [[ "${STRICT}" == true && "${FEATURE_CALENDAR_SYNC_ENABLED:-false}" == "true" ]]; then
+  [[ "${GOOGLE_CALENDAR_ENABLED:-false}" == "true" ]] || issue "GOOGLE_CALENDAR_ENABLED must be true when FEATURE_CALENDAR_SYNC_ENABLED=true"
+  require GOOGLE_OAUTH_CLIENT_ID
+  require GOOGLE_OAUTH_CLIENT_SECRET
+  require_http_url GOOGLE_OAUTH_REDIRECT_URL
+fi
+if [[ "${STRICT}" == true && "${FEATURE_WEB_PUSH_ENABLED:-false}" == "true" ]]; then
+  require WEB_PUSH_VAPID_PUBLIC_KEY
+  require WEB_PUSH_VAPID_PRIVATE_KEY
+  require WEB_PUSH_SUBJECT
+fi
+if [[ "${STRICT}" == true && "${FEATURE_EMAIL_NOTIFICATIONS_ENABLED:-false}" == "true" && "${EMAIL_PROVIDER:-mock}" == "smtp" ]]; then
+  require SMTP_HOST
+  require SMTP_FROM_EMAIL
+  [[ "${STRICT}" == false ]] || require SMTP_PASSWORD
+fi
+if [[ "${STRICT}" == true && "${FEATURE_REAL_PROVIDERS_ENABLED:-false}" == "true" ]]; then
+  if [[ -z "${FOURSQUARE_API_KEY:-}${ORS_API_KEY:-}${OPENWEATHER_API_KEY:-}${PRICE_API_KEY:-}${EXCHANGE_RATE_API_KEY:-}" ]]; then
+    issue "at least one real provider key is required when FEATURE_REAL_PROVIDERS_ENABLED=true"
+  fi
+fi
+if [[ "${STRICT}" == true && "${FEATURE_OPS_DASHBOARD_ENABLED:-false}" == "true" ]]; then
+  require OPS_ADMIN_EMAILS
+fi
 
 if (( ${#ISSUES[@]} > 0 )); then
   echo "Environment validation failed for APP_ENV=${APP_ENV}:" >&2

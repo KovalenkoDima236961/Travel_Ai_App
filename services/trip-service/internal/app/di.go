@@ -22,6 +22,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/dataexport"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/exchangerateclient"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/featureflags"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	httpserver "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/handler"
@@ -82,6 +83,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 
 	repo := triprepo.New(db)
+	featureFlagSvc := featureflags.New(featureflags.NewPostgresRepository(db), cfg.FeatureFlags, cfg.Env, log)
 	personalizationSvc := personalization.New(personalization.NewRepository(db), log)
 	gen, err := generator.NewItineraryGenerator(cfg, log)
 	if err != nil {
@@ -499,6 +501,10 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("init copilot handler: %w", err)
 	}
+	copilotHandler.EnableRuntimeGate(func(ctx context.Context) (bool, error) {
+		enabled, _, err := featureFlagSvc.IsEnabled(ctx, featureflags.CopilotEnabled, featureflags.EvaluationContext{ServiceName: "trip-service"})
+		return enabled, err
+	})
 	discoveryAIClient, err := tripdiscovery.NewHTTPAIClient(
 		cfg.ItineraryGenerator.AIPlanningServiceURL,
 		time.Duration(cfg.TripDiscovery.AITimeoutSeconds)*time.Second,
@@ -566,7 +572,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		EnableEditLocks(editLockManager, editLocksCfg).
 		EnableGenerationJobs(generationJobSvc).
 		EnableAIObservability(aiTraceService).
-		EnableWorkspacePolicies(policySvc)
+		EnableWorkspacePolicies(policySvc).
+		EnableFeatureFlags(featureFlagSvc)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,
 		cfg.ItineraryGenerator.Mode,

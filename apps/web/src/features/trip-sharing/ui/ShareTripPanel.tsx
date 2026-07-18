@@ -19,6 +19,7 @@ import {
 import { activityKeys } from "@/lib/api/activity";
 import { formatDate, getErrorMessage } from "@/lib/utils";
 import type { TripShareInfo, UpdateTripShareRequest } from "@/entities/share/model";
+import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
 
 type ShareTripPanelProps = {
   tripId: string;
@@ -27,6 +28,7 @@ type ShareTripPanelProps = {
 type ExpirationPreset = "never" | "7_days" | "30_days" | "custom";
 
 export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
+  const sharingEnabled = useFeatureFlag("public_sharing_enabled");
   const confirmationsT = useTranslations("confirmations");
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +117,8 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
     disableMutation.isPending ||
     updateMutation.isPending ||
     shareQuery.isPending;
+
+  if (!sharingEnabled) return null;
 
   async function copyShareLink() {
     if (!shareUrl) {

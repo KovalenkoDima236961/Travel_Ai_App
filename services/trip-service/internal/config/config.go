@@ -8,6 +8,7 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/featureflags"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 )
@@ -60,6 +61,7 @@ type Config struct {
 	TripRecap          TripRecapConfig          `yaml:"trip_recap"`
 	TripLibrary        TripLibraryConfig        `yaml:"trip_library"`
 	DataExports        DataExportsConfig        `yaml:"data_exports"`
+	FeatureFlags       featureflags.Config      `yaml:"feature_flags"`
 }
 
 // DataExportsConfig controls private, authenticated export packages. It never

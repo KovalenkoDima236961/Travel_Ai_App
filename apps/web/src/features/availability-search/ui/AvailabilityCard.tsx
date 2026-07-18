@@ -12,6 +12,7 @@ import {
 } from "@/entities/budget/model";
 import { getTripItemDate } from "@/entities/itinerary/model/opening-hours-utils";
 import { cn } from "@/lib/utils";
+import { useFeatureFlag } from "@/lib/feature-flags/FeatureFlagProvider";
 import type {
   AvailabilityOption,
   AvailabilitySearchRequest,
@@ -106,7 +107,8 @@ export function AvailabilityCard({
   onApplyPrice,
   onResult
 }: AvailabilityCardProps) {
-  const [applyingOptionId, setApplyingOptionId] = useState<string | null>(null);
+	const availabilitySearchEnabled = useFeatureFlag("availability_search_enabled");
+	const [applyingOptionId, setApplyingOptionId] = useState<string | null>(null);
   const itemDate = trip.startDate
     ? formatDateForAvailability(getTripItemDate(trip.startDate, dayNumber))
     : null;
@@ -148,6 +150,10 @@ export function AvailabilityCard({
       onResult?.(dayNumber, itemIndex, query.data);
     }
   }, [dayNumber, itemIndex, onResult, query.data]);
+
+  if (!availabilitySearchEnabled) {
+    return null;
+  }
 
   const result = query.data ?? null;
   const pricedOptions = result?.options.filter((option) => option.price) ?? [];

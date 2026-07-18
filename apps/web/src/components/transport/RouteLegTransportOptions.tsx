@@ -6,6 +6,7 @@ import { useAttachRouteLegTransportOption } from "@/hooks/useAttachRouteLegTrans
 import { useRemoveRouteLegTransportOption } from "@/hooks/useRemoveRouteLegTransportOption";
 import { useRouteLegTransportSearch } from "@/hooks/useRouteLegTransportSearch";
 import { selectedOptionFromTransportOption } from "@/lib/api/transport";
+import { useFeatureFlag } from "@/lib/feature-flags/FeatureFlagProvider";
 import { isLegTransportStale } from "@/lib/route-builder/route-draft";
 import type { SearchRouteLegTransportInput, TransportModeValue, TransportOption } from "@/types/transport";
 import { AttachTransportOptionDialog } from "./AttachTransportOptionDialog";
@@ -46,16 +47,19 @@ export function RouteLegTransportOptions({
   expectedItineraryRevision,
   online = true
 }: Props) {
+	const transportSearchEnabled = useFeatureFlag("transport_search_enabled");
   const [searchOpen, setSearchOpen] = useState(false);
   const [pendingOption, setPendingOption] = useState<TransportOption | null>(null);
   const search = useRouteLegTransportSearch(tripId ?? "", leg.id);
   const attach = useAttachRouteLegTransportOption(tripId ?? "", leg.id);
   const remove = useRemoveRouteLegTransportOption(tripId ?? "", leg.id);
-  const defaultModes = useMemo(() => defaultModesForLeg(leg), [leg.mode]);
+	const defaultModes = useMemo(() => defaultModesForLeg(leg.mode), [leg.mode]);
   const defaultDate = leg.departureDate || leg.selectedTransportOption?.departureDate || "";
   const defaultTime = leg.selectedTransportOption?.departureTime || "";
   const disabledReason = !tripId
     ? "Save the trip before searching transport."
+	: !transportSearchEnabled
+	  ? "Transport search is currently unavailable."
     : !online
       ? "Transport search is unavailable offline."
       : !canEdit
@@ -120,7 +124,7 @@ export function RouteLegTransportOptions({
         stale={isLegTransportStale(leg)}
         onRemove={removeSelectedOption}
       />
-      {canEdit ? (
+		{canEdit && transportSearchEnabled ? (
         <div className="flex flex-wrap items-center gap-2">
           <button
             className="rounded-md border border-sand-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-cocoa-600 transition hover:bg-sand-50 disabled:opacity-60"
@@ -137,7 +141,7 @@ export function RouteLegTransportOptions({
           ) : null}
         </div>
       ) : null}
-      <TransportSearchDialog
+		<TransportSearchDialog
         currency={currency}
         defaultDate={defaultDate}
         defaultModes={defaultModes}
@@ -147,7 +151,7 @@ export function RouteLegTransportOptions({
         onClose={() => setSearchOpen(false)}
         onSearch={runSearch}
         onSelect={setPendingOption}
-        open={searchOpen}
+			open={transportSearchEnabled && searchOpen}
         options={options}
         selectingOptionId={pendingOption?.id ?? null}
         summary={search.data?.summary ?? null}
@@ -164,8 +168,8 @@ export function RouteLegTransportOptions({
   );
 }
 
-function defaultModesForLeg(leg: TripRouteLeg): TransportModeValue[] {
-  const normalized = normalizeMode(leg.mode);
+function defaultModesForLeg(mode?: string | null): TransportModeValue[] {
+	const normalized = normalizeMode(mode);
   return normalized ? [normalized] : ["train", "bus", "car"];
 }
 

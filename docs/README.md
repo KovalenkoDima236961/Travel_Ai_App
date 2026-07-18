@@ -23,6 +23,7 @@ kept beside the code and Compose configuration it describes.
 | Operations | [Runbooks](operations/runbooks.md), [deployment](deployment/production.md), [backups](deployment/backups.md) |
 | Releases | [Release process](releases/release-process.md), [hotfix process](releases/hotfix-process.md), [rollback](releases/rollback.md), [migration safety](releases/migration-safety.md), [troubleshooting](releases/troubleshooting.md) |
 | Features | [Trips](features/trips.md), [AI generation](features/ai-generation.md), [offline/PWA](features/offline-pwa.md), [receipts and expenses](features/receipts-expenses.md), [notifications](features/notifications.md), [workspaces](features/workspaces-approvals-policies.md) |
+| Platform | [Feature flags and runtime controls](platform/feature-flags.md) |
 
 ## Documentation ownership
 

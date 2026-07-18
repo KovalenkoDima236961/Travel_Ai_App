@@ -16,6 +16,7 @@ import {
 import { ApiError, isItineraryConflictError } from "@/shared/api/client";
 import { formatDate } from "@/lib/utils";
 import type { Trip } from "@/entities/trip/model";
+import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
 
 type CalendarSyncPanelProps = {
   trip: Trip;
@@ -23,6 +24,7 @@ type CalendarSyncPanelProps = {
 };
 
 export function CalendarSyncPanel({ trip, canSync }: CalendarSyncPanelProps) {
+  const calendarEnabled = useFeatureFlag("calendar_sync_enabled");
   const queryClient = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +117,8 @@ export function CalendarSyncPanel({ trip, canSync }: CalendarSyncPanelProps) {
     }
     return `Synced at revision ${syncStatus.syncedItineraryRevision ?? trip.itineraryRevision}`;
   }, [syncStatus, trip.itineraryRevision]);
+
+  if (!calendarEnabled) return null;
 
   async function connect() {
     try {

@@ -11,6 +11,7 @@ import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { WorkspaceProvider } from "@/components/workspaces/WorkspaceProvider";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { registerServiceWorker } from "@/lib/push/register-service-worker";
+import { FeatureFlagProvider, FeatureGate, useFeatureFlag } from "@/lib/feature-flags/FeatureFlagProvider";
 
 type ProvidersProps = {
   children: ReactNode;
@@ -30,27 +31,41 @@ export function Providers({ children }: ProvidersProps) {
       })
   );
 
-  useEffect(() => {
-    registerServiceWorker().catch(() => {
-      // Offline app shell support is best-effort and should not block the app.
-    });
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <I18nProvider>
-          <WorkspaceProvider>
-            <OfflineSyncController />
-            <GlobalCommandPalette />
-            <AppUpdateBanner />
-            <PwaInstallPrompt />
-            {children}
-          </WorkspaceProvider>
+          <FeatureFlagProvider>
+            <WorkspaceProvider>
+              <RuntimeFeatureControllers />
+              <OfflineSyncController />
+              <GlobalCommandPalette />
+              <AppUpdateBanner />
+              <FeatureGate flag="offline_mode_enabled">
+                <PwaInstallPrompt />
+              </FeatureGate>
+              {children}
+            </WorkspaceProvider>
+          </FeatureFlagProvider>
         </I18nProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+function RuntimeFeatureControllers() {
+  const offlineModeEnabled = useFeatureFlag("offline_mode_enabled");
+
+  useEffect(() => {
+    if (!offlineModeEnabled) {
+      return;
+    }
+    registerServiceWorker().catch(() => {
+      // Offline app shell support is best-effort and should not block the app.
+    });
+  }, [offlineModeEnabled]);
+
+  return null;
 }
 
 function OfflineSyncController() {

@@ -12,6 +12,7 @@ import (
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/featureflags"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 )
 
@@ -21,6 +22,12 @@ type opsActionRequest struct {
 
 func (h *Handler) RegisterOpsRoutes(r chi.Router, staleThreshold time.Duration) {
 	r.Route("/ops", func(r chi.Router) {
+		r.Use(h.featureMiddleware(featureflags.OpsDashboardEnabled))
+		r.Get("/feature-flags", h.OpsListFeatureFlags)
+		r.Get("/feature-flags/{key}", h.OpsGetFeatureFlag)
+		r.Patch("/feature-flags/{key}", h.OpsUpdateFeatureFlag)
+		r.Post("/feature-flags/{key}/reset", h.OpsResetFeatureFlag)
+		r.Get("/feature-flags/{key}/audit", h.OpsListFeatureFlagAudit)
 		r.Get("/jobs", h.OpsListJobs)
 		r.Get("/jobs/summary", h.OpsJobSummary(staleThreshold))
 		r.Get("/jobs/{jobId}", h.OpsGetJob(staleThreshold))

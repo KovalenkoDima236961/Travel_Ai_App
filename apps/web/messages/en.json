@@ -1418,6 +1418,16 @@
     "createAndGenerate": "Create trip and generate itinerary",
     "createWithoutGenerating": "Create trip without generating"
   },
+  "featureFlags": {
+    "title": "Feature flags",
+    "description": "Runtime controls are audited and enforced by the backend.",
+    "flag": "Flag", "source": "Source", "enforcement": "Enforcement", "value": "Value",
+    "enabled": "Enabled", "disabled": "Disabled", "enable": "Enable", "disable": "Disable",
+    "reset": "Reset to default", "audit": "Audit history", "backend": "Backend", "frontend": "Frontend",
+    "reasonPrompt": "Reason to {action} {flag}", "confirmRisk": "This changes a high-risk feature ({flag}). Continue?",
+    "loadError": "Feature flags could not be loaded.", "noAudit": "No changes have been recorded.", "close": "Close", "loading": "Loading…", "search": "Search flags", "category": "Category", "allCategories": "All categories", "safe": "Frontend-safe", "yes": "Yes", "no": "No", "noFlags": "No feature flags match these filters.",
+    "unavailable": "Feature unavailable", "unavailableDescription": "This feature is currently disabled. Contact an administrator if you think this is a mistake."
+  },
   "generationExperience": {
     "creating": "Creating your itinerary",
     "ready": "Your itinerary is ready",

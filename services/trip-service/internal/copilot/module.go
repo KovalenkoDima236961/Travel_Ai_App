@@ -21,12 +21,20 @@ import (
 )
 
 type Handler struct {
-	svc     *service.Service
-	cfg     Config
-	ai      *AIClient
-	tracer  *aiobservability.Service
-	limiter *tripsecurity.RateLimiter
-	log     *zap.Logger
+	svc            *service.Service
+	cfg            Config
+	ai             *AIClient
+	tracer         *aiobservability.Service
+	limiter        *tripsecurity.RateLimiter
+	log            *zap.Logger
+	runtimeEnabled func(context.Context) (bool, error)
+}
+
+// EnableRuntimeGate adds a server-side flag check without coupling Copilot to
+// the storage implementation. It is evaluated for every chat request.
+func (h *Handler) EnableRuntimeGate(gate func(context.Context) (bool, error)) *Handler {
+	h.runtimeEnabled = gate
+	return h
 }
 
 func NewHandler(
@@ -65,6 +73,16 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.svc == nil || !h.cfg.Enabled {
 		writeError(w, http.StatusServiceUnavailable, "copilot_unavailable", "Copilot is unavailable")
 		return
+	}
+	if h.runtimeEnabled != nil {
+		enabled, err := h.runtimeEnabled(r.Context())
+		if err != nil {
+			h.log.Warn("copilot runtime control lookup failed", zap.Error(err))
+		}
+		if !enabled {
+			writeError(w, http.StatusForbidden, "feature_disabled", "This feature is currently disabled.")
+			return
+		}
 	}
 	tripID, err := uuid.Parse(chi.URLParam(r, "tripId"))
 	if err != nil {

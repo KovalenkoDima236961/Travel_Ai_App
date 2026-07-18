@@ -7,7 +7,7 @@ export type ApiErrorPayload = {
   error?: string | {
     code?: string;
     message?: string;
-    details?: ValidationFieldError[];
+    details?: ValidationFieldError[] | Record<string, unknown>;
     requestId?: string;
   };
   message?: string;
@@ -54,7 +54,7 @@ export function normalizeApiErrorPayload(
 ): NormalizedApiError {
   const error = payload?.error;
   const structured = error && typeof error === "object" ? error : undefined;
-  const details = structured?.details ?? [];
+  const details = Array.isArray(structured?.details) ? structured.details : [];
   const fieldErrors = {
     ...(payload?.fields ?? {}),
     ...Object.fromEntries(
@@ -121,7 +121,7 @@ function isKnownErrorCode(value: string): boolean {
     "itinerary_conflict", "edit_lock_conflict", "rate_limited",
     "provider_rate_limited", "provider_quota_exceeded", "provider_unavailable",
     "generation_failed", "upload_invalid_type", "upload_too_large",
-    "public_share_expired", "public_share_password_required", "internal_auth_required",
+    "public_share_expired", "public_share_password_required", "internal_auth_required", "feature_disabled",
     "unknown_error"
   ].includes(value);
 }

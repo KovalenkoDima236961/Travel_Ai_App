@@ -22,6 +22,7 @@ existing clients:
 | --- | ---: | --- |
 | `unauthorized` | 401 | Refresh/login through existing auth flow; do not retry unchanged credentials. |
 | `forbidden` | 403 | Hide/restrict action and explain missing role; never retry as another user. |
+| `feature_disabled` | 403 | Hide the optional control and show the neutral unavailable state; do not retry until an operator enables it. |
 | `validation_error` | 400/422 | Bind field errors when available; keep entered safe values. |
 | `not_found` | 404 | Show missing/deleted resource state; avoid leaking private existence. |
 | `conflict` | 409 | Refetch state and ask user to resolve. |

@@ -873,6 +873,11 @@
     "createAndGenerate": "Créer le voyage et générer l’itinéraire",
     "createWithoutGenerating": "Créer le voyage sans générer"
   },
+  "featureFlags": {
+    "title": "Indicateurs de fonctionnalité", "description": "Les contrôles d’exécution sont audités et appliqués par le backend.",
+    "flag": "Indicateur", "source": "Source", "enforcement": "Application", "value": "Valeur", "enabled": "Activé", "disabled": "Désactivé", "enable": "Activer", "disable": "Désactiver",
+    "reset": "Rétablir la valeur par défaut", "audit": "Historique d’audit", "backend": "Backend", "frontend": "Frontend", "reasonPrompt": "Motif pour {action} {flag}", "confirmRisk": "Cette action modifie une fonctionnalité à risque élevé ({flag}). Continuer ?", "loadError": "Impossible de charger les indicateurs.", "noAudit": "Aucune modification enregistrée.", "close": "Fermer", "loading": "Chargement…", "search": "Rechercher des indicateurs", "category": "Catégorie", "allCategories": "Toutes les catégories", "safe": "Compatible frontend", "yes": "Oui", "no": "Non", "noFlags": "Aucun indicateur ne correspond à ces filtres.", "unavailable": "Fonction indisponible", "unavailableDescription": "Cette fonctionnalité est actuellement désactivée. Contactez un administrateur si vous pensez qu’il s’agit d’une erreur."
+  },
   "generationExperience": {
     "creating": "Création de votre itinéraire",
     "ready": "Votre itinéraire est prêt",

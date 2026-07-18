@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
 
 type CopilotButtonProps = {
   onClick: () => void;
@@ -8,6 +9,8 @@ type CopilotButtonProps = {
 
 export function CopilotButton({ onClick }: CopilotButtonProps) {
   const t = useTranslations("copilot");
+  const enabled = useFeatureFlag("copilot_enabled");
+  if (!enabled) return null;
   return (
     <button
       aria-label={t("open")}

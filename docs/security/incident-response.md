@@ -18,6 +18,13 @@
 6. Triage severity and impact, notify the incident owner, remediate, add a
    regression test/security scan rule, and document the timeline and rotation.
 
+For an immediate feature containment action, an allowlisted ops admin can
+disable `public_sharing_enabled`, `data_exports_enabled`,
+`calendar_sync_enabled`, `real_providers_enabled`, `ai_repair_enabled`, or
+`copilot_enabled` through the audited Feature Flags panel. This complements,
+but never replaces, revoking a specific public share or rotating a leaked
+credential.
+
 For a leaked public link, disable it immediately and issue a new one only after
 confirming its scope/password/expiry. For a leaked internal token, deploy the
 overlap token set to receivers, move callers to the new token, verify failures,

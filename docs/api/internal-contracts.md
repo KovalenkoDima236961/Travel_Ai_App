@@ -12,6 +12,7 @@ return only the minimum data required for the operation.
 | `POST /internal/calendar/google/events/sync`, `/delete` | External integrations | Trip | Calendar event lifecycle; tokens and provider OAuth material never appear in responses. |
 | `POST /internal/reminders/process-due` | Trip | Worker | Scheduled reminder processing; request is trusted but bounded and idempotent at job level. |
 | `POST /internal/data-exports/account-package` | Trip | User | Private account export package; only authorized service caller can obtain metadata. |
+| `POST /internal/feature-flags/evaluate` | Trip | Future internal service clients | Typed evaluation result for a registered global flag; internal token required, cached, and never contains secrets. |
 
 Before adding an internal endpoint, record the caller, authentication, request,
 response, retry/idempotency and privacy rules here. Add a focused test proving

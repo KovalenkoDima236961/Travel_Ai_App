@@ -13,6 +13,7 @@ import { useTemplateAdaptationJob } from "../model/useTemplateAdaptationJob";
 import { getErrorMessage } from "@/lib/utils";
 import type { GenerationJob } from "@/entities/generation-job/model";
 import type { TripTemplate } from "@/entities/trip-template/model";
+import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
 
 type AdaptTemplateWithAiDialogProps = {
   open: boolean;
@@ -35,6 +36,7 @@ export function AdaptTemplateWithAiDialog({
   onClose,
   onUseDirectly
 }: AdaptTemplateWithAiDialogProps) {
+  const adaptationEnabled = useFeatureFlag("template_adaptation_enabled");
   const router = useRouter();
   const { editableWorkspaces, currentWorkspace } = useWorkspaces();
   const createJob = useCreateTemplateAdaptationJob();
@@ -98,6 +100,8 @@ export function AdaptTemplateWithAiDialog({
       template.durationDays === 1 ? "day" : "days"
     }.`;
   }, [template]);
+
+  if (!adaptationEnabled) return null;
 
   if (!open || !template) {
     return null;

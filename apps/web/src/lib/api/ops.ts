@@ -60,8 +60,61 @@ export const opsKeys = {
     ["ops", "provider-quota", provider] as const,
   aiGenerations: (filters: AIGenerationTraceFilters) =>
     ["ops", "ai-generations", filters] as const,
-  aiGenerationDetail: (traceId: string | null) => ["ops", "ai-generation", traceId] as const
+  aiGenerationDetail: (traceId: string | null) => ["ops", "ai-generation", traceId] as const,
+  featureFlags: ["ops", "feature-flags"] as const,
+  featureFlagAudit: (key: string) => ["ops", "feature-flags", key, "audit"] as const
 };
+
+export type OpsFeatureFlag = {
+  key: string;
+  value: boolean;
+  type: "boolean" | "string" | "int";
+  category: string;
+  description: string;
+  safeForFrontend: boolean;
+  requiresBackendEnforcement: boolean;
+  metadata: {
+    source: "default" | "env" | "db" | "fail_closed";
+    scope: string;
+    updatedAt?: string | null;
+    defaultUsed: boolean;
+  };
+};
+
+export type FeatureFlagAuditEvent = {
+  id: string;
+  flagKey: string;
+  action: string;
+  oldValue?: Record<string, unknown>;
+  newValue?: Record<string, unknown>;
+  reason?: string;
+  requestId?: string;
+  createdAt: string;
+};
+
+export function getOpsFeatureFlags() {
+  return apiFetch<{ flags: OpsFeatureFlag[]; environment: string }>("/ops/feature-flags");
+}
+
+export function updateOpsFeatureFlag(key: string, value: boolean, reason: string) {
+  return apiFetch<OpsFeatureFlag>(`/ops/feature-flags/${encodeURIComponent(key)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ value, reason })
+  });
+}
+
+export function resetOpsFeatureFlag(key: string, reason: string) {
+  return apiFetch<OpsFeatureFlag>(`/ops/feature-flags/${encodeURIComponent(key)}/reset`, {
+    method: "POST",
+    body: JSON.stringify({ reason })
+  });
+}
+
+export function getOpsFeatureFlagAudit(key: string) {
+  return apiFetch<{ events: FeatureFlagAuditEvent[] }>(
+    `/ops/feature-flags/${encodeURIComponent(key)}/audit`
+  );
+}
 
 export async function getAIGenerationTraces(
   filters: AIGenerationTraceFilters = {}

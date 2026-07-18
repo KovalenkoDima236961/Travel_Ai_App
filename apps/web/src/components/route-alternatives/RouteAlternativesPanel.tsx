@@ -8,6 +8,7 @@ import { useCreateTripFromRouteAlternative } from "@/hooks/useCreateTripFromRout
 import { useRefineRouteAlternatives } from "@/hooks/useRefineRouteAlternatives";
 import { useSuggestRouteAlternatives } from "@/hooks/useSuggestRouteAlternatives";
 import { useSuggestTripRouteAlternatives } from "@/hooks/useSuggestTripRouteAlternatives";
+import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
 import { getErrorMessage } from "@/lib/utils";
 import type { Trip } from "@/entities/trip/model";
 import type {
@@ -46,6 +47,7 @@ export function RouteAlternativesPanel({
   onRouteApplied,
   className = ""
 }: RouteAlternativesPanelProps) {
+  const routeAlternativesEnabled = useFeatureFlag("route_alternatives_enabled");
   const t = useTranslations("routeAlternatives");
   const { editableWorkspaces } = useWorkspaces();
   const [prompt, setPrompt] = useState(defaultPrompt);
@@ -76,6 +78,8 @@ export function RouteAlternativesPanel({
     }
     return "A 5-day Austria trip with nature, old towns, and train travel.";
   }, [defaultPrompt, trip]);
+
+  if (!routeAlternativesEnabled) return null;
 
   async function generate() {
     const nextPrompt = prompt.trim() || initialPrompt;

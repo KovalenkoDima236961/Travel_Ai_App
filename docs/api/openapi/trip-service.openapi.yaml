@@ -15,6 +15,68 @@ tags:
   - name: Public sharing
   - name: Planning
 paths:
+  /feature-flags/public:
+    get:
+      tags: [Operations]
+      operationId: getPublicFeatureFlags
+      security: []
+      responses:
+        '200':
+          description: Browser-safe global boolean flags only.
+          content: { application/json: { schema: { $ref: '#/components/schemas/PublicFeatureFlagsResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/feature-flags:
+    get:
+      tags: [Operations]
+      operationId: listOpsFeatureFlags
+      responses:
+        '200':
+          description: Allowlisted operator view of registered flags and sources.
+          content: { application/json: { schema: { $ref: '#/components/schemas/OpsFeatureFlagsResponse' } } }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/feature-flags/{key}:
+    parameters: [{ name: key, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [Operations]
+      operationId: getOpsFeatureFlag
+      responses:
+        '200': { description: Resolved flag, content: { application/json: { schema: { $ref: '#/components/schemas/OpsFeatureFlag' } } } }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    patch:
+      tags: [Operations]
+      operationId: updateOpsFeatureFlag
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateFeatureFlagRequest' } } }
+      responses:
+        '200': { description: Updated resolved flag, content: { application/json: { schema: { $ref: '#/components/schemas/OpsFeatureFlag' } } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/feature-flags/{key}/reset:
+    post:
+      tags: [Operations]
+      operationId: resetOpsFeatureFlag
+      parameters: [{ name: key, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ResetFeatureFlagRequest' } } }
+      responses:
+        '200': { description: Resolved default flag, content: { application/json: { schema: { $ref: '#/components/schemas/OpsFeatureFlag' } } } }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/feature-flags/{key}/audit:
+    get:
+      tags: [Operations]
+      operationId: listOpsFeatureFlagAudit
+      parameters: [{ name: key, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Flag audit events, content: { application/json: { schema: { $ref: '#/components/schemas/FeatureFlagAuditResponse' } } } }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
   /version:
     get:
       tags: [Operations]
@@ -858,6 +920,45 @@ components:
       type: object
       required: [success]
       properties: { success: { type: boolean } }
+    PublicFeatureFlagsResponse:
+      type: object
+      required: [flags, environment]
+      properties:
+        flags: { type: object, additionalProperties: { type: boolean } }
+        environment: { type: string, enum: [local, test, staging, production, development] }
+        updatedAt: { type: string, format: date-time, nullable: true }
+    OpsFeatureFlag:
+      type: object
+      required: [key, value, type, category, safeForFrontend, requiresBackendEnforcement, metadata]
+      properties:
+        key: { type: string }
+        value: { type: boolean }
+        type: { type: string, enum: [boolean, string, int] }
+        category: { type: string }
+        description: { type: string }
+        safeForFrontend: { type: boolean }
+        requiresBackendEnforcement: { type: boolean }
+        metadata: { type: object, additionalProperties: true }
+    OpsFeatureFlagsResponse:
+      type: object
+      required: [flags, environment]
+      properties:
+        flags: { type: array, items: { $ref: '#/components/schemas/OpsFeatureFlag' } }
+        environment: { type: string }
+    UpdateFeatureFlagRequest:
+      type: object
+      required: [value]
+      properties:
+        value: { type: boolean }
+        reason: { type: string, maxLength: 500 }
+    ResetFeatureFlagRequest:
+      type: object
+      properties: { reason: { type: string, maxLength: 500 } }
+    FeatureFlagAuditResponse:
+      type: object
+      required: [events]
+      properties:
+        events: { type: array, items: { type: object, additionalProperties: true } }
     ErrorResponse:
       type: object
       required: [error]
@@ -870,7 +971,10 @@ components:
               properties:
                 code: { type: string }
                 message: { type: string }
-                details: { type: array, items: { type: object, additionalProperties: true } }
+                details:
+                  oneOf:
+                    - { type: array, items: { type: object, additionalProperties: true } }
+                    - { type: object, additionalProperties: true }
                 requestId: { type: string }
         currentItineraryRevision: { type: integer }
   responses:

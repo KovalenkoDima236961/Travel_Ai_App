@@ -22,6 +22,7 @@ import {
   useTripApprovalMutations
 } from "../model/useTripApproval";
 import { getApiErrorMessage } from "@/shared/api/client";
+import { useFeatureFlag } from "@/lib/feature-flags/FeatureFlagProvider";
 import type { ApprovalEventType } from "@/entities/approval/model";
 import type { RepairMode } from "@/entities/trip-repair/model";
 
@@ -54,6 +55,7 @@ export function TripApprovalPanel({
   tripId: string;
   onOpenTripRepair?: (repairMode?: RepairMode) => void;
 }) {
+	const approvalsEnabled = useFeatureFlag("workspace_approvals_enabled");
   const router = useRouter();
   const { online } = useNetworkStatus();
   const approvalQuery = useTripApproval(tripId);
@@ -198,17 +200,17 @@ export function TripApprovalPanel({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        {approval.canSubmit ? (
+		{approvalsEnabled && approval.canSubmit ? (
           <Button disabled={!online || anyPending} onClick={() => setDialog("submit")}>
             Submit for approval
           </Button>
         ) : null}
-        {approval.canApprove ? (
+		{approvalsEnabled && approval.canApprove ? (
           <Button disabled={!online || anyPending} onClick={() => setDialog("approve")}>
             Approve
           </Button>
         ) : null}
-        {approval.canRequestChanges ? (
+		{approvalsEnabled && approval.canRequestChanges ? (
           <Button
             disabled={!online || anyPending}
             variant="secondary"
@@ -217,7 +219,7 @@ export function TripApprovalPanel({
             Request changes
           </Button>
         ) : null}
-        {approval.canCancel ? (
+		{approvalsEnabled && approval.canCancel ? (
           <Button
             disabled={!online || anyPending}
             variant="ghost"

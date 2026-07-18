@@ -874,6 +874,11 @@
     "createAndGenerate": "Crear viaje y generar itinerario",
     "createWithoutGenerating": "Crear viaje sin generar"
   },
+  "featureFlags": {
+    "title": "Banderas de funciones", "description": "Los controles de tiempo de ejecución se auditan y se aplican en el backend.",
+    "flag": "Bandera", "source": "Origen", "enforcement": "Aplicación", "value": "Valor", "enabled": "Activado", "disabled": "Desactivado", "enable": "Activar", "disable": "Desactivar",
+    "reset": "Restablecer valor predeterminado", "audit": "Historial de auditoría", "backend": "Backend", "frontend": "Frontend", "reasonPrompt": "Motivo para {action} {flag}", "confirmRisk": "Esto cambia una función de alto riesgo ({flag}). ¿Continuar?", "loadError": "No se pudieron cargar las banderas.", "noAudit": "No se registraron cambios.", "close": "Cerrar", "loading": "Cargando…", "search": "Buscar banderas", "category": "Categoría", "allCategories": "Todas las categorías", "safe": "Seguro para frontend", "yes": "Sí", "no": "No", "noFlags": "Ninguna bandera coincide con estos filtros.", "unavailable": "Función no disponible", "unavailableDescription": "Esta función está desactivada actualmente. Contacta a un administrador si crees que es un error."
+  },
   "generationExperience": {
     "creating": "Creando tu itinerario",
     "ready": "Tu itinerario está listo",

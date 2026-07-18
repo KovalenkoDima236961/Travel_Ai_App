@@ -26,6 +26,11 @@ Develop and merge normal changes through the repository’s reviewed branch flow
 6. Build version/SHA images with `REGISTRY=<registry> ./scripts/release/build-images.sh`; push only with an explicit `--push` or `push-images.sh`.
 7. Run staging-like verification below, review [rollback](rollback.md), then create the annotated tag with `./scripts/release/tag-release.sh <version>`.
 
+When a release adds a runtime flag, list its key, production default, owner,
+required dependency configuration, rollout owner, and rollback action in the
+release notes. Ship risky code disabled when practical; disabling its audited
+database override is the first rollback control before a redeploy.
+
 ## Artifacts
 
 Release CI retains release notes, image-tag list, OpenAPI specifications, generated client output when present, test reports, security summaries, and migration-check output. Never upload environment files, credentials, exports, receipts, or sensitive logs.

@@ -7,8 +7,10 @@ import { PrimaryButton, SaveNotice, Switch } from "@/components/settings/control
 import { downloadTripCsv, downloadTripExport, getBudgetCsvUrl, getExpenseCsvUrl, getReceiptMetadataCsvUrl, getSettlementCsvUrl } from "@/lib/api/data-export";
 import { getErrorMessage } from "@/lib/utils";
 import { useCreateTripArchiveExport, useTripExportStatus } from "@/hooks/useDataExport";
+import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
 
 export function TripExportPanel({ tripId, disabled = false }: { tripId: string; disabled?: boolean }) {
+  const exportsEnabled = useFeatureFlag("data_exports_enabled");
   const [includeReceiptFiles, setIncludeReceiptFiles] = useState(false);
   const [includeRecapPdf, setIncludeRecapPdf] = useState(false);
   const [exportId, setExportId] = useState<string | null>(null);
@@ -20,6 +22,7 @@ export function TripExportPanel({ tripId, disabled = false }: { tripId: string; 
     setError(null);
     try { await downloadTripCsv(path, filename); } catch (reason) { setError(getErrorMessage(reason, "Could not download the CSV.")); }
   };
+  if (!exportsEnabled) return null;
   return (
     <div className="rounded-xl border border-sand-300 bg-sand-50/45 p-4" id="trip-export">
       <h3 className="text-base font-semibold text-cocoa-900">Export trip data</h3>
