@@ -7,6 +7,8 @@ Prometheus/Grafana observability stack.
 
 The default development stack runs at `http://localhost:3000`.
 
+The current project release version is the repository-root [`VERSION`](VERSION) file. See the [release process](docs/releases/release-process.md) for versioning, tagged images, staging-like checks, and rollback rules.
+
 ## Quick start
 
 Prerequisites: Docker Desktop with Compose v2, `curl`, and `jq`. Node.js 22,
@@ -78,6 +80,11 @@ templates—see [environment](docs/development/environment.md) before using them
 ./scripts/wait-for-ready.sh core
 ./scripts/smoke-test.sh --core
 
+# Prepare a release (review CHANGELOG.md first)
+./scripts/release/prepare-release.sh 0.2.0
+./scripts/release/check-release.sh local --skip-e2e --skip-security
+REGISTRY=registry.example/travel-ai ./scripts/release/build-images.sh
+
 # Backup/restore local Postgres (restore is destructive and requires --yes)
 ./scripts/backup-postgres.sh --output ./backups --gzip
 ./scripts/restore-postgres.sh <backup-file-or-directory> --yes
@@ -101,6 +108,7 @@ listed in [ports](docs/development/ports.md) and
 - [Backend performance](docs/backend/performance.md) and [frontend performance](docs/frontend/performance.md)
 - [Developer playbooks](docs/development/playbooks.md)
 - [Operational runbooks](docs/operations/runbooks.md)
+- [Release process](docs/releases/release-process.md), [hotfix process](docs/releases/hotfix-process.md), and [rollback](docs/releases/rollback.md)
 
 Health is `GET /health`; readiness is `GET /ready` for backend services and
 `GET /api/ready` for the web app. Consult [deployment backups](docs/deployment/backups.md)

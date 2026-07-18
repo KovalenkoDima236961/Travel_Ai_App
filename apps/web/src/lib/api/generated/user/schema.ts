@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getUserServiceVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/me/profile": {
         parameters: {
             query?: never;
@@ -72,6 +88,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        VersionMetadata: {
+            service: string;
+            version: string;
+            gitSha: string;
+            buildTime: string;
+            environment: string;
+            apiContractVersion: string;
+        };
         UserProfile: {
             /** Format: uuid */
             userId: string;
@@ -182,6 +206,27 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getUserServiceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Non-sensitive service build metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionMetadata"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
     getMyProfile: {
         parameters: {
             query?: never;

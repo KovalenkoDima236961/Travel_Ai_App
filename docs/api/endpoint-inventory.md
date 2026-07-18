@@ -65,7 +65,7 @@ a client. Private routes require bearer JWT unless stated otherwise.
 | `/generate-itinerary`, checklist, regenerate, optimize, repair, adapt, discovery, Copilot, recap, knowledge/destination context | AI | Service-to-service deployment boundary | Strict validated AI schemas | validation, generation failed |
 | `/ops/jobs*`, `/ops/ai-generations*` | Trip | Ops authorization | Job/trace list, retry/cancel/mark failed | forbidden, conflict |
 | `/ops/worker/status`, queues and DLQ routes | Worker | Ops authorization | Worker/queue/DLQ diagnostics and action | forbidden, conflict |
-| `/health`, `/ready`, `/metrics` | Go services; AI has health/ready | Public local/monitoring | Liveness, dependencies, metrics | service unavailable |
+| `/health`, `/ready`, `/version`, `/metrics` | Go services and AI; Web exposes version at `/api/version` | Public local/monitoring | Liveness, dependencies, non-sensitive build metadata, metrics | service unavailable |
 
 ## Internal endpoints
 

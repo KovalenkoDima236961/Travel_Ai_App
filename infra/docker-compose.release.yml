@@ -1,0 +1,28 @@
+# Staging-like override for images built by scripts/release/build-images.sh.
+# Use with docker-compose.prod.yml; it intentionally has no source bind mounts
+# or development servers. Start it through scripts/release/up-staging-like.sh.
+services:
+  ai-planning-service:
+    ports:
+      - "${AI_PLANNING_SERVICE_BIND:-127.0.0.1}:${AI_PLANNING_SERVICE_PORT:-28000}:8000"
+  worker-service:
+    ports:
+      - "${WORKER_SERVICE_BIND:-127.0.0.1}:${WORKER_SERVICE_PORT:-28090}:8090"
+  auth-service:
+    ports:
+      - "${AUTH_SERVICE_BIND:-127.0.0.1}:${AUTH_SERVICE_PORT:-28082}:8082"
+  user-service:
+    ports:
+      - "${USER_SERVICE_BIND:-127.0.0.1}:${USER_SERVICE_PORT:-28083}:8083"
+  notification-service:
+    ports:
+      - "${NOTIFICATION_SERVICE_BIND:-127.0.0.1}:${NOTIFICATION_SERVICE_PORT:-28086}:8086"
+  external-integrations-service:
+    ports:
+      - "${EXTERNAL_INTEGRATIONS_SERVICE_BIND:-127.0.0.1}:${EXTERNAL_INTEGRATIONS_SERVICE_PORT:-28084}:8084"
+  trip-service:
+    ports:
+      - "${TRIP_SERVICE_BIND:-127.0.0.1}:${TRIP_SERVICE_PORT:-28080}:8080"
+  web-app:
+    ports:
+      - "${WEB_APP_BIND:-127.0.0.1}:${WEB_APP_PORT:-23000}:3000"

@@ -56,6 +56,10 @@ services:
   ai-planning-service:
     build:
       context: ../services/ai-planning-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ${IMAGE_REGISTRY:-travel-ai}/ai-planning-service:${IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -83,6 +87,10 @@ services:
   auth-service:
     build:
       context: ../services/auth-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ${IMAGE_REGISTRY:-travel-ai}/auth-service:${IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -108,6 +116,10 @@ services:
   user-service:
     build:
       context: ../services/user-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ${IMAGE_REGISTRY:-travel-ai}/user-service:${IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -140,6 +152,10 @@ services:
   notification-service:
     build:
       context: ../services/notification-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ${IMAGE_REGISTRY:-travel-ai}/notification-service:${IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -167,6 +183,10 @@ services:
   external-integrations-service:
     build:
       context: ../services/external-integrations-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ${IMAGE_REGISTRY:-travel-ai}/external-integrations-service:${IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -192,6 +212,10 @@ services:
   trip-service:
     build:
       context: ../services/trip-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ${IMAGE_REGISTRY:-travel-ai}/trip-service:${IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -241,6 +265,10 @@ services:
     build:
       context: ..
       dockerfile: services/worker-service/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ${IMAGE_REGISTRY:-travel-ai}/worker-service:${IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -281,6 +309,9 @@ services:
       context: ../apps/web
       args:
         NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:?NEXT_PUBLIC_APP_ENV is required}
+        NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-dev}
+        NEXT_PUBLIC_GIT_SHA: ${GIT_SHA:-unknown}
+        NEXT_PUBLIC_BUILD_TIME: ${BUILD_TIME:-unknown}
         NEXT_PUBLIC_AUTH_SERVICE_URL: ${NEXT_PUBLIC_AUTH_SERVICE_URL:?NEXT_PUBLIC_AUTH_SERVICE_URL is required}
         NEXT_PUBLIC_TRIP_SERVICE_URL: ${NEXT_PUBLIC_TRIP_SERVICE_URL:?NEXT_PUBLIC_TRIP_SERVICE_URL is required}
         NEXT_PUBLIC_USER_SERVICE_URL: ${NEXT_PUBLIC_USER_SERVICE_URL:?NEXT_PUBLIC_USER_SERVICE_URL is required}
@@ -294,6 +325,9 @@ services:
     environment:
       APP_ENV: ${APP_ENV:?APP_ENV is required}
       NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:?NEXT_PUBLIC_APP_ENV is required}
+      NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-dev}
+      NEXT_PUBLIC_GIT_SHA: ${GIT_SHA:-unknown}
+      NEXT_PUBLIC_BUILD_TIME: ${BUILD_TIME:-unknown}
       TRIP_SERVICE_INTERNAL_URL: http://trip-service:8080
       USER_SERVICE_INTERNAL_URL: http://user-service:8083
       NOTIFICATION_SERVICE_INTERNAL_URL: http://notification-service:8086

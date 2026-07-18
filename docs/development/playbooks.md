@@ -23,6 +23,13 @@ repository conventions rather than replacing code review.
 ./scripts/security-scan.sh
 ```
 
+## Release implications
+
+- A backend endpoint or changed response may require an OpenAPI update, generated Web client update, and an entry in [the API contract changelog](../api/contract-changelog.md).
+- A migration requires the migration safety checklist and a `CHANGELOG.md` Migration Notes entry.
+- A new or changed environment variable requires the relevant non-secret environment template and release notes when operators must act.
+- Security fixes require a `CHANGELOG.md` Security entry and the hotfix process when they cannot wait for a normal release.
+
 ## Related docs
 
 - [Architecture overview](../architecture/overview.md)

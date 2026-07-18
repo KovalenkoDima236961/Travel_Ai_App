@@ -85,6 +85,22 @@ def test_health_endpoint_returns_ok() -> None:
     assert response.json() == {"status": "ok", "service": "ai-planning-service"}
 
 
+def test_version_endpoint_returns_safe_build_metadata(monkeypatch) -> None:
+    for name in ("APP_VERSION", "GIT_SHA", "BUILD_TIME", "APP_ENV"):
+        monkeypatch.delenv(name, raising=False)
+    response = client.get("/version")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "service": "ai-planning-service",
+        "version": "dev",
+        "gitSha": "unknown",
+        "buildTime": "unknown",
+        "environment": "local",
+        "apiContractVersion": "dev",
+    }
+
+
 def test_ready_endpoint_returns_ready_in_mock_mode() -> None:
     test_app = create_app()
     test_client = TestClient(test_app)

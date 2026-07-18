@@ -15,6 +15,16 @@ tags:
   - name: Public sharing
   - name: Planning
 paths:
+  /version:
+    get:
+      tags: [Operations]
+      operationId: getTripServiceVersion
+      security: []
+      responses:
+        '200':
+          description: Non-sensitive service build metadata.
+          content: { application/json: { schema: { $ref: '#/components/schemas/VersionMetadata' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
   /trips:
     get:
       tags: [Trips]
@@ -581,6 +591,16 @@ components:
     SettlementId: { name: settlementId, in: path, required: true, schema: { type: string, format: uuid } }
     ShareToken: { name: shareToken, in: path, required: true, schema: { type: string, minLength: 1 } }
   schemas:
+    VersionMetadata:
+      type: object
+      required: [service, version, gitSha, buildTime, environment, apiContractVersion]
+      properties:
+        service: { type: string }
+        version: { type: string }
+        gitSha: { type: string }
+        buildTime: { type: string }
+        environment: { type: string }
+        apiContractVersion: { type: string }
     Money:
       type: object
       required: [amount, currency]

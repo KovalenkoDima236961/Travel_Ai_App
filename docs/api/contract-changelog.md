@@ -1,5 +1,11 @@
 # API contract changelog
 
+## Unreleased
+
+- **Release metadata:** Every API service now exposes public, non-sensitive `GET /version` metadata. This is additive and does not change existing endpoint bodies.
+
+Release rule: when an OpenAPI document changes, update this file, regenerate the Web App types, and include the changed specifications in the release artifact.
+
 ## 2026-07-18 — v1 foundation
 
 - **All priority services:** Added backend-owned OpenAPI documents and

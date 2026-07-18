@@ -28,6 +28,7 @@ from app.services.route_alternatives import (
 )
 from app.services.template_adapter import TemplateAdapter, get_template_adapter
 from app.services.trip_recap import TripRecapGenerator, get_trip_recap_generator
+from app.version import get_version_info
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="AI Planning Service",
-        version="2.1.0",
+        version=get_version_info().version,
         description="AI itinerary planner with mock and local Ollama generator modes.",
     )
     _configure_state(app, resolved_settings, services)

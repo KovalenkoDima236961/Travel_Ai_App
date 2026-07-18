@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version already recorded in VERSION (for example 0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify tag/version agreement
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          EXPECTED="${DISPATCH_VERSION:-${REF_NAME#v}}"
+          test "$VERSION" = "$EXPECTED"
+          ./scripts/release/version-info.sh
+          ./scripts/release/check-changelog.sh
+      - name: Generate release notes
+        run: ./scripts/release/generate-release-notes.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: dist/release-notes
+
+  test:
+    needs: validate-release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [go, python, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: matrix.suite == 'go'
+        with:
+          go-version: "1.26.x"
+      - uses: actions/setup-python@v5
+        if: matrix.suite == 'python'
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        if: matrix.suite == 'web'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install Python dependencies
+        if: matrix.suite == 'python'
+        run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
+      - name: Install Web dependencies
+        if: matrix.suite == 'web'
+        run: npm ci
+        working-directory: apps/web
+      - name: Run selected release test suite
+        run: |
+          case "${{ matrix.suite }}" in
+            go) ./scripts/test-go.sh ;;
+            python) ./scripts/test-python.sh ;;
+            web) CI=true ./scripts/test-frontend.sh && (cd apps/web && npm run build) ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && matrix.suite == 'web' }}
+        with:
+          name: release-frontend-coverage
+          path: apps/web/coverage
+          if-no-files-found: ignore
+
+  contract-check:
+    needs: validate-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - run: npm ci
+        working-directory: apps/web
+      - run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
+      - run: ./scripts/contracts/export-ai-openapi.sh
+      - run: git diff --exit-code -- docs/api/openapi/ai-planning-service.openapi.yaml
+      - run: ./scripts/contracts/validate-openapi.sh
+      - run: ./scripts/contracts/check-generated.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-contracts
+          path: |
+            docs/api/openapi
+            apps/web/src/lib/api/generated
+
+  security-scan:
+    needs: validate-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: python -m pip install bandit pip-audit semgrep
+      - run: npm ci
+        working-directory: apps/web
+      - uses: aquasecurity/setup-trivy@v0.2.3
+        with:
+          version: v0.60.0
+      - run: ./scripts/security-scan.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-summaries
+          path: reports/security
+          if-no-files-found: ignore
+
+  migration-check:
+    needs: validate-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run fresh migration check
+        run: |
+          mkdir -p reports/migrations
+          ./scripts/release/check-migrations.sh ci | tee reports/migrations/check.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: migration-check
+          path: reports/migrations
+          if-no-files-found: ignore
+
+  docker-build:
+    needs: [test, contract-check, security-scan, migration-check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build immutable release images
+        run: ./scripts/release/build-images.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-tags
+          path: dist/release-images
+
+  publish-images:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Explain skipped publishing
+        if: ${{ vars.REGISTRY == '' || vars.REGISTRY_HOST == '' || secrets.REGISTRY_USERNAME == '' || secrets.REGISTRY_PASSWORD == '' }}
+        run: echo "Registry credentials are not configured; release images were built but not pushed."
+      - name: Authenticate registry
+        if: ${{ vars.REGISTRY != '' && vars.REGISTRY_HOST != '' && secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY_HOST }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Build and publish version and SHA tags
+        if: ${{ vars.REGISTRY != '' && vars.REGISTRY_HOST != '' && secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_PASSWORD != '' }}
+        env:
+          REGISTRY: ${{ vars.REGISTRY }}
+        run: ./scripts/release/build-images.sh --push
+
+  create-release-artifacts:
+    needs: [docker-build, publish-images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: ./scripts/release/generate-release-notes.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            dist/release-notes
+            docs/api/openapi
+            apps/web/src/lib/api/generated
+      - name: Create draft GitHub release for tag-triggered releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --draft --title "$TAG" --notes-file "dist/release-notes/$(tr -d '[:space:]' < VERSION).md"

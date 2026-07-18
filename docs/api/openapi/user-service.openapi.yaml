@@ -11,6 +11,16 @@ tags:
   - name: Preferences
   - name: Workspaces
 paths:
+  /version:
+    get:
+      tags: [Operations]
+      operationId: getUserServiceVersion
+      security: []
+      responses:
+        '200':
+          description: Non-sensitive service build metadata.
+          content: { application/json: { schema: { $ref: '#/components/schemas/VersionMetadata' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
   /users/me/profile:
     get:
       tags: [Profile]
@@ -107,6 +117,16 @@ components:
   securitySchemes:
     BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
   schemas:
+    VersionMetadata:
+      type: object
+      required: [service, version, gitSha, buildTime, environment, apiContractVersion]
+      properties:
+        service: { type: string }
+        version: { type: string }
+        gitSha: { type: string }
+        buildTime: { type: string }
+        environment: { type: string }
+        apiContractVersion: { type: string }
     UserProfile:
       type: object
       required: [userId, preferredCurrency, preferredLanguage, createdAt, updatedAt]

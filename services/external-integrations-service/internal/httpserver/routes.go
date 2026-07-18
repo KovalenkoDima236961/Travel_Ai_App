@@ -17,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/prices"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/transport"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/version"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/pkg/observability"
 )
 
@@ -50,6 +51,7 @@ func NewRouter(
 	r.Use(corsMiddleware(corsCfg))
 
 	r.Get("/health", healthHandler)
+	r.Get("/version", versionHandler)
 	if readinessHandler != nil {
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
@@ -127,6 +129,12 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "external-integrations-service"})
+}
+
+func versionHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(version.Info())
 }
 
 // requestLogger logs one structured line per request using Zap.

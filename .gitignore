@@ -12,6 +12,8 @@ services/trip-service/data/receipts/
 services/trip-service/data/exports/
 services/user-service/data/exports/
 reports/security/
+dist/release-images/
+dist/release-notes/
 apps/web/coverage/
 apps/web/playwright-report/
 apps/web/test-results/

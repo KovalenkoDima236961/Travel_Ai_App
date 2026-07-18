@@ -8953,7 +8953,7 @@
   "info": {
     "description": "AI itinerary planner with mock and local Ollama generator modes.",
     "title": "AI Planning Service",
-    "version": "2.1.0"
+    "version": "dev"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -9794,6 +9794,41 @@
           }
         },
         "summary": "Suggest Route Alternatives",
+        "tags": [
+          "AI planning"
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "version_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Version Version Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "User-safe AI planning failure."
+          }
+        },
+        "summary": "Version",
         "tags": [
           "AI planning"
         ]

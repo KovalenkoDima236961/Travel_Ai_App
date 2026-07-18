@@ -65,6 +65,10 @@ services:
     profiles: [ai, rag]
     build:
       context: ../services/ai-planning-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       APP_ENV: ${APP_ENV:-local}
       HTTP_HOST: ${AI_HTTP_HOST:-0.0.0.0}
@@ -119,6 +123,10 @@ services:
     profiles: [test]
     build:
       context: ../services/ai-planning-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       APP_ENV: test
       HTTP_HOST: 0.0.0.0
@@ -152,6 +160,10 @@ services:
     profiles: [core, test]
     build:
       context: ../services/trip-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       APP_ENV: ${APP_ENV:-local}
       HTTP_ADDRESS: ${TRIP_HTTP_ADDRESS:-:8080}
@@ -323,6 +335,10 @@ services:
     build:
       context: ..
       dockerfile: services/worker-service/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       SERVICE_NAME: worker-service
       WORKER_ENABLED: ${WORKER_ENABLED:-true}
@@ -447,6 +463,10 @@ services:
     profiles: [core, test]
     build:
       context: ../services/auth-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       APP_ENV: ${APP_ENV:-local}
       HTTP_ADDR: ${AUTH_HTTP_ADDR:-:8082}
@@ -498,6 +518,10 @@ services:
     profiles: [core, test]
     build:
       context: ../services/user-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       APP_ENV: ${APP_ENV:-local}
       HTTP_ADDRESS: ${USER_HTTP_ADDRESS:-:8083}
@@ -554,6 +578,10 @@ services:
     profiles: [core, test]
     build:
       context: ../services/notification-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       APP_ENV: ${APP_ENV:-local}
       HTTP_ADDRESS: ${NOTIFICATION_HTTP_ADDRESS:-:8086}
@@ -634,6 +662,10 @@ services:
     profiles: [core, test]
     build:
       context: ../services/external-integrations-service
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     environment:
       APP_ENV: ${APP_ENV:-local}
       HTTP_ADDR: ${EXTERNAL_INTEGRATIONS_HTTP_ADDR:-:8084}
@@ -774,6 +806,9 @@ services:
       context: ../apps/web
       args:
         NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-local}
+        NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-dev}
+        NEXT_PUBLIC_GIT_SHA: ${GIT_SHA:-unknown}
+        NEXT_PUBLIC_BUILD_TIME: ${BUILD_TIME:-unknown}
         NEXT_PUBLIC_AUTH_SERVICE_URL: ${NEXT_PUBLIC_AUTH_SERVICE_URL:-http://localhost:8082}
         NEXT_PUBLIC_TRIP_SERVICE_URL: ${NEXT_PUBLIC_TRIP_SERVICE_URL:-http://localhost:8080}
         NEXT_PUBLIC_USER_SERVICE_URL: ${NEXT_PUBLIC_USER_SERVICE_URL:-http://localhost:8083}
@@ -786,6 +821,9 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       APP_ENV: ${APP_ENV:-local}
       NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-local}
+      NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-dev}
+      NEXT_PUBLIC_GIT_SHA: ${GIT_SHA:-unknown}
+      NEXT_PUBLIC_BUILD_TIME: ${BUILD_TIME:-unknown}
       NEXT_PUBLIC_AUTH_SERVICE_URL: ${NEXT_PUBLIC_AUTH_SERVICE_URL:-http://localhost:8082}
       NEXT_PUBLIC_TRIP_SERVICE_URL: ${NEXT_PUBLIC_TRIP_SERVICE_URL:-http://localhost:8080}
       NEXT_PUBLIC_USER_SERVICE_URL: ${NEXT_PUBLIC_USER_SERVICE_URL:-http://localhost:8083}

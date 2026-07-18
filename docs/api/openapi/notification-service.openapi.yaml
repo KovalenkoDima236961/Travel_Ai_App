@@ -11,6 +11,16 @@ tags:
   - name: Notification preferences
   - name: Push notifications
 paths:
+  /version:
+    get:
+      tags: [Operations]
+      operationId: getNotificationServiceVersion
+      security: []
+      responses:
+        '200':
+          description: Non-sensitive service build metadata.
+          content: { application/json: { schema: { $ref: '#/components/schemas/VersionMetadata' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
   /notifications:
     get:
       tags: [Notifications]
@@ -152,6 +162,16 @@ components:
       required: true
       schema: { type: string, format: uuid }
   schemas:
+    VersionMetadata:
+      type: object
+      required: [service, version, gitSha, buildTime, environment, apiContractVersion]
+      properties:
+        service: { type: string }
+        version: { type: string }
+        gitSha: { type: string }
+        buildTime: { type: string }
+        environment: { type: string }
+        apiContractVersion: { type: string }
     Notification:
       type: object
       required: [id, userId, type, title, message, metadata, createdAt, priority, category, groupedCount, latestEventAt]

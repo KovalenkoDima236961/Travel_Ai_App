@@ -13,6 +13,16 @@ tags:
   - name: Availability
   - name: Calendar
 paths:
+  /version:
+    get:
+      tags: [Operations]
+      operationId: getExternalIntegrationsServiceVersion
+      security: []
+      responses:
+        '200':
+          description: Non-sensitive service build metadata.
+          content: { application/json: { schema: { $ref: '#/components/schemas/VersionMetadata' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
   /places/search:
     get:
       tags: [Places]
@@ -185,6 +195,16 @@ components:
   parameters:
     PlaceId: { name: placeId, in: path, required: true, schema: { type: string, minLength: 1 } }
   schemas:
+    VersionMetadata:
+      type: object
+      required: [service, version, gitSha, buildTime, environment, apiContractVersion]
+      properties:
+        service: { type: string }
+        version: { type: string }
+        gitSha: { type: string }
+        buildTime: { type: string }
+        environment: { type: string }
+        apiContractVersion: { type: string }
     Place:
       type: object
       required: [id, name]

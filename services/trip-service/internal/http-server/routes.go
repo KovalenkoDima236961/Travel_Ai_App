@@ -16,6 +16,7 @@ import (
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/middleware"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/version"
 )
 
 // NewRouter builds the application's chi router with middleware and routes.
@@ -38,6 +39,7 @@ func NewRouter(
 	r.Use(corsMiddleware(corsCfg))
 
 	r.Get("/health", healthHandler)
+	r.Get("/version", versionHandler)
 	if readinessHandler != nil {
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
@@ -83,6 +85,12 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "trip-service"})
+}
+
+func versionHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(version.Info())
 }
 
 // requestLogger logs one structured line per request using Zap.

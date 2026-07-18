@@ -52,6 +52,7 @@ from app.services.route_alternatives import RouteAlternativeGenerator
 from app.services.template_adaptation_validator import TemplateAdaptationValidationError
 from app.services.template_adapter import TemplateAdapter, validate_adaptation
 from app.services.trip_recap import TripRecapGenerator
+from app.version import version_payload
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,11 @@ def suggest_route_alternatives(
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai-planning-service"}
+
+
+@router.get("/version")
+def version() -> dict[str, str]:
+    return version_payload()
 
 
 @router.get("/ready")

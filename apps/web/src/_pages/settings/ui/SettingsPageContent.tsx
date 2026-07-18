@@ -22,6 +22,7 @@ import {
   userKeys
 } from "@/lib/api/user";
 import { getErrorMessage } from "@/lib/utils";
+import { appVersion, buildTime, shortGitSHA } from "@/lib/version";
 import { instrumentSans, newsreader } from "./fonts";
 import { SettingsHeader } from "./SettingsHeader";
 import { PreferenceCompletenessCard } from "@/components/personalization";
@@ -153,6 +154,10 @@ export function SettingsPageContent() {
             <div id="notifications">
               <NotificationPreferencesSection />
             </div>
+
+            <section aria-label="Application build information" className="px-1 pt-2 text-xs text-cocoa-400">
+              <p>Travel AI {appVersion} · {shortGitSHA} · built {buildTime}</p>
+            </section>
           </div>
         ) : null}
       </div>

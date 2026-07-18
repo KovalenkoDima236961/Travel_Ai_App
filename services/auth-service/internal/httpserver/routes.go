@@ -12,6 +12,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/handler"
 	internalmw "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/middleware"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/version"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/pkg/observability"
 )
 
@@ -42,6 +43,7 @@ func NewRouter(
 	r.Use(corsMiddleware(corsCfg))
 
 	r.Get("/health", healthHandler)
+	r.Get("/version", versionHandler)
 	if readinessHandler != nil {
 		r.Get("/ready", readinessHandler.ServeHTTP)
 	}
@@ -62,6 +64,12 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "auth-service"})
+}
+
+func versionHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(version.Info())
 }
 
 // requestLogger logs one structured line per request using Zap.

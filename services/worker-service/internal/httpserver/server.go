@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/rabbitmq"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/version"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/pkg/observability"
 )
 
@@ -43,6 +44,9 @@ func New(
 	r.Use(requestLogger(log))
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "worker-service"})
+	})
+	r.Get("/version", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, version.Info())
 	})
 	r.Get("/ready", readinessHandler(db, consumer, log))
 	r.Handle("/metrics", observability.MetricsHandler(nil))
@@ -218,7 +222,7 @@ func (h *workerOpsHandler) status(w http.ResponseWriter, r *http.Request) {
 		"prefetch":          h.consumerPrefetch(),
 		"activeJobs":        h.activeJobs(),
 		"startedAt":         h.startedAt,
-		"version":           "local",
+		"version":           version.Version,
 	})
 }
 
