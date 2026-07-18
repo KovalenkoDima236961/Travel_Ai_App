@@ -396,7 +396,7 @@ export function ItineraryEditor({
                               <a
                                 className="text-primary-700 hover:text-primary-600"
                                 href={item.place.mapUrl}
-                                rel="noreferrer"
+                                rel="noopener noreferrer"
                                 target="_blank"
                               >
                                 Open map

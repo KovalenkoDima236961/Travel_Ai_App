@@ -145,6 +145,10 @@ func (r *Repository) RotateRefreshToken(
 		Update("refresh_tokens").
 		Set("revoked_at", revokedAt).
 		Where(sq.Eq{"id": dto.IDArg(oldTokenID)}).
+		// A refresh token is single-use.  Keeping the revocation state in the
+		// UPDATE predicate closes the race where two requests read the same live
+		// token before either transaction commits and both mint successor tokens.
+		Where("revoked_at IS NULL").
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build revoke old refresh token: %w", err)

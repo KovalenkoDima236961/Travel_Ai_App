@@ -20,3 +20,8 @@ docker-compose.*.yml
 bin/
 tmp/
 coverage.out
+backups/
+exports/
+receipts/
+*.key
+*.pem

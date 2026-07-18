@@ -12,3 +12,8 @@ docs/_build
 Dockerfile
 tests
 README.md
+backups/
+exports/
+receipts/
+*.key
+*.pem

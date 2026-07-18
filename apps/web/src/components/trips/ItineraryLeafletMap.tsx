@@ -107,7 +107,7 @@ export function ItineraryLeafletMap({
                 <a
                   className="mt-3 inline-flex font-semibold text-primary-700 hover:text-primary-600"
                   href={marker.place.mapUrl}
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   target="_blank"
                 >
                   Open map

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
@@ -253,6 +254,22 @@ func TestHandlerLoginRateLimit(t *testing.T) {
 		if rec.Code != expected {
 			t.Fatalf("attempt %d: expected %d, got %d: %s", attempt+1, expected, rec.Code, rec.Body.String())
 		}
+	}
+}
+
+func TestClientRateKeyUsesTransportPeerBeforeRealIP(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+	request.RemoteAddr = "192.0.2.10:1234"
+	request.Header.Set("X-Forwarded-For", "198.51.100.7")
+
+	var key string
+	router := OriginalRemoteAddrMiddleware(chimiddleware.RealIP(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		key = clientRateKey(r)
+	})))
+	router.ServeHTTP(httptest.NewRecorder(), request)
+
+	if key != "192.0.2.10" {
+		t.Fatalf("expected direct transport peer rate key, got %q", key)
 	}
 }
 

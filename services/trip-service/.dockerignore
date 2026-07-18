@@ -20,3 +20,12 @@ docker-compose.*.yml
 bin/
 tmp/
 coverage.out
+
+# Local private files must never enter an image build context.
+data/receipts/
+data/exports/
+backups/
+exports/
+receipts/
+*.key
+*.pem

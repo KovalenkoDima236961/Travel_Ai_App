@@ -1,0 +1,13 @@
+title = "Travel AI App secret-scanning policy"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Versioned examples and generated local analysis data do not contain deployable credentials."
+paths = [
+  '''(^|/)\.cache/''',
+  '''(^|/)graphify-out/''',
+  '''(^|/)infra/\.env(\.ci)?\.example$''',
+  '''(^|/)services/ai-planning-service/\.env\.example$'''
+]

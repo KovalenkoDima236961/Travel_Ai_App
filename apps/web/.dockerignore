@@ -7,3 +7,9 @@ out
 .env.*
 tsconfig.tsbuildinfo
 npm-debug.log*
+backups/
+exports/
+receipts/
+reports/
+*.key
+*.pem

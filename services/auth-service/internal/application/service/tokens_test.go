@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/errs"
@@ -50,6 +51,28 @@ func TestAccessTokenValidationRejectsInvalidAndExpiredTokens(t *testing.T) {
 
 	if _, err := manager.ValidateAccessToken("not-a-jwt"); !errors.Is(err, apperrs.ErrInvalidAccessToken) {
 		t.Fatalf("expected invalid token error, got %v", err)
+	}
+}
+
+func TestAccessTokenValidationRejectsUnexpectedSigningAlgorithm(t *testing.T) {
+	const secret = "test-secret-that-is-long-enough"
+	manager := NewTokenManager(secret, 15*time.Minute, 30*24*time.Hour)
+	claims := AccessClaims{
+		Email: "user@example.com",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   uuid.NewString(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(time.Minute)),
+		},
+	}
+	// HS512 is correctly signed with the service secret, but it is not an
+	// algorithm this service issues or accepts.
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS512, claims).SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("sign HS512 token: %v", err)
+	}
+
+	if _, err := manager.ValidateAccessToken(token); !errors.Is(err, apperrs.ErrInvalidAccessToken) {
+		t.Fatalf("expected unexpected signing algorithm to be invalid, got %v", err)
 	}
 }
 

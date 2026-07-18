@@ -141,7 +141,7 @@ func (r *memoryRepository) RotateRefreshToken(
 			break
 		}
 	}
-	if oldHash == "" {
+	if oldHash == "" || old.RevokedAt != nil {
 		return nil, domainerrs.ErrNotFound
 	}
 

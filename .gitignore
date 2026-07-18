@@ -1,10 +1,17 @@
 infra/.env
+.env
+.env.local
+*.env.local
+*.key
+*.pem
+*.p12
 backups/
 exports/
 receipts/
 services/trip-service/data/receipts/
 services/trip-service/data/exports/
 services/user-service/data/exports/
+reports/security/
 
 # graphify skill output
 graphify-out/

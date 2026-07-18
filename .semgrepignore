@@ -1,0 +1,8 @@
+.cache/
+.git/
+.next/
+node_modules/
+graphify-out/
+reports/
+**/__pycache__/
+**/data/

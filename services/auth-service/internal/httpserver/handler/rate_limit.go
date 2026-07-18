@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strings"
@@ -14,6 +15,21 @@ import (
 type authRateBucket struct {
 	start time.Time
 	count int
+}
+
+// originalRemoteAddrKey preserves the transport peer address before chi's
+// RealIP middleware may replace RemoteAddr with a caller-controlled forwarding
+// header. Authentication rate limiting must not be bypassable by cycling
+// X-Forwarded-For values on a directly exposed service.
+type originalRemoteAddrKey struct{}
+
+// OriginalRemoteAddrMiddleware captures the direct peer address for sensitive
+// rate-limit keys. It must run before middleware.RealIP.
+func OriginalRemoteAddrMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), originalRemoteAddrKey{}, r.RemoteAddr)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 type authRateLimiter struct {
@@ -53,11 +69,15 @@ func (l *authRateLimiter) allow(key string) bool {
 }
 
 func clientRateKey(r *http.Request) string {
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	remoteAddr := r.RemoteAddr
+	if original, ok := r.Context().Value(originalRemoteAddrKey{}).(string); ok && original != "" {
+		remoteAddr = original
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr))
 	if err == nil && host != "" {
 		return host
 	}
-	if value := strings.TrimSpace(r.RemoteAddr); value != "" {
+	if value := strings.TrimSpace(remoteAddr); value != "" {
 		return value
 	}
 	return "unknown"

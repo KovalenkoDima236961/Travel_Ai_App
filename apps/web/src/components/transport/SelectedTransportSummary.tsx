@@ -94,7 +94,7 @@ export function SelectedTransportSummary({
             <a
               className="text-[12px] font-semibold text-clay-deep underline-offset-2 hover:underline"
               href={url}
-              rel="noreferrer noopener"
+              rel="noopener noreferrer"
               target="_blank"
             >
               {t("openProvider")}

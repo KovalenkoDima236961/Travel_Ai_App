@@ -271,7 +271,7 @@ function TimelineItem({
                   <a
                     href={item.place.mapUrl}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="font-semibold text-clay-deep transition hover:text-clay"
                   >
                     Open map

@@ -457,6 +457,13 @@ npm run build
 
 ## Configuration And Security
 
+Security Hardening v1 documents the system threat model, audit results,
+incident-response starter, and secure development checklist under
+[docs/security](docs/security/README.md). Run the repeatable local scanner with
+`./scripts/security-scan.sh` (or `--zap` against a running local stack). Do not
+commit real credentials, backups, exports, receipt storage, or generated private
+keys; use the tracked environment examples only.
+
 - Start from `infra/.env.example`; keep real secrets in `infra/.env` or the
   shell environment only.
 - Auth, Trip, User, and Notification services must share `JWT_ACCESS_SECRET` in

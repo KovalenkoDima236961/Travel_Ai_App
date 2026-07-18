@@ -29,9 +29,12 @@ a shared browser.
 - Sensitive routes use v1 in-memory rate limits. These counters are
   instance-local and require a shared store before scaling to many replicas.
 
-See [security-inventory.md](security-inventory.md),
+See [audit.md](audit.md), [threat-model.md](threat-model.md),
+[security-inventory.md](security-inventory.md),
 [access-control-matrix.md](access-control-matrix.md), and
-[config-hardening.md](config-hardening.md).
+[config-hardening.md](config-hardening.md). The contribution checklist and CI
+gate instructions are in [secure-development-checklist.md](secure-development-checklist.md)
+and [tools.md](tools.md).
 
 ## Testing
 
@@ -40,6 +43,10 @@ against a running local stack. The regression tests cover role boundaries,
 public response sanitization/expiry/disable/unlock, rotating internal tokens,
 receipt type/path controls, AI redaction and RAG injection handling, rate limits,
 and offline user separation.
+
+Run `./scripts/security-scan.sh` for the repeatable SAST, dependency, secret,
+filesystem, and configuration scan suite. Append `--zap` after starting the
+local stack for the unauthenticated OWASP ZAP baseline.
 
 ## User-facing limitations
 
@@ -50,4 +57,3 @@ context is filtered, but users should not put credentials or secrets in trip
 text. Access/refresh tokens remain in `localStorage` in v1; CSP reduces but does
 not eliminate XSS risk, and migration to secure httpOnly cookies remains future
 work.
-

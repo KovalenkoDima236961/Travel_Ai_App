@@ -59,7 +59,10 @@ func (m *TokenManager) GenerateAccessToken(user entity.User) (string, error) {
 func (m *TokenManager) ValidateAccessToken(raw string) (*AccessClaims, error) {
 	claims := &AccessClaims{}
 	token, err := jwt.ParseWithClaims(raw, claims, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// The service only issues HS256 tokens. Accepting every HMAC variant is
+		// unnecessary algorithm agility and makes the verification contract less
+		// explicit than the issuing contract.
+		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("unexpected signing method: %s", token.Header["alg"])
 		}
 		return m.accessSecret, nil

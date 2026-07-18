@@ -32,6 +32,9 @@ func NewRouter(
 	r := chi.NewRouter()
 
 	r.Use(observability.RequestIDMiddleware)
+	// Preserve the transport peer for credential rate limits before RealIP may
+	// consume a spoofable forwarding header on a directly exposed instance.
+	r.Use(handler.OriginalRemoteAddrMiddleware)
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(observability.HTTPMetricsMiddleware(observability.DefaultHTTPMetrics("auth-service")))
