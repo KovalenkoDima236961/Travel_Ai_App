@@ -6,14 +6,14 @@ import {
   saveTokens
 } from "@/shared/api/auth";
 import { getTripApiBaseUrl } from "@/shared/config";
+import {
+  AppApiError,
+  normalizeApiErrorPayload,
+  type ApiErrorPayload,
+  type NormalizedApiError
+} from "@/lib/api/errors";
 
-type ApiErrorPayload = {
-  error?: string | { code?: string; message?: string };
-  message?: string;
-  fields?: Record<string, string>;
-  currentItineraryRevision?: number;
-  [key: string]: unknown;
-};
+export { AppApiError } from "@/lib/api/errors";
 
 type ApiFetchOptions = {
   baseUrl?: string;
@@ -21,13 +21,8 @@ type ApiFetchOptions = {
   auth?: boolean;
 };
 
-export class ApiError extends Error {
-  status: number;
-  code?: string;
-  fields?: Record<string, string>;
-  currentItineraryRevision?: number;
-  payload?: ApiErrorPayload | null;
-
+export class ApiError extends AppApiError {
+  constructor(normalized: NormalizedApiError, payload?: ApiErrorPayload | null);
   constructor(
     message: string,
     status: number,
@@ -35,14 +30,35 @@ export class ApiError extends Error {
     code?: string,
     currentItineraryRevision?: number,
     payload?: ApiErrorPayload | null
+  );
+  constructor(
+    input: NormalizedApiError | string,
+    statusOrPayload?: number | ApiErrorPayload | null,
+    fields?: Record<string, string>,
+    code?: string,
+    currentItineraryRevision?: number,
+    legacyPayload?: ApiErrorPayload | null
   ) {
-    super(message);
+    if (typeof input === "string") {
+      const status = typeof statusOrPayload === "number" ? statusOrPayload : 0;
+      const normalized = normalizeApiErrorPayload(null, status, input);
+      super(
+        {
+          ...normalized,
+          ...(fields ? { fieldErrors: fields } : {}),
+          ...(code ? { code } : {}),
+          ...(typeof currentItineraryRevision === "number" ? { currentItineraryRevision } : {})
+        },
+        legacyPayload
+      );
+    } else {
+      super(input, (statusOrPayload as ApiErrorPayload | null | undefined) ?? undefined);
+    }
     this.name = "ApiError";
-    this.status = status;
-    this.fields = fields;
-    this.code = code;
-    this.currentItineraryRevision = currentItineraryRevision;
-    this.payload = payload;
+  }
+
+  get fields() {
+    return this.fieldErrors;
   }
 }
 
@@ -120,8 +136,11 @@ async function apiFetchInternal<T>(
   } catch {
     const serviceName = options.serviceName ?? "Trip Service";
     throw new ApiError(
-      `Could not reach ${serviceName}. Confirm the local stack is running and CORS allows this origin.`,
-      0
+      {
+        code: "unknown_error",
+        message: `Could not reach ${serviceName}. Confirm the local stack is running and CORS allows this origin.`,
+        status: 0
+      }
     );
   }
 
@@ -135,7 +154,7 @@ async function apiFetchInternal<T>(
       } catch {
         clearTokens();
         notifySessionExpired();
-        throw new ApiError("Your session expired. Please log in again.", 401);
+        throw new ApiError({ code: "unauthorized", message: "Your session expired. Please log in again.", status: 401 });
       }
     }
 
@@ -145,28 +164,7 @@ async function apiFetchInternal<T>(
 
   if (!response.ok) {
     const payload = await readJson<ApiErrorPayload>(response);
-    const structuredError =
-      payload?.error && typeof payload.error === "object" ? payload.error : null;
-    const message =
-      typeof payload?.message === "string" && payload.message.trim().length > 0
-        ? payload.message
-        : typeof structuredError?.message === "string" &&
-            structuredError.message.trim().length > 0
-          ? structuredError.message
-          : typeof payload?.error === "string" && payload.error.trim().length > 0
-            ? payload.error
-            : `Request failed with status ${response.status}`;
-    const errorCode =
-      typeof payload?.error === "string" ? payload.error : structuredError?.code;
-
-    throw new ApiError(
-      message,
-      response.status,
-      payload?.fields,
-      errorCode,
-      payload?.currentItineraryRevision,
-      payload
-    );
+    throw new ApiError(normalizeApiErrorPayload(payload, response.status), payload);
   }
 
   if (response.status === 204) {

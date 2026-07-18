@@ -11,3 +11,11 @@
 9. Update [endpoint inventory](../../api/endpoint-inventory.md), error documentation, service README, and frontend client/hook if browser-facing.
 
 Run `make fmt && make vet && make test` in the service and relevant root tests.
+## Contract checklist
+
+For a frontend-facing endpoint, update the owning OpenAPI document under
+`docs/api/openapi/`, run `./scripts/contracts/generate-web-client.sh`, use the
+generated request/response type in the Web App wrapper, and update typed MSW
+fixtures. Add a focused handler response/error test and update `docs/api` plus
+the contract changelog for breaking changes. Internal-only routes belong in
+`docs/api/internal-contracts.md` and must not generate browser types.

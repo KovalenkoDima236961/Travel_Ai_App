@@ -1,0 +1,9 @@
+{
+  "user": {
+    "id": "10000000-0000-4000-8000-000000000001",
+    "email": "traveler@example.test",
+    "createdAt": "2026-07-18T10:00:00Z"
+  },
+  "accessToken": "redacted-access-token",
+  "refreshToken": "redacted-refresh-token"
+}

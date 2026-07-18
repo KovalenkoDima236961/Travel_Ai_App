@@ -18,6 +18,15 @@ import type {
 } from "@/entities/collaboration/model";
 import type { TripRoute } from "@/entities/route/model";
 import type { CreateTripInput, Itinerary, Trip, TripScope, TripsListResponse } from "@/entities/trip/model";
+import type {
+  CreateTripContract,
+  ExpectedRevisionContract,
+  TripContract,
+  TripsListContract
+} from "@/lib/api/contracts";
+
+type ContractTrip = Trip & TripContract;
+type ContractTripsList = TripsListResponse & TripsListContract;
 
 type ListTripsParams = {
   limit?: number;
@@ -65,11 +74,11 @@ export function listTrips(params: ListTripsParams = {}) {
   }
 
   const query = searchParams.toString();
-  return apiFetch<TripsListResponse>(`/trips${query ? `?${query}` : ""}`);
+  return apiFetch<ContractTripsList>(`/trips${query ? `?${query}` : ""}`);
 }
 
 export function getTrip(id: string) {
-  return apiFetch<Trip>(`/trips/${id}`);
+  return apiFetch<ContractTrip>(`/trips/${id}`);
 }
 
 export function getTripRoute(id: string) {
@@ -80,7 +89,7 @@ export function updateTripRoute(
   id: string,
   input: { expectedItineraryRevision?: number; route: TripRoute | null }
 ) {
-  return apiFetch<Trip>(`/trips/${id}/route`, {
+  return apiFetch<ContractTrip>(`/trips/${id}/route`, {
     method: "PUT",
     body: JSON.stringify(input)
   });
@@ -91,7 +100,7 @@ export function listSharedTrips() {
 }
 
 export function createTrip(input: CreateTripInput) {
-  return apiFetch<Trip>("/trips", {
+  return apiFetch<ContractTrip>("/trips", {
     method: "POST",
     body: JSON.stringify(cleanCreateTripPayload(input))
   });
@@ -109,9 +118,13 @@ export function updateTripItinerary(
   itinerary: Itinerary,
   expectedItineraryRevision: number
 ) {
-  return apiFetch<Trip>(`/trips/${tripId}/itinerary`, {
+  const body: ExpectedRevisionContract & { itinerary: Itinerary } = {
+    itinerary,
+    expectedItineraryRevision
+  };
+  return apiFetch<ContractTrip>(`/trips/${tripId}/itinerary`, {
     method: "PUT",
-    body: JSON.stringify({ itinerary, expectedItineraryRevision })
+    body: JSON.stringify(body)
   });
 }
 
@@ -275,7 +288,7 @@ export function getPublicTrip(shareToken: string, accessToken?: string | null) {
   );
 }
 
-function cleanCreateTripPayload(input: CreateTripInput) {
+function cleanCreateTripPayload(input: CreateTripInput): CreateTripContract {
   return {
     destination: input.destination.trim(),
     ...(input.tripType ? { tripType: input.tripType } : {}),

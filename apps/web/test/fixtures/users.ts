@@ -1,5 +1,6 @@
 import type { UserPreferences, UserProfile } from "@/entities/user/model";
 import type { AuthUser } from "@/shared/api/auth";
+import type { UserPreferencesContract, UserProfileContract } from "@/lib/api/contracts";
 
 export const TEST_USER_IDS = {
   owner: "10000000-0000-4000-8000-000000000001",
@@ -37,6 +38,8 @@ export const ownerProfile: UserProfile = {
   updatedAt: "2026-01-15T09:00:00Z"
 };
 
+ownerProfile satisfies UserProfileContract;
+
 export const ownerPreferences: UserPreferences = {
   userId: TEST_USER_IDS.owner,
   travelStyles: ["food", "culture"],
@@ -50,6 +53,8 @@ export const ownerPreferences: UserPreferences = {
   createdAt: "2026-01-15T09:00:00Z",
   updatedAt: "2026-01-15T09:00:00Z"
 };
+
+ownerPreferences satisfies UserPreferencesContract;
 
 export const workspaceRoles = {
   owner: { userId: TEST_USER_IDS.owner, role: "owner" },

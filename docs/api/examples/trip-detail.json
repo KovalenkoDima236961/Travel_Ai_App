@@ -1,0 +1,13 @@
+{
+  "id": "20000000-0000-4000-8000-000000000001",
+  "destination": "Vienna",
+  "days": 2,
+  "budgetCurrency": "EUR",
+  "travelers": 2,
+  "interests": ["food", "culture"],
+  "pace": "balanced",
+  "status": "COMPLETED",
+  "itineraryRevision": 3,
+  "createdAt": "2026-07-18T10:00:00Z",
+  "updatedAt": "2026-07-18T10:10:00Z"
+}

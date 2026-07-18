@@ -7,6 +7,10 @@ import type {
   UnreadNotificationsResponse
 } from "@/entities/notification/model";
 import type { NotificationDigest, NotificationDigestsResponse } from "@/entities/notification/model";
+import type {
+  NotificationsResponseContract,
+  UnreadNotificationsContract
+} from "@/lib/api/contracts";
 import { queryKeys } from "@/lib/query-keys";
 
 // React Query keys for notifications. Notifications are private, authenticated
@@ -59,7 +63,7 @@ export async function listNotifications(
   }
   const suffix = query.toString() ? `?${query.toString()}` : "";
 
-  const response = await apiFetch<NotificationsResponse>(
+  const response = await apiFetch<NotificationsResponse & NotificationsResponseContract>(
     `/notifications${suffix}`,
     {},
     notificationOptions()
@@ -72,7 +76,7 @@ export async function listNotifications(
 
 /** Returns the current user's unread notification count. */
 export async function getUnreadNotificationCount(): Promise<number> {
-  const response = await apiFetch<UnreadNotificationsResponse>(
+  const response = await apiFetch<UnreadNotificationsResponse & UnreadNotificationsContract>(
     "/notifications/unread-count",
     {},
     notificationOptions()

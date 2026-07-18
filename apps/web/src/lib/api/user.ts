@@ -1,11 +1,13 @@
 import { apiFetch } from "@/shared/api/client";
 import { getUserApiBaseUrl } from "@/shared/config";
 import type {
-  PatchUserPreferencesRequest,
-  UpdateUserProfileRequest,
   UserPreferences,
   UserProfile
 } from "@/entities/user/model";
+import type {
+  PatchUserPreferencesContract as PatchUserPreferencesRequest,
+  UpdateUserProfileContract as UpdateUserProfileRequest
+} from "@/lib/api/contracts";
 import { normalizeLanguage } from "@/lib/i18n/languages";
 
 export const userKeys = {

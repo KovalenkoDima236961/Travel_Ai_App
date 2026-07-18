@@ -1,4 +1,5 @@
 import type { AppNotification } from "@/entities/notification/model";
+import type { NotificationContract } from "@/lib/api/contracts";
 import { TEST_TRIP_ID } from "./trips";
 import { TEST_USER_IDS } from "./users";
 
@@ -38,3 +39,5 @@ export const notificationsFixture: AppNotification[] = [
     latestEventAt: "2026-02-01T10:00:00Z"
   }
 ];
+
+notificationsFixture satisfies NotificationContract[];

@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Invalid request.",
+    "details": [{ "field": "startDate", "message": "Start date is required." }],
+    "requestId": "request-example-1"
+  }
+}

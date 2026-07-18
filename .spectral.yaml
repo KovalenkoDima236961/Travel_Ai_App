@@ -1,0 +1,24 @@
+extends: []
+
+rules:
+  operation-operation-id:
+    description: Every published operation needs a stable operationId for generated callers.
+    given: $.paths[*][get,post,put,patch,delete]
+    severity: error
+    then:
+      field: operationId
+      function: truthy
+  operation-tags:
+    description: Every published operation needs at least one domain tag.
+    given: $.paths[*][get,post,put,patch,delete]
+    severity: error
+    then:
+      field: tags
+      function: truthy
+  operation-error-response:
+    description: Every published operation documents its non-success error response.
+    given: $.paths[*][get,post,put,patch,delete].responses
+    severity: error
+    then:
+      field: default
+      function: truthy

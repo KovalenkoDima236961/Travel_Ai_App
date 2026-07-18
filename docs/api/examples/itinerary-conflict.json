@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "itinerary_conflict",
+    "message": "The itinerary has changed. Refresh and try again.",
+    "requestId": "request-example-2"
+  },
+  "currentItineraryRevision": 4
+}

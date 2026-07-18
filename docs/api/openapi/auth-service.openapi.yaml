@@ -1,0 +1,172 @@
+openapi: 3.0.3
+info:
+  title: Travel AI Auth Service API
+  version: 1.0.0
+  description: Browser-facing authentication contract. Internal user lookups are documented separately and are not browser clients.
+servers:
+  - url: /api/auth
+tags:
+  - name: Authentication
+paths:
+  /auth/register:
+    post:
+      tags: [Authentication]
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '201': { $ref: '#/components/responses/AuthResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '200': { $ref: '#/components/responses/AuthResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      operationId: refreshAccessToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Rotated access and refresh token pair.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Refresh token revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentUser
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Current authenticated user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthUser' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 8 }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string, minLength: 1 }
+    AuthUser:
+      type: object
+      required: [id, email, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        createdAt: { type: string, format: date-time }
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+    AuthResponse:
+      allOf:
+        - $ref: '#/components/schemas/TokenResponse'
+        - type: object
+          required: [user]
+          properties:
+            user: { $ref: '#/components/schemas/AuthUser' }
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+    ValidationErrorDetail:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: validation_error }
+        message: { type: string }
+        details:
+          type: array
+          items: { $ref: '#/components/schemas/ValidationErrorDetail' }
+        requestId: { type: string }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/ErrorBody'
+  responses:
+    AuthResponse:
+      description: Authenticated user and token pair.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthResponse' }
+    ErrorResponse:
+      description: User-safe error; legacy services may return an error string during v1 migration.
+      headers:
+        X-Request-ID: { schema: { type: string }, description: Correlates the error with service logs. }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }

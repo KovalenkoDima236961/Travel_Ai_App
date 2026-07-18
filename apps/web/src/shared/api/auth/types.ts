@@ -1,16 +1,9 @@
-export type AuthUser = {
-  id: string;
-  email: string;
-  createdAt: string;
-};
+import type {
+  AuthResponseContract,
+  AuthUserContract,
+  TokenResponseContract
+} from "@/lib/api/contracts";
 
-export type AuthResponse = {
-  user: AuthUser;
-  accessToken: string;
-  refreshToken: string;
-};
-
-export type TokenResponse = {
-  accessToken: string;
-  refreshToken: string;
-};
+export type AuthUser = AuthUserContract;
+export type AuthResponse = AuthResponseContract;
+export type TokenResponse = TokenResponseContract;

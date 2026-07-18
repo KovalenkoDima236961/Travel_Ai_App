@@ -1,9 +1,9 @@
 # API overview
 
-This repository currently has hand-maintained HTTP contracts. Handler request
-and response DTOs are the executable source of truth; the endpoint inventory
-below is the navigation layer. There is no repository-wide generated OpenAPI
-artifact in v1, so do not claim an OpenAPI client is authoritative yet.
+Backend-owned OpenAPI documents now describe the frontend-facing contract and
+generate Web App types. Handler request/response DTOs remain the executable
+implementation; the specs are maintained with them and CI rejects stale
+generated output.
 
 ## Conventions in use
 
@@ -61,4 +61,10 @@ prompt/receipt data in URLs or logs.
 
 - [Endpoint inventory](endpoint-inventory.md)
 - [Errors](errors.md)
+- [Contract strategy](contracts.md)
+- [Conventions](conventions.md)
+- [Pagination](pagination.md)
+- [Internal contracts](internal-contracts.md)
+- [Versioning](versioning.md)
+- [Contract changelog](contract-changelog.md)
 - [Service boundaries](../architecture/service-boundaries.md)

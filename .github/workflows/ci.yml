@@ -68,8 +68,48 @@ jobs:
       - run: python -m ruff check app tests
       - run: python -m pytest
 
+  api-contracts:
+    name: API contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - name: Install AI OpenAPI export dependencies
+        run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
+      - name: Verify FastAPI OpenAPI snapshot is current
+        run: |
+          ./scripts/contracts/export-ai-openapi.sh
+          git diff --exit-code -- docs/api/openapi/ai-planning-service.openapi.yaml
+      - name: Install contract tooling
+        run: npm ci
+        working-directory: apps/web
+      - name: Validate and lint published OpenAPI specs
+        run: ./scripts/contracts/validate-openapi.sh
+      - name: Verify generated Web App types are current
+        run: ./scripts/contracts/check-generated.sh
+      - name: Typecheck Web App against generated contracts
+        run: npm run typecheck
+        working-directory: apps/web
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/trip-service/go.mod
+          cache-dependency-path: services/trip-service/go.sum
+      - name: Verify public trip DTO excludes private fields
+        run: go test ./internal/http-server -run TestPublicTripSharingOwnerFlowAndSanitizedPublicResponse
+        working-directory: services/trip-service
+
   web:
     name: Frontend
+    needs: api-contracts
     runs-on: ubuntu-latest
     defaults:
       run:

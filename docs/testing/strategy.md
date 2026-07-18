@@ -124,3 +124,10 @@ Pull requests run Compose/environment validation, frontend lint/typecheck/unit c
 - Never weaken authorization, file validation, migration safety, or provider isolation to make a test easier.
 
 Local commands and troubleshooting are in [running-tests.md](running-tests.md).
+## API contract checks
+
+Contract coverage combines backend handler tests for response/error/privacy
+shape, OpenAPI linting, deterministic generated-type checks, and MSW fixtures
+that satisfy generated schemas. The CI `api-contracts` job runs these static
+checks before the Web App typecheck; focused integration tests remain the
+authority for service behavior.

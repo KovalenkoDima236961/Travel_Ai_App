@@ -1,6 +1,7 @@
 import type { BudgetSummary } from "@/entities/budget/model";
+import type { BudgetSummaryContract, ExpenseContract } from "@/lib/api/contracts";
 
-export const budgetSummaryFixture: BudgetSummary = {
+const budgetSummaryContractFixture = {
   currency: "EUR",
   tripBudget: 600,
   estimatedTotal: 58,
@@ -19,7 +20,9 @@ export const budgetSummaryFixture: BudgetSummary = {
     { category: "ticket", estimatedTotal: 18, itemCount: 1 },
     { category: "transport", estimatedTotal: 16, itemCount: 1 }
   ]
-};
+} satisfies BudgetSummaryContract;
+
+export const budgetSummaryFixture: BudgetSummary = budgetSummaryContractFixture;
 
 export const expensesFixture = [
   {
@@ -33,3 +36,5 @@ export const expensesFixture = [
     receiptId: "receipt-1"
   }
 ] as const;
+
+expensesFixture satisfies readonly ExpenseContract[];

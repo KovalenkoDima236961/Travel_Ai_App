@@ -37,6 +37,7 @@ existing clients:
 | `public_share_expired` | 404/410 | Show expired share; do not reveal private trip data. |
 | `public_share_password_required` | 401/403 | Show unlock form; rate-limit attempts. |
 | `internal_auth_required` | 401/403 | Service configuration/caller bug; never expose token to browser. |
+| `unknown_error` | any | Preserve safe local state and show a generic retryable failure with request ID when available. |
 
 ## Rules for new handlers
 
@@ -48,5 +49,6 @@ in an API error.
 ## Related docs
 
 - [API overview](overview.md)
+- [API conventions](conventions.md)
 - [Troubleshooting](../development/troubleshooting.md)
 - [Security-sensitive feature playbook](../development/playbooks/add-security-sensitive-feature.md)

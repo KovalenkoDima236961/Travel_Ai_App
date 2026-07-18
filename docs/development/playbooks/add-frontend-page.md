@@ -9,3 +9,9 @@
 7. Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` (or `./scripts/test-frontend.sh`).
 
 Related: [frontend README](../../../apps/web/README.md), [query hook playbook](add-query-hook.md), and [testing strategy](../../testing/strategy.md).
+## API contract checklist
+
+Use the generated type aliases from `src/lib/api/contracts.ts` through the
+hand-written API wrapper. Do not duplicate backend DTOs in component code;
+keep only form values and derived view models local. Update MSW fixtures with
+`satisfies` generated contracts when the page consumes a backend response.

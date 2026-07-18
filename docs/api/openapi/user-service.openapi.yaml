@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: Travel AI User Service API
+  version: 1.0.0
+  description: Frontend-facing profile, preferences and workspace contract. Internal workspace lookup routes are excluded.
+servers:
+  - url: /api/users
+security: [{ BearerAuth: [] }]
+tags:
+  - name: Profile
+  - name: Preferences
+  - name: Workspaces
+paths:
+  /users/me/profile:
+    get:
+      tags: [Profile]
+      operationId: getMyProfile
+      responses:
+        '200': { $ref: '#/components/responses/ProfileResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    put:
+      tags: [Profile]
+      operationId: updateMyProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserProfileRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ProfileResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /users/me/preferences:
+    get:
+      tags: [Preferences]
+      operationId: getMyPreferences
+      responses:
+        '200': { $ref: '#/components/responses/PreferencesResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    patch:
+      tags: [Preferences]
+      operationId: patchMyPreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PatchUserPreferencesRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/PreferencesResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /users/me/preferences/completeness:
+    get:
+      tags: [Preferences]
+      operationId: getPreferenceCompleteness
+      responses:
+        '200':
+          description: Completeness information used by onboarding.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenceCompleteness' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /workspaces:
+    get:
+      tags: [Workspaces]
+      operationId: listWorkspaces
+      responses:
+        '200':
+          description: Workspaces visible to the current user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Workspace' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Workspaces]
+      operationId: createWorkspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [name], properties: { name: { type: string, minLength: 1 } } }
+      responses:
+        '201':
+          description: Created workspace.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Workspace' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    UserProfile:
+      type: object
+      required: [userId, preferredCurrency, preferredLanguage, createdAt, updatedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string, nullable: true }
+        homeCity: { type: string, nullable: true }
+        homeCountry: { type: string, nullable: true }
+        preferredCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+        preferredLanguage: { type: string, enum: [en, es, uk, fr] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UpdateUserProfileRequest:
+      type: object
+      required: [preferredCurrency, preferredLanguage]
+      properties:
+        displayName: { type: string, nullable: true }
+        homeCity: { type: string, nullable: true }
+        homeCountry: { type: string, nullable: true }
+        preferredCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+        preferredLanguage: { type: string, enum: [en, es, uk, fr] }
+    UserPreferences:
+      type: object
+      required: [userId, travelStyles, pace, foodPreferences, avoid, preferredTransport, accommodationStyle, dietaryRestrictions, createdAt, updatedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        travelStyles: { type: array, items: { type: string } }
+        pace: { type: string, enum: [relaxed, balanced, intensive] }
+        maxWalkingKmPerDay: { type: number, nullable: true }
+        foodPreferences: { type: array, items: { type: string } }
+        avoid: { type: array, items: { type: string } }
+        preferredTransport: { type: array, items: { type: string } }
+        accommodationStyle: { type: array, items: { type: string } }
+        dietaryRestrictions: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PatchUserPreferencesRequest:
+      type: object
+      properties:
+        travelStyles: { type: array, items: { type: string } }
+        pace: { type: string, enum: [relaxed, balanced, intensive] }
+        maxWalkingKmPerDay: { type: number, nullable: true }
+        foodPreferences: { type: array, items: { type: string } }
+        avoid: { type: array, items: { type: string } }
+        preferredTransport: { type: array, items: { type: string } }
+        accommodationStyle: { type: array, items: { type: string } }
+        dietaryRestrictions: { type: array, items: { type: string } }
+    PreferenceCompleteness:
+      type: object
+      additionalProperties: true
+      description: Existing onboarding completeness fields; expanded incrementally without exposing internal profile fields.
+    Workspace:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+              required: [code, message]
+              properties:
+                code: { type: string }
+                message: { type: string }
+                requestId: { type: string }
+  responses:
+    ProfileResponse:
+      description: Current user profile.
+      content: { application/json: { schema: { $ref: '#/components/schemas/UserProfile' } } }
+    PreferencesResponse:
+      description: Current user preferences.
+      content: { application/json: { schema: { $ref: '#/components/schemas/UserPreferences' } } }
+    ErrorResponse:
+      description: User-safe request failure.
+      headers: { X-Request-ID: { schema: { type: string } } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }

@@ -1,23 +1,11 @@
 import { getAuthServiceUrl } from "@/shared/config";
+import { AppApiError, normalizeApiErrorPayload, type ApiErrorPayload } from "@/lib/api/errors";
 import type { AuthResponse, AuthUser, TokenResponse } from "./types";
 
 export type { AuthResponse, AuthUser, TokenResponse } from "./types";
 export { clearTokens, getAccessToken, getRefreshToken, saveTokens } from "./token-storage";
 
-type AuthApiErrorPayload = {
-  error?: string | { code?: string; message?: string };
-  message?: string;
-};
-
-export class AuthApiError extends Error {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "AuthApiError";
-    this.status = status;
-  }
-}
+export class AuthApiError extends AppApiError {}
 
 export type Credentials = {
   email: string;
@@ -79,27 +67,16 @@ async function authFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
       cache: "no-store"
     });
   } catch {
-    throw new AuthApiError(
-      "Could not reach Auth Service. Confirm the local stack is running and CORS allows this origin.",
-      0
-    );
+    throw new AuthApiError({
+      code: "unknown_error",
+      message: "Could not reach Auth Service. Confirm the local stack is running and CORS allows this origin.",
+      status: 0
+    });
   }
 
   if (!response.ok) {
-    const payload = await readJson<AuthApiErrorPayload>(response);
-    const structuredError =
-      payload?.error && typeof payload.error === "object" ? payload.error : null;
-    const message =
-      typeof payload?.message === "string" && payload.message.trim().length > 0
-        ? payload.message
-        : typeof structuredError?.message === "string" &&
-            structuredError.message.trim().length > 0
-          ? structuredError.message
-          : typeof payload?.error === "string" && payload.error.trim().length > 0
-            ? payload.error
-            : `Request failed with status ${response.status}`;
-
-    throw new AuthApiError(message, response.status);
+    const payload = await readJson<ApiErrorPayload>(response);
+    throw new AuthApiError(normalizeApiErrorPayload(payload, response.status), payload);
   }
 
   if (response.status === 204) {

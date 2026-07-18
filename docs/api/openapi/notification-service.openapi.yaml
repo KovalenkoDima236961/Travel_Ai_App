@@ -1,0 +1,233 @@
+openapi: 3.0.3
+info:
+  title: Travel AI Notification Service API
+  version: 1.0.0
+  description: Private notification, preferences, push and SSE contract. Internal batch/digest endpoints are not browser clients.
+servers:
+  - url: /api/notifications
+security: [{ BearerAuth: [] }]
+tags:
+  - name: Notifications
+  - name: Notification preferences
+  - name: Push notifications
+paths:
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Newest-first page for the current user.
+          content: { application/json: { schema: { $ref: '#/components/schemas/NotificationsResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      operationId: getUnreadNotificationCount
+      responses:
+        '200':
+          description: Current unread total.
+          content: { application/json: { schema: { $ref: '#/components/schemas/UnreadNotificationsResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/{notificationId}/read:
+    patch:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      parameters: [{ $ref: '#/components/parameters/NotificationId' }]
+      responses:
+        '200': { $ref: '#/components/responses/MarkReadResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/read-all:
+    patch:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      responses:
+        '200': { $ref: '#/components/responses/MarkReadResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/read-trip:
+    patch:
+      tags: [Notifications]
+      operationId: markTripNotificationsRead
+      parameters:
+        - name: tripId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { $ref: '#/components/responses/MarkReadResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/preferences:
+    get:
+      tags: [Notification preferences]
+      operationId: getNotificationPreferences
+      responses:
+        '200':
+          description: Delivery and category preferences.
+          content: { application/json: { schema: { $ref: '#/components/schemas/NotificationPreferences' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    put:
+      tags: [Notification preferences]
+      operationId: updateNotificationPreferences
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/NotificationPreferencesInput' } } }
+      responses:
+        '200':
+          description: Saved notification preferences.
+          content: { application/json: { schema: { $ref: '#/components/schemas/NotificationPreferences' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/push/public-key:
+    get:
+      tags: [Push notifications]
+      operationId: getPushPublicKey
+      responses:
+        '200':
+          description: Public VAPID key and push capability status.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/push/subscribe:
+    post:
+      tags: [Push notifications]
+      operationId: subscribePushNotifications
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, additionalProperties: true } } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/push/unsubscribe:
+    post:
+      tags: [Push notifications]
+      operationId: unsubscribePushNotifications
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, additionalProperties: true } } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /notifications/stream:
+    get:
+      tags: [Notifications]
+      operationId: streamNotifications
+      responses:
+        '200':
+          description: Server-sent events stream. Reconnect with the last event id where supported.
+          content: { text/event-stream: { schema: { type: string } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Notification:
+      type: object
+      required: [id, userId, type, title, message, metadata, createdAt, priority, category, groupedCount, latestEventAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        tripId: { type: string, format: uuid, nullable: true }
+        actorUserId: { type: string, format: uuid, nullable: true }
+        type: { type: string }
+        title: { type: string }
+        message: { type: string }
+        entityType: { type: string, nullable: true }
+        entityId: { type: string, nullable: true }
+        metadata: { type: object, additionalProperties: true }
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        category: { type: string }
+        digestKey: { type: string, nullable: true }
+        dedupeKey: { type: string, nullable: true }
+        groupedCount: { type: integer }
+        digestBatchId: { type: string, nullable: true }
+        deliveryMode: { type: string, nullable: true }
+        deliveryStatus: { type: string, nullable: true }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        latestEventAt: { type: string, format: date-time }
+    NotificationsResponse:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+        nextCursor: { type: string, nullable: true }
+    UnreadNotificationsResponse:
+      type: object
+      required: [count]
+      properties: { count: { type: integer, minimum: 0 } }
+    MarkNotificationResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+        notification: { $ref: '#/components/schemas/Notification' }
+        count: { type: integer, minimum: 0 }
+    NotificationPreferences:
+      type: object
+      additionalProperties: true
+      description: Existing preference shape is intentionally open while preferences are adopted incrementally.
+    NotificationPreferencesInput:
+      type: object
+      additionalProperties: true
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties: { success: { type: boolean } }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+              required: [code, message]
+              properties:
+                code: { type: string }
+                message: { type: string }
+                details: { type: array, items: { type: object, additionalProperties: true } }
+                requestId: { type: string }
+  responses:
+    MarkReadResponse:
+      description: Idempotent mark-read result.
+      content: { application/json: { schema: { $ref: '#/components/schemas/MarkNotificationResponse' } } }
+    SuccessResponse:
+      description: Mutation completed.
+      content: { application/json: { schema: { $ref: '#/components/schemas/SuccessResponse' } } }
+    ErrorResponse:
+      description: User-safe request failure.
+      headers: { X-Request-ID: { schema: { type: string } } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }

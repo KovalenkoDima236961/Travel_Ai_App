@@ -1,0 +1,246 @@
+openapi: 3.0.3
+info:
+  title: Travel AI External Integrations Service API
+  version: 1.0.0
+  description: Normalized provider-facing contracts. Price and transport are internal-token routes today and are deliberately not generated for browser use.
+servers:
+  - url: /api/integrations
+tags:
+  - name: Places
+  - name: Routes
+  - name: Weather
+  - name: Exchange rates
+  - name: Availability
+  - name: Calendar
+paths:
+  /places/search:
+    get:
+      tags: [Places]
+      operationId: searchPlaces
+      security: []
+      parameters:
+        - { name: query, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+      responses:
+        '200':
+          description: Normalized place matches.
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Place' } } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /places/{placeId}:
+    get:
+      tags: [Places]
+      operationId: getPlaceDetails
+      security: []
+      parameters: [{ $ref: '#/components/parameters/PlaceId' }]
+      responses:
+        '200':
+          description: Normalized place details.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Place' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /routes/estimate:
+    post:
+      tags: [Routes]
+      operationId: estimateRoute
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RouteEstimateRequest' } } }
+      responses:
+        '200':
+          description: Normalized route estimate.
+          content: { application/json: { schema: { $ref: '#/components/schemas/RouteEstimate' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        '502': { $ref: '#/components/responses/ErrorResponse' }
+        '503': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /weather/forecast:
+    get:
+      tags: [Weather]
+      operationId: getWeatherForecast
+      security: []
+      parameters:
+        - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: startDate, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Normalized daily forecast.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        '502': { $ref: '#/components/responses/ErrorResponse' }
+        '503': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /exchange-rates/latest:
+    get:
+      tags: [Exchange rates]
+      operationId: getLatestExchangeRates
+      security: []
+      parameters:
+        - { name: base, in: query, schema: { type: string, pattern: '^[A-Z]{3}$' } }
+      responses:
+        '200':
+          description: Latest normalized rates.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /exchange-rates/convert:
+    get:
+      tags: [Exchange rates]
+      operationId: convertExchangeRate
+      security: []
+      parameters:
+        - { name: amount, in: query, required: true, schema: { type: number } }
+        - { name: from, in: query, required: true, schema: { type: string, pattern: '^[A-Z]{3}$' } }
+        - { name: to, in: query, required: true, schema: { type: string, pattern: '^[A-Z]{3}$' } }
+      responses:
+        '200':
+          description: Converted amount and applied rate.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /availability/search:
+    post:
+      tags: [Availability]
+      operationId: searchAvailability
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, additionalProperties: true } } }
+      responses:
+        '200':
+          description: Authenticated availability search.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        '503': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /calendar/google/status:
+    get:
+      tags: [Calendar]
+      operationId: getGoogleCalendarStatus
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Current user's Google Calendar integration state.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /calendar/google/connect:
+    post:
+      tags: [Calendar]
+      operationId: connectGoogleCalendar
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: OAuth authorization URL/state.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '503': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /calendar/google/free-busy:
+    post:
+      tags: [Calendar]
+      operationId: getGoogleCalendarFreeBusy
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, additionalProperties: true } } }
+      responses:
+        '200':
+          description: User-authorized busy time summaries.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '503': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /calendar/google/disconnect:
+    delete:
+      tags: [Calendar]
+      operationId: disconnectGoogleCalendar
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Calendar credentials removed.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    PlaceId: { name: placeId, in: path, required: true, schema: { type: string, minLength: 1 } }
+  schemas:
+    Place:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        address: { type: string }
+        category: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        rating: { type: number }
+        provider: { type: string }
+      additionalProperties: true
+    RouteEstimateRequest:
+      type: object
+      required: [origin, destination]
+      properties:
+        origin: { $ref: '#/components/schemas/Location' }
+        destination: { $ref: '#/components/schemas/Location' }
+        mode: { type: string }
+    Location:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        name: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+    RouteEstimate:
+      type: object
+      required: [distanceKm, durationMinutes]
+      properties:
+        distanceKm: { type: number }
+        durationMinutes: { type: integer }
+        mode: { type: string }
+        polyline: { type: string }
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+              required: [code, message]
+              properties:
+                code: { type: string }
+                message: { type: string }
+                requestId: { type: string }
+        message: { type: string }
+        provider: { type: string }
+        retryAfterSeconds: { type: integer }
+  responses:
+    ErrorResponse:
+      description: User-safe normalized provider or request failure.
+      headers:
+        X-Request-ID: { schema: { type: string } }
+        Retry-After: { schema: { type: integer }, description: Present for bounded retry responses. }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }

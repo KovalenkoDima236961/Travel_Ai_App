@@ -1,0 +1,869 @@
+openapi: 3.0.3
+info:
+  title: Travel AI Trip Service API
+  version: 1.0.0
+  description: Core frontend-facing trip contract. It models existing raw response bodies while new endpoints move toward the documented envelope.
+servers:
+  - url: /api/trips
+security: [{ BearerAuth: [] }]
+tags:
+  - name: Trips
+  - name: Itinerary
+  - name: Generation jobs
+  - name: Budget and expenses
+  - name: Collaboration
+  - name: Public sharing
+  - name: Planning
+paths:
+  /trips:
+    get:
+      tags: [Trips]
+      operationId: listTrips
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+        - { name: scope, in: query, schema: { type: string, enum: [personal, workspace, all] } }
+        - { name: workspaceId, in: query, schema: { type: string, format: uuid, nullable: true } }
+      responses:
+        '200':
+          description: Existing offset-paginated trip list.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripsListResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Trips]
+      operationId: createTrip
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTripRequest' } } }
+      responses:
+        '201': { $ref: '#/components/responses/TripResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}:
+    get:
+      tags: [Trips]
+      operationId: getTrip
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200': { $ref: '#/components/responses/TripResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/itinerary:
+    put:
+      tags: [Itinerary]
+      operationId: updateTripItinerary
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateItineraryRequest' } } }
+      responses:
+        '200': { $ref: '#/components/responses/TripResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ItineraryConflictResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/itinerary/versions:
+    get:
+      tags: [Itinerary]
+      operationId: listItineraryVersions
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200':
+          description: Existing offset-paginated itinerary versions.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ItineraryVersionsResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/itinerary/versions/{versionId}:
+    get:
+      tags: [Itinerary]
+      operationId: getItineraryVersion
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/VersionId' }]
+      responses:
+        '200':
+          description: One immutable itinerary version.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ItineraryVersion' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/itinerary/versions/{versionId}/restore:
+    post:
+      tags: [Itinerary]
+      operationId: restoreItineraryVersion
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/VersionId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ExpectedRevisionRequest' } } }
+      responses:
+        '200': { $ref: '#/components/responses/TripResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ItineraryConflictResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/generation-jobs:
+    post:
+      tags: [Generation jobs]
+      operationId: createGenerationJob
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateGenerationJobRequest' } } }
+      responses:
+        '202':
+          description: Queued generation job.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationJobEnvelope' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ItineraryConflictResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    get:
+      tags: [Generation jobs]
+      operationId: listGenerationJobs
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }]
+      responses:
+        '200':
+          description: Current trip generation jobs.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationJobListResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/generation-jobs/{jobId}:
+    get:
+      tags: [Generation jobs]
+      operationId: getGenerationJob
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/JobId' }]
+      responses:
+        '200':
+          description: Current generation job state.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationJobEnvelope' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/generation-jobs/{jobId}/cancel:
+    post:
+      tags: [Generation jobs]
+      operationId: cancelGenerationJob
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/JobId' }]
+      responses:
+        '200':
+          description: Cancelled generation job.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationJobEnvelope' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/route:
+    get:
+      tags: [Planning]
+      operationId: getTripRoute
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Route, including a null route for a single-destination trip.
+          content: { application/json: { schema: { $ref: '#/components/schemas/RouteEnvelope' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    put:
+      tags: [Planning]
+      operationId: updateTripRoute
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateRouteRequest' } } }
+      responses:
+        '200': { $ref: '#/components/responses/TripResponse' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ItineraryConflictResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/budget:
+    get:
+      tags: [Budget and expenses]
+      operationId: getTripBudget
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Trip budget envelope.
+          content: { application/json: { schema: { $ref: '#/components/schemas/BudgetEnvelope' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    put:
+      tags: [Budget and expenses]
+      operationId: updateTripBudget
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BudgetEnvelope' } } }
+      responses:
+        '200':
+          description: Saved/cleared trip budget.
+          content: { application/json: { schema: { $ref: '#/components/schemas/BudgetEnvelope' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/budget-summary:
+    get:
+      tags: [Budget and expenses]
+      operationId: getTripBudgetSummary
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Aggregated itinerary budget summary.
+          content: { application/json: { schema: { $ref: '#/components/schemas/BudgetSummary' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/expenses:
+    get:
+      tags: [Budget and expenses]
+      operationId: listTripExpenses
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: paidByUserId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Existing offset-paginated expense list.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ExpensesResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Budget and expenses]
+      operationId: createTripExpense
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ExpenseInput' } } }
+      responses:
+        '201':
+          description: New private expense.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Expense' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/expenses/{expenseId}:
+    get:
+      tags: [Budget and expenses]
+      operationId: getTripExpense
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/ExpenseId' }]
+      responses:
+        '200':
+          description: One private expense.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Expense' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    patch:
+      tags: [Budget and expenses]
+      operationId: updateTripExpense
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/ExpenseId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ExpenseInput' } } }
+      responses:
+        '200':
+          description: Updated private expense.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Expense' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    delete:
+      tags: [Budget and expenses]
+      operationId: deleteTripExpense
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/ExpenseId' }]
+      responses:
+        '200': { $ref: '#/components/responses/SuccessResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/expenses/summary:
+    get:
+      tags: [Budget and expenses]
+      operationId: getTripExpenseSummary
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: currency, in: query, schema: { type: string, pattern: '^[A-Z]{3}$' } }]
+      responses:
+        '200':
+          description: Expense roll-up for the requested currency.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/settlements:
+    get:
+      tags: [Budget and expenses]
+      operationId: getTripSettlements
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: currency, in: query, schema: { type: string, pattern: '^[A-Z]{3}$' } }]
+      responses:
+        '200':
+          description: Settlement summary.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/settlements/{settlementId}/mark-paid:
+    post:
+      tags: [Budget and expenses]
+      operationId: markSettlementPaid
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/SettlementId' }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, additionalProperties: true } } }
+      responses:
+        '200':
+          description: Updated settlement summary.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/expenses/receipts:
+    get:
+      tags: [Budget and expenses]
+      operationId: listReceipts
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }, { name: offset, in: query, schema: { type: integer, minimum: 0 } }]
+      responses:
+        '200':
+          description: Existing private receipt list.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/expenses/receipts/upload:
+    post:
+      tags: [Budget and expenses]
+      operationId: uploadReceipt
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } }
+      responses:
+        '201':
+          description: Private receipt metadata.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '413': { $ref: '#/components/responses/ErrorResponse' }
+        '415': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/share:
+    get:
+      tags: [Public sharing]
+      operationId: getTripShare
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Private share configuration; never contains a password hash.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripShareInfo' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Public sharing]
+      operationId: createTripShare
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTripShareRequest' } } }
+      responses:
+        '200':
+          description: Created share configuration.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripShareInfo' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    patch:
+      tags: [Public sharing]
+      operationId: updateTripShare
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTripShareRequest' } } }
+      responses:
+        '200':
+          description: Updated share configuration.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripShareInfo' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    delete:
+      tags: [Public sharing]
+      operationId: disableTripShare
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200': { $ref: '#/components/responses/SuccessResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /public/trips/{shareToken}/status:
+    get:
+      tags: [Public sharing]
+      operationId: getPublicShareStatus
+      security: []
+      parameters: [{ $ref: '#/components/parameters/ShareToken' }]
+      responses:
+        '200':
+          description: Public share availability only.
+          content: { application/json: { schema: { $ref: '#/components/schemas/PublicShareStatus' } } }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /public/trips/{shareToken}/unlock:
+    post:
+      tags: [Public sharing]
+      operationId: unlockPublicShare
+      security: []
+      parameters: [{ $ref: '#/components/parameters/ShareToken' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [password], properties: { password: { type: string, minLength: 1 } } } } }
+      responses:
+        '200':
+          description: Short-lived public share access token.
+          content: { application/json: { schema: { $ref: '#/components/schemas/PublicShareUnlockResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /public/trips/{shareToken}:
+    get:
+      tags: [Public sharing]
+      operationId: getPublicTrip
+      security: []
+      parameters: [{ $ref: '#/components/parameters/ShareToken' }]
+      responses:
+        '200':
+          description: Sanitized public read-only trip. Private user/collaboration/finance/ops fields are excluded.
+          content: { application/json: { schema: { $ref: '#/components/schemas/PublicTripResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '410': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/collaborators:
+    get:
+      tags: [Collaboration]
+      operationId: listTripCollaborators
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Private collaborator list.
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TripCollaborator' } } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Collaboration]
+      operationId: inviteTripCollaborator
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [editor, viewer] } } } } }
+      responses:
+        '201':
+          description: Invited collaborator.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripCollaborator' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/comments:
+    get:
+      tags: [Collaboration]
+      operationId: listTripComments
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: cursor, in: query, schema: { type: string } }, { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }]
+      responses:
+        '200':
+          description: Private comment page; cursor migration is in progress.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Collaboration]
+      operationId: createTripComment
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [body], properties: { body: { type: string, minLength: 1 } } } } }
+      responses:
+        '201':
+          description: Created comment.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/activity:
+    get:
+      tags: [Collaboration]
+      operationId: listTripActivity
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: cursor, in: query, schema: { type: string } }, { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }]
+      responses:
+        '200':
+          description: Private activity page.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/health:
+    get:
+      tags: [Planning]
+      operationId: getTripHealth
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Private trip health summary.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/verification:
+    get:
+      tags: [Planning]
+      operationId: getTripVerification
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Private verification summary.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/command-center-summary:
+    get:
+      tags: [Planning]
+      operationId: getCommandCenterSummary
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Private command-center summary.
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    TripId: { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
+    VersionId: { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }
+    JobId: { name: jobId, in: path, required: true, schema: { type: string, format: uuid } }
+    ExpenseId: { name: expenseId, in: path, required: true, schema: { type: string, format: uuid } }
+    SettlementId: { name: settlementId, in: path, required: true, schema: { type: string, format: uuid } }
+    ShareToken: { name: shareToken, in: path, required: true, schema: { type: string, minLength: 1 } }
+  schemas:
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+    TripAccess:
+      type: object
+      required: [role, canEdit, canManageCollaborators, canManageShare, canRestoreVersion, canDelete]
+      properties:
+        role: { type: string, enum: [owner, editor, viewer] }
+        source: { type: string, enum: [owner, workspace, collaborator, public] }
+        canEdit: { type: boolean }
+        canManageCollaborators: { type: boolean }
+        canManageShare: { type: boolean }
+        canRestoreVersion: { type: boolean }
+        canDelete: { type: boolean }
+    Trip:
+      type: object
+      required: [id, destination, days, budgetCurrency, travelers, interests, pace, status, itineraryRevision, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid, nullable: true }
+        workspaceId: { type: string, format: uuid, nullable: true }
+        scope: { type: string, enum: [personal, workspace] }
+        tripType: { type: string, enum: [single_destination, multi_destination] }
+        route: { type: object, nullable: true, additionalProperties: true }
+        destination: { type: string }
+        startDate: { type: string, format: date, nullable: true }
+        days: { type: integer, minimum: 1 }
+        budgetAmount: { type: number, nullable: true }
+        budgetCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+        budget: { type: object, nullable: true, additionalProperties: true }
+        accommodation: { type: object, nullable: true, additionalProperties: true }
+        travelers: { type: integer, minimum: 1 }
+        interests: { type: array, items: { type: string } }
+        pace: { type: string }
+        status: { type: string, enum: [DRAFT, PROCESSING, COMPLETED, FAILED] }
+        itinerary: { type: object, nullable: true, additionalProperties: true }
+        itineraryRevision: { type: integer, minimum: 0 }
+        lifecycle: { type: string, enum: [draft, planning, ready, active, completed, archived] }
+        archivedAt: { type: string, format: date-time, nullable: true }
+        access:
+          allOf: [{ $ref: '#/components/schemas/TripAccess' }]
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TripsListResponse:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Trip' } }
+        limit: { type: integer }
+        offset: { type: integer }
+    CreateTripRequest:
+      type: object
+      required: [destination, days, budgetCurrency, travelers, interests, pace]
+      properties:
+        destination: { type: string, minLength: 1 }
+        tripType: { type: string, enum: [single_destination, multi_destination] }
+        route: { type: object, nullable: true, additionalProperties: true }
+        workspaceId: { type: string, format: uuid, nullable: true }
+        startDate: { type: string, format: date }
+        days: { type: integer, minimum: 1 }
+        budgetAmount: { type: number }
+        budgetCurrency: { type: string, pattern: '^[A-Z]{3}$' }
+        travelers: { type: integer, minimum: 1 }
+        interests: { type: array, items: { type: string } }
+        pace: { type: string, enum: [relaxed, balanced, packed] }
+    ExpectedRevisionRequest:
+      type: object
+      required: [expectedItineraryRevision]
+      properties: { expectedItineraryRevision: { type: integer, minimum: 0 } }
+    UpdateItineraryRequest:
+      allOf:
+        - $ref: '#/components/schemas/ExpectedRevisionRequest'
+        - type: object
+          required: [itinerary]
+          properties: { itinerary: { type: object, additionalProperties: true } }
+    UpdateRouteRequest:
+      type: object
+      required: [route]
+      properties:
+        expectedItineraryRevision: { type: integer, minimum: 0 }
+        route: { type: object, nullable: true, additionalProperties: true }
+    RouteEnvelope:
+      type: object
+      required: [route]
+      properties: { route: { type: object, nullable: true, additionalProperties: true } }
+    ItineraryVersion:
+      type: object
+      required: [id, tripId, versionNumber, source, itinerary, metadata, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+        versionNumber: { type: integer }
+        source: { type: string }
+        itinerary: { type: object, additionalProperties: true }
+        metadata: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+    ItineraryVersionsResponse:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ItineraryVersion' } }
+        limit: { type: integer }
+        offset: { type: integer }
+    CreateGenerationJobRequest:
+      type: object
+      required: [expectedItineraryRevision]
+      properties:
+        expectedItineraryRevision: { type: integer, minimum: 0 }
+        clientMutationId: { type: string, maxLength: 128 }
+    GenerationJob:
+      type: object
+      required: [id, tripId, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, completed, failed, cancelled] }
+        errorCode: { type: string, nullable: true }
+        errorMessage: { type: string, nullable: true }
+        expectedItineraryRevision: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    GenerationJobEnvelope:
+      type: object
+      required: [job]
+      properties: { job: { $ref: '#/components/schemas/GenerationJob' } }
+    GenerationJobListResponse:
+      type: object
+      required: [items, limit]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/GenerationJob' } }
+        limit: { type: integer }
+    BudgetEnvelope:
+      type: object
+      required: [budget]
+      properties:
+        budget: { type: object, nullable: true, additionalProperties: true }
+    BudgetSummary:
+      type: object
+      required: [currency, estimatedTotal, remaining, overBudgetBy, missingEstimateCount, estimatedItemCount, convertedItemCount, unconvertedItemCount, byDay, byCategory]
+      properties:
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        tripBudget: { type: number, nullable: true }
+        estimatedTotal: { type: number }
+        remaining: { type: number, nullable: true }
+        overBudgetBy: { type: number, nullable: true }
+        missingEstimateCount: { type: integer }
+        estimatedItemCount: { type: integer }
+        convertedItemCount: { type: integer }
+        unconvertedItemCount: { type: integer }
+        byDay:
+          type: array
+          items:
+            type: object
+            required: [dayNumber, estimatedTotal, missingEstimateCount]
+            properties:
+              dayNumber: { type: integer, minimum: 1 }
+              estimatedTotal: { type: number }
+              missingEstimateCount: { type: integer }
+        byCategory:
+          type: array
+          items:
+            type: object
+            required: [category, estimatedTotal, itemCount]
+            properties:
+              category: { type: string, enum: [food, transport, ticket, activity, accommodation, shopping, other] }
+              estimatedTotal: { type: number }
+              itemCount: { type: integer }
+    ExpenseInput:
+      type: object
+      additionalProperties: true
+      description: Existing expense input. Exact financial split fields are adopted with the expense domain increment.
+    Expense:
+      type: object
+      required: [id, tripId]
+      additionalProperties: true
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+    ExpensesResponse:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Expense' } }
+        limit: { type: integer }
+        offset: { type: integer }
+        nextOffset: { type: integer, nullable: true }
+    TripShareInfo:
+      type: object
+      required: [enabled, expired, passwordRequired]
+      properties:
+        shareToken: { type: string }
+        shareUrl: { type: string, format: uri }
+        enabled: { type: boolean }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        disabledAt: { type: string, format: date-time, nullable: true }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        expired: { type: boolean }
+        passwordRequired: { type: boolean }
+    UpdateTripShareRequest:
+      type: object
+      properties:
+        expiresAt: { type: string, format: date-time, nullable: true }
+        password: { type: string, nullable: true }
+    PublicShareStatus:
+      type: object
+      required: [available, passwordRequired]
+      properties:
+        available: { type: boolean }
+        passwordRequired: { type: boolean }
+        expired: { type: boolean }
+    PublicShareUnlockResponse:
+      type: object
+      required: [accessToken, expiresAt]
+      properties:
+        accessToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    PublicTripResponse:
+      type: object
+      additionalProperties: false
+      required: [tripType, destination, days, interests, status, createdAt, updatedAt, sharedAt]
+      properties:
+        tripType: { type: string }
+        destination: { type: string }
+        route: { type: object, additionalProperties: true }
+        startDate: { type: string, format: date, nullable: true }
+        days: { type: integer }
+        travelers: { type: integer }
+        interests: { type: array, items: { type: string } }
+        pace: { type: string }
+        status: { type: string }
+        itinerary: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        sharedAt: { type: string, format: date-time }
+    TripCollaborator:
+      type: object
+      required: [id, tripId, userId, role, status, invitedByUserId, invitedAt]
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email, nullable: true }
+        displayName: { type: string, nullable: true }
+        role: { type: string, enum: [owner, editor, viewer] }
+        status: { type: string }
+        invitedByUserId: { type: string, format: uuid }
+        invitedAt: { type: string, format: date-time }
+        acceptedAt: { type: string, format: date-time, nullable: true }
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties: { success: { type: boolean } }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+              required: [code, message]
+              properties:
+                code: { type: string }
+                message: { type: string }
+                details: { type: array, items: { type: object, additionalProperties: true } }
+                requestId: { type: string }
+        currentItineraryRevision: { type: integer }
+  responses:
+    TripResponse:
+      description: Private trip DTO.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Trip' } } }
+    SuccessResponse:
+      description: Mutation completed.
+      content: { application/json: { schema: { $ref: '#/components/schemas/SuccessResponse' } } }
+    ItineraryConflictResponse:
+      description: Stale itinerary revision; refetch and explicitly resolve before retrying.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    ErrorResponse:
+      description: User-safe request failure.
+      headers: { X-Request-ID: { schema: { type: string } } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }

@@ -1,4 +1,5 @@
 import type { Trip, TripsListResponse } from "@/entities/trip/model";
+import type { TripContract, TripsListContract } from "@/lib/api/contracts";
 import { itineraryFixture } from "./itinerary";
 import { routeFixture } from "./route";
 import { TEST_USER_IDS } from "./users";
@@ -36,6 +37,8 @@ export const tripFixture: Trip = {
   updatedAt: "2026-02-01T10:10:00Z"
 };
 
+tripFixture satisfies TripContract;
+
 export const viewerTripFixture: Trip = {
   ...tripFixture,
   access: {
@@ -54,3 +57,5 @@ export const tripsListFixture: TripsListResponse = {
   limit: 20,
   offset: 0
 };
+
+tripsListFixture satisfies TripsListContract;

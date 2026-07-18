@@ -1,12 +1,13 @@
 import { apiFetch } from "@/shared/api/client";
 import type { Budget, BudgetSummary } from "@/entities/budget/model";
+import type { BudgetSummaryContract } from "@/lib/api/contracts";
 
 export const budgetKeys = {
   summary: (tripId: string) => ["trips", "detail", tripId, "budget-summary"] as const
 };
 
 export function getTripBudgetSummary(tripId: string) {
-  return apiFetch<BudgetSummary>(`/trips/${tripId}/budget-summary`);
+  return apiFetch<BudgetSummary & BudgetSummaryContract>(`/trips/${tripId}/budget-summary`);
 }
 
 type BudgetEnvelope = {
