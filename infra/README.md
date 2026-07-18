@@ -11,15 +11,34 @@ From the repository root:
 ```bash
 cp infra/.env.example infra/.env
 ./scripts/dev-setup.sh
-docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
 Open the app at `http://localhost:3000`.
 
-Run the smoke test after the stack is healthy:
+Run the core smoke test after the stack is healthy:
 
 ```bash
-./scripts/smoke-test.sh
+./scripts/smoke-test.sh --core
+```
+
+## Compose Profiles
+
+`infra/.env.example` enables the lightweight `core` profile so the legacy
+`docker compose -f infra/docker-compose.yml up` command remains a useful local
+default after copying the environment file. Select optional profiles explicitly:
+
+| Profile | Includes | When to use it |
+| ------- | -------- | -------------- |
+| `core` | Postgres, RabbitMQ, Go services, Worker, Web App | Normal mock-first development. |
+| `ai` | Ollama and AI Planning Service | Test real local model integration. |
+| `rag` | AI/RAG runtime and persistent Chroma data | Index and query local knowledge. |
+| `observability` | Prometheus and Grafana | Inspect metrics and dashboards. |
+| `dev-tools` | Adminer and migration runner | Database inspection or one-shot migrations. |
+
+```bash
+docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core up -d
+docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core --profile ai up -d
+docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core --profile ai --profile rag --profile observability up -d
 ```
 
 ## Stack Map
@@ -171,6 +190,28 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env logs ai-plannin
 
 Keep real provider keys in `infra/.env` or shell environment only. Do not commit
 them.
+
+## Reliability Commands
+
+```bash
+./scripts/validate-env.sh local
+./scripts/compose-validate.sh
+./scripts/wait-for-ready.sh core
+./scripts/run-migrations.sh
+./scripts/migration-status.sh
+./scripts/backup-postgres.sh
+./scripts/verify-backup.sh backups/postgres-YYYYMMDDTHHMMSSZ
+```
+
+`migration-runner` is a one-shot Compose service; `dev-setup.sh` starts
+Postgres, runs it, then starts application containers. Service processes may
+safely re-check already-applied migrations on startup, but do not launch
+multiple migration runners concurrently.
+
+Receipt files use the `receipt_storage` named volume at `/var/app/receipts`;
+trip and account export packages use `trip_export_storage` and
+`user_export_storage`. These private files are not part of a Postgres backup.
+See [deployment backups](../docs/deployment/backups.md) before resetting volumes.
 
 ## Smoke Test Coverage
 

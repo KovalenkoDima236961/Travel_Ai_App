@@ -65,7 +65,9 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"status": status,
-		"checks": checks,
+		"status":       status,
+		"service":      "user-service",
+		"dependencies": checks,
+		"checks":       checks,
 	})
 }

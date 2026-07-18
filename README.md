@@ -365,23 +365,35 @@ Key product capabilities:
 
 ```bash
 cp infra/.env.example infra/.env
+./scripts/validate-env.sh local
 ./scripts/dev-setup.sh
-docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
 ```
 
 Open:
 
 - Web app: `http://localhost:3000`
-- Grafana: `http://localhost:3001` (`admin` / `admin`)
-- Prometheus: `http://localhost:9090`
 - RabbitMQ management: `http://localhost:15672` (`guest` / `guest`)
-- Adminer: `http://localhost:8081`
 
-Run the full-stack smoke test:
+Run the core smoke test:
 
 ```bash
-./scripts/smoke-test.sh
+./scripts/smoke-test.sh --core
 ```
+
+Optional profiles keep heavier dependencies out of the normal loop:
+
+```bash
+# Core + local AI (set TRIP_ITINERARY_GENERATOR_MODE=http in infra/.env to use it)
+docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core --profile ai up -d
+
+# Full local inspection stack
+docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core --profile ai --profile rag --profile observability up -d
+```
+
+With the generated local `.env`, `docker compose -f infra/docker-compose.yml up`
+also starts the `core` profile. Add `--profile dev-tools` for Adminer and the
+one-shot migration runner. Grafana (`http://localhost:3030`) and Prometheus
+(`http://localhost:9090`) are only started with `--profile observability`.
 
 ## Development Commands
 
@@ -390,9 +402,11 @@ From the repository root:
 ```bash
 cp infra/.env.example infra/.env
 ./scripts/dev-setup.sh
-./scripts/index-knowledge.sh
-./scripts/smoke-test.sh
-docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
+./scripts/run-migrations.sh
+./scripts/migration-status.sh
+./scripts/smoke-test.sh --core
+./scripts/backup-postgres.sh
+./scripts/dev-reset.sh --yes
 ```
 
 From a Go service directory:
@@ -462,6 +476,8 @@ npm run build
 
 - Run the whole stack: [infra/README.md](infra/README.md)
 - Metrics and dashboards: [infra/observability/README.md](infra/observability/README.md)
+- Local troubleshooting: [docs/development/troubleshooting.md](docs/development/troubleshooting.md)
+- Migrations and recovery: [docs/development/migrations.md](docs/development/migrations.md), [docs/deployment/backups.md](docs/deployment/backups.md)
 - Frontend behavior: [apps/web/README.md](apps/web/README.md)
 - Trip orchestration: [services/trip-service/README.md](services/trip-service/README.md)
 - AI generation and RAG: [services/ai-planning-service/README.md](services/ai-planning-service/README.md)

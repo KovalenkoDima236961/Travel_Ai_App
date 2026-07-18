@@ -42,7 +42,7 @@ func New(
 	r.Use(observability.HTTPMetricsMiddleware(observability.DefaultHTTPMetrics("worker-service")))
 	r.Use(requestLogger(log))
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "worker-service"})
 	})
 	r.Get("/ready", readinessHandler(db, consumer, log))
 	r.Handle("/metrics", observability.MetricsHandler(nil))
@@ -97,8 +97,10 @@ func readinessHandler(db *postgres.DB, consumer *rabbitmq.Consumer, log *zap.Log
 			httpStatus = http.StatusServiceUnavailable
 		}
 		writeJSON(w, httpStatus, map[string]any{
-			"status": status,
-			"checks": checks,
+			"status":       status,
+			"service":      "worker-service",
+			"dependencies": checks,
+			"checks":       checks,
 		})
 	}
 }

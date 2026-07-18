@@ -22,11 +22,15 @@ flowchart LR
     Dashboards["Provisioned dashboards"] --> Grafana
 ```
 
-Start the stack:
+Start the observability profile after core services are available:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up --build
+docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core --profile observability up -d
 ```
+
+Add `--profile ai` when AI Planning metrics should be scraped. Prometheus keeps
+the AI target in its configuration, but does not wait for the optional AI
+profile before starting.
 
 ## Local URLs
 
@@ -60,6 +64,8 @@ Grafana provisions dashboards from
 | Worker Jobs | Job starts/completions/failures, active jobs, retries, DLQ, queue delay, duration. |
 | External Providers | Provider latency, failure rate, fallback use, cache hits/misses. |
 | RabbitMQ Overview | Queue depth, ready/unacked messages, publish/consume rates, DLQ depth. |
+| AI Generation Observability | AI trace throughput, failures, durations, and token estimates. |
+| Performance & Reliability | Trip/API latency, database, cache, worker retry, and provider cooldown signals. |
 
 ## Correlation IDs
 

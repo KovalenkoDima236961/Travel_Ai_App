@@ -1,28 +1,27 @@
-# This root .dockerignore governs ONLY the worker-service build — the single
-# Compose service that uses the repo root as its build context
-# (infra/docker-compose.yml: worker-service -> build.context: ..).
-#
-# services/worker-service/Dockerfile compiles just two Go modules:
-#   services/trip-service  and  services/worker-service
-# so we ignore everything and re-include only those. This keeps the build
-# context to a few MB instead of shipping ~5GB of local caches, node_modules,
-# .git history, other services, etc.
-
-# Ignore everything by default
+# Root build contexts are used by worker-service and the one-shot migration
+# runner. Keep only their Go sources, migration assets, and runner script.
 *
 
-# Re-include only what the worker build actually needs
+!services/auth-service
+!services/user-service
 !services/trip-service
+!services/notification-service
+!services/external-integrations-service
 !services/worker-service
+!infra
+!scripts/run-migrations.sh
 
-# Re-exclude heavy / secret paths inside the re-included service dirs
-services/trip-service/.cache
-services/trip-service/bin
-services/trip-service/tmp
-services/trip-service/coverage.out
-services/worker-service/.cache
-services/worker-service/bin
-services/worker-service/tmp
-services/worker-service/coverage.out
+# Never send local state, credentials, or generated artifacts to Docker.
+**/.git
 **/.env
 **/.env.*
+**/.cache
+**/bin
+**/tmp
+**/coverage.out
+**/data/receipts
+**/data/exports
+backups
+exports
+receipts
+graphify-out

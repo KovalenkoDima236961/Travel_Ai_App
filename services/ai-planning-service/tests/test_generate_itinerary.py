@@ -92,7 +92,12 @@ def test_ready_endpoint_returns_ready_in_mock_mode() -> None:
     response = test_client.get("/ready")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ready", "checks": {"app": "ok"}}
+    assert response.json() == {
+        "status": "ready",
+        "service": "ai-planning-service",
+        "dependencies": {"app": "ok"},
+        "checks": {"app": "ok"},
+    }
 
 
 def test_generate_itinerary_success() -> None:

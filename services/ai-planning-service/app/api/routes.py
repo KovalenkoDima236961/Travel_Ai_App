@@ -171,7 +171,12 @@ def ready(settings: Settings = Depends(get_configured_settings)) -> JSONResponse
     )
     return JSONResponse(
         status_code=result.status_code,
-        content={"status": result.status, "checks": result.checks},
+        content={
+            "status": result.status,
+            "service": "ai-planning-service",
+            "dependencies": result.checks,
+            "checks": result.checks,
+        },
     )
 
 

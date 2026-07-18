@@ -11,6 +11,30 @@ WORKER_SERVICE_URL="${SMOKE_WORKER_SERVICE_URL:-${WORKER_SERVICE_URL:-http://loc
 WEB_APP_URL="${WEB_APP_URL:-http://localhost:3000}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:9090}"
 INTERNAL_SERVICE_TOKEN_FOR_SMOKE="${SMOKE_INTERNAL_SERVICE_TOKEN:-${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}}"
+SMOKE_INCLUDE_AI="${SMOKE_INCLUDE_AI:-false}"
+SMOKE_ENV_FILE="${SMOKE_ENV_FILE:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/infra/.env}"
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/smoke-test.sh [--core|--ai] [--observability] [--skip-ai] [--base-url URL]
+
+Runs the authenticated core smoke flow. --ai enables direct AI Planning Service
+checks; --core/--skip-ai keep the smoke test compatible with the mock-first
+core profile. --base-url overrides the Trip Service API URL; use the existing
+SMOKE_*_SERVICE_URL variables to override other endpoints.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --core|--skip-ai) SMOKE_INCLUDE_AI=false; shift ;;
+    --ai) SMOKE_INCLUDE_AI=true; shift ;;
+    --observability) SMOKE_EXPECT_OBSERVABILITY=true; shift ;;
+    --base-url) [[ $# -ge 2 ]] || { echo "--base-url needs a URL" >&2; exit 2; }; TRIP_SERVICE_URL="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
 
 if [[ "${USER_SERVICE_URL}" == "http://user-service:8083" ]]; then
   USER_SERVICE_URL="http://localhost:${USER_SERVICE_PORT:-8083}"
@@ -33,6 +57,10 @@ fi
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq is required to run the smoke test. Install jq and try again." >&2
   exit 1
+fi
+
+if [[ "${SMOKE_SKIP_ENV_VALIDATION:-false}" != "true" ]]; then
+  "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/validate-env.sh" "${SMOKE_ENV_TARGET:-local}" --env-file "${SMOKE_ENV_FILE}"
 fi
 
 LAST_STATUS=""
@@ -185,6 +213,7 @@ assert_2xx() {
     echo "${LAST_BODY}" >&2
     exit 1
   fi
+  echo "PASS ${label}"
 }
 
 assert_status() {
@@ -195,6 +224,7 @@ assert_status() {
     echo "${LAST_BODY}" >&2
     exit 1
   fi
+  echo "PASS ${label}"
 }
 
 assert_metrics_contains() {
@@ -355,10 +385,14 @@ unread_count() {
 echo "Checking Auth Service health..."
 request GET "${AUTH_SERVICE_URL}/health"
 assert_2xx "Auth Service health check"
+request GET "${AUTH_SERVICE_URL}/ready"
+assert_2xx "Auth Service readiness check"
 
 echo "Checking Trip Service health..."
 request GET "${TRIP_SERVICE_URL}/health"
 assert_2xx "Trip Service health check"
+request GET "${TRIP_SERVICE_URL}/ready"
+assert_2xx "Trip Service readiness check"
 
 if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then
   echo "Checking Worker Service health..."
@@ -373,12 +407,17 @@ fi
 echo "Checking User Service health..."
 request GET "${USER_SERVICE_URL}/health"
 assert_2xx "User Service health check"
+request GET "${USER_SERVICE_URL}/ready"
+assert_2xx "User Service readiness check"
 
-echo "Checking AI Planning Service health..."
-request GET "${AI_PLANNING_SERVICE_URL}/health"
-assert_2xx "AI Planning Service health check"
+if [[ "${SMOKE_INCLUDE_AI}" == "true" ]]; then
+  echo "Checking AI Planning Service health..."
+  request GET "${AI_PLANNING_SERVICE_URL}/health"
+  assert_2xx "AI Planning Service health check"
+  request GET "${AI_PLANNING_SERVICE_URL}/ready"
+  assert_2xx "AI Planning Service readiness check"
 
-echo "Checking AI generation repair endpoint..."
+  echo "Checking AI generation repair endpoint..."
 AI_REPAIR_PAYLOAD="$(
   jq -nc '{
     generationType:"full_itinerary",
@@ -452,18 +491,23 @@ AI_REPAIR_PAYLOAD="$(
     }
   }'
 )"
-request POST "${AI_PLANNING_SERVICE_URL}/repair-generation-output" "${AI_REPAIR_PAYLOAD}"
-assert_2xx "AI generation repair"
-if ! jq -e '
+  request POST "${AI_PLANNING_SERVICE_URL}/repair-generation-output" "${AI_REPAIR_PAYLOAD}"
+  assert_2xx "AI generation repair"
+  if ! jq -e '
   .repairedOutput.days[0].items[] | select(.transfer.legId == "leg_1")
 ' <<<"${LAST_BODY}" >/dev/null; then
-  echo "AI generation repair did not add the expected transfer item." >&2
-  exit 1
+    echo "AI generation repair did not add the expected transfer item." >&2
+    exit 1
+  fi
+else
+  echo "SKIP AI Planning Service checks (run with --ai to enable)."
 fi
 
 echo "Checking External Integrations Service health..."
 request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/health"
 assert_2xx "External Integrations Service health check"
+request GET "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/ready"
+assert_2xx "External Integrations Service readiness check"
 
 echo "Checking Notification Service health..."
 request GET "${NOTIFICATION_SERVICE_URL}/health"
@@ -478,7 +522,9 @@ if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
   assert_metrics_contains "Auth Service metrics" "${AUTH_SERVICE_URL}/metrics" "http_requests_total"
   assert_metrics_contains "Trip Service metrics" "${TRIP_SERVICE_URL}/metrics" "http_requests_total"
   assert_metrics_contains "User Service metrics" "${USER_SERVICE_URL}/metrics" "http_requests_total"
-  assert_metrics_contains "AI Planning Service metrics" "${AI_PLANNING_SERVICE_URL}/metrics" "http_requests_total"
+  if [[ "${SMOKE_INCLUDE_AI}" == "true" ]]; then
+    assert_metrics_contains "AI Planning Service metrics" "${AI_PLANNING_SERVICE_URL}/metrics" "http_requests_total"
+  fi
   assert_metrics_contains "External Integrations Service metrics" "${EXTERNAL_INTEGRATIONS_SERVICE_URL}/metrics" "http_requests_total"
   assert_metrics_contains "Notification Service metrics" "${NOTIFICATION_SERVICE_URL}/metrics" "http_requests_total"
   if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then

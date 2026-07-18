@@ -82,7 +82,7 @@ func NewRouter(
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "trip-service"})
 }
 
 // requestLogger logs one structured line per request using Zap.

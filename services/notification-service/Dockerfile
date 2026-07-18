@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/notific
 # --- runtime stage ---
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates && adduser -D -u 10001 appuser
+RUN apk add --no-cache ca-certificates wget && adduser -D -u 10001 appuser
 
 WORKDIR /app
 

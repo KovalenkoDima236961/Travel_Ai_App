@@ -1,4 +1,10 @@
 infra/.env
+backups/
+exports/
+receipts/
+services/trip-service/data/receipts/
+services/trip-service/data/exports/
+services/user-service/data/exports/
 
 # graphify skill output
 graphify-out/

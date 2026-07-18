@@ -1,5 +1,6 @@
 services:
   postgres:
+    profiles: [core]
     image: postgres:16-alpine
     env_file:
       - .env
@@ -10,17 +11,19 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 5s
     networks:
       - backend
 
   rabbitmq:
+    profiles: [core]
     image: rabbitmq:3-management
     command: >
       sh -c "rabbitmq-plugins enable --offline rabbitmq_prometheus && rabbitmq-server"
@@ -31,29 +34,35 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 10s
     networks:
       - backend
 
   ollama:
+    profiles: [ai, rag]
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
     volumes:
-      - ollama-data:/root/.ollama
+      - ollama_data:/root/.ollama
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 10s
     networks:
       - backend
 
   ai-planning-service:
+    profiles: [ai, rag]
     build:
       context: ../services/ai-planning-service
     environment:
@@ -90,29 +99,34 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - chroma-data:/app/app/data/chroma
+      - chroma_data:/app/app/data/chroma
     healthcheck:
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2).read()",
         ]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 15s
     networks:
       - backend
 
   trip-service:
+    profiles: [core]
     build:
       context: ../services/trip-service
     environment:
       APP_ENV: ${APP_ENV:-local}
       HTTP_ADDRESS: ${TRIP_HTTP_ADDRESS:-:8080}
       HTTP_WRITE_TIMEOUT: ${TRIP_HTTP_WRITE_TIMEOUT:-150s}
-      ITINERARY_GENERATOR_MODE: ${TRIP_ITINERARY_GENERATOR_MODE:-http}
+      # Core is mock-first so it stays usable without downloading an LLM. Set
+      # TRIP_ITINERARY_GENERATOR_MODE=http together with the ai profile to use
+      # the AI Planning Service.
+      ITINERARY_GENERATOR_MODE: ${TRIP_ITINERARY_GENERATOR_MODE:-mock}
       AI_PLANNING_SERVICE_URL: ${AI_PLANNING_SERVICE_URL:-http://ai-planning-service:8000}
       AI_PLANNING_TIMEOUT_SECONDS: ${AI_PLANNING_TIMEOUT_SECONDS:-120}
       AI_OBSERVABILITY_ENABLED: ${AI_OBSERVABILITY_ENABLED:-true}
@@ -167,6 +181,8 @@ services:
       FILE_SCANNING_ENABLED: ${FILE_SCANNING_ENABLED:-false}
       FILE_SCANNING_FAIL_OPEN: ${FILE_SCANNING_FAIL_OPEN:-false}
       DATA_EXPORT_ENABLED: ${DATA_EXPORT_ENABLED:-true}
+      RECEIPT_STORAGE_PROVIDER: ${RECEIPT_STORAGE_PROVIDER:-local}
+      RECEIPT_STORAGE_LOCAL_DIR: ${RECEIPT_STORAGE_LOCAL_DIR:-/var/app/receipts}
       DATA_EXPORT_STORAGE_DIR: ${TRIP_DATA_EXPORT_STORAGE_DIR:-/var/app/exports}
       DATA_EXPORT_TTL_HOURS: ${DATA_EXPORT_TTL_HOURS:-24}
       DATA_EXPORT_MAX_TRIP_EXPORT_MB: ${DATA_EXPORT_MAX_TRIP_EXPORT_MB:-100}
@@ -245,8 +261,6 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      ai-planning-service:
-        condition: service_healthy
       user-service:
         condition: service_healthy
       notification-service:
@@ -254,22 +268,25 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - trip-export-data:/var/app/exports
+      - trip_export_storage:/var/app/exports
+      - receipt_storage:/var/app/receipts
     healthcheck:
       test:
         [
           "CMD",
           "wget",
           "-qO-",
-          "http://127.0.0.1:8080/health",
+          "http://127.0.0.1:8080/ready",
         ]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 15s
     networks:
       - backend
 
   worker-service:
+    profiles: [core]
     build:
       context: ..
       dockerfile: services/worker-service/Dockerfile
@@ -284,7 +301,7 @@ services:
       OPS_INTERNAL_SERVICE_TOKEN: ${OPS_INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}
       OPS_STALE_RUNNING_JOB_SECONDS: ${OPS_STALE_RUNNING_JOB_SECONDS:-900}
       APP_ENV: ${APP_ENV:-local}
-      ITINERARY_GENERATOR_MODE: ${TRIP_ITINERARY_GENERATOR_MODE:-http}
+      ITINERARY_GENERATOR_MODE: ${TRIP_ITINERARY_GENERATOR_MODE:-mock}
       AI_PLANNING_SERVICE_URL: ${AI_PLANNING_SERVICE_URL:-http://ai-planning-service:8000}
       AI_PLANNING_TIMEOUT_SECONDS: ${AI_PLANNING_TIMEOUT_SECONDS:-120}
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:8083}
@@ -372,8 +389,6 @@ services:
         condition: service_healthy
       trip-service:
         condition: service_healthy
-      ai-planning-service:
-        condition: service_healthy
       external-integrations-service:
         condition: service_healthy
       notification-service:
@@ -386,15 +401,17 @@ services:
           "CMD",
           "wget",
           "-qO-",
-          "http://127.0.0.1:8090/health",
+          "http://127.0.0.1:8090/ready",
         ]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 15s
     networks:
       - backend
 
   auth-service:
+    profiles: [core]
     build:
       context: ../services/auth-service
     environment:
@@ -435,15 +452,17 @@ services:
           "CMD",
           "wget",
           "-qO-",
-          "http://127.0.0.1:8082/health",
+          "http://127.0.0.1:8082/ready",
         ]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 10s
     networks:
       - backend
 
   user-service:
+    profiles: [core]
     build:
       context: ../services/user-service
     environment:
@@ -482,22 +501,24 @@ services:
     ports:
       - "${USER_SERVICE_PORT:-8083}:8083"
     volumes:
-      - user-export-data:/var/app/exports
+      - user_export_storage:/var/app/exports
     healthcheck:
       test:
         [
           "CMD",
           "wget",
           "-qO-",
-          "http://127.0.0.1:8083/health",
+          "http://127.0.0.1:8083/ready",
         ]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 10s
     networks:
       - backend
 
   notification-service:
+    profiles: [core]
     build:
       context: ../services/notification-service
     environment:
@@ -567,15 +588,17 @@ services:
           "CMD",
           "wget",
           "-qO-",
-          "http://127.0.0.1:8086/health",
+          "http://127.0.0.1:8086/ready",
         ]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 10s
     networks:
       - backend
 
   external-integrations-service:
+    profiles: [core]
     build:
       context: ../services/external-integrations-service
     environment:
@@ -703,15 +726,17 @@ services:
           "CMD",
           "wget",
           "-qO-",
-          "http://127.0.0.1:8084/health",
+          "http://127.0.0.1:8084/ready",
         ]
       interval: 5s
       timeout: 5s
       retries: 12
+      start_period: 10s
     networks:
       - backend
 
   web-app:
+    profiles: [core]
     build:
       context: ../apps/web
       args:
@@ -759,15 +784,17 @@ services:
           "CMD",
           "wget",
           "-qO-",
-          "http://127.0.0.1:3000",
+          "http://127.0.0.1:3000/api/ready",
         ]
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 15s
     networks:
       - backend
 
   prometheus:
+    profiles: [observability]
     image: prom/prometheus
     ports:
       - "9090:9090"
@@ -786,14 +813,13 @@ services:
         condition: service_healthy
       user-service:
         condition: service_healthy
-      ai-planning-service:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
       - backend
 
   grafana:
+    profiles: [observability]
     image: grafana/grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
@@ -805,12 +831,14 @@ services:
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
     networks:
       - backend
 
   adminer:
+    profiles: [dev-tools]
     image: adminer:latest
     environment:
       ADMINER_DEFAULT_SERVER: postgres
@@ -822,12 +850,31 @@ services:
     networks:
       - backend
 
+  migration-runner:
+    profiles: [dev-tools]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.migrations
+    env_file:
+      - .env
+    environment:
+      MIGRATIONS_SKIP_ENV_FILE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - backend
+
 networks:
   backend:
 
 volumes:
-  postgres-data:
-  ollama-data:
-  chroma-data:
-  trip-export-data:
-  user-export-data:
+  postgres_data:
+  rabbitmq_data:
+  ollama_data:
+  chroma_data:
+  grafana_data:
+  trip_export_storage:
+  user_export_storage:
+  receipt_storage:
