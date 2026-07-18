@@ -33,6 +33,9 @@ func ClassifyIntent(message string) Intent {
 	if containsAny(text, "what changed", "changed recently", "cambió recientemente", "changé récemment", "змінилося нещодавно") {
 		return IntentFindSection
 	}
+	if containsAny(text, "trip recap", "post-trip", "post trip", "what did we learn", "lessons learned", "recap", "resumen del viaje", "bilan du voyage", "підсумок подорожі") {
+		return IntentExplainRecap
+	}
 	if containsAny(text, "trip health", "health low", "health score", "salud del viaje", "santé du voyage", "стан подорожі") {
 		return IntentExplainHealth
 	}

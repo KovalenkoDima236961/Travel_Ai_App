@@ -9,12 +9,12 @@ from app.api.routes import router
 from app.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.observability import metrics_response, request_context_middleware
+from app.services.copilot import CopilotResponder, get_copilot_responder
 from app.services.destination_knowledge import DestinationKnowledgeProvider
 from app.services.destination_suggestion import (
     DestinationSuggestionGenerator,
     get_destination_suggestion_generator,
 )
-from app.services.copilot import CopilotResponder, get_copilot_responder
 from app.services.generator_factory import (
     get_destination_knowledge_provider,
     get_itinerary_generator,
@@ -27,6 +27,7 @@ from app.services.route_alternatives import (
     get_route_alternative_generator,
 )
 from app.services.template_adapter import TemplateAdapter, get_template_adapter
+from app.services.trip_recap import TripRecapGenerator, get_trip_recap_generator
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class ApplicationServices:
     destination_suggestion_generator: DestinationSuggestionGenerator
     route_alternative_generator: RouteAlternativeGenerator
     copilot_responder: CopilotResponder
+    trip_recap_generator: TripRecapGenerator
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -76,6 +78,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     destination_suggestion_generator = get_destination_suggestion_generator(settings)
     route_alternative_generator = get_route_alternative_generator(settings)
     copilot_responder = get_copilot_responder(settings)
+    trip_recap_generator = get_trip_recap_generator(settings)
 
     return ApplicationServices(
         itinerary_generator=itinerary_generator,
@@ -85,6 +88,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         destination_suggestion_generator=destination_suggestion_generator,
         route_alternative_generator=route_alternative_generator,
         copilot_responder=copilot_responder,
+        trip_recap_generator=trip_recap_generator,
     )
 
 
@@ -102,6 +106,7 @@ def _configure_state(
     app.state.destination_suggestion_generator = services.destination_suggestion_generator
     app.state.route_alternative_generator = services.route_alternative_generator
     app.state.copilot_responder = services.copilot_responder
+    app.state.trip_recap_generator = services.trip_recap_generator
 
 
 def _configure_observability(app: FastAPI) -> None:

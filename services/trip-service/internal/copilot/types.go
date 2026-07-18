@@ -51,6 +51,7 @@ const (
 	IntentExplainChecklist      Intent = "explain_checklist"
 	IntentExplainExpenses       Intent = "explain_expenses"
 	IntentExplainApproval       Intent = "explain_approval"
+	IntentExplainRecap          Intent = "explain_recap"
 	IntentExplainFeature        Intent = "explain_feature"
 	IntentHowTo                 Intent = "how_to"
 	IntentFindSection           Intent = "find_section"
@@ -157,5 +158,6 @@ type SafeContext struct {
 	Policy          map[string]any `json:"policy,omitempty"`
 	Generation      map[string]any `json:"generationQuality,omitempty"`
 	Personalization map[string]any `json:"personalization,omitempty"`
+	Recap           map[string]any `json:"recap,omitempty"`
 	Unavailable     []string       `json:"unavailable,omitempty"`
 }

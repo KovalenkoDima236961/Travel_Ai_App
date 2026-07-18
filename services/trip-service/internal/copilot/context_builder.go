@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/approvalrisk"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
@@ -190,9 +191,36 @@ func BuildSafeContext(
 	} else {
 		out.Unavailable = append(out.Unavailable, "personalization_unavailable")
 	}
+	if recap, loadErr := svc.GetTripRecap(ctx, tripID); loadErr == nil {
+		out.Recap = safeRecap(recap.Recap.Recap)
+	}
 
 	out.Unavailable = uniqueStrings(out.Unavailable)
 	return out, access, nil
+}
+
+// safeRecap deliberately omits user notes, feedback metadata, source summaries,
+// and every raw operational artifact. Copilot only needs completed-trip signals.
+func safeRecap(recap appdto.RecapJSON) map[string]any {
+	lessons := make([]string, 0, min(3, len(recap.LessonsLearned)))
+	for _, lesson := range recap.LessonsLearned {
+		if len(lessons) == 3 {
+			break
+		}
+		lessons = append(lessons, safeText(lesson, 180))
+	}
+	return map[string]any{
+		"title":               safeText(recap.Title, 160),
+		"summary":             safeText(recap.Summary, 300),
+		"completionRate":      recap.PlannedVsActual.CompletionRate,
+		"doneItemCount":       recap.PlannedVsActual.DoneItemCount,
+		"plannedItemCount":    recap.PlannedVsActual.PlannedItemCount,
+		"skippedItemCount":    recap.PlannedVsActual.SkippedItemCount,
+		"delayedItemCount":    recap.PlannedVsActual.DelayedItemCount,
+		"lessonCount":         len(recap.LessonsLearned),
+		"lessons":             lessons,
+		"templateRecommended": recap.TemplateSuggestion.Recommended,
+	}
 }
 
 func safeTravelDay(summary service.TravelDaySummary) map[string]any {

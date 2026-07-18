@@ -14,6 +14,7 @@ import { TripOverviewHeader } from "./TripOverviewHeader";
 import { TripReadinessSummary } from "./TripReadinessSummary";
 import { TripSetupChecklist } from "@/components/onboarding/TripSetupChecklist";
 import { RealWorldReadinessCard } from "@/components/verification";
+import { TripRecapStatusCard } from "@/components/recap";
 import type { TripApprovalState } from "@/entities/approval/model";
 import type { Trip } from "@/entities/trip/model";
 import type {
@@ -68,6 +69,7 @@ export function TripCommandCenter({
         workspaceName={workspaceName}
       />
       <TripSetupChecklist trip={trip} {...setupChecklist} />
+      <TripRecapStatusCard tripId={trip.id} />
       <NextBestActionCard action={data.nextBestAction} />
       <TripReadinessSummary cards={data.cards} />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">

@@ -8,6 +8,12 @@ Used signals are travel styles, pace, walking limit, food/dietary preferences, t
 
 Feedback accepts a small allowlist of metadata (`destination`, `style`, `transport`, `currency`, `category`, and source). The Trip Service validates trip access before accepting trip-linked feedback. Users can clear their feedback at `DELETE /personalization/feedback`.
 
+Post-Trip Recap may propose future-preference candidates, but it never applies
+them automatically. A candidate is private to the current user until that user
+explicitly approves it; then Trip Service maps the approved value through this
+existing feedback flow. Recap source data, free-form notes, and collaborator
+feedback are not copied into personalization.
+
 ## Precedence and explainability
 
 Explicit request fields win over personal signals. Blocking workspace policy wins over both; for example, a flight preference is removed when a workspace policy disallows flights. Planning prompts receive only a privacy-minimized summary, never individual feedback rows or IDs.

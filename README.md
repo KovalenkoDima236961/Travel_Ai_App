@@ -101,6 +101,12 @@ permission filtering; the Web App adds local command/recent-item UX and deep
 links into existing trip sections. Public share pages keep private search
 disabled.
 
+Post-Trip Recap & Learning Loop v1 adds a private, editable completion recap
+with deterministic and AI-assisted generation, explicit per-user learning, and
+safe template reuse. It stays inside Trip Service and the existing AI Planning
+Service; recaps and their source summaries are never public. See
+[docs/recaps.md](docs/recaps.md).
+
 ## System Map
 
 ```mermaid

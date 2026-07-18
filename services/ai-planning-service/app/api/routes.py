@@ -14,6 +14,7 @@ from app.api.dependencies import (
     get_configured_route_alternative_generator,
     get_configured_settings,
     get_configured_template_adapter,
+    get_configured_trip_recap_generator,
 )
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
@@ -43,16 +44,43 @@ from app.schemas.observability import AIResponseMetadata, TokenEstimate
 from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.schemas.route_alternatives import RouteAlternativeRequest, RouteAlternativeResponse
 from app.schemas.template_adaptation import TemplateAdaptationRequest, TemplateAdaptationResponse
-from app.services.destination_suggestion import DestinationSuggestionGenerator
+from app.schemas.trip_recap import GenerateTripRecapRequest, GenerateTripRecapResponse
 from app.services.copilot import CopilotResponder
+from app.services.destination_suggestion import DestinationSuggestionGenerator
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.route_alternatives import RouteAlternativeGenerator
 from app.services.template_adaptation_validator import TemplateAdaptationValidationError
 from app.services.template_adapter import TemplateAdapter, validate_adaptation
+from app.services.trip_recap import TripRecapGenerator
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.post("/generate-trip-recap", response_model=GenerateTripRecapResponse)
+def generate_trip_recap(
+    request: GenerateTripRecapRequest,
+    settings: Settings = Depends(get_configured_settings),
+    generator: TripRecapGenerator = Depends(get_configured_trip_recap_generator),
+) -> GenerateTripRecapResponse | JSONResponse:
+    operation = "generate_trip_recap"
+    mode = settings.trip_recap_mode.strip().lower()
+    started_at = time.monotonic()
+    if not settings.trip_recap_enabled:
+        return JSONResponse(status_code=503, content={"error": "trip recap is disabled"})
+    try:
+        response = generator.generate(request)
+        record_ai_request(operation, "success", mode, time.monotonic() - started_at)
+        return response
+    except (ValueError, ValidationError):
+        record_ai_request(operation, "validation_error", mode, time.monotonic() - started_at)
+        record_ai_validation_failure(operation)
+        return JSONResponse(status_code=400, content={"error": "invalid trip recap response"})
+    except Exception as exc:
+        record_ai_request(operation, "error", mode, time.monotonic() - started_at)
+        logger.warning("Trip recap response failed", extra={"errorType": type(exc).__name__})
+        raise ItineraryGenerationError("Failed to produce trip recap") from exc
 
 
 @router.post("/copilot/respond", response_model=CopilotRespondResponse)

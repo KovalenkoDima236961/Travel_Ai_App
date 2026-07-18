@@ -9,6 +9,22 @@ enrichment metadata.
 Trip Service is the orchestration point between user-facing APIs, AI generation,
 external provider data, notifications, and background workers.
 
+## Post-Trip Recap & Learning Loop
+
+Trip Service stores private versioned recap JSON and user-scoped recap feedback
+using migration `000036_create_trip_recaps`. `GET /trips/{id}/recap/status`
+returns the eligibility and access state; owners/editors can generate, edit,
+finalize, archive, and create a sanitized template through the recap routes
+listed in [`docs/recaps.md`](../../docs/recaps.md). Accepted viewers can read a
+recap but cannot edit it. Learning is never automatic: an approved candidate is
+written through the existing personalization feedback service for that user.
+
+Trip Service sends only bounded outcome aggregates to AI Planning Service and
+validates `trip_recap_v1` output on return. Raw OCR, files, notes, comments,
+calendar data, credentials, raw prompts, and feedback metadata stay out of the
+request. `TRIP_RECAP_*` controls enablement, timeout, size cap, AI usage, and
+deterministic fallback. Metrics use the `trip_recap_*` prefix.
+
 ## Real-World Travel Data Verification
 
 `GET /trips/{id}/verification` provides an authenticated, private, advisory

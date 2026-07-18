@@ -80,6 +80,14 @@ export function getCommandRegistry(t: Translator): CommandPaletteCommand[] {
     },
     tripSectionCommand("trip.commandCenter", "commandCenter", "command_center", t),
     {
+      id: "trip.recap",
+      title: t("commands.recap.title"),
+      description: t("commands.recap.description"),
+      category: t("categories.tripSections"),
+      href: "__CURRENT_TRIP__/recap",
+      visibleIf: (context) => Boolean(context.currentTripId)
+    },
+    {
       id: "trip.travelDay",
       title: t("commands.travelDay.title"),
       description: t("commands.travelDay.description"),

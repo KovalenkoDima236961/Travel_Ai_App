@@ -1,13 +1,14 @@
 from fastapi import Request
 
 from app.config import Settings
+from app.services.copilot import CopilotResponder
 from app.services.destination_knowledge import DestinationKnowledgeProvider
 from app.services.destination_suggestion import DestinationSuggestionGenerator
 from app.services.itinerary_generator import ItineraryGenerator
 from app.services.knowledge_search import KnowledgeSearchService
 from app.services.route_alternatives import RouteAlternativeGenerator
-from app.services.copilot import CopilotResponder
 from app.services.template_adapter import TemplateAdapter
+from app.services.trip_recap import TripRecapGenerator
 
 
 def get_configured_settings(request: Request) -> Settings:
@@ -46,3 +47,7 @@ def get_configured_route_alternative_generator(
 
 def get_configured_copilot_responder(request: Request) -> CopilotResponder:
     return request.app.state.copilot_responder
+
+
+def get_configured_trip_recap_generator(request: Request) -> TripRecapGenerator:
+    return request.app.state.trip_recap_generator

@@ -50,6 +50,11 @@ const (
 	EventSettlementCancelled                 = "settlement_cancelled"
 	EventGroupReadinessNudgeSent             = "group_readiness_nudge_sent"
 	EventVerificationRefreshed               = "verification_refreshed"
+	EventTripRecapGenerated                  = "trip_recap_generated"
+	EventTripRecapUpdated                    = "trip_recap_updated"
+	EventTripRecapFinalized                  = "trip_recap_finalized"
+	EventTripRecapLearningApplied            = "trip_recap_learning_applied"
+	EventTripTemplateCreatedFromRecap        = "trip_template_created_from_recap"
 
 	// Templates.
 	EventTemplateCreated  = "template_created"
@@ -141,6 +146,7 @@ const (
 	EntityTripExpense        = "trip_expense"
 	EntityTripExpenseReceipt = "trip_expense_receipt"
 	EntityTripSettlement     = "trip_settlement"
+	EntityTripRecap          = "trip_recap"
 )
 
 // knownEventTypes is the set of event types this version recognises. Recording
@@ -192,6 +198,11 @@ var knownEventTypes = map[string]struct{}{
 	EventSettlementCancelled:                 {},
 	EventGroupReadinessNudgeSent:             {},
 	EventVerificationRefreshed:               {},
+	EventTripRecapGenerated:                  {},
+	EventTripRecapUpdated:                    {},
+	EventTripRecapFinalized:                  {},
+	EventTripRecapLearningApplied:            {},
+	EventTripTemplateCreatedFromRecap:        {},
 	EventTemplateCreated:                     {},
 	EventTemplateArchived:                    {},
 	EventAccommodationAdded:                  {},

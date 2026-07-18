@@ -37,6 +37,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/recap"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/search"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/transportclient"
@@ -202,6 +203,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 
 	opts := []service.Option{
+		service.WithTripRecap(nil, cfg.TripRecap.Enabled, cfg.TripRecap.AIEnabled, cfg.TripRecap.FailOpenWithDeterministic, cfg.TripRecap.MaxSourceChars),
 		service.WithPersonalization(personalizationSvc),
 		service.WithUserContext(
 			userContextClient,
@@ -271,6 +273,22 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 			cfg.SummaryCache.MaxItems,
 			time.Duration(cfg.SummaryCache.EndpointTimeoutSeconds)*time.Second,
 		),
+	}
+	if cfg.TripRecap.AIEnabled {
+		recapClient, err := recap.NewHTTPClient(
+			cfg.ItineraryGenerator.AIPlanningServiceURL,
+			time.Duration(cfg.TripRecap.TimeoutSeconds)*time.Second,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("init trip recap AI client: %w", err)
+		}
+		opts = append(opts, service.WithTripRecap(
+			recapClient,
+			cfg.TripRecap.Enabled,
+			cfg.TripRecap.AIEnabled,
+			cfg.TripRecap.FailOpenWithDeterministic,
+			cfg.TripRecap.MaxSourceChars,
+		))
 	}
 	aiValidationCfg := aivalidation.Config{
 		Enabled:                    cfg.AIValidation.Enabled,

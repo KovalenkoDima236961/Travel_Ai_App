@@ -21,6 +21,7 @@ type actionDefinition struct {
 
 var actionDefinitions = []actionDefinition{
 	{"open_command_center", "Open Command Center", "overview", tripsecurity.PermissionCommandCenterView, RiskSafeNavigation},
+	{"open_trip_recap", "Open Trip Recap", "", tripsecurity.PermissionTripView, RiskSafeNavigation},
 	{"open_trip_health", "Open Trip Health", "health", tripsecurity.PermissionHealthView, RiskSafeNavigation},
 	{"open_verification", "Open Real-world readiness", "verification", tripsecurity.PermissionTripView, RiskSafeNavigation},
 	{"open_route", "Open Route & Transport", "route", tripsecurity.PermissionRouteView, RiskSafeNavigation},
@@ -67,6 +68,9 @@ func AvailableActions(tripID uuid.UUID, access service.TripAccess, client Client
 }
 
 func actionHref(tripID uuid.UUID, typeName, tab string, client ClientContext) string {
+	if typeName == "open_trip_recap" {
+		return "/trips/" + tripID.String() + "/recap"
+	}
 	values := url.Values{}
 	values.Set("tab", tab)
 	if typeName == "open_route_leg" && safeIdentifier(client.SelectedRouteLegID) {
@@ -101,6 +105,7 @@ func preferredActions(intent Intent, actions []Action) []Action {
 		IntentExplainChecklist:      {"open_checklist", "open_reminders", "generate_checklist_screen"},
 		IntentExplainExpenses:       {"open_expenses", "upload_receipt", "add_expense"},
 		IntentExplainApproval:       {"open_approval", "open_policy"},
+		IntentExplainRecap:          {"open_trip_recap", "open_command_center"},
 		IntentHowTo:                 {"open_share_settings", "upload_receipt", "open_checklist", "open_search"},
 		IntentExplainFeature:        {"open_share_settings", "open_offline_settings", "open_generation_quality"},
 		IntentUnsafeMutationRequest: {"open_share_settings", "open_version_history", "open_command_center"},

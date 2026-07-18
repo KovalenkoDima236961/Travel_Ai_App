@@ -90,7 +90,7 @@ export function TripDetailHeader({
           </span>
         </p>
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2.5">{actions}</div> : null}
+      <div className="flex flex-wrap items-center gap-2.5"><Link className="inline-flex items-center rounded-md border border-sand-300 bg-white px-3 py-2 text-sm font-medium text-cocoa-700 transition hover:border-sand-400 hover:text-cocoa-900" href={`/trips/${trip.id}/recap`}>Trip recap</Link>{actions}</div>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/recap"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/receipts"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/sharing"
@@ -530,7 +531,26 @@ type Service struct {
 	summaryCache                       *summaryCache
 	summaryEndpointTimeout             time.Duration
 	generationReliability              aivalidation.GenerationReliabilityPipeline
+	recapClient                        recap.Client
+	recapEnabled                       bool
+	recapAIEnabled                     bool
+	recapFailOpen                      bool
+	recapMaxSourceChars                int
 	log                                *zap.Logger
+}
+
+// WithTripRecap enables the private post-trip recap flow. It accepts a small
+// client port so deterministic generation remains available when AI is off.
+func WithTripRecap(client recap.Client, enabled, aiEnabled, failOpen bool, maxSourceChars int) Option {
+	return func(s *Service) {
+		s.recapClient = client
+		s.recapEnabled = enabled
+		s.recapAIEnabled = aiEnabled
+		s.recapFailOpen = failOpen
+		if maxSourceChars > 0 {
+			s.recapMaxSourceChars = maxSourceChars
+		}
+	}
 }
 
 // WithSummaryCache enables viewer-scoped, short-lived caching for expensive
@@ -563,6 +583,9 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		verificationCache:        newSummaryCache(true, time.Minute, 1000),
 		summaryCache:             newSummaryCache(true, 30*time.Second, 1000),
 		summaryEndpointTimeout:   8 * time.Second,
+		recapEnabled:             true,
+		recapFailOpen:            true,
+		recapMaxSourceChars:      16000,
 		log:                      log,
 	}
 	for _, opt := range opts {

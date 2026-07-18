@@ -57,6 +57,18 @@ type Config struct {
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
 	AIObservability    AIObservabilityConfig    `yaml:"ai_observability"`
 	Copilot            CopilotConfig            `yaml:"copilot"`
+	TripRecap          TripRecapConfig          `yaml:"trip_recap"`
+}
+
+// TripRecapConfig controls private, post-trip recap generation. The feature
+// is deliberately fail-open only to a deterministic local recap, never to an
+// unvalidated AI response.
+type TripRecapConfig struct {
+	Enabled                   bool `yaml:"enabled" env:"TRIP_RECAP_ENABLED" env-default:"true"`
+	AIEnabled                 bool `yaml:"ai_enabled" env:"TRIP_RECAP_AI_ENABLED" env-default:"true"`
+	FailOpenWithDeterministic bool `yaml:"fail_open_with_deterministic" env:"TRIP_RECAP_FAIL_OPEN_WITH_DETERMINISTIC" env-default:"true"`
+	TimeoutSeconds            int  `yaml:"timeout_seconds" env:"TRIP_RECAP_TIMEOUT_SECONDS" env-default:"30" validate:"min=1,max=120"`
+	MaxSourceChars            int  `yaml:"max_source_chars" env:"TRIP_RECAP_MAX_SOURCE_CHARS" env-default:"16000" validate:"min=1000,max=50000"`
 }
 
 // CopilotConfig controls the private, advisory trip copilot. It deliberately

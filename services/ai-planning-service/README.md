@@ -19,6 +19,16 @@ currency codes remain stable and English. Mock generation returns deterministic
 localized text for language propagation tests. Unsupported codes fail Pydantic
 validation.
 
+## Post-Trip Recap generation
+
+`POST /generate-trip-recap` accepts only a bounded `trip_recap_v1` safe source
+summary from Trip Service and returns a strict recap proposal. It is not a
+general trip-data endpoint and does not persist any recap. The schema rejects
+raw OCR, secrets, access tokens, calendar content, and other forbidden source
+keys. `TRIP_RECAP_AI_MODE=mock|ollama` selects deterministic local behavior or the
+local model; `TRIP_RECAP_FALLBACK_ENABLED` keeps generation available if
+the model is unavailable. The prompt may use only the supplied safe summary.
+
 ## Planning Constraints
 
 AI Planning Service accepts optional `planningConstraints` on
