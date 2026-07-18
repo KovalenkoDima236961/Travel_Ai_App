@@ -1,0 +1,1 @@
+This deterministic fixture is intentionally unsupported by receipt upload validation.

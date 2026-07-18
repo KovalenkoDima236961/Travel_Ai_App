@@ -58,9 +58,7 @@ func NewHandler(
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Route("/trips", func(r chi.Router) {
-		r.Post("/{tripId}/copilot/chat", h.Chat)
-	})
+	r.Post("/trips/{tripId}/copilot/chat", h.Chat)
 }
 
 func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {

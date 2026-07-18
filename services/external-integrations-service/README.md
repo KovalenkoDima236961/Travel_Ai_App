@@ -499,3 +499,7 @@ production.
 - Do not log provider API keys, OAuth codes, OAuth tokens, encryption keys,
   full provider error bodies, browser credentials, or raw destination/place names
   as metric labels.
+
+## Tests
+
+Run `go test ./...` for provider, cache, quota, mapping, fallback, handler, and security tests; `make test` enables race detection. All provider HTTP tests use deterministic mocks or local `httptest` servers. `../../scripts/test-backend-integration.sh` sets the guarded `EIS_TEST_DATABASE_URL`, applies fresh migrations, and runs the Postgres quota-store integration test. Never set that variable to a non-test database.

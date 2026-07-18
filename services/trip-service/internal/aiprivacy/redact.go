@@ -16,6 +16,7 @@ const Redacted = "[REDACTED]"
 var (
 	emailPattern  = regexp.MustCompile(`(?i)\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b`)
 	phonePattern  = regexp.MustCompile(`\+?[0-9][0-9 ()\-.]{7,}[0-9]`)
+	uuidPattern   = regexp.MustCompile(`(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b`)
 	bearerPattern = regexp.MustCompile(`(?i)\bbearer\s+[a-z0-9._~+/=\-]{12,}`)
 	apiKeyPattern = regexp.MustCompile(`(?i)\b(?:sk|pk|api[_-]?key|token|secret)[_:\-= ]+[a-z0-9_./+\-=]{12,}`)
 
@@ -79,6 +80,11 @@ func RedactText(value string) (string, int) {
 		redacted = pattern.ReplaceAllString(redacted, Redacted)
 		count += matches
 	}
+	protectedUUIDs := make([]string, 0)
+	redacted = uuidPattern.ReplaceAllStringFunc(redacted, func(candidate string) string {
+		protectedUUIDs = append(protectedUUIDs, candidate)
+		return "\ue000" + strings.Repeat("u", len(protectedUUIDs)) + "\ue001"
+	})
 	redacted = phonePattern.ReplaceAllStringFunc(redacted, func(candidate string) string {
 		if digitCount(candidate) < 10 {
 			return candidate
@@ -86,6 +92,10 @@ func RedactText(value string) (string, int) {
 		count++
 		return Redacted
 	})
+	for index, value := range protectedUUIDs {
+		marker := "\ue000" + strings.Repeat("u", index+1) + "\ue001"
+		redacted = strings.ReplaceAll(redacted, marker, value)
+	}
 	if count > 0 {
 		redactions.WithLabelValues("text_pattern").Add(float64(count))
 	}

@@ -287,3 +287,7 @@ Configure `NOTIFICATION_DIGEST_WORKER_ENABLED`,
 `NOTIFICATION_DIGEST_WORKER_TIMEOUT_SECONDS` (15). Notification Service owns
 durable batches and atomic claims, so multiple pollers cannot claim the same
 pending batch.
+
+## Tests
+
+Run `go test ./...` or `make test`. Queue and worker tests use fake clients/messages, deterministic retry settings, and short polling deadlines for claim, ack/nack, retry/DLQ, cancellation, terminal idempotency, correlation propagation, and reminder/digest scheduling. CI uses test RabbitMQ and mock generation; it does not download an Ollama model.

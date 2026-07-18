@@ -178,3 +178,7 @@ make build
 # Preference completeness
 
 `GET /users/me/preferences/completeness` returns a deterministic 0–100 score, missing fields, and a settings deep link. It only evaluates the authenticated user's saved profile and preferences; trip history and feedback are intentionally handled by Trip Service.
+
+## Tests
+
+Run `go test ./...` for package tests or `make test` for race detection. Profile, preferences, workspace roles/invitations, authorization middleware, and completeness behavior use fixed package-local fakes. Use `../../scripts/test-backend-integration.sh` for fresh migration validation and the root smoke script for the authenticated service boundary.

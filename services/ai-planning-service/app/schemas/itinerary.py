@@ -305,7 +305,7 @@ class AccommodationContext(APIModel):
         return value
 
     @model_validator(mode="after")
-    def check_out_after_check_in(self) -> "AccommodationContext":
+    def check_out_after_check_in(self) -> AccommodationContext:
         if (
             self.check_in_date is not None
             and self.check_out_date is not None
@@ -406,7 +406,7 @@ class RouteStop(APIModel):
         return hint if hint in ACCOMMODATION_TYPES else "unknown"
 
     @model_validator(mode="after")
-    def validate_dates(self) -> "RouteStop":
+    def validate_dates(self) -> RouteStop:
         if (
             self.arrival_date is not None
             and self.departure_date is not None
@@ -668,7 +668,7 @@ class EstimatedCost(APIModel):
         return normalized[:_MAX_COST_NOTE]
 
     @model_validator(mode="after")
-    def _apply_defaults(self) -> "EstimatedCost":
+    def _apply_defaults(self) -> EstimatedCost:
         # Generated output defaults to source "ai"; a present amount gets a
         # low-confidence/other-category default when unspecified.
         if self.amount is not None:
@@ -917,7 +917,7 @@ class RegenerateDayRequest(APIModel):
         return value
 
     @model_validator(mode="after")
-    def selected_day_must_exist(self) -> "RegenerateDayRequest":
+    def selected_day_must_exist(self) -> RegenerateDayRequest:
         if self.selected_day() is None:
             raise ValueError("selected dayNumber does not exist in currentItinerary")
         return self
@@ -933,7 +933,7 @@ class RegenerateItemRequest(RegenerateDayRequest):
     item_index: int = Field(ge=0, alias="itemIndex")
 
     @model_validator(mode="after")
-    def selected_item_must_exist(self) -> "RegenerateItemRequest":
+    def selected_item_must_exist(self) -> RegenerateItemRequest:
         selected_day = self.selected_day()
         if selected_day is None:
             raise ValueError("selected dayNumber does not exist in currentItinerary")
@@ -1064,7 +1064,7 @@ class OptimizeBudgetDayRequest(APIModel):
         return value
 
     @model_validator(mode="after")
-    def selected_day_must_match(self) -> "OptimizeBudgetDayRequest":
+    def selected_day_must_match(self) -> OptimizeBudgetDayRequest:
         if self.current_day.day != self.day_number:
             raise ValueError("currentDay.day must match dayNumber")
         if self.selected_day() is None:
@@ -1147,7 +1147,7 @@ class BudgetOptimizationProposalResponse(APIModel):
         return value
 
     @model_validator(mode="after")
-    def proposal_day_must_match(self) -> "BudgetOptimizationProposalResponse":
+    def proposal_day_must_match(self) -> BudgetOptimizationProposalResponse:
         if self.proposed_day.day != self.day_number:
             raise ValueError("proposedDay.day must match dayNumber")
         if self.proposed_day_estimated_total > self.base_day_estimated_total:

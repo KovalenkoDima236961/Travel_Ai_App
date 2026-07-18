@@ -350,3 +350,7 @@ Configuration includes `NOTIFICATION_DEDUPE_WINDOW_MINUTES` (30),
 `NOTIFICATION_DIGEST_RETRY_DELAY_SECONDS` (300), and
 `NOTIFICATION_DIGEST_RETENTION_DAYS` (90). Timing is approximate and provider
 delivery remains best effort.
+
+## Tests
+
+Run `go test ./...` or the race-enabled `make test`. Tests use fake repositories, fixed clocks, mock email/push senders, and bounded SSE channels to cover unread state, preferences, grouping/digests, quiet hours, internal-token authorization, and delivery filtering. CI disables real SMTP and push. Fresh migrations and the unread-count seam are exercised by the root integration/smoke jobs.

@@ -56,3 +56,11 @@ func TestRedactTextPreservesISODateTime(t *testing.T) {
 		t.Fatalf("date/time was redacted: %q count=%d", clean, count)
 	}
 }
+
+func TestRedactTextPreservesNumericHeavyUUID(t *testing.T) {
+	const value = "b0000000-0000-4000-8000-000000000001"
+	clean, count := RedactText(value)
+	if clean != value || count != 0 {
+		t.Fatalf("UUID was redacted as a phone number: %q count=%d", clean, count)
+	}
+}

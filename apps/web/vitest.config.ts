@@ -15,6 +15,22 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"]
+    setupFiles: ["./test/setup.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    restoreMocks: true,
+    clearMocks: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "html", "lcov"],
+      reportsDirectory: "./coverage",
+      include: [
+        "src/lib/**/*.ts",
+        "src/hooks/**/*.ts",
+        "src/components/**/*.tsx",
+        "src/features/**/*.ts",
+        "src/features/**/*.tsx"
+      ],
+      exclude: ["**/*.d.ts", "**/index.ts", "**/*.test.*"]
+    }
   }
 });

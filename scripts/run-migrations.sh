@@ -72,6 +72,10 @@ for var in POSTGRES_HOST POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD; do
   [[ -n "${!var:-}" ]] || { echo "${var} is required for migrations." >&2; exit 1; }
 done
 
+# Each service binary reads POSTGRES_DB. Preserve the trip database before
+# run_service_migration temporarily points that variable at another service.
+TRIP_POSTGRES_DB="${POSTGRES_DB:-trip_service}"
+
 run_service_migration() {
   local service="$1" database="$2" binary="$3" service_dir="$4"
   echo "==> Applying ${service} migrations to ${database} (${APP_ENV})"
@@ -97,7 +101,7 @@ run_selected() {
 
 run_selected "${SERVICE}" auth-service "${AUTH_POSTGRES_DB:-auth_service}" auth-service-migrate services/auth-service
 run_selected "${SERVICE}" user-service "${USER_POSTGRES_DB:-user_service}" user-service-migrate services/user-service
-run_selected "${SERVICE}" trip-service "${POSTGRES_DB:-trip_service}" trip-service-migrate services/trip-service
+run_selected "${SERVICE}" trip-service "${TRIP_POSTGRES_DB}" trip-service-migrate services/trip-service
 run_selected "${SERVICE}" notification-service "${NOTIFICATION_POSTGRES_DB:-notification_service}" notification-service-migrate services/notification-service
 run_selected "${SERVICE}" external-integrations-service "${EXTERNAL_INTEGRATIONS_POSTGRES_DB:-external_integrations_service}" external-integrations-service-migrate services/external-integrations-service
 

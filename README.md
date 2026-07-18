@@ -7,6 +7,21 @@ Prometheus/Grafana observability stack.
 
 The default development stack runs at `http://localhost:3000`.
 
+## Testing and quality gates
+
+The repository uses a practical test pyramid: Vitest/Testing Library/MSW for the web app, package-local Go tests, pytest/FastAPI tests in deterministic mock mode, isolated Postgres integration tests, a mock-only Compose `test` profile, and a small Chromium Playwright suite.
+
+```bash
+./scripts/test-frontend.sh
+./scripts/test-go.sh
+./scripts/test-python.sh
+./scripts/test-backend-integration.sh
+./scripts/test-frontend-e2e.sh
+./scripts/test-all.sh
+```
+
+CI validates lint, types, unit/component tests, migrations, integration tests, Playwright, every Docker build, security scans, and full-stack smoke behavior. Coverage and Playwright diagnostics are available as workflow artifacts. Start with [`docs/testing/strategy.md`](docs/testing/strategy.md), then see [`docs/testing/running-tests.md`](docs/testing/running-tests.md) and [`docs/testing/ci.md`](docs/testing/ci.md).
+
 Onboarding & First-Run Experience v1 guides zero-trip users through optional
 preferences and existing destination, AI discovery, template, and route flows.
 It adds a read-only demo, a first-trip Command Center setup checklist,

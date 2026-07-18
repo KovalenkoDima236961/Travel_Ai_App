@@ -130,3 +130,7 @@ curl -sS http://localhost:8082/auth/me \
 - All `/internal/*` routes, including exact-email lookup, use constant-time
   multi-token internal authentication. Production rejects default/short
   JWT/internal secrets and wildcard CORS.
+
+## Tests
+
+Run `go test ./...` for the fast package suite or `make test` for the race-enabled service check. Tests use package-local repositories, deterministic JWT secrets/users, and `httptest`; they never target a real account database. Fresh cross-service migrations and authenticated smoke behavior run through `../../scripts/test-backend-integration.sh` and `../../scripts/smoke-test.sh`.

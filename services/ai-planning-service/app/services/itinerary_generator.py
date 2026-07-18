@@ -505,7 +505,10 @@ class MockItineraryGenerator:
                 changes.extend(_repair_generation_schema_issue(repaired, issue, currency))
             elif "activity_during_transport" in issue_id or "activity_before_transport" in issue_id:
                 changes.extend(_move_generation_item_after_transport(repaired, request, issue))
-            elif "transfer_item_missing" in issue_id or "missing_transfer_between_stops" in issue_id:
+            elif (
+                "transfer_item_missing" in issue_id
+                or "missing_transfer_between_stops" in issue_id
+            ):
                 changes.extend(_add_generation_transfer_item(repaired, request, issue, currency))
             elif "place_likely_closed" in issue_id:
                 changes.extend(_move_generation_item_to_opening_hours(repaired, issue))

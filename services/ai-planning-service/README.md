@@ -610,3 +610,7 @@ private request body, RAG chunk text, or provider secret.
 # Personalization v2
 
 Planning schemas accept a privacy-minimized `planningConstraints.personalization` summary. Prompt builders treat it as a soft, explainable preference layer: explicit request fields and workspace policy still override it. Deterministic destination and route mocks emit match reasons when the summary is present.
+
+## Tests
+
+Run `python3 -m pytest` or `make test`; the root `../../scripts/test-python.sh` also runs Ruff. Tests cover Pydantic schemas, prompt builders, parsing/repair, privacy, deterministic mock generation, destination/RAG selection, checklist, Copilot, route alternatives, recap, and FastAPI endpoints. CI sets mock mode with RAG/Ollama disabled, so no model download or external provider is required.

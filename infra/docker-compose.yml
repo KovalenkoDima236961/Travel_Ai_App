@@ -1,15 +1,15 @@
 services:
   postgres:
-    profiles: [core]
+    profiles: [core, test]
     image: postgres:16-alpine
     env_file:
-      - .env
+      - ${COMPOSE_ENV_FILE:-.env}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-trip_service}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PUBLISHED_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
@@ -23,14 +23,14 @@ services:
       - backend
 
   rabbitmq:
-    profiles: [core]
+    profiles: [core, test]
     image: rabbitmq:3-management
     command: >
       sh -c "rabbitmq-plugins enable --offline rabbitmq_prometheus && rabbitmq-server"
     ports:
-      - "5672:5672"
-      - "15672:15672"
-      - "15692:15692"
+      - "${RABBITMQ_PUBLISHED_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PUBLISHED_PORT:-15672}:15672"
+      - "${RABBITMQ_METRICS_PUBLISHED_PORT:-15692}:15692"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
@@ -115,8 +115,41 @@ services:
     networks:
       - backend
 
+  ai-planning-service-test:
+    profiles: [test]
+    build:
+      context: ../services/ai-planning-service
+    environment:
+      APP_ENV: test
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: 8000
+      LOG_LEVEL: INFO
+      ITINERARY_GENERATOR_MODE: mock
+      OLLAMA_FALLBACK_TO_MOCK: "true"
+      LOG_LLM_PAYLOADS: "false"
+      AI_PROMPT_LOGGING_ENABLED: "false"
+      DESTINATION_CONTEXT_ENABLED: "true"
+      RAG_ENABLED: "false"
+      ANONYMIZED_TELEMETRY: "false"
+    ports:
+      - "${AI_TEST_SERVICE_PORT:-18000}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - backend
+
   trip-service:
-    profiles: [core]
+    profiles: [core, test]
     build:
       context: ../services/trip-service
     environment:
@@ -266,7 +299,7 @@ services:
       notification-service:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${TRIP_SERVICE_PORT:-8080}:8080"
     volumes:
       - trip_export_storage:/var/app/exports
       - receipt_storage:/var/app/receipts
@@ -286,7 +319,7 @@ services:
       - backend
 
   worker-service:
-    profiles: [core]
+    profiles: [core, test]
     build:
       context: ..
       dockerfile: services/worker-service/Dockerfile
@@ -411,7 +444,7 @@ services:
       - backend
 
   auth-service:
-    profiles: [core]
+    profiles: [core, test]
     build:
       context: ../services/auth-service
     environment:
@@ -462,7 +495,7 @@ services:
       - backend
 
   user-service:
-    profiles: [core]
+    profiles: [core, test]
     build:
       context: ../services/user-service
     environment:
@@ -518,7 +551,7 @@ services:
       - backend
 
   notification-service:
-    profiles: [core]
+    profiles: [core, test]
     build:
       context: ../services/notification-service
     environment:
@@ -598,7 +631,7 @@ services:
       - backend
 
   external-integrations-service:
-    profiles: [core]
+    profiles: [core, test]
     build:
       context: ../services/external-integrations-service
     environment:
@@ -736,7 +769,7 @@ services:
       - backend
 
   web-app:
-    profiles: [core]
+    profiles: [core, test]
     build:
       context: ../apps/web
       args:
@@ -851,12 +884,12 @@ services:
       - backend
 
   migration-runner:
-    profiles: [dev-tools]
+    profiles: [dev-tools, test]
     build:
       context: ..
       dockerfile: infra/Dockerfile.migrations
     env_file:
-      - .env
+      - ${COMPOSE_ENV_FILE:-.env}
     environment:
       MIGRATIONS_SKIP_ENV_FILE: "true"
     depends_on:

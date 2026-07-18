@@ -1565,3 +1565,7 @@ privacy, offline, and feature-boundary contract.
 # Personalization v2
 
 Trip Service builds a deterministic, user-scoped personalization context from the trusted User Service profile, safe aggregates of the current user's trips, explicit feedback, and the active workspace policy. It persists lightweight feedback in `personalization_feedback`, exposes explainable context/feedback/template/budget endpoints, and forwards only a privacy-minimized summary through Planning Constraints. See [`docs/personalization.md`](../../docs/personalization.md) for precedence and privacy rules.
+
+## Tests
+
+Run `go test ./...` for the broad domain/handler suite or `make test` for the race-enabled check. Package-local fakes cover permissions, revision conflicts, generation transitions, budgets, routes, expenses, receipts, checklist/reminders, policies/approvals, public/export sanitization, and worker-facing behavior. Full-stack tests always set `TRIP_ITINERARY_GENERATOR_MODE=mock`; run `../../scripts/test-backend-integration.sh` for fresh migrations and `../../scripts/test-frontend-e2e.sh` for browser seams.

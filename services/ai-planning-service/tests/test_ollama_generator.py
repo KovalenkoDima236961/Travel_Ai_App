@@ -249,7 +249,7 @@ def test_ollama_factory_ignores_missing_destination_context_dir_when_enabled() -
     assert isinstance(generator, OllamaItineraryGenerator)
 
 
-def test_generated_response_keeps_exact_itinerary_response_shape() -> None:
+def test_generated_response_keeps_itinerary_shape_with_optional_metadata() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"response": json.dumps(_itinerary_body())})
 
@@ -258,7 +258,8 @@ def test_generated_response_keeps_exact_itinerary_response_shape() -> None:
         response = generator.generate(_request())
 
     body = json.loads(response.model_dump_json(by_alias=True))
-    assert set(body.keys()) == {"days"}
+    assert set(body.keys()) == {"days", "metadata"}
+    assert body["metadata"] is None
     assert set(body["days"][0].keys()) == {"day", "title", "items"}
     assert set(body["days"][0]["items"][0].keys()) == {
         "time",

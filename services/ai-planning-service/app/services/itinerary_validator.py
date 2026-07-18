@@ -3,8 +3,7 @@ import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from app.schemas.itinerary import GenerateItineraryRequest, ItineraryResponse
-from app.schemas.itinerary import TRANSPORT_MODES
+from app.schemas.itinerary import TRANSPORT_MODES, GenerateItineraryRequest, ItineraryResponse
 
 _ITEMS_PER_DAY_BY_PACE = {
     "relaxed": 3,
@@ -207,7 +206,8 @@ class ItineraryValidator:
         cost = item.estimated_cost or transfer.estimated_cost
         if cost is not None and cost.category not in {None, "transport"}:
             raise ItineraryValidationError(
-                f"Day {day_number} item {item_index} transfer estimatedCost must use transport category",
+                f"Day {day_number} item {item_index} transfer estimatedCost must use "
+                "transport category",
                 code="invalid_transfer_cost_category",
             )
 
