@@ -4,7 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+// TravelStatus records an explicit, lightweight execution update made while a
+// traveler is following the itinerary. It deliberately lives with the item so
+// older itinerary JSON remains compatible and revision conflict protection
+// remains in effect.
+type TravelStatus struct {
+	Status          string    `json:"status"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+	UpdatedByUserID uuid.UUID `json:"updatedByUserId"`
+	Note            string    `json:"note,omitempty"`
+}
 
 // Itinerary is the generated plan associated with a trip. It is stored on the
 // trip as JSONB. The typed shape is shared by local and remote itinerary
@@ -49,6 +62,7 @@ type ItineraryItem struct {
 	PlaceEnrichment   *PlaceEnrichmentMeta   `json:"placeEnrichment,omitempty"`
 	PriceEnrichment   *PriceEnrichmentMeta   `json:"priceEnrichment,omitempty"`
 	AvailabilityCheck *AvailabilityCheckMeta `json:"availabilityCheck,omitempty"`
+	TravelStatus      *TravelStatus          `json:"travelStatus,omitempty"`
 }
 
 // EstimatedCost is the structured, item-level cost estimate stored on an

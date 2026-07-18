@@ -68,6 +68,7 @@ const (
 	EventVersionRestored             = "version_restored"
 	EventCostSplitUpdated            = "cost_split_updated"
 	EventAccommodationSplitUpdated   = "accommodation_split_updated"
+	EventItineraryItemStatusUpdated  = "itinerary_item_status_updated"
 	EventGenerationJobFailed         = "generation_job_failed"
 	EventBudgetOptimizationRequested = "budget_optimization_requested"
 	EventBudgetOptimizationProposed  = "budget_optimization_proposed"
@@ -203,6 +204,7 @@ var knownEventTypes = map[string]struct{}{
 	EventVersionRestored:                     {},
 	EventCostSplitUpdated:                    {},
 	EventAccommodationSplitUpdated:           {},
+	EventItineraryItemStatusUpdated:          {},
 	EventGenerationJobFailed:                 {},
 	EventBudgetOptimizationRequested:         {},
 	EventBudgetOptimizationProposed:          {},

@@ -1,0 +1,4 @@
+"use client";
+import { Button } from "@/shared/ui/button";
+import type { TravelDaySummary } from "@/types/travel-day";
+export function AccommodationQuickCard({ accommodation }: { accommodation: TravelDaySummary["accommodation"] }) { if (!accommodation) return null; const address = accommodation.address; return <section className="rounded-2xl border border-sand-300 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cocoa-500">Accommodation tonight</p><p className="mt-1 font-semibold text-cocoa-900">{accommodation.name}</p><p className="mt-1 text-sm text-cocoa-500">{address || "Address not saved"}</p>{address ? <Button className="mt-3" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, "_blank", "noopener,noreferrer")} size="sm" variant="ghost">Open map</Button> : null}<p className="mt-3 text-xs text-cocoa-500">This is not a booking confirmation.</p></section>; }

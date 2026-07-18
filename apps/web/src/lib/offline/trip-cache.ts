@@ -5,6 +5,7 @@ import type {
   CachedExpensesRecord,
   CachedRemindersRecord,
   CachedSettlementsRecord,
+  CachedTravelDayRecord,
   CachedTripDetailsRecord,
   CachedTripRecord,
   OfflineReceiptDraftRecord,
@@ -26,6 +27,7 @@ import type {
   TripReminder
 } from "@/entities/trip-reminder/model";
 import type { Itinerary, Trip } from "@/entities/trip/model";
+import type { TravelDaySummary } from "@/types/travel-day";
 
 type CacheTripSnapshotInput = {
   userId: string;
@@ -136,8 +138,56 @@ export async function deleteCachedTrip(tripId: string, userId: string): Promise<
     db.delete("cachedReminders", tripCacheKey(normalizedUserId, tripId)),
     db.delete("cachedExpenses", tripCacheKey(normalizedUserId, tripId)),
     db.delete("cachedExpenseSummaries", tripCacheKey(normalizedUserId, tripId)),
-    db.delete("cachedSettlements", tripCacheKey(normalizedUserId, tripId))
+    db.delete("cachedSettlements", tripCacheKey(normalizedUserId, tripId)),
+    db.getAll("cachedTravelDays").then((records) =>
+      Promise.all(
+        records
+          .filter((travelDay) => travelDay.userId === normalizedUserId && travelDay.tripId === tripId)
+          .map((travelDay) => db.delete("cachedTravelDays", travelDay.cacheKey))
+      )
+    )
   ]);
+}
+
+export async function cacheTravelDaySnapshot(input: {
+  tripId: string;
+  userId: string;
+  date: string;
+  summary: TravelDaySummary;
+}): Promise<void> {
+  const userId = input.userId.trim();
+  if (!input.tripId || !userId || !input.date) return;
+  const db = await getOfflineDb();
+  await db.put("cachedTravelDays", {
+    cacheKey: travelDayCacheKey(userId, input.tripId, input.date),
+    tripId: input.tripId,
+    userId,
+    date: input.date,
+    summary: cloneOfflineValue(input.summary),
+    itineraryRevision: input.summary.itineraryRevision,
+    cachedAt: new Date().toISOString()
+  } satisfies CachedTravelDayRecord);
+}
+
+export async function getCachedTravelDay(
+  tripId: string,
+  userId: string,
+  date: string
+): Promise<CachedTravelDayRecord | null> {
+  const normalizedUserId = userId.trim();
+  if (!tripId || !normalizedUserId || !date) return null;
+  const db = await getOfflineDb();
+  const record = await db.get("cachedTravelDays", travelDayCacheKey(normalizedUserId, tripId, date));
+  return record?.userId === normalizedUserId ? cloneOfflineValue(record) : null;
+}
+
+export async function putCachedTravelDay(input: {
+  tripId: string;
+  userId: string;
+  date: string;
+  summary: TravelDaySummary;
+}): Promise<void> {
+  await cacheTravelDaySnapshot(input);
 }
 
 export async function getOfflineStorageEstimate(): Promise<{
@@ -572,6 +622,7 @@ export async function clearOfflineData(userId?: string | null): Promise<void> {
       db.clear("cachedExpenses"),
       db.clear("cachedExpenseSummaries"),
       db.clear("cachedSettlements"),
+      db.clear("cachedTravelDays"),
       db.clear("pendingMutations"),
       db.clear("offlineReceiptDrafts"),
       db.clear("syncLogs"),
@@ -589,6 +640,7 @@ export async function clearOfflineData(userId?: string | null): Promise<void> {
     cachedExpenses,
     cachedExpenseSummaries,
     cachedSettlements,
+    cachedTravelDays,
     mutations,
     receiptDrafts,
     syncLogs,
@@ -601,6 +653,7 @@ export async function clearOfflineData(userId?: string | null): Promise<void> {
     db.getAll("cachedExpenses"),
     db.getAll("cachedExpenseSummaries"),
     db.getAll("cachedSettlements"),
+    db.getAll("cachedTravelDays"),
     db.getAll("pendingMutations"),
     db.getAll("offlineReceiptDrafts"),
     db.getAll("syncLogs"),
@@ -629,6 +682,9 @@ export async function clearOfflineData(userId?: string | null): Promise<void> {
     ...cachedSettlements
       .filter((record) => record.userId === normalizedUserId)
       .map((record) => db.delete("cachedSettlements", record.cacheKey)),
+    ...cachedTravelDays
+      .filter((record) => record.userId === normalizedUserId)
+      .map((record) => db.delete("cachedTravelDays", record.cacheKey)),
     ...mutations
       .filter((mutation) => mutation.userId === normalizedUserId)
       .map((mutation) => db.delete("pendingMutations", mutation.mutationId)),
@@ -659,6 +715,10 @@ export function cloneOfflineValue<T>(value: T): T {
 
 export function tripCacheKey(userId: string, tripId: string) {
   return `private:${userId.trim()}:${tripId}`;
+}
+
+export function travelDayCacheKey(userId: string, tripId: string, date: string) {
+	return `private:${userId.trim()}:${tripId}:${date}`;
 }
 
 export function createOfflineId(prefix: string) {

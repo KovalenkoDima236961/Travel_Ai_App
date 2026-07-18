@@ -1146,3 +1146,12 @@ Digest text is deterministic rather than AI-generated.
 # Personalization v2
 
 The web app includes a Settings preference-completeness card, reusable explainability and feedback-chip components, and personalized match reasons on discovery and route-alternative cards. Feedback is sent only to the authenticated Trip Service and settings make clear that it is used inside the app, not for advertising.
+
+## Travel Day Mode v1
+
+`/trips/{id}/today` is the mobile-first, authenticated travel-day view. It
+fetches a compact date-specific summary, keeps a user-scoped IndexedDB snapshot
+for the selected day, and queues itinerary status changes when offline using the
+existing revision-aware itinerary outbox. The view is intentionally a quick
+reference, not a booking, payment, live-tracking, or rebooking surface. See
+[`docs/travel-day-mode.md`](../../docs/travel-day-mode.md).

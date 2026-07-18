@@ -140,6 +140,13 @@ func BuildSafeContext(
 
 	out.Route = safeRoute(trip, client)
 	out.Itinerary = safeItinerary(trip.Itinerary, client)
+	if client.CurrentTab == "travel_day" {
+		if travelDay, loadErr := svc.GetTravelDay(ctx, tripID, client.Date); loadErr == nil {
+			out.TravelDay = safeTravelDay(travelDay)
+		} else {
+			out.Unavailable = append(out.Unavailable, "travel_day_unavailable")
+		}
+	}
 
 	if approval, loadErr := svc.GetTripApproval(ctx, tripID); loadErr == nil {
 		out.Approval = map[string]any{
@@ -186,6 +193,45 @@ func BuildSafeContext(
 
 	out.Unavailable = uniqueStrings(out.Unavailable)
 	return out, access, nil
+}
+
+func safeTravelDay(summary service.TravelDaySummary) map[string]any {
+	items := make([]map[string]any, 0, min(3, len(summary.Timeline)))
+	for _, item := range summary.Timeline {
+		if len(items) == 3 {
+			break
+		}
+		items = append(items, map[string]any{
+			"time":   safeText(item.StartTime, 16),
+			"title":  safeText(item.Title, 160),
+			"type":   safeText(item.Type, 48),
+			"status": safeText(item.TravelStatus.Status, 24),
+		})
+	}
+	return map[string]any{
+		"date":              summary.Date,
+		"dayNumber":         summary.DayNumber,
+		"mode":              safeText(summary.Mode, 32),
+		"todayTitle":        safeText(summary.Today.Title, 160),
+		"currentItem":       safeTravelDayItem(summary.NowNext.CurrentItem),
+		"nextItem":          safeTravelDayItem(summary.NowNext.NextItem),
+		"upcomingItems":     items,
+		"warningCount":      len(summary.Verification.TopWarnings) + len(summary.Weather.Warnings),
+		"checklistDueCount": len(summary.Checklist.DueToday) + len(summary.Checklist.Overdue),
+		"reminderDueCount":  len(summary.Reminders.DueToday) + len(summary.Reminders.Overdue),
+	}
+}
+
+func safeTravelDayItem(item *service.TravelDayTimelineItem) map[string]any {
+	if item == nil {
+		return nil
+	}
+	return map[string]any{
+		"time":   safeText(item.StartTime, 16),
+		"title":  safeText(item.Title, 160),
+		"type":   safeText(item.Type, 48),
+		"status": safeText(item.TravelStatus.Status, 24),
+	}
 }
 
 func safeHealth(health triphealth.Response) map[string]any {

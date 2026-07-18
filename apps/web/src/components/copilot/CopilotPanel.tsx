@@ -9,18 +9,20 @@ import { CopilotLoadingState } from "./CopilotLoadingState";
 import { CopilotMessageList } from "./CopilotMessageList";
 import { CopilotSuggestedPrompts } from "./CopilotSuggestedPrompts";
 import { useTripCopilot } from "@/hooks/useTripCopilot";
+import type { CopilotClientContext } from "@/types/copilot";
 
 type CopilotPanelProps = {
   tripId: string;
   open: boolean;
   currentTab?: string;
   currentPath?: string;
+  clientContext?: CopilotClientContext;
   onClose: () => void;
 };
 
-export function CopilotPanel({ tripId, open, currentTab, currentPath, onClose }: CopilotPanelProps) {
+export function CopilotPanel({ tripId, open, currentTab, currentPath, clientContext, onClose }: CopilotPanelProps) {
   const t = useTranslations("copilot");
-  const copilot = useTripCopilot(tripId, { currentTab, currentPath });
+  const copilot = useTripCopilot(tripId, { ...clientContext, currentTab, currentPath });
 
   useEffect(() => {
     if (!open) {

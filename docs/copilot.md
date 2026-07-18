@@ -11,6 +11,8 @@ screen where a human can review or make a change.
 - Answer “where do I find…” and feature-help questions.
 - Suggest existing deep links from the allowlisted action catalog.
 - Explain uncertainty and partial context failures.
+- In Travel Day Mode, explain a compact current-day summary and offer a deep
+  link back to the authenticated travel-day screen.
 
 ## What it cannot do
 

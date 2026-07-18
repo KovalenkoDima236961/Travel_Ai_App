@@ -1,4 +1,5 @@
 import { ApprovalStatusBadge } from "@/features/trip-approval/ui/ApprovalStatusBadge";
+import Link from "next/link";
 import { TripHealthBadge } from "@/components/trip-health";
 import { formatRouteSummary, formatTripDates } from "@/lib/trip-command-center/format";
 import type { TripApprovalState } from "@/entities/approval/model";
@@ -49,6 +50,9 @@ export function TripOverviewHeader({
           </div>
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
+          <Link className="inline-flex rounded-full bg-clay px-3.5 py-1.5 text-[13px] font-semibold text-white" href={`/trips/${trip.id}/today`}>
+            Travel mode
+          </Link>
           <TripHealthBadge health={health} />
           {approval && approval.workspaceId && approval.status !== "not_required" ? (
             <ApprovalStatusBadge status={approval.status} />

@@ -1,0 +1,1 @@
+export function TravelDaySkeleton() { return <main className="mx-auto max-w-4xl space-y-4 p-4"><div className="h-16 animate-pulse rounded-2xl bg-sand-200"/><div className="h-56 animate-pulse rounded-3xl bg-sand-300"/><div className="h-32 animate-pulse rounded-2xl bg-sand-200"/></main>; }

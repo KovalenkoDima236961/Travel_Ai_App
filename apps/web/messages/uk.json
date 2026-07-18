@@ -782,6 +782,7 @@
       "createTrip": { "title": "Створити подорож", "description": "Почати новий AI-план." },
       "openTrips": { "title": "Відкрити мої подорожі", "description": "Перейти до списку подорожей." },
       "commandCenter": { "title": "Відкрити Command Center", "description": "Відкрити огляд поточної подорожі." },
+      "travelDay": { "title": "Відкрити режим подорожі", "description": "Переглянути план на сьогодні й наступне." },
       "tripHealth": { "title": "Відкрити Trip Health", "description": "Перевірити проблеми та виправлення." },
       "routeTransport": { "title": "Відкрити маршрут і транспорт", "description": "Переглянути зупинки, ділянки та транспорт." },
       "budget": { "title": "Відкрити бюджет", "description": "Переглянути бюджет і впевненість." },
@@ -832,6 +833,9 @@
     "unavailableDescription": "Ви все ще можете скористатися Trip Health і Command Center для перегляду наступних кроків.",
     "openHealth": "Відкрити Trip Health",
     "retry": "Спробувати ще раз"
+  },
+  "travelDay": {
+    "today": "Сьогодні", "travelMode": "Режим подорожі", "nextUp": "Далі", "now": "Зараз", "afterThat": "Потім", "timeline": "План на сьогодні", "items": "Елементів: {count}", "anyTime": "Будь-коли", "selectedTransport": "Вибраний транспорт", "openMap": "Відкрити карту", "markDone": "Позначити виконаним", "markSkipped": "Пропустити", "markDelayed": "Позначити затриманим", "addExpense": "Додати витрату", "uploadReceipt": "Завантажити чек", "askCopilot": "Запитати Copilot", "openPlanner": "Відкрити план", "noPlan": "На сьогодні плану немає", "doneToday": "На сьогодні все", "offlineCopy": "Офлайн-копія", "lastCached": "Останнє збереження", "recently": "нещодавно", "staleNotice": "Час у дорозі та перевірка можуть бути застарілими.", "syncPending": "Очікує синхронізації", "transportNotVerified": "Транспорт не перевірено", "activityMayBeClosed": "Заклад може бути зачинений", "weatherWarning": "Попередження про погоду", "availabilityNotChecked": "Доступність не перевірено", "verifyNow": "Перевірити", "checklist": "Список на сьогодні", "reminders": "Нагадування на сьогодні", "accommodation": "Проживання сьогодні", "notBooking": "Це не підтвердження бронювання"
   },
   "verification": {
     "eyebrow": "Готовність до реальних умов",

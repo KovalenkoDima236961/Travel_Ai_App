@@ -25,6 +25,8 @@ export const queryKeys = {
     detail: (tripId: string) => ["trips", "detail", tripId] as const,
     commandCenter: (tripId: string) =>
       [...queryKeys.trip.detail(tripId), "command-center-summary"] as const,
+    travelDay: (tripId: string, date: string) =>
+      [...queryKeys.trip.detail(tripId), "travel-day", date] as const,
     health: (tripId: string) => [...queryKeys.trip.detail(tripId), "health"] as const,
     verification: (tripId: string) => [...queryKeys.trip.detail(tripId), "verification"] as const,
     budgetSummary: (tripId: string) =>

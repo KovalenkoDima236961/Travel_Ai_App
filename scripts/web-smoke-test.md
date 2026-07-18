@@ -1660,3 +1660,11 @@ API smoke test, start the stack with `OPS_DASHBOARD_ENABLED=true`, set
 3. Open AI Trip Discovery and confirm a destination card can show “Why this fits you.” Submit a feedback chip and confirm it changes to Saved.
 4. Open Route Alternatives and confirm personalized reasons and feedback chips are available when a personalized response is returned.
 5. Verify browser requests contain only feedback type and the small visible metadata fields — never notes, receipt OCR, or calendar data.
+
+# Travel Day Mode v1 smoke
+
+1. Open an authenticated trip on a narrow viewport and choose **Today** or **Travel Mode**.
+2. Confirm `/trips/{id}/today` shows one compact summary for the device-local date, with Now/Next, timeline, and only available sections.
+3. Set a timeline item to Done, refresh, and confirm the persisted status is shown without changing the trip approval state.
+4. Disable the network, reopen the same day, and confirm the cached snapshot is visibly marked as offline; update an item status and reconnect to verify the normal itinerary sync path resolves it.
+5. Confirm receipt upload opens the existing authenticated receipt flow and the Copilot shortcut opens with travel-day context; neither action offers booking, payment, rebooking, or live tracking.

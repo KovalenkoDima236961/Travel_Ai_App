@@ -234,7 +234,7 @@ func contextSections(context SafeContext) []string {
 		value map[string]any
 	}{
 		{"command_center", context.CommandCenter}, {"trip_health", context.Health}, {"budget_confidence", context.Budget},
-		{"group_readiness", context.Group}, {"route_summary", context.Route}, {"itinerary_summary", context.Itinerary},
+		{"group_readiness", context.Group}, {"route_summary", context.Route}, {"itinerary_summary", context.Itinerary}, {"travel_day", context.TravelDay},
 		{"checklist_summary", context.Checklist}, {"reminders_summary", context.Reminders}, {"expenses_summary", context.Expenses},
 		{"approval_status", context.Approval}, {"policy_evaluation", context.Policy},
 		{"generation_quality", context.Generation}, {"personalization", context.Personalization},

@@ -2359,6 +2359,12 @@ export function TripDetailPageContent() {
 
   const heroActions = (
     <>
+      <Link
+        className="inline-flex h-[42px] items-center gap-2 rounded-full border border-sand-400 bg-white px-[18px] text-[14px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900"
+        href={`/trips/${trip.id}/today`}
+      >
+        Today
+      </Link>
       {canManageShare ? (
         <a
           href="#sharing"

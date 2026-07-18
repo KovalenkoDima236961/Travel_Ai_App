@@ -1,0 +1,2 @@
+import type { TravelDaySummary } from "@/types/travel-day";
+export function TravelWeatherStrip({ weather }: { weather: TravelDaySummary["weather"] }) { return <section className="rounded-2xl border border-[#D6DEE8] bg-[#F4F7FA] p-4"><p className="text-xs font-semibold uppercase tracking-wide text-[#536171]">Weather</p><p className="mt-1 text-sm font-medium text-[#243447]">{weather.summary}</p></section>; }

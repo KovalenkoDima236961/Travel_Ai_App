@@ -205,6 +205,20 @@ type UpdateItemCostSplit struct {
 	Split                     *aggregate.CostSplitRule `json:"split"`
 }
 
+type UpdateTravelItemStatus struct {
+	Status                    string `json:"status"`
+	Note                      string `json:"note"`
+	ExpectedItineraryRevision *int   `json:"expectedItineraryRevision"`
+}
+
+func (r UpdateTravelItemStatus) ToInput() appdto.UpdateTravelItemStatusInput {
+	return appdto.UpdateTravelItemStatusInput{
+		Status:                    r.Status,
+		Note:                      r.Note,
+		ExpectedItineraryRevision: r.ExpectedItineraryRevision,
+	}
+}
+
 func (r UpdateItemCostSplit) ToInput() appdto.UpdateItemCostSplitInput {
 	return appdto.UpdateItemCostSplitInput{
 		ExpectedItineraryRevision: r.ExpectedItineraryRevision,

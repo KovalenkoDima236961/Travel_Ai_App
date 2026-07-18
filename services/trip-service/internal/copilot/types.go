@@ -65,6 +65,10 @@ type ClientContext struct {
 	SelectedIssueID    string `json:"selectedIssueId,omitempty"`
 	SelectedDayNumber  *int   `json:"selectedDayNumber,omitempty"`
 	SelectedRouteLegID string `json:"selectedRouteLegId,omitempty"`
+	Date               string `json:"date,omitempty"`
+	DayNumber          *int   `json:"dayNumber,omitempty"`
+	CurrentItemID      string `json:"currentItemId,omitempty"`
+	NextItemID         string `json:"nextItemId,omitempty"`
 }
 
 type ChatRequest struct {
@@ -145,6 +149,7 @@ type SafeContext struct {
 	Group           map[string]any `json:"groupReadiness,omitempty"`
 	Route           map[string]any `json:"route,omitempty"`
 	Itinerary       map[string]any `json:"itinerary,omitempty"`
+	TravelDay       map[string]any `json:"travelDay,omitempty"`
 	Checklist       map[string]any `json:"checklist,omitempty"`
 	Reminders       map[string]any `json:"reminders,omitempty"`
 	Expenses        map[string]any `json:"expenses,omitempty"`

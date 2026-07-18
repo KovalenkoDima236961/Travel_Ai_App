@@ -64,6 +64,22 @@ var (
 		prometheus.CounterOpts{Name: "trip_verification_actions_total", Help: "Explicit verification actions requested by users."},
 		[]string{"action_type", "result"},
 	)
+	travelDayRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "travel_day_requests_total", Help: "Total private travel-day summary reads."},
+		[]string{"result", "role"},
+	)
+	travelDayDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "travel_day_duration_seconds", Help: "Duration of private travel-day summary reads."},
+		[]string{"result", "role"},
+	)
+	travelStatusUpdates = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "travel_status_updates_total", Help: "Travel itinerary status updates by status and role."},
+		[]string{"status", "role"},
+	)
+	travelStatusUpdateFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "travel_status_update_failures_total", Help: "Failed travel itinerary status updates by role."},
+		[]string{"role"},
+	)
 )
 
 func init() {
@@ -82,6 +98,10 @@ func init() {
 		verificationStatusObservations,
 		verificationStaleItems,
 		verificationActions,
+		travelDayRequests,
+		travelDayDuration,
+		travelStatusUpdates,
+		travelStatusUpdateFailures,
 	)
 }
 
@@ -123,6 +143,19 @@ func RecordBudgetOptimizationProposalCreated(status string) {
 func RecordVerificationRead(result string, duration time.Duration) {
 	verificationRequests.WithLabelValues(result).Inc()
 	verificationDuration.WithLabelValues(result).Observe(duration.Seconds())
+}
+
+func RecordTravelDayRead(result string, duration time.Duration, role string) {
+	travelDayRequests.WithLabelValues(result, role).Inc()
+	travelDayDuration.WithLabelValues(result, role).Observe(duration.Seconds())
+}
+
+func RecordTravelStatusUpdate(status, role string) {
+	travelStatusUpdates.WithLabelValues(status, role).Inc()
+}
+
+func RecordTravelStatusUpdateFailure(role string) {
+	travelStatusUpdateFailures.WithLabelValues(role).Inc()
 }
 
 // RecordVerificationComputed intentionally records only aggregate, private

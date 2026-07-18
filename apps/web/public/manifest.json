@@ -87,6 +87,13 @@
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     },
     {
+      "name": "Today",
+      "short_name": "Today",
+      "description": "Open travel mode for an active trip",
+      "url": "/trips?openToday=true",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
       "name": "Notifications",
       "short_name": "Alerts",
       "description": "View notifications",

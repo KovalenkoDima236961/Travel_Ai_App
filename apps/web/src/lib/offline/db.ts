@@ -5,6 +5,7 @@ import type {
   CachedExpensesRecord,
   CachedRemindersRecord,
   CachedSettlementsRecord,
+  CachedTravelDayRecord,
   CachedTripDetailsRecord,
   CachedTripRecord,
   OfflineReceiptDraftRecord,
@@ -16,7 +17,7 @@ import type {
 } from "@/lib/offline/types";
 
 const DB_NAME = "travel-ai-offline-v1";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 interface TravelAIOfflineDB extends DBSchema {
   cachedTrips: {
@@ -66,6 +67,14 @@ interface TravelAIOfflineDB extends DBSchema {
   cachedSettlements: {
     key: string;
     value: CachedSettlementsRecord;
+    indexes: {
+      by_userId: string;
+      by_tripId: string;
+    };
+  };
+  cachedTravelDays: {
+    key: string;
+    value: CachedTravelDayRecord;
     indexes: {
       by_userId: string;
       by_tripId: string;
@@ -156,6 +165,12 @@ export function getOfflineDb(): Promise<OfflineDatabase> {
 
       if (!db.objectStoreNames.contains("cachedSettlements")) {
         const store = db.createObjectStore("cachedSettlements", { keyPath: "cacheKey" });
+        store.createIndex("by_userId", "userId");
+        store.createIndex("by_tripId", "tripId");
+      }
+
+      if (!db.objectStoreNames.contains("cachedTravelDays")) {
+        const store = db.createObjectStore("cachedTravelDays", { keyPath: "cacheKey" });
         store.createIndex("by_userId", "userId");
         store.createIndex("by_tripId", "tripId");
       }

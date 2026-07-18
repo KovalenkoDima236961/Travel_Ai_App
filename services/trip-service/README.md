@@ -1514,6 +1514,17 @@ contain safe IDs, status/count values, destination, and short labels only—neve
 receipt OCR, private expense notes, comment bodies, calendar details, share
 credentials, AI prompts, or raw provider errors. An activity event alone is not
 a notification trigger.
+
+## Travel Day Mode v1
+
+Authenticated trip members can request the compact, date-specific travel-day
+summary at `GET /trips/{tripId}/travel-day?date=YYYY-MM-DD`. Editors and owners
+can update an itinerary item's travel status through the revision-protected
+`PATCH /trips/{tripId}/itinerary/days/{dayNumber}/items/{itemIndex}/travel-status`
+endpoint. Status is stored in itinerary JSON, so no migration is needed and
+existing itinerary revisions remain the conflict authority. See
+[`docs/travel-day-mode.md`](../../docs/travel-day-mode.md) for the response,
+privacy, offline, and feature-boundary contract.
 # Personalization v2
 
 Trip Service builds a deterministic, user-scoped personalization context from the trusted User Service profile, safe aggregates of the current user's trips, explicit feedback, and the active workspace policy. It persists lightweight feedback in `personalization_feedback`, exposes explainable context/feedback/template/budget endpoints, and forwards only a privacy-minimized summary through Planning Constraints. See [`docs/personalization.md`](../../docs/personalization.md) for precedence and privacy rules.

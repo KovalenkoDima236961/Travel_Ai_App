@@ -1,0 +1,5 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
+import { Button } from "@/shared/ui/button";
+export function TravelQuickActions({ tripId, onCopilot, onReceipt, children }: { tripId: string; onCopilot: () => void; onReceipt: () => void; children?: ReactNode }) { const t = useTranslations("travelDay"); return <div className="fixed inset-x-0 bottom-0 z-30 border-t border-sand-300 bg-white/95 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur md:sticky md:bottom-4 md:rounded-2xl md:border"><div className="mx-auto flex max-w-lg gap-2">{children}<Link className="inline-flex min-h-12 flex-1 items-center justify-center rounded-md border border-sand-300 px-3 text-center text-sm font-medium text-cocoa-800" href="#expense">{t("addExpense")}</Link><Button className="min-h-12 flex-1" onClick={onReceipt} variant="secondary">{t("uploadReceipt")}</Button><Button className="min-h-12 flex-1" onClick={onCopilot}>{t("askCopilot")}</Button><Link className="sr-only" href={`/trips/${tripId}`}>{t("openPlanner")}</Link></div></div>; }

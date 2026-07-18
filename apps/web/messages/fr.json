@@ -782,6 +782,7 @@
       "createTrip": { "title": "Créer un voyage", "description": "Démarrer un nouveau plan IA." },
       "openTrips": { "title": "Ouvrir mes voyages", "description": "Accéder à la liste des voyages." },
       "commandCenter": { "title": "Ouvrir Command Center", "description": "Ouvrir le résumé du voyage actuel." },
+      "travelDay": { "title": "Ouvrir le mode voyage", "description": "Voir le programme du jour et la suite." },
       "tripHealth": { "title": "Ouvrir Trip Health", "description": "Examiner les problèmes et corrections." },
       "routeTransport": { "title": "Ouvrir itinéraire et transport", "description": "Voir étapes, trajets et transports." },
       "budget": { "title": "Ouvrir budget", "description": "Examiner budget et confiance." },
@@ -832,6 +833,9 @@
     "unavailableDescription": "Vous pouvez toujours utiliser Trip Health et Command Center pour examiner les prochaines étapes.",
     "openHealth": "Ouvrir Trip Health",
     "retry": "Réessayer"
+  },
+  "travelDay": {
+    "today": "Aujourd’hui", "travelMode": "Mode voyage", "nextUp": "À suivre", "now": "Maintenant", "afterThat": "Ensuite", "timeline": "Programme du jour", "items": "{count} éléments", "anyTime": "À tout moment", "selectedTransport": "Transport sélectionné", "openMap": "Ouvrir la carte", "markDone": "Marquer terminé", "markSkipped": "Ignorer", "markDelayed": "Marquer en retard", "addExpense": "Ajouter une dépense", "uploadReceipt": "Importer un reçu", "askCopilot": "Demander à Copilot", "openPlanner": "Ouvrir le planificateur", "noPlan": "Aucun plan pour aujourd’hui", "doneToday": "Votre journée est terminée", "offlineCopy": "Copie hors ligne", "lastCached": "Dernière copie", "recently": "récemment", "staleNotice": "Les horaires et la vérification peuvent être obsolètes.", "syncPending": "Synchronisation en attente", "transportNotVerified": "Transport non vérifié", "activityMayBeClosed": "L’activité peut être fermée", "weatherWarning": "Alerte météo", "availabilityNotChecked": "Disponibilité non vérifiée", "verifyNow": "Vérifier", "checklist": "Liste du jour", "reminders": "Rappels du jour", "accommodation": "Hébergement ce soir", "notBooking": "Ceci n’est pas une confirmation de réservation"
   },
   "verification": {
     "eyebrow": "Préparation aux conditions réelles",

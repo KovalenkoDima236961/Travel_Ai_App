@@ -16,6 +16,7 @@ import type {
   TripReminder
 } from "@/entities/trip-reminder/model";
 import type { Itinerary, Trip } from "@/entities/trip/model";
+import type { TravelDaySummary } from "@/types/travel-day";
 
 export type OfflineMutationStatus =
   | "pending"
@@ -177,6 +178,16 @@ export type CachedTripDetailsRecord = {
   itineraryRevision: number;
   cachedAt: string;
   source: "trip_detail" | "manual";
+};
+
+export type CachedTravelDayRecord = {
+  cacheKey: string;
+  tripId: string;
+  userId: string;
+  date: string;
+  summary: TravelDaySummary;
+  itineraryRevision: number;
+  cachedAt: string;
 };
 
 export type CachedChecklistRecord = {

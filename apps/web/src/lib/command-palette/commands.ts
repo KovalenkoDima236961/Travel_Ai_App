@@ -79,6 +79,14 @@ export function getCommandRegistry(t: Translator): CommandPaletteCommand[] {
       visibleIf: () => true
     },
     tripSectionCommand("trip.commandCenter", "commandCenter", "command_center", t),
+    {
+      id: "trip.travelDay",
+      title: t("commands.travelDay.title"),
+      description: t("commands.travelDay.description"),
+      category: t("categories.trips"),
+      href: "__CURRENT_TRIP__/today",
+      visibleIf: (context) => Boolean(context.currentTripId)
+    },
     tripSectionCommand("trip.health", "tripHealth", "health", t),
     tripSectionCommand("trip.route", "routeTransport", "route", t),
     tripSectionCommand("trip.budget", "budget", "budget", t),

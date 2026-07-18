@@ -65,6 +65,10 @@ export type CopilotClientContext = {
   selectedIssueId?: string;
   selectedDayNumber?: number;
   selectedRouteLegId?: string;
+  date?: string;
+  dayNumber?: number;
+  currentItemId?: string;
+  nextItemId?: string;
 };
 
 export type CopilotRequest = {

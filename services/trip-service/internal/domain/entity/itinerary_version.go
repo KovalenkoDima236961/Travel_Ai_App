@@ -18,6 +18,7 @@ const (
 	ItineraryVersionSourceBudgetOptimizationApplied ItineraryVersionSource = "BUDGET_OPTIMIZATION_APPLIED"
 	ItineraryVersionSourceAIPolicyRepairApplied     ItineraryVersionSource = "AI_POLICY_REPAIR"
 	ItineraryVersionSourceCostSplitUpdated          ItineraryVersionSource = "COST_SPLIT_UPDATED"
+	ItineraryVersionSourceTravelStatusUpdated       ItineraryVersionSource = "TRAVEL_STATUS_UPDATED"
 	ItineraryVersionSourceRestored                  ItineraryVersionSource = "RESTORED"
 	ItineraryVersionSourceCreatedFromTemplate       ItineraryVersionSource = "CREATED_FROM_TEMPLATE"
 	ItineraryVersionSourceCreatedFromTemplateAI     ItineraryVersionSource = "CREATED_FROM_TEMPLATE_AI"

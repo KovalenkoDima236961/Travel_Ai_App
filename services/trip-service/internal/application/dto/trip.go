@@ -48,6 +48,15 @@ type UpdateItineraryInput struct {
 	ExpectedItineraryRevision *int
 }
 
+// UpdateTravelItemStatusInput remains revision-aware because travel status is
+// stored in itinerary JSON for v1; existing itinerary items do not expose a
+// stable persisted ID suitable for a separate status table.
+type UpdateTravelItemStatusInput struct {
+	Status                    string
+	Note                      string
+	ExpectedItineraryRevision *int
+}
+
 // UpdateTripBudgetInput is the application-level payload for a trip budget
 // update. Clear is true when the request explicitly clears the budget
 // (budget: null or a budget object without an amount); otherwise Amount and

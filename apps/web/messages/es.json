@@ -783,6 +783,7 @@
       "createTrip": { "title": "Crear viaje", "description": "Inicia un nuevo plan de viaje con IA." },
       "openTrips": { "title": "Abrir mis viajes", "description": "Ve a tu lista de viajes." },
       "commandCenter": { "title": "Abrir Command Center", "description": "Abre el resumen del viaje actual." },
+      "travelDay": { "title": "Abrir modo viaje", "description": "Consulta el plan de hoy y lo que sigue." },
       "tripHealth": { "title": "Abrir Trip Health", "description": "Revisa problemas y arreglos." },
       "routeTransport": { "title": "Abrir ruta y transporte", "description": "Revisa paradas, tramos y transportes." },
       "budget": { "title": "Abrir presupuesto", "description": "Revisa presupuesto y confianza." },
@@ -833,6 +834,9 @@
     "unavailableDescription": "Aún puedes usar Trip Health y Command Center para revisar los siguientes pasos.",
     "openHealth": "Abrir Trip Health",
     "retry": "Reintentar"
+  },
+  "travelDay": {
+    "today": "Hoy", "travelMode": "Modo viaje", "nextUp": "Siguiente", "now": "Ahora", "afterThat": "Después", "timeline": "Plan de hoy", "items": "{count} elementos", "anyTime": "Cualquier hora", "selectedTransport": "Transporte seleccionado", "openMap": "Abrir mapa", "markDone": "Marcar completado", "markSkipped": "Omitir", "markDelayed": "Marcar retrasado", "addExpense": "Añadir gasto", "uploadReceipt": "Subir recibo", "askCopilot": "Preguntar a Copilot", "openPlanner": "Abrir planificador", "noPlan": "No hay plan para hoy", "doneToday": "Has terminado por hoy", "offlineCopy": "Copia sin conexión", "lastCached": "Última copia", "recently": "recientemente", "staleNotice": "Los horarios y la verificación pueden estar desactualizados.", "syncPending": "Sincronización pendiente", "transportNotVerified": "Transporte sin verificar", "activityMayBeClosed": "La actividad podría estar cerrada", "weatherWarning": "Aviso meteorológico", "availabilityNotChecked": "Disponibilidad sin comprobar", "verifyNow": "Verificar ahora", "checklist": "Lista de hoy", "reminders": "Recordatorios de hoy", "accommodation": "Alojamiento esta noche", "notBooking": "Esto no es una confirmación de reserva"
   },
   "verification": {
     "eyebrow": "Preparación para el mundo real",

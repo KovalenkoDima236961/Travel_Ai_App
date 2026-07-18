@@ -52,6 +52,15 @@ export type AvailabilityCheckMeta = {
   priceChanged?: boolean;
 };
 
+export type TravelStatus = "planned" | "done" | "skipped" | "delayed";
+
+export type ItineraryTravelStatus = {
+  status: TravelStatus;
+  updatedAt?: string;
+  updatedByUserId?: string;
+  note?: string;
+};
+
 export type ItineraryItem = {
   time: string;
   endTime?: string | null;
@@ -80,6 +89,7 @@ export type ItineraryItem = {
   placeEnrichment?: PlaceEnrichment | null;
   priceEnrichment?: PriceEnrichment | null;
   availabilityCheck?: AvailabilityCheckMeta | null;
+  travelStatus?: ItineraryTravelStatus | null;
 };
 
 export type ItineraryDay = {
