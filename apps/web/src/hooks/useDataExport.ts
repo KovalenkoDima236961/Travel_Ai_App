@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useDocumentVisibility } from "@/hooks/useDocumentVisibility";
 import {
   createAccountExport,
   createTripArchiveExport,
@@ -23,9 +24,12 @@ export function useCreateAccountExport() {
 }
 
 export function useAccountExportStatus(exportId: string | null) {
+  const documentVisible = useDocumentVisibility();
   return useQuery({
     queryKey: exportKeys.account(exportId ?? "none"), queryFn: () => getAccountExportStatus(exportId!),
-    enabled: Boolean(exportId), refetchInterval: (query) => query.state.data?.status === "queued" || query.state.data?.status === "processing" ? 1500 : false
+    enabled: Boolean(exportId),
+    refetchInterval: (query) => exportPollInterval(documentVisible, query.state.data?.status, query.state.dataUpdateCount),
+    refetchIntervalInBackground: false
   });
 }
 
@@ -34,9 +38,12 @@ export function useCreateTripArchiveExport(tripId: string) {
 }
 
 export function useTripExportStatus(tripId: string, exportId: string | null) {
+  const documentVisible = useDocumentVisibility();
   return useQuery({
     queryKey: exportKeys.trip(tripId, exportId ?? "none"), queryFn: () => getTripExportStatus(tripId, exportId!),
-    enabled: Boolean(tripId && exportId), refetchInterval: (query) => query.state.data?.status === "queued" || query.state.data?.status === "processing" ? 1500 : false
+    enabled: Boolean(tripId && exportId),
+    refetchInterval: (query) => exportPollInterval(documentVisible, query.state.data?.status, query.state.dataUpdateCount),
+    refetchIntervalInBackground: false
   });
 }
 
@@ -73,4 +80,15 @@ export function useAccountCleanupRequest() {
 // as the settings extension point without ever deleting trip data automatically.
 export function useArchiveCompletedTrips() {
   return useMutation({ mutationFn: async () => ({ archivedCount: 0, message: "Archive individual trips from the travel library." }) });
+}
+
+function exportPollInterval(
+  documentVisible: boolean,
+  status: string | undefined,
+  dataUpdateCount: number
+) {
+  if (!documentVisible || (status !== "queued" && status !== "processing")) {
+    return false;
+  }
+  return dataUpdateCount <= 4 ? 1_500 : 5_000;
 }

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "analyze": "ANALYZE=true next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -23,6 +24,8 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^15.3.4",
+    "@next/bundle-analyzer": "^15.3.4",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.15.32",
     "@types/react": "^19.1.8",

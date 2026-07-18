@@ -1,6 +1,7 @@
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { TripRecapPage } from "@/components/recap";
 
-export default function TripRecapRoute({ params }: { params: { id: string } }) {
-  return <ProtectedRoute><TripRecapPage tripId={params.id}/></ProtectedRoute>;
+export default async function TripRecapRoute({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <ProtectedRoute><TripRecapPage tripId={id}/></ProtectedRoute>;
 }

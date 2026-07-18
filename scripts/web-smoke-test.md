@@ -29,6 +29,17 @@
 9. Fail the configured live route/weather/place provider three times in local mode. Confirm deterministic fallback continues and the provider cooldown/short-circuit metrics increase.
 10. Run `PERF_ACCESS_TOKEN=... PERF_TRIP_ID=... ./scripts/performance-smoke-test.sh` and review the Performance & Reliability Grafana dashboard.
 
+## Frontend Performance Optimization v1
+
+1. From `apps/web`, run `npm run build`; run `npm run analyze` when reviewing a release bundle.
+2. Open `/trips/new` and confirm map, PDF, Copilot, and command-palette controller chunks are absent until their interactions.
+3. Open a completed `/trips/[id]`. Confirm the shell/summary appear before inactive tools, and that the map starts only when its rail section is visible.
+4. Open Copilot, then Download PDF; confirm each corresponding chunk is requested only for that action.
+5. Start generation, template adaptation, repair, or export. Confirm polling stops at terminal state and pauses after hiding the tab; long jobs should settle to the slower cadence.
+6. Open `/notifications` and confirm the unread badge uses its count endpoint rather than the full list. Load more notifications to confirm the cursor page stays bounded.
+7. Open `/offline-trips` with several cached trips, then a trip detail. Confirm the list is responsive from summaries and full itinerary data loads only for the opened trip.
+8. In DevTools Application, confirm the service worker has no cached private API or receipt responses and retains no more than the bounded runtime static entries.
+
 ## Security hardening checks
 
 After the baseline flow, verify in a private/incognito browser pair:

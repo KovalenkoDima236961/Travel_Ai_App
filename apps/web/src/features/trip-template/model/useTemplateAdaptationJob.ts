@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useDocumentVisibility } from "@/hooks/useDocumentVisibility";
 import {
   getTemplateAdaptationJob,
   templateAdaptationKeys
@@ -32,6 +33,7 @@ export function useTemplateAdaptationJob({
   onCancelled
 }: UseTemplateAdaptationJobInput) {
   const lastTerminalJobId = useRef<string | null>(null);
+  const documentVisible = useDocumentVisibility();
 
   const query = useQuery({
     queryKey: templateAdaptationKeys.job(tripId ?? "", jobId ?? ""),
@@ -39,8 +41,12 @@ export function useTemplateAdaptationJob({
     enabled: enabled && Boolean(tripId) && Boolean(jobId),
     refetchInterval: (q) => {
       const status = q.state.data?.status;
-      return status === "queued" || status === "running" ? 2500 : false;
-    }
+      if (!documentVisible || (status !== "queued" && status !== "running")) {
+        return false;
+      }
+      return q.state.dataUpdateCount <= 4 ? 2500 : 5000;
+    },
+    refetchIntervalInBackground: false
   });
 
   useEffect(() => {

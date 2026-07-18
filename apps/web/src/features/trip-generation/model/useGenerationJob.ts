@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useDocumentVisibility } from "@/hooks/useDocumentVisibility";
 import {
   generationJobKeys,
   getGenerationJob
@@ -26,6 +27,7 @@ export function useGenerationJob({
   onCancelled
 }: UseGenerationJobInput) {
   const lastTerminalJobId = useRef<string | null>(null);
+  const documentVisible = useDocumentVisibility();
 
   const query = useQuery({
     queryKey: generationJobKeys.detail(tripId, jobId ?? ""),
@@ -33,8 +35,13 @@ export function useGenerationJob({
     enabled: enabled && Boolean(tripId) && Boolean(jobId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === "queued" || status === "running" ? 2500 : false;
-    }
+      if (!documentVisible || (status !== "queued" && status !== "running")) {
+        return false;
+      }
+      // Fast feedback for a new job, then a gentler cadence for long-running work.
+      return query.state.dataUpdateCount <= 4 ? 2500 : 5000;
+    },
+    refetchIntervalInBackground: false
   });
 
   useEffect(() => {

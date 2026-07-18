@@ -29,6 +29,7 @@ const dbState = vi.hoisted(() => ({
     cachedExpenses: new Map<string, unknown>(),
     cachedExpenseSummaries: new Map<string, unknown>(),
     cachedSettlements: new Map<string, unknown>(),
+    cachedTravelDays: new Map<string, unknown>(),
     offlineReceiptDrafts: new Map<string, unknown>(),
     pendingMutations: new Map<string, unknown>(),
     syncLogs: new Map<string, unknown>(),
@@ -129,6 +130,16 @@ describe("offline trip cache", () => {
     await clearOfflineDataForUser("user-1");
     expect(await listCachedTrips("user-1")).toHaveLength(0);
     expect(await getCachedTrip("trip-3", "user-2")).not.toBeNull();
+  });
+
+  it("returns compact trip summaries for offline lists while preserving opened-trip detail", async () => {
+    await cacheTripSnapshot({ userId: "user-1", trip: sampleTrip() });
+
+    const [summary] = await listCachedTrips("user-1");
+    const detail = await getCachedTrip("trip-1", "user-1");
+
+    expect(summary?.trip.itinerary).toBeUndefined();
+    expect(detail?.trip.itinerary?.days[0]?.items[0]?.name).toBe("Base");
   });
 });
 

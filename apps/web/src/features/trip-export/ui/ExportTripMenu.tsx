@@ -5,7 +5,6 @@ import { Button } from "@/shared/ui/button";
 import { downloadTextFile } from "@/lib/export/download";
 import { buildIcsFilename } from "@/lib/export/export-filenames";
 import { generateTripIcs, getTripIcsEventCount } from "@/lib/export/ics";
-import { downloadTripPdf } from "@/lib/export/pdf";
 import type { ExportTrip } from "@/lib/export/trip-export-adapter";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +25,8 @@ export function ExportTripMenu({ exportTrip, disabled = false, className }: Expo
     try {
       setMessage(null);
       setIsPdfLoading(true);
+      // The PDF line builder is only useful after the explicit export action.
+      const { downloadTripPdf } = await import("@/lib/export/pdf");
       await downloadTripPdf(exportTrip);
     } catch {
       setMessage("PDF export failed. You can still use your browser's Print option from this page.");

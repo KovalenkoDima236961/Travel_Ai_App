@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { ReactNode } from "react";
-import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { WebVitalsReporter } from "@/components/observability/WebVitalsReporter";

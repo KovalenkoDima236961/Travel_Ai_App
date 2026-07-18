@@ -1,4 +1,5 @@
 const APP_SHELL_CACHE = "travel-ai-app-shell-v2";
+const MAX_RUNTIME_ASSETS = 120;
 const APP_SHELL_URLS = [
   "/offline",
   "/manifest.json",
@@ -102,8 +103,16 @@ async function cacheFirst(request) {
   if (response.ok) {
     const cache = await caches.open(APP_SHELL_CACHE);
     await cache.put(request, response.clone());
+    await pruneRuntimeAssets(cache);
   }
   return response;
+}
+
+async function pruneRuntimeAssets(cache) {
+  const keys = await cache.keys();
+  const runtimeKeys = keys.filter((request) => new URL(request.url).pathname.startsWith("/_next/static/"));
+  const expired = runtimeKeys.slice(0, Math.max(0, runtimeKeys.length - MAX_RUNTIME_ASSETS));
+  await Promise.all(expired.map((request) => cache.delete(request)));
 }
 
 self.addEventListener("notificationclick", (event) => {

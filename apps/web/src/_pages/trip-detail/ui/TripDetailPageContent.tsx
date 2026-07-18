@@ -20,8 +20,7 @@ import { VerificationPanel } from "@/components/verification";
 import { BudgetPanel } from "@/features/trip-budget";
 import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
-import { BudgetOptimizationRequestDialog } from "@/features/budget-optimization";
-import { CreateRepairJobDialog, RepairProposalsPanel } from "@/features/trip-repair";
+import { RepairProposalsPanel } from "@/features/trip-repair";
 import { EditLockStatus } from "@/features/trip-edit-lock";
 import { SoftEditLockWarningDialog } from "@/features/trip-edit-lock";
 import { ExportTripMenu } from "@/features/trip-export";
@@ -31,8 +30,6 @@ import {
   PartialItineraryWarning,
   PostGenerationReviewPanel
 } from "@/features/trip-generation";
-import { MergeConflictDialog } from "@/components/itinerary/merge/MergeConflictDialog";
-import { ItemCommentsPanel } from "@/features/trip-comments";
 import { TripCommentsSummary } from "@/features/trip-comments";
 import { OfflineBanner } from "@/components/offline/OfflineBanner";
 import { OfflineTripCompanionPanel } from "@/components/offline/OfflineTripCompanionPanel";
@@ -45,15 +42,11 @@ import {
   prepareItineraryForEdit,
   validateEditableItinerary
 } from "@/components/trips/ItineraryEditor";
-import { CostSplitRuleEditor } from "@/features/cost-splitting";
 import { CostSplittingPanel } from "@/features/cost-splitting";
 import { DistanceSummary } from "@/features/route-estimation";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
-import { OptimizeDayOrderDialog } from "@/features/itinerary-optimization";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
-import { SaveTripAsTemplateDialog } from "@/features/trip-template";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
-import { ItineraryVersionHistory } from "@/components/trips/ItineraryVersionHistory";
 import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
 import { AvailabilityPanel } from "@/components/trip-availability";
 import { Button } from "@/shared/ui/button";
@@ -248,6 +241,52 @@ const RightRailMap = dynamic(
 const RightRailWeather = dynamic(
   () => import("./RightRailWeather").then((module) => module.RightRailWeather),
   { loading: PanelLoading }
+);
+// Dialogs are interaction-only; keeping them out of the initial trip bundle also
+// avoids loading their form/query dependencies before a user asks for the action.
+const MergeConflictDialog = dynamic(
+  () =>
+    import("@/components/itinerary/merge/MergeConflictDialog").then(
+      (module) => module.MergeConflictDialog
+    ),
+  { loading: () => null }
+);
+const ItemCommentsPanel = dynamic(
+  () => import("@/features/trip-comments/ui/ItemCommentsPanel").then((module) => module.ItemCommentsPanel),
+  { loading: PanelLoading }
+);
+const OptimizeDayOrderDialog = dynamic(
+  () =>
+    import("@/features/itinerary-optimization/ui/OptimizeDayOrderDialog").then(
+      (module) => module.OptimizeDayOrderDialog
+    ),
+  { loading: () => null }
+);
+const BudgetOptimizationRequestDialog = dynamic(
+  () =>
+    import("@/features/budget-optimization/ui/BudgetOptimizationRequestDialog").then(
+      (module) => module.BudgetOptimizationRequestDialog
+    ),
+  { loading: () => null }
+);
+const CreateRepairJobDialog = dynamic(
+  () => import("@/features/trip-repair/ui/CreateRepairJobDialog").then((module) => module.CreateRepairJobDialog),
+  { loading: () => null }
+);
+const SaveTripAsTemplateDialog = dynamic(
+  () =>
+    import("@/features/trip-template/ui/SaveTripAsTemplateDialog").then(
+      (module) => module.SaveTripAsTemplateDialog
+    ),
+  { loading: () => null }
+);
+const ItineraryVersionHistory = dynamic(
+  () => import("@/components/trips/ItineraryVersionHistory").then((module) => module.ItineraryVersionHistory),
+  { loading: PanelLoading }
+);
+const CostSplitRuleEditor = dynamic(
+  () => import("@/features/cost-splitting/ui/CostSplitRuleEditor").then((module) => module.CostSplitRuleEditor),
+  { loading: () => null }
 );
 
 export function TripDetailPageContent() {
@@ -3238,12 +3277,14 @@ export function TripDetailPageContent() {
 
           <div className="flex flex-col gap-5 xl:sticky xl:top-[84px] xl:self-start">
             {trip.status === "COMPLETED" && trip.itinerary && !isEditing ? (
-              <RightRailMap
-                accommodation={trip.accommodation ?? null}
-                itinerary={trip.itinerary}
-                route={trip.route}
-                startDate={trip.startDate}
-              />
+              <DeferredSection active={sectionEnabled("map")} section="map">
+                <RightRailMap
+                  accommodation={trip.accommodation ?? null}
+                  itinerary={trip.itinerary}
+                  route={trip.route}
+                  startDate={trip.startDate}
+                />
+              </DeferredSection>
             ) : null}
             <RightRailWeather
               days={trip.days}

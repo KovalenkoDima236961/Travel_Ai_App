@@ -68,10 +68,7 @@ export function RightRailMap({ itinerary, accommodation, route, startDate }: Rig
 
   if (markers.length === 0) {
     return (
-      <div
-        id="map"
-        className="scroll-mt-24 rounded-[20px] border border-sand-300 bg-white p-5"
-      >
+      <div className="rounded-[20px] border border-sand-300 bg-white p-5">
         <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#A08D78]">
           Map
         </h2>
@@ -83,10 +80,7 @@ export function RightRailMap({ itinerary, accommodation, route, startDate }: Rig
   }
 
   return (
-    <div
-      id="map"
-      className="scroll-mt-24 overflow-hidden rounded-[20px] border border-sand-300 bg-white shadow-[0_1px_2px_rgba(34,26,20,0.04),0_12px_32px_rgba(34,26,20,0.06)]"
-    >
+    <div className="overflow-hidden rounded-[20px] border border-sand-300 bg-white shadow-[0_1px_2px_rgba(34,26,20,0.04),0_12px_32px_rgba(34,26,20,0.06)]">
       <div className="h-[300px] bg-sand-200">
         {filteredMarkers.length === 0 ? (
           <div className="flex h-full items-center justify-center px-6 text-center text-[13px] text-cocoa-500">

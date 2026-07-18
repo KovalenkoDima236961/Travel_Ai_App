@@ -1,4 +1,4 @@
-import { getOfflineDb } from "@/lib/offline/db";
+import { getOfflineDb, type OfflineDatabase } from "@/lib/offline/db";
 import type {
   CachedChecklistRecord,
   CachedExpenseSummaryRecord,
@@ -53,38 +53,48 @@ export async function cacheTripSnapshot({
   );
 
   sanitizedTrip.accommodation = sanitizedAccommodation;
+  const tripSummary = createOfflineTripSummary(sanitizedTrip);
+  const cachedAt = new Date().toISOString();
+  const cacheKey = tripCacheKey(normalizedUserId, sanitizedTrip.id);
+  const db = await getOfflineDb();
+  const existingDetail = await db.get("cachedTripDetails", cacheKey);
+  if (
+    existingDetail?.trip.updatedAt === sanitizedTrip.updatedAt &&
+    existingDetail.itineraryRevision === sanitizedTrip.itineraryRevision
+  ) {
+    return;
+  }
 
   const record: CachedTripRecord = {
-    cacheKey: tripCacheKey(normalizedUserId, sanitizedTrip.id),
+    cacheKey,
     tripId: sanitizedTrip.id,
     userId: normalizedUserId,
-    trip: sanitizedTrip,
-    tripSummary: cloneOfflineValue(sanitizedTrip),
+    // This store feeds offline list screens, so it deliberately avoids the
+    // itinerary/route payload kept in cachedTripDetails.
+    trip: tripSummary,
+    tripSummary,
     budgetSummary: cloneOfflineValue(budgetSummary ?? null),
-    accommodation: sanitizedAccommodation,
+    accommodation: null,
     itineraryRevision: sanitizedTrip.itineraryRevision,
     routeRevision: routeRevisionFromTrip(sanitizedTrip),
-    cachedAt: new Date().toISOString(),
-    lastOpenedAt: new Date().toISOString(),
+    cachedAt,
+    lastOpenedAt: cachedAt,
     offlineEnabled: true
   };
 
-  const db = await getOfflineDb();
-  await Promise.all([
-    db.put("cachedTrips", record),
-    db.put("cachedTripDetails", {
-      cacheKey: tripCacheKey(normalizedUserId, sanitizedTrip.id),
-      tripId: sanitizedTrip.id,
-      userId: normalizedUserId,
-      trip: sanitizedTrip,
-      itinerary: sanitizedTrip.itinerary ?? null,
-      route: sanitizedTrip.route ?? null,
-      accommodation: sanitizedAccommodation,
-      itineraryRevision: sanitizedTrip.itineraryRevision,
-      cachedAt: record.cachedAt,
-      source: "trip_detail"
-    } satisfies CachedTripDetailsRecord)
-  ]);
+  const detail: CachedTripDetailsRecord = {
+    cacheKey,
+    tripId: sanitizedTrip.id,
+    userId: normalizedUserId,
+    trip: sanitizedTrip,
+    itinerary: sanitizedTrip.itinerary ?? null,
+    route: sanitizedTrip.route ?? null,
+    accommodation: sanitizedAccommodation,
+    itineraryRevision: sanitizedTrip.itineraryRevision,
+    cachedAt: record.cachedAt,
+    source: "trip_detail"
+  };
+  await putTripSnapshotRecords(db, record, detail);
 }
 
 export async function getCachedTrip(
@@ -97,12 +107,16 @@ export async function getCachedTrip(
   }
 
   const db = await getOfflineDb();
-  const record = await db.get("cachedTrips", tripCacheKey(normalizedUserId, tripId));
+  const cacheKey = tripCacheKey(normalizedUserId, tripId);
+  const [record, detail] = await Promise.all([
+    db.get("cachedTrips", cacheKey),
+    db.get("cachedTripDetails", cacheKey)
+  ]);
   if (!record || record.userId !== normalizedUserId) {
     return null;
   }
 
-  return cloneOfflineValue(record);
+  return cloneOfflineValue({ ...record, trip: detail?.trip ?? record.trip });
 }
 
 export async function listCachedTrips(userId: string): Promise<CachedTripRecord[]> {
@@ -112,9 +126,8 @@ export async function listCachedTrips(userId: string): Promise<CachedTripRecord[
   }
 
   const db = await getOfflineDb();
-  const records = await db.getAll("cachedTrips");
+  const records = await getCachedTripRecordsForUser(db, normalizedUserId);
   return records
-    .filter((record) => record.userId === normalizedUserId)
     .sort((left, right) => right.cachedAt.localeCompare(left.cachedAt))
     .map(cloneOfflineValue);
 }
@@ -218,24 +231,48 @@ export async function updateCachedTripItinerary(input: {
   userId: string;
   itinerary: Itinerary;
 }): Promise<CachedTripRecord | null> {
-  const record = await getCachedTrip(input.tripId, input.userId);
+  const normalizedUserId = input.userId.trim();
+  if (!input.tripId || !normalizedUserId) {
+    return null;
+  }
+  const db = await getOfflineDb();
+  const cacheKey = tripCacheKey(normalizedUserId, input.tripId);
+  const [record, detail] = await Promise.all([
+    db.get("cachedTrips", cacheKey),
+    db.get("cachedTripDetails", cacheKey)
+  ]);
   if (!record) {
     return null;
   }
 
+  const updatedAt = new Date().toISOString();
+  const trip = {
+    ...(detail?.trip ?? record.trip),
+    itinerary: cloneOfflineValue(input.itinerary),
+    updatedAt
+  };
   const nextRecord: CachedTripRecord = {
     ...record,
-    trip: {
-      ...record.trip,
-      itinerary: cloneOfflineValue(input.itinerary),
-      updatedAt: new Date().toISOString()
-    },
-    cachedAt: new Date().toISOString()
+    trip: createOfflineTripSummary(trip),
+    tripSummary: createOfflineTripSummary(trip),
+    cachedAt: updatedAt
   };
-
-  const db = await getOfflineDb();
-  await db.put("cachedTrips", nextRecord);
-  return cloneOfflineValue(nextRecord);
+  const nextDetail: CachedTripDetailsRecord = {
+    ...(detail ?? {
+      cacheKey,
+      tripId: input.tripId,
+      userId: normalizedUserId,
+      itineraryRevision: trip.itineraryRevision,
+      source: "trip_detail" as const
+    }),
+    trip,
+    itinerary: trip.itinerary ?? null,
+    route: trip.route ?? null,
+    accommodation: trip.accommodation ?? null,
+    cachedAt: updatedAt
+  };
+  await putTripSnapshotRecords(db, nextRecord, nextDetail);
+  return cloneOfflineValue({ ...nextRecord, trip });
 }
 
 export async function cacheChecklistSnapshot(input: {
@@ -566,9 +603,9 @@ export async function purgeStaleOfflineData(
   }
   const db = await getOfflineDb();
   const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
-  const records = await db.getAll("cachedTrips");
+  const records = await getCachedTripRecordsForUser(db, normalizedUserId);
   const stale = records.filter(
-    (record) => record.userId === normalizedUserId && Date.parse(record.cachedAt) < cutoff
+    (record) => Date.parse(record.cachedAt) < cutoff
   );
   await Promise.all(stale.map((record) => deleteCachedTrip(record.tripId, normalizedUserId)));
   return stale.length;
@@ -719,6 +756,43 @@ export function tripCacheKey(userId: string, tripId: string) {
 
 export function travelDayCacheKey(userId: string, tripId: string, date: string) {
 	return `private:${userId.trim()}:${tripId}:${date}`;
+}
+
+async function getCachedTripRecordsForUser(db: OfflineDatabase, userId: string) {
+  // The index is present in v5; the fallback keeps lightweight test doubles and
+  // pre-upgrade browser tabs working without a broad cache scan at runtime.
+  if (typeof db.getAllFromIndex === "function") {
+    return db.getAllFromIndex("cachedTrips", "by_userId", userId);
+  }
+  const records = await db.getAll("cachedTrips");
+  return records.filter((record) => record.userId === userId);
+}
+
+async function putTripSnapshotRecords(
+  db: OfflineDatabase,
+  record: CachedTripRecord,
+  detail: CachedTripDetailsRecord
+) {
+  if (typeof db.transaction === "function") {
+    const transaction = db.transaction(["cachedTrips", "cachedTripDetails"], "readwrite");
+    await transaction.objectStore("cachedTrips").put(record);
+    await transaction.objectStore("cachedTripDetails").put(detail);
+    await transaction.done;
+    return;
+  }
+
+  await Promise.all([db.put("cachedTrips", record), db.put("cachedTripDetails", detail)]);
+}
+
+function createOfflineTripSummary(trip: Trip): Trip {
+  const {
+    accommodation: _accommodation,
+    creationMetadata: _creationMetadata,
+    itinerary: _itinerary,
+    route: _route,
+    ...summary
+  } = trip;
+  return cloneOfflineValue(summary);
 }
 
 export function createOfflineId(prefix: string) {

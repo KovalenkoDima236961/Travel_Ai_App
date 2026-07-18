@@ -3,6 +3,7 @@
 import { ReactNode, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDocumentVisibility } from "@/hooks/useDocumentVisibility";
 import { cn } from "@/shared/lib/cn";
 import { ApiError } from "@/shared/api/client";
 import {
@@ -92,56 +93,76 @@ function connectionTile(label: string, ok: boolean | undefined, okLabel: string,
 
 export function OpsPageContent() {
   const queryClient = useQueryClient();
+  const documentVisible = useDocumentVisibility();
+  const refreshInterval = documentVisible ? OPS_REFRESH_INTERVAL : false;
   const [filters, setFilters] = useState<OpsJobFilters>({});
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const summary = useQuery({
     queryKey: opsKeys.summary,
     queryFn: getOpsJobSummary,
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const jobs = useQuery({
     queryKey: opsKeys.jobs(filters),
     queryFn: () => getOpsJobs(filters),
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const selectedJob = useQuery({
     queryKey: opsKeys.job(selectedJobId),
     queryFn: () => getOpsJob(selectedJobId ?? ""),
     enabled: Boolean(selectedJobId),
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const worker = useQuery({
     queryKey: opsKeys.worker,
     queryFn: getWorkerStatus,
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const queues = useQuery({
     queryKey: opsKeys.queues,
     queryFn: getQueuesStatus,
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const dlq = useQuery({
     queryKey: opsKeys.dlq,
     queryFn: () => getDlqMessages(20),
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const providers = useQuery({
     queryKey: opsKeys.providers,
     queryFn: getProviderStatus,
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const providerQuotas = useQuery({
     queryKey: opsKeys.providerQuotas(),
     queryFn: () => getProviderQuotas(),
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const [selectedQuotaProvider, setSelectedQuotaProvider] = useState<string | null>(null);
   const quotaDetail = useQuery({
     queryKey: opsKeys.providerQuotaDetail(selectedQuotaProvider),
     queryFn: () => getProviderQuotaDetail(selectedQuotaProvider ?? ""),
     enabled: Boolean(selectedQuotaProvider),
-    refetchInterval: OPS_REFRESH_INTERVAL
+    staleTime: OPS_REFRESH_INTERVAL,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: false
   });
   const resetQuotaMutation = useMutation({
     mutationFn: (provider: string) => resetProviderQuotaDev(provider),

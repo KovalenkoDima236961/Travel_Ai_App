@@ -17,12 +17,15 @@ import type {
 } from "@/lib/offline/types";
 
 const DB_NAME = "travel-ai-offline-v1";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 interface TravelAIOfflineDB extends DBSchema {
   cachedTrips: {
     key: string;
     value: CachedTripRecord;
+    indexes: {
+      by_userId: string;
+    };
   };
   cachedTripDetails: {
     key: string;
@@ -127,11 +130,15 @@ export function getOfflineDb(): Promise<OfflineDatabase> {
   }
 
   dbPromise ??= openDB<TravelAIOfflineDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (db.objectStoreNames.contains("cachedTrips")) {
-        db.deleteObjectStore("cachedTrips");
+    upgrade(db, _oldVersion, _newVersion, transaction) {
+      // Keep existing user-scoped offline data during schema upgrades. Older
+      // versions recreated this store, which made a cache migration expensive.
+      const cachedTrips = db.objectStoreNames.contains("cachedTrips")
+        ? transaction.objectStore("cachedTrips")
+        : db.createObjectStore("cachedTrips", { keyPath: "cacheKey" });
+      if (!cachedTrips.indexNames.contains("by_userId")) {
+        cachedTrips.createIndex("by_userId", "userId");
       }
-      db.createObjectStore("cachedTrips", { keyPath: "cacheKey" });
 
       if (!db.objectStoreNames.contains("cachedTripDetails")) {
         const store = db.createObjectStore("cachedTripDetails", { keyPath: "cacheKey" });
