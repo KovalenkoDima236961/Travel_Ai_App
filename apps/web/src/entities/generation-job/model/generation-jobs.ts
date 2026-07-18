@@ -32,6 +32,9 @@ export type GenerationJob = {
   generationQuality?: GenerationQuality | null;
   errorCode?: string | null;
   errorMessage?: string | null;
+  errorMessageSafe?: string | null;
+  canRetry?: boolean;
+  retryRecommendedMode?: "simpler_request" | "retry" | null;
   resultItineraryRevision?: number | null;
   createdAt: string;
   startedAt?: string | null;

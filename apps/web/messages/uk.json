@@ -862,5 +862,23 @@
     "eyebrow": "Дані й приватність",
     "title": "Ваші дані, завантаження й очищення",
     "description": "Експорти приватні та тимчасові. Перед очищенням завжди пояснюється його обсяг."
+  },
+  "tripCreation": {
+    "whereWhen": "Куди і коли?",
+    "who": "Хто їде?",
+    "budgetStyle": "Бюджет і стиль",
+    "routeTransport": "Маршрут і транспорт",
+    "reviewGenerate": "Перевірити й згенерувати",
+    "advancedOptions": "Розширені параметри",
+    "createAndGenerate": "Створити подорож і згенерувати маршрут",
+    "createWithoutGenerating": "Створити подорож без генерації"
+  },
+  "generationExperience": {
+    "creating": "Створюємо ваш маршрут",
+    "ready": "Ваш маршрут готовий",
+    "whatWereDoing": "Що ми робимо",
+    "useSimplerRequest": "Використати простіший запит",
+    "copyErrorCode": "Скопіювати код помилки",
+    "needsReview": "Потрібна перевірка"
   }
 }

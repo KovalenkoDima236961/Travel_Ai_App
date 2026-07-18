@@ -222,6 +222,22 @@ export function getRouteValidationWarnings(route: TripRoute, totalDays = 1): Rou
       warnings.push({ code: `missing_stop_${index}`, message: `Stop ${index + 1} needs a destination.`, severity: "error" });
     }
   }
+  const normalizedStops = new Set<string>();
+  for (const stop of route.stops) {
+    const key = stop.destination.trim().toLocaleLowerCase();
+    if (!key) {
+      continue;
+    }
+    if (normalizedStops.has(key)) {
+      warnings.push({
+        code: "duplicate_stops",
+        message: "This route has duplicate stops.",
+        severity: "error"
+      });
+      break;
+    }
+    normalizedStops.add(key);
+  }
   const avoidModes = new Set(route.preferences?.avoidModes ?? []);
   for (const leg of route.legs ?? []) {
     if (avoidModes.has(leg.mode as TransportMode)) {

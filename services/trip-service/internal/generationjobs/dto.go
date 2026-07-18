@@ -65,13 +65,19 @@ type JobResponse struct {
 	ResultPayload             json.RawMessage            `json:"resultPayload,omitempty"`
 	GenerationQuality         any                        `json:"generationQuality,omitempty"`
 	ErrorCode                 *string                    `json:"errorCode"`
-	ErrorMessage              *string                    `json:"errorMessage"`
-	ResultItineraryRevision   *int                       `json:"resultItineraryRevision"`
-	CreatedAt                 time.Time                  `json:"createdAt"`
-	StartedAt                 *time.Time                 `json:"startedAt"`
-	CompletedAt               *time.Time                 `json:"completedAt"`
-	CancelledAt               *time.Time                 `json:"cancelledAt"`
-	UpdatedAt                 time.Time                  `json:"updatedAt"`
+	// ErrorMessage is retained internally for operations logging. The public job
+	// response deliberately exposes only ErrorMessageSafe so provider payloads,
+	// raw model output, and implementation details never reach the browser.
+	ErrorMessage            *string    `json:"-"`
+	ErrorMessageSafe        *string    `json:"errorMessageSafe,omitempty"`
+	CanRetry                bool       `json:"canRetry"`
+	RetryRecommendedMode    *string    `json:"retryRecommendedMode,omitempty"`
+	ResultItineraryRevision *int       `json:"resultItineraryRevision"`
+	CreatedAt               time.Time  `json:"createdAt"`
+	StartedAt               *time.Time `json:"startedAt"`
+	CompletedAt             *time.Time `json:"completedAt"`
+	CancelledAt             *time.Time `json:"cancelledAt"`
+	UpdatedAt               time.Time  `json:"updatedAt"`
 }
 
 func NewJobEnvelope(job *entity.GenerationJob) JobEnvelope {
@@ -102,6 +108,9 @@ func NewJobResponse(job *entity.GenerationJob) JobResponse {
 		GenerationQuality:         generationQualityFromPayload(job.ResultPayload),
 		ErrorCode:                 job.ErrorCode,
 		ErrorMessage:              job.ErrorMessage,
+		ErrorMessageSafe:          safeGenerationErrorMessage(job.ErrorCode),
+		CanRetry:                  generationJobCanRetry(job),
+		RetryRecommendedMode:      retryRecommendedMode(job),
 		ResultItineraryRevision:   job.ResultItineraryRevision,
 		CreatedAt:                 job.CreatedAt,
 		StartedAt:                 job.StartedAt,
@@ -109,6 +118,53 @@ func NewJobResponse(job *entity.GenerationJob) JobResponse {
 		CancelledAt:               job.CancelledAt,
 		UpdatedAt:                 job.UpdatedAt,
 	}
+}
+
+func safeGenerationErrorMessage(code *string) *string {
+	if code == nil || *code == "" {
+		return nil
+	}
+	message := "We could not finish this generation. Please try again."
+	switch *code {
+	case ErrorItineraryConflict:
+		message = "This trip changed while generation was running. Reload the latest itinerary before trying again."
+	case "ai_invalid_json", "ai_generation_schema_invalid", "ai_output_invalid":
+		message = "The AI response could not be converted into a valid itinerary."
+	case "ai_validation_failed", "ai_generation_validation_failed":
+		message = "The generated itinerary did not pass the app’s consistency checks."
+	case "ai_repair_failed", "ai_generation_repair_failed":
+		message = "The itinerary needed fixes that could not be applied automatically."
+	case ErrorProviderRateLimited, ErrorProviderQuotaExceeded:
+		message = "A planning provider has reached a temporary limit."
+	case ErrorProviderLimitsUnavailable:
+		message = "A planning provider is temporarily unavailable."
+	case "permission_denied", "forbidden":
+		message = "You do not have permission to generate this itinerary."
+	case "missing_required_trip_data", ErrorValidationFailed:
+		message = "Some trip details needed for generation are missing or invalid."
+	}
+	return &message
+}
+
+func generationJobCanRetry(job *entity.GenerationJob) bool {
+	if job.Status != entity.GenerationJobStatusFailed || job.ErrorCode == nil {
+		return false
+	}
+	if *job.ErrorCode == "permission_denied" || *job.ErrorCode == "forbidden" {
+		return false
+	}
+	return true
+}
+
+func retryRecommendedMode(job *entity.GenerationJob) *string {
+	if !generationJobCanRetry(job) {
+		return nil
+	}
+	mode := "retry"
+	if job.JobType == entity.GenerationJobTypeFullGeneration {
+		mode = "simpler_request"
+	}
+	return &mode
 }
 
 func generationQualityFromPayload(payload json.RawMessage) any {

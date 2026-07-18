@@ -25,7 +25,12 @@ import { CreateRepairJobDialog, RepairProposalsPanel } from "@/features/trip-rep
 import { EditLockStatus } from "@/features/trip-edit-lock";
 import { SoftEditLockWarningDialog } from "@/features/trip-edit-lock";
 import { ExportTripMenu } from "@/features/trip-export";
-import { GenerateItineraryButton, GenerationJobStatusCard } from "@/features/trip-generation";
+import {
+  GenerateItineraryButton,
+  GenerationJobStatusCard,
+  PartialItineraryWarning,
+  PostGenerationReviewPanel
+} from "@/features/trip-generation";
 import { MergeConflictDialog } from "@/components/itinerary/merge/MergeConflictDialog";
 import { ItemCommentsPanel } from "@/features/trip-comments";
 import { TripCommentsSummary } from "@/features/trip-comments";
@@ -253,6 +258,8 @@ export function TripDetailPageContent() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const tripId = params.id;
+  const requestedGenerationJobId = searchParams.get("generationJob");
+  const generationStartFailed = searchParams.get("generationStart") === "failed";
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { workspaces } = useWorkspaces();
@@ -280,7 +287,9 @@ export function TripDetailPageContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [deepLinkMessage, setDeepLinkMessage] = useState<string | null>(null);
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
-  const [activeGenerationJobId, setActiveGenerationJobId] = useState<string | null>(null);
+  const [activeGenerationJobId, setActiveGenerationJobId] = useState<string | null>(
+    () => requestedGenerationJobId
+  );
   const [optimizingDayNumber, setOptimizingDayNumber] = useState<number | null>(null);
   const [budgetOptimizationDialogOpen, setBudgetOptimizationDialogOpen] = useState(false);
   const [budgetOptimizationDefaultDayNumber, setBudgetOptimizationDefaultDayNumber] = useState<
@@ -309,6 +318,19 @@ export function TripDetailPageContent() {
   );
   const sectionEnabled = (...sections: string[]) =>
     sections.some((section) => loadedSections.has(section));
+  const generationReviewRequested = Boolean(activeGenerationJobId || requestedGenerationJobId);
+
+  useEffect(() => {
+    if (requestedGenerationJobId) {
+      setActiveGenerationJobId(requestedGenerationJobId);
+    }
+  }, [requestedGenerationJobId]);
+
+  useEffect(() => {
+    if (generationStartFailed) {
+      setRegenerationError("Your trip was created, but we could not start AI generation. You can try again below.");
+    }
+  }, [generationStartFailed]);
 
   const offlineSync = useOfflineSync({
     userId: currentUserId,
@@ -566,7 +588,9 @@ export function TripDetailPageContent() {
   const budgetSummaryQuery = useQuery({
     queryKey: budgetKeys.summary(tripId),
     queryFn: () => getTripBudgetSummary(tripId),
-    enabled: onlineActionsEnabled && sectionEnabled("budget", "itinerary")
+    enabled:
+      onlineActionsEnabled &&
+      (sectionEnabled("budget", "itinerary") || generationReviewRequested)
   });
 
   // Comments are a private collaboration feature: anyone who can view this
@@ -640,6 +664,15 @@ export function TripDetailPageContent() {
   const hasActiveGenerationJob = Boolean(
     activeGenerationJob && isActiveGenerationJob(activeGenerationJob)
   );
+  const completedFullGenerationJob =
+    activeGenerationJob?.jobType === "full_generation" &&
+    activeGenerationJob.status === "completed"
+      ? activeGenerationJob
+      : null;
+  const incompleteItineraryDayCount = currentItinerary
+    ? Math.max(0, (displayedTrip?.days ?? 0) - currentItinerary.days.length) +
+      currentItinerary.days.filter((day) => day.items.length === 0).length
+    : 0;
   const activeTripRepairJob =
     (generationJobsQuery.data ?? []).find(
       (job) => job.jobType === "policy_repair" && isActiveGenerationJob(job)
@@ -665,7 +698,7 @@ export function TripDetailPageContent() {
     currency: budgetSummaryQuery.data?.currency ?? displayedTrip?.budgetCurrency ?? "EUR",
     enabled:
       onlineActionsEnabled &&
-      sectionEnabled("budget") &&
+      (sectionEnabled("budget") || generationReviewRequested) &&
       Boolean(tripId) &&
       Boolean(tripAccess) &&
       canUsePrivateCollaboration
@@ -673,7 +706,7 @@ export function TripDetailPageContent() {
   const tripHealthQuery = useTripHealth(tripId, {
     enabled:
       onlineActionsEnabled &&
-      sectionEnabled("health", "route") &&
+      (sectionEnabled("health", "route") || generationReviewRequested) &&
       Boolean(tripId) &&
       Boolean(tripAccess) &&
       canUsePrivateCollaboration
@@ -1890,6 +1923,60 @@ export function TripDetailPageContent() {
     }
   }
 
+  async function retryFailedGenerationJob(job: GenerationJob, simplerRequest = false) {
+    if (
+      hasActiveGenerationJob ||
+      ![
+        "full_generation",
+        "day_regeneration",
+        "item_regeneration",
+        "quality_improvement_day",
+        "quality_improvement_item"
+      ].includes(job.jobType)
+    ) {
+      return;
+    }
+    try {
+      setRegenerationError(null);
+      const nextJob = await createGenerationJobMutation.mutateAsync({
+        jobType: job.jobType,
+        expectedItineraryRevision: trip.itineraryRevision,
+        instruction: simplerRequest
+          ? "Create a simple, realistic itinerary using the core trip details. Avoid optional complexity."
+          : job.instruction ?? undefined,
+        ...(job.dayNumber != null ? { dayNumber: job.dayNumber } : {}),
+        ...(job.itemIndex != null ? { itemIndex: job.itemIndex } : {})
+      });
+      handleGenerationJobCreated(nextJob);
+      await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
+    } catch (error) {
+      if (isItineraryConflictError(error)) {
+        setRegenerationError("This itinerary changed. Reload the latest version before trying again.");
+        await tripQuery.refetch();
+        return;
+      }
+      setRegenerationError(getErrorMessage(error, "Could not restart generation."));
+    }
+  }
+
+  async function regenerateIncompleteItinerary() {
+    if (hasActiveGenerationJob) {
+      return;
+    }
+    try {
+      const job = await createGenerationJobMutation.mutateAsync({
+        jobType: "full_generation",
+        expectedItineraryRevision: trip.itineraryRevision,
+        instruction:
+          "Regenerate the missing or empty days while keeping the existing itinerary realistic and consistent."
+      });
+      handleGenerationJobCreated(job);
+      await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
+    } catch (error) {
+      setRegenerationError(getErrorMessage(error, "Could not regenerate the incomplete itinerary."));
+    }
+  }
+
   function openBudgetOptimization(dayNumber?: number | null) {
     if (!canMutateTrip || !trip.itinerary) {
       return;
@@ -2504,8 +2591,42 @@ export function TripDetailPageContent() {
                     access?.role === "owner")
                 }
                 isCancelling={cancelGenerationJobMutation.isPending}
+                isRetrying={createGenerationJobMutation.isPending}
                 job={activeGenerationJob}
                 onCancel={cancelActiveGenerationJob}
+                onEditDetails={() => {
+                  setLoadedSections((current) => new Set([...current, "route"]));
+                  document.getElementById("route")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                onKeepCurrent={() => setActiveGenerationJobId(null)}
+                onReloadLatest={() => {
+                  setActiveGenerationJobId(null);
+                  void tripQuery.refetch();
+                }}
+                onRetry={() => void retryFailedGenerationJob(activeGenerationJob)}
+                onSimplerRequest={
+                  activeGenerationJob.jobType === "full_generation"
+                    ? () => void retryFailedGenerationJob(activeGenerationJob, true)
+                    : undefined
+                }
+              />
+            ) : null}
+
+            {completedFullGenerationJob && trip.itinerary ? (
+              <PostGenerationReviewPanel
+                budgetConfidence={budgetConfidenceQuery.data ?? null}
+                budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
+                health={tripHealthQuery.data ?? summaryHealth}
+                onOpenItinerary={() =>
+                  document.getElementById("itinerary")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                quality={
+                  completedFullGenerationJob.generationQuality ??
+                  completedFullGenerationJob.resultPayload?.generationQuality ??
+                  null
+                }
+                trip={trip}
+                verification={tripVerificationQuery.data ?? null}
               />
             ) : null}
 
@@ -2622,7 +2743,15 @@ export function TripDetailPageContent() {
             ) : null}
 
             {trip.status === "COMPLETED" && trip.itinerary ? (
-              <div className="flex flex-col gap-4" data-load-section="itinerary">
+              <div id="itinerary" className="flex flex-col gap-4" data-load-section="itinerary">
+                {incompleteItineraryDayCount > 0 ? (
+                  <PartialItineraryWarning
+                    canEdit={canEditItinerary && !isEditing}
+                    missingDayCount={incompleteItineraryDayCount}
+                    onEdit={startEditing}
+                    onRegenerate={() => void regenerateIncompleteItinerary()}
+                  />
+                ) : null}
                 <section
                   id="route"
                   className="scroll-mt-24 space-y-4"
@@ -3010,7 +3139,7 @@ export function TripDetailPageContent() {
             {/* Trip tools: interactive panels relocated from the old sidebar. They
                 retain their existing styling and full logic; the warm summary cards
                 in the left rail and hero deep-link here. */}
-            <section className="mt-2 flex flex-col gap-4 border-t border-sand-300 pt-6">
+            <section id="trip-tools" className="mt-2 flex flex-col gap-4 border-t border-sand-300 pt-6">
               <h2 className="font-newsreader text-[22px] font-semibold tracking-[-0.01em] text-cocoa-900">
                 Trip tools
               </h2>
@@ -3038,15 +3167,17 @@ export function TripDetailPageContent() {
                   trip={trip}
                 />
               </DeferredSection>
-              <AccommodationPanel
-                canEdit={canMutateTrip}
-                onOpenCostSplit={
-                  canMutateTrip && trip.accommodation?.estimatedCost?.amount != null
-                    ? () => setCostSplitTarget({ type: "accommodation" })
-                    : undefined
-                }
-                trip={trip}
-              />
+              <div id="accommodation" className="scroll-mt-24">
+                <AccommodationPanel
+                  canEdit={canMutateTrip}
+                  onOpenCostSplit={
+                    canMutateTrip && trip.accommodation?.estimatedCost?.amount != null
+                      ? () => setCostSplitTarget({ type: "accommodation" })
+                      : undefined
+                  }
+                  trip={trip}
+                />
+              </div>
               {canSaveTemplate ? (
                 <div>
                   <button
@@ -3264,7 +3395,7 @@ function DeferredSection({
   section: string;
 }) {
   return (
-    <div data-load-section={section}>
+    <div id={section} data-load-section={section}>
       {active ? (
         children
       ) : (

@@ -140,7 +140,10 @@ Repairable issues are sent to AI Planning Service
 times. If repair succeeds, Trip Service saves the repaired itinerary and stores
 `metadata.generationQuality` on the itinerary version. Async generation jobs
 copy the latest `generationQuality` into `resultPayload` and expose it directly
-as `generationQuality` in job responses.
+as `generationQuality` in job responses. Failed job responses expose only safe
+recovery fields: `errorCode`, `errorMessageSafe`, `canRetry`, and (where useful)
+`retryRecommendedMode`. Raw model/provider errors are retained for protected
+operations logging but are not sent to trip clients.
 
 Configuration:
 

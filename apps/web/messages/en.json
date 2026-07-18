@@ -1407,5 +1407,23 @@
     "eyebrow": "Data & privacy",
     "title": "Your data, downloads, and cleanup",
     "description": "Exports stay private and time-limited. Cleanup actions always explain their scope before they run."
+  },
+  "tripCreation": {
+    "whereWhen": "Where and when?",
+    "who": "Who is going?",
+    "budgetStyle": "Budget and style",
+    "routeTransport": "Route and transport",
+    "reviewGenerate": "Review and generate",
+    "advancedOptions": "Advanced options",
+    "createAndGenerate": "Create trip and generate itinerary",
+    "createWithoutGenerating": "Create trip without generating"
+  },
+  "generationExperience": {
+    "creating": "Creating your itinerary",
+    "ready": "Your itinerary is ready",
+    "whatWereDoing": "What we’re doing",
+    "useSimplerRequest": "Use simpler request",
+    "copyErrorCode": "Copy error code",
+    "needsReview": "Needs review"
   }
 }

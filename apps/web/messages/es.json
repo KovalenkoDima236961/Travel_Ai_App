@@ -863,5 +863,23 @@
     "eyebrow": "Datos y privacidad",
     "title": "Tus datos, descargas y limpieza",
     "description": "Las exportaciones son privadas y temporales. Las acciones de limpieza explican su alcance antes de ejecutarse."
+  },
+  "tripCreation": {
+    "whereWhen": "¿Dónde y cuándo?",
+    "who": "¿Quién viaja?",
+    "budgetStyle": "Presupuesto y estilo",
+    "routeTransport": "Ruta y transporte",
+    "reviewGenerate": "Revisar y generar",
+    "advancedOptions": "Opciones avanzadas",
+    "createAndGenerate": "Crear viaje y generar itinerario",
+    "createWithoutGenerating": "Crear viaje sin generar"
+  },
+  "generationExperience": {
+    "creating": "Creando tu itinerario",
+    "ready": "Tu itinerario está listo",
+    "whatWereDoing": "Lo que estamos haciendo",
+    "useSimplerRequest": "Usar una solicitud más simple",
+    "copyErrorCode": "Copiar código de error",
+    "needsReview": "Requiere revisión"
   }
 }
