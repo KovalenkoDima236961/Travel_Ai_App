@@ -857,5 +857,10 @@
     "level": { "ready": "Prêt", "mostly_ready": "Presque prêt", "needs_review": "À vérifier", "not_ready": "Pas prêt" },
     "status": { "verified": "Vérifié", "needs_review": "À vérifier", "estimated": "Estimé", "stale": "Obsolète", "missing": "Manquant", "unavailable": "Indisponible", "failed": "Échec", "not_applicable": "Sans objet" },
     "actions": { "refresh_weather": "Actualiser la météo", "recheck_transport": "Revérifier le transport", "check_availability": "Vérifier la disponibilité", "refresh_place_details": "Actualiser les informations du lieu", "refresh_price": "Actualiser le prix", "review_opening_hours": "Vérifier les horaires", "update_calendar_sync": "Mettre à jour la synchronisation du calendrier", "add_accommodation": "Ajouter un hébergement", "attach_place": "Associer un lieu", "open_route": "Ouvrir l’itinéraire", "open_budget": "Ouvrir le budget", "open_itinerary_item": "Ouvrir l’élément d’itinéraire" }
+  },
+  "dataPrivacy": {
+    "eyebrow": "Données et confidentialité",
+    "title": "Vos données, téléchargements et nettoyage",
+    "description": "Les exportations sont privées et temporaires. Les actions de nettoyage expliquent toujours leur portée avant de s’exécuter."
   }
 }

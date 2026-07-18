@@ -31,6 +31,28 @@ type Config struct {
 	Postgres      postgres.Config     `yaml:"postgres" validate:"required"`
 	AuthUsers     AuthUsersConfig     `yaml:"auth_users" validate:"required"`
 	Notifications NotificationsConfig `yaml:"notifications" validate:"required"`
+	DataExports   DataExportsConfig   `yaml:"data_exports"`
+	TripExports   TripExportsConfig   `yaml:"trip_exports"`
+}
+
+// DataExportsConfig controls private, authenticated account export packages.
+// It has no public URL, cloud-storage, or deletion controls.
+type DataExportsConfig struct {
+	Enabled                bool   `yaml:"enabled" env:"DATA_EXPORT_ENABLED" env-default:"true"`
+	StorageDir             string `yaml:"storage_dir" env:"DATA_EXPORT_STORAGE_DIR" env-default:"./data/exports"`
+	TTLHours               int    `yaml:"ttl_hours" env:"DATA_EXPORT_TTL_HOURS" env-default:"24" validate:"min=1,max=168"`
+	MaxAccountExportMB     int    `yaml:"max_account_export_mb" env:"DATA_EXPORT_MAX_ACCOUNT_EXPORT_MB" env-default:"250" validate:"min=1,max=500"`
+	CleanupEnabled         bool   `yaml:"cleanup_enabled" env:"DATA_EXPORT_CLEANUP_ENABLED" env-default:"true"`
+	CleanupIntervalMinutes int    `yaml:"cleanup_interval_minutes" env:"DATA_EXPORT_CLEANUP_INTERVAL_MINUTES" env-default:"60" validate:"min=1,max=1440"`
+}
+
+// TripExportsConfig controls the private service-to-service handoff that adds
+// authorized Trip Service archives to an account package.
+type TripExportsConfig struct {
+	Enabled        bool   `yaml:"enabled" env:"ACCOUNT_EXPORT_TRIP_DATA_ENABLED" env-default:"true"`
+	TripServiceURL string `yaml:"trip_service_url" env:"TRIP_SERVICE_URL" env-default:"http://trip-service:8080"`
+	ServiceToken   string `yaml:"service_token" env:"TRIP_SERVICE_TOKEN" env-default:"dev-internal-service-token"`
+	TimeoutSeconds int    `yaml:"timeout_seconds" env:"TRIP_EXPORT_TIMEOUT_SECONDS" env-default:"60" validate:"min=1,max=300"`
 }
 
 // HTTPServer holds the HTTP listener configuration.
@@ -184,6 +206,7 @@ func (c *Config) validateServiceURLs() error {
 		{"AUTH_SERVICE_URL", c.AuthUsers.AuthServiceURL, true, false},
 		{"NOTIFICATION_SERVICE_URL", c.Notifications.NotificationServiceURL, c.Notifications.Enabled, false},
 		{"PUBLIC_WEB_BASE_URL", c.Notifications.PublicWebBaseURL, c.Notifications.Enabled, c.IsProduction()},
+		{"TRIP_SERVICE_URL", c.TripExports.TripServiceURL, c.TripExports.Enabled, false},
 	}
 	for _, check := range checks {
 		if !check.enabled {
@@ -210,9 +233,26 @@ func (c *Config) validateServiceURLs() error {
 		}
 		c.Notifications.NotificationServiceToken = token
 	}
+	if c.TripExports.Enabled {
+		token := strings.TrimSpace(c.TripExports.ServiceToken)
+		if c.IsStrictEnv() && isUnsafeSecret(token, DefaultDevelopmentInternalToken) {
+			// The Trip handoff uses the same internal trust boundary as existing
+			// workspace calls. This keeps established production deployments
+			// compatible while still rejecting a weak effective token below.
+			token = c.Internal.ServiceToken
+		}
+		if token == "" {
+			return fmt.Errorf("TRIP_SERVICE_TOKEN is required when account trip exports are enabled")
+		}
+		if c.IsStrictEnv() && (isUnsafeSecret(token, DefaultDevelopmentInternalToken) || len(token) < MinProductionTokenLength) {
+			return fmt.Errorf("TRIP_SERVICE_TOKEN must be a non-development token of at least %d characters in %s", MinProductionTokenLength, c.Env)
+		}
+		c.TripExports.ServiceToken = token
+	}
 	c.AuthUsers.AuthServiceURL = strings.TrimRight(strings.TrimSpace(c.AuthUsers.AuthServiceURL), "/")
 	c.Notifications.NotificationServiceURL = strings.TrimRight(strings.TrimSpace(c.Notifications.NotificationServiceURL), "/")
 	c.Notifications.PublicWebBaseURL = strings.TrimRight(strings.TrimSpace(c.Notifications.PublicWebBaseURL), "/")
+	c.TripExports.TripServiceURL = strings.TrimRight(strings.TrimSpace(c.TripExports.TripServiceURL), "/")
 	return nil
 }
 

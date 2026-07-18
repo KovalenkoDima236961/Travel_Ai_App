@@ -91,6 +91,7 @@ public VAPID key route. The user ID always comes from the JWT `sub`.
 | `GET` | `/notifications/stream` | Authenticated Server-Sent Events stream. |
 | `PATCH` | `/notifications/{id}/read` | Mark one notification read. |
 | `PATCH` | `/notifications/read-all` | Mark all current user's notifications read. |
+| `POST` | `/notifications/cleanup` | Permanently delete selected old notifications; defaults to read notifications only. |
 | `GET` | `/notifications/preferences` | Effective in-app/email/push preference matrix. |
 | `PUT` | `/notifications/preferences` | Upsert preference rows. |
 | `GET` | `/notifications/push/public-key` | VAPID public key and enabled state. |
@@ -106,6 +107,10 @@ public VAPID key route. The user ID always comes from the JWT `sub`.
 
 Internal routes are for the private service network only and must not be exposed
 to browsers.
+
+Notification cleanup is deliberately explicit: records are hard-deleted, no
+preference settings are changed, and unread notifications are kept unless the
+caller passes `onlyRead: false`.
 
 ## Notification Channels
 

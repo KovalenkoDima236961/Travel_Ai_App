@@ -50,6 +50,15 @@ trip_library:
   ready_health_score_threshold: 80
   ready_verification_score_threshold: 75
 
+data_exports:
+  enabled: true
+  storage_dir: ./data/exports
+  ttl_hours: 24
+  max_trip_export_mb: 100
+  include_receipt_files_default: false
+  cleanup_enabled: true
+  cleanup_interval_minutes: 60
+
 trip_health:
   enabled: true
   cache_ttl_seconds: 60

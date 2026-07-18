@@ -14,6 +14,7 @@ import (
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/auth"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/dataexport"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/domain/errs"
 )
@@ -43,16 +44,25 @@ type repository interface {
 
 // Service holds profile and preferences business logic.
 type Service struct {
-	repo repository
-	log  *zap.Logger
+	repo                repository
+	log                 *zap.Logger
+	dataExportStorage   *dataexport.LocalStorage
+	dataExportConfig    dataexport.Config
+	tripPackageProvider accountTripPackageProvider
 }
 
+type Option func(*Service)
+
 // New constructs the user service.
-func New(repo repository, log *zap.Logger) *Service {
+func New(repo repository, log *zap.Logger, opts ...Option) *Service {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Service{repo: repo, log: log}
+	svc := &Service{repo: repo, log: log, dataExportConfig: dataexport.DefaultConfig()}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // GetProfile returns the current user's profile, creating defaults when needed.

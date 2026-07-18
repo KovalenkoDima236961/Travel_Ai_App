@@ -137,6 +137,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/library/insights", h.GetTripLibraryInsights)
 		r.Get("/shared-with-me", h.ListSharedTrips)
 		r.Get("/{id}", h.Get)
+		r.Post("/{id}/export/archive", h.CreateTripArchiveExport)
+		r.Get("/{id}/export/{exportId}", h.GetTripExport)
+		r.Get("/{id}/export/{exportId}/download", h.DownloadTripExport)
 		r.Post("/{id}/archive", h.ArchiveTrip)
 		r.Post("/{id}/restore", h.RestoreTrip)
 		r.Get("/{id}/command-center-summary", h.GetCommandCenterSummary)
@@ -206,9 +209,11 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/cost-splitting/summary", h.GetCostSplittingSummary)
 		r.Get("/{id}/expenses", h.ListTripExpenses)
 		r.Post("/{id}/expenses", h.CreateTripExpense)
+		r.Get("/{id}/expenses/export.csv", h.ExportExpensesCSV)
 		r.Get("/{id}/expenses/summary", h.GetTripExpenseSummary)
 		r.Post("/{id}/expenses/receipts/upload", h.UploadReceipt)
 		r.Get("/{id}/expenses/receipts", h.ListReceipts)
+		r.Get("/{id}/expenses/receipts/export-metadata.csv", h.ExportReceiptMetadataCSV)
 		r.Get("/{id}/expenses/receipts/{receiptId}", h.GetReceipt)
 		r.Get("/{id}/expenses/receipts/{receiptId}/file", h.GetReceiptFile)
 		r.Post("/{id}/expenses/receipts/{receiptId}/extract", h.ExtractReceipt)
@@ -219,10 +224,12 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Delete("/{id}/expenses/{expenseId}", h.DeleteTripExpense)
 		r.Post("/{id}/expenses/{expenseId}/receipts", h.AttachReceiptToExpense)
 		r.Get("/{id}/settlements", h.GetTripSettlements)
+		r.Get("/{id}/settlements/export.csv", h.ExportSettlementsCSV)
 		r.Post("/{id}/settlements/recalculate", h.RecalculateTripSettlements)
 		r.Post("/{id}/settlements/{settlementId}/mark-paid", h.MarkTripSettlementPaid)
 		r.Post("/{id}/settlements/{settlementId}/cancel", h.CancelTripSettlement)
 		r.Put("/{id}/budget", h.UpdateTripBudget)
+		r.Get("/{id}/budget/export.csv", h.ExportBudgetCSV)
 		r.Get("/{id}/share", h.GetShare)
 		r.Post("/{id}/share", h.CreateShare)
 		r.Patch("/{id}/share", h.UpdateShare)
@@ -342,6 +349,7 @@ func (h *Handler) GetCommandCenterSummary(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) RegisterInternalRoutes(r chi.Router) {
 	r.Post("/internal/reminders/process-due", h.ProcessDueReminders)
+	r.Post("/internal/data-exports/account-package", h.BuildAccountTripPackage)
 }
 
 func (h *Handler) PreviewPlanningConstraints(w http.ResponseWriter, r *http.Request) {

@@ -47,6 +47,10 @@ sequenceDiagram
 | `PUT` | `/users/me/profile` | bearer access token | Replace current user's profile fields. |
 | `GET` | `/users/me/preferences` | bearer access token | Read travel preferences. |
 | `PATCH` | `/users/me/preferences` | bearer access token | Partially update travel preferences. |
+| `POST` | `/users/me/export` | bearer access token | Create a private, short-lived account-service export. |
+| `GET` | `/users/me/export/{exportId}` | bearer access token | Read the authenticated user’s export state. |
+| `GET` | `/users/me/export/{exportId}/download` | bearer access token | Download a completed private ZIP. |
+| `POST` | `/users/me/account-cleanup/request-deletion` | bearer access token | Record a reviewable request; does not delete data automatically. |
 | `POST` | `/workspaces` | bearer access token | Create a workspace and owner membership. |
 | `GET` | `/workspaces` | bearer access token | List active workspaces for current user. |
 | `GET/PATCH/DELETE` | `/workspaces/{workspaceId}` | bearer access token | Read, update, or archive a workspace. |
@@ -130,6 +134,10 @@ make migrate-down
 | `AUTH_SERVICE_URL`, `AUTH_USER_LOOKUP_TIMEOUT_SECONDS` | Auth Service URL/timeout for workspace invitation lookup and member display. |
 | `NOTIFICATION_SERVICE_URL` | Notification Service URL | Best-effort workspace notifications. |
 | `PUBLIC_WEB_BASE_URL` | `http://localhost:3000` | Link base for workspace invitation notifications. |
+| `DATA_EXPORT_*` | private local storage, 24h retention | Enables account-service ZIP jobs and cleanup of generated packages only. |
+
+See [`docs/data-export-portability.md`](../../docs/data-export-portability.md)
+for retention, authorization, and cleanup semantics.
 
 ## Example Calls
 

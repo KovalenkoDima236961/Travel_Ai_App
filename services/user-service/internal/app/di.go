@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/authusers"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/config"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/dataexport"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/handler"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/notifications"
@@ -51,7 +53,26 @@ func buildContainer(
 	}
 
 	repo := userrepo.New(db)
-	svc := service.New(repo, log)
+	exportStorage, err := dataexport.NewLocalStorage(cfg.DataExports.StorageDir)
+	if err != nil {
+		return nil, fmt.Errorf("init data export storage: %w", err)
+	}
+	serviceOptions := []service.Option{service.WithDataExports(exportStorage, dataexport.Config{
+		Enabled: cfg.DataExports.Enabled, StorageDir: cfg.DataExports.StorageDir,
+		TTL:             time.Duration(cfg.DataExports.TTLHours) * time.Hour,
+		MaxAccountBytes: int64(cfg.DataExports.MaxAccountExportMB) * 1024 * 1024,
+	})}
+	if cfg.TripExports.Enabled {
+		tripPackageClient, clientErr := dataexport.NewTripPackageClient(cfg.TripExports.TripServiceURL, cfg.TripExports.ServiceToken, time.Duration(cfg.TripExports.TimeoutSeconds)*time.Second, int64(cfg.DataExports.MaxAccountExportMB)*1024*1024)
+		if clientErr != nil {
+			return nil, fmt.Errorf("init account trip export client: %w", clientErr)
+		}
+		serviceOptions = append(serviceOptions, service.WithAccountTripPackageProvider(tripPackageClient))
+	}
+	svc := service.New(repo, log, serviceOptions...)
+	if cfg.DataExports.CleanupEnabled {
+		shutdown.Add("data-export-cleanup", service.StartAccountExportCleanupLoop(context.Background(), svc, time.Duration(cfg.DataExports.CleanupIntervalMinutes)*time.Minute, log))
+	}
 	userHandler := handler.New(svc, validator, log)
 	authUsersClient, err := authusers.New(authusers.Config{
 		BaseURL:        cfg.AuthUsers.AuthServiceURL,

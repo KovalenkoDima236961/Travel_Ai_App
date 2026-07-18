@@ -305,8 +305,18 @@ Use local Grafana credentials `admin` / `admin`.
 31. Export the private trip and confirm the export includes compact checklist and
     reminder summaries; open the public share and confirm checklist/reminder
     controls, Health section, and Health badge are not available.
-32. Open the `Decisions` section.
-33. As an owner/editor, create a poll named `Which destination?` with three
+32. Open Settings > Data & privacy. Create an account export without receipt
+    files, confirm its status changes to Ready, and download it while signed in.
+    Verify it is not available from a signed-out browser. In a trip's Expenses
+    tools, create a ZIP and an expense CSV; only owner/editor roles should see
+    those controls. Confirm the receipt-file warning appears before opt-in.
+33. In Data & privacy, open each offline cleanup confirmation and confirm its
+    scope is clear. Do not discard pending changes unless the test device can
+    lose them. Run notification cleanup with “Keep unread notifications” on and
+    confirm unread entries remain. Submit an account cleanup request and verify
+    the UI says it was recorded rather than claiming deletion occurred.
+34. Open the `Decisions` section.
+35. As an owner/editor, create a poll named `Which destination?` with three
     options and confirm it appears at the top of the section.
 34. Vote for one option, then change the vote and confirm the selected state and
     result counts update.

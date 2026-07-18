@@ -19,6 +19,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/copilot"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/dataexport"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/editlocks"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/exchangerateclient"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
@@ -393,6 +394,17 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		},
 	))
 	opts = append(opts, service.WithFileScanner(receipts.NoopFileScanner{}))
+	exportStorage, err := dataexport.NewLocalStorage(cfg.DataExports.StorageDir)
+	if err != nil {
+		return nil, fmt.Errorf("init data export storage: %w", err)
+	}
+	opts = append(opts, service.WithDataExports(exportStorage, dataexport.Config{
+		Enabled:                      cfg.DataExports.Enabled,
+		StorageDir:                   cfg.DataExports.StorageDir,
+		TTL:                          time.Duration(cfg.DataExports.TTLHours) * time.Hour,
+		MaxTripBytes:                 int64(cfg.DataExports.MaxTripExportMB) * 1024 * 1024,
+		IncludeReceiptFilesByDefault: cfg.DataExports.IncludeReceiptFilesByDefault,
+	}))
 	svc := service.New(repo, gen, log, opts...)
 	reliability := aivalidation.NewPipeline(
 		aivalidation.NewValidator(aiValidationCfg),
@@ -403,6 +415,11 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	)
 	opts = append(opts, service.WithGenerationReliability(reliability))
 	svc = service.New(repo, gen, log, opts...)
+	if cfg.DataExports.CleanupEnabled {
+		closer.Add("data-export-cleanup", service.StartTripExportCleanupLoop(
+			context.Background(), svc, time.Duration(cfg.DataExports.CleanupIntervalMinutes)*time.Minute, log,
+		))
+	}
 	generationJobsCfg := generationjobs.NormalizeConfig(generationjobs.Config{
 		Enabled:               cfg.GenerationJobs.Enabled,
 		WorkerEnabled:         cfg.GenerationJobs.WorkerEnabled,

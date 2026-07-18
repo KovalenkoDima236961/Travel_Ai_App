@@ -857,5 +857,10 @@
     "level": { "ready": "Готово", "mostly_ready": "Майже готово", "needs_review": "Потрібна перевірка", "not_ready": "Не готово" },
     "status": { "verified": "Перевірено", "needs_review": "Потрібна перевірка", "estimated": "Оцінено", "stale": "Застаріло", "missing": "Відсутнє", "unavailable": "Недоступно", "failed": "Не вдалося", "not_applicable": "Не застосовується" },
     "actions": { "refresh_weather": "Оновити погоду", "recheck_transport": "Перевірити транспорт", "check_availability": "Перевірити доступність", "refresh_place_details": "Оновити дані місця", "refresh_price": "Оновити ціну", "review_opening_hours": "Перевірити години роботи", "update_calendar_sync": "Оновити синхронізацію календаря", "add_accommodation": "Додати помешкання", "attach_place": "Додати місце", "open_route": "Відкрити маршрут", "open_budget": "Відкрити бюджет", "open_itinerary_item": "Відкрити пункт маршруту" }
+  },
+  "dataPrivacy": {
+    "eyebrow": "Дані й приватність",
+    "title": "Ваші дані, завантаження й очищення",
+    "description": "Експорти приватні та тимчасові. Перед очищенням завжди пояснюється його обсяг."
   }
 }

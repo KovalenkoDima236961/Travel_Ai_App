@@ -132,6 +132,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		}
 		r.Patch("/read-all", h.MarkAllRead)
 		r.Patch("/read-trip", h.MarkTripRead)
+		r.Post("/cleanup", h.Cleanup)
 		r.Patch("/{id}/read", h.MarkRead)
 	})
 }
@@ -647,6 +648,39 @@ func (h *Handler) MarkTripRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, response.Success{Success: true})
+}
+
+// Cleanup handles POST /notifications/cleanup. The endpoint makes hard
+// deletion clear to callers and protects unread notifications unless the user
+// explicitly opts out.
+func (h *Handler) Cleanup(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.MustUserFromContext(r.Context())
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req request.CleanupNotifications
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	onlyRead := true
+	if req.OnlyRead != nil {
+		onlyRead = *req.OnlyRead
+	}
+	service, ok := h.svc.(interface {
+		Cleanup(context.Context, notifications.CleanupInput) (int, error)
+	})
+	if !ok {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	count, err := service.Cleanup(r.Context(), notifications.CleanupInput{UserID: user.ID, OlderThanDays: req.OlderThanDays, OnlyRead: onlyRead, Categories: req.Categories})
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	recordNotificationCleanupDeleted(count)
+	writeJSON(w, http.StatusOK, map[string]int{"deletedOrArchivedCount": count})
 }
 
 // parseLimit parses the optional ?limit= query value. Empty is allowed (the

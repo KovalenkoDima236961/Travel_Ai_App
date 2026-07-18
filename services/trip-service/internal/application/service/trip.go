@@ -20,6 +20,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/dataexport"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
@@ -516,6 +517,8 @@ type Service struct {
 	receiptOCRProvider                 receipts.OCRProvider
 	receiptFileScanner                 receipts.FileScanner
 	receiptConfig                      receipts.Config
+	dataExportStorage                  *dataexport.LocalStorage
+	dataExportConfig                   dataexport.Config
 	activity                           activityService
 	notifier                           notifier
 	notificationsEnabled               bool
@@ -593,6 +596,7 @@ func New(repo tripRepository, generator application.ItineraryGenerator, log *zap
 		budgetConversionFailOpen:        true,
 		transportSearchFailOpen:         true,
 		receiptConfig:                   receipts.DefaultConfig(),
+		dataExportConfig:                dataexport.DefaultConfig(),
 		receiptFileScanner:              receipts.NoopFileScanner{},
 		tripHealthConfig:                triphealth.DefaultConfig(),
 		budgetConfidenceConfig:          budgetconfidence.DefaultConfig(),

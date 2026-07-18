@@ -48,6 +48,7 @@ var (
 	notificationsInstantSent       = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notifications_instant_sent_total", Help: "Notifications selected for instant delivery."}, []string{"channel", "category", "priority"})
 	notificationsQuietHoursDelayed = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notification_quiet_hours_delayed_total", Help: "Notifications delayed by quiet hours."}, []string{"channel", "category"})
 	notificationDedupeDropped      = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "notification_dedupe_dropped_total", Help: "Duplicate notification events grouped or dropped."}, []string{"result"})
+	notificationCleanupDeleted     = prometheus.NewCounter(prometheus.CounterOpts{Name: "notification_cleanup_deleted_total", Help: "Notifications permanently removed by explicit cleanup."})
 )
 
 func init() {
@@ -67,7 +68,14 @@ func init() {
 		notificationsInstantSent,
 		notificationsQuietHoursDelayed,
 		notificationDedupeDropped,
+		notificationCleanupDeleted,
 	)
+}
+
+func recordNotificationCleanupDeleted(count int) {
+	if count > 0 {
+		notificationCleanupDeleted.Add(float64(count))
+	}
 }
 
 func recordDeliveryDecision(channel, category, priority, mode, decision, reason string) {

@@ -33,6 +33,16 @@ type Service struct {
 	groupingWindow time.Duration
 }
 
+// CleanupInput deliberately defaults to preserving unread notifications. The
+// cleanup action deletes only notification rows owned by the requesting user;
+// it never touches preferences, trips, or other users' history.
+type CleanupInput struct {
+	UserID        uuid.UUID
+	OlderThanDays int
+	OnlyRead      bool
+	Categories    []string
+}
+
 // New constructs the notification service.
 func New(repo Repository, log *zap.Logger) *Service {
 	if log == nil {
@@ -408,6 +418,53 @@ func (s *Service) MarkTripRead(ctx context.Context, userID, tripID uuid.UUID) (i
 		return 0, apperrs.NewInvalidInput("trip notification bulk actions are unavailable")
 	}
 	return repo.MarkTripNotificationsRead(ctx, userID, tripID)
+}
+
+func (s *Service) Cleanup(ctx context.Context, in CleanupInput) (int, error) {
+	if in.UserID == uuid.Nil {
+		return 0, apperrs.NewInvalidInput("user id is required")
+	}
+	if in.OlderThanDays < 0 || in.OlderThanDays > 3650 {
+		return 0, apperrs.NewInvalidInput("olderThanDays must be between 0 and 3650")
+	}
+	categories := make([]string, 0, len(in.Categories))
+	seen := map[string]struct{}{}
+	for _, category := range in.Categories {
+		value := strings.ToLower(strings.TrimSpace(category))
+		if value == "" {
+			continue
+		}
+		if !isKnownCategory(value) {
+			return 0, apperrs.NewInvalidInput("unsupported notification category")
+		}
+		if _, ok := seen[value]; !ok {
+			seen[value] = struct{}{}
+			categories = append(categories, value)
+		}
+	}
+	type cleanupRepository interface {
+		CleanupNotifications(context.Context, uuid.UUID, time.Time, bool, []string) (int, error)
+	}
+	repo, ok := s.repo.(cleanupRepository)
+	if !ok {
+		return 0, apperrs.NewInvalidInput("notification cleanup is unavailable")
+	}
+	cutoff := time.Now().UTC()
+	if in.OlderThanDays > 0 {
+		cutoff = cutoff.AddDate(0, 0, -in.OlderThanDays)
+	}
+	return repo.CleanupNotifications(ctx, in.UserID, cutoff, in.OnlyRead, categories)
+}
+
+func isKnownCategory(value string) bool {
+	switch value {
+	case CategoryCollaboration, CategoryComments, CategoryTripUpdates, CategoryRoleChanges, CategoryChecklist,
+		CategoryReminders, CategoryExpenses, CategorySettlements, CategoryApproval, CategoryBudget, CategoryHealth,
+		CategoryOfflineSync, CategoryCalendar, CategoryAIGeneration, CategorySecurity, CategorySystem:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateCreateInput(in CreateInput) error {

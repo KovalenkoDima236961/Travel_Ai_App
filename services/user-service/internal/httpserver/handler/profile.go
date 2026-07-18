@@ -4,13 +4,18 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"io"
+	"mime"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/dataexport"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/user-service/internal/httpserver/dto/response"
@@ -37,7 +42,114 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/preferences", h.GetPreferences)
 		r.Patch("/preferences", h.PatchPreferences)
 		r.Get("/preferences/completeness", h.GetPreferenceCompleteness)
+		r.Post("/export", h.CreateAccountExport)
+		r.Get("/export/{exportId}", h.GetAccountExport)
+		r.Get("/export/{exportId}/download", h.DownloadAccountExport)
+		r.Post("/account-cleanup/request-deletion", h.RequestAccountCleanup)
 	})
+	// Short aliases match the portability API contract while the established
+	// /users/me routes remain the canonical browser API.
+	r.Post("/me/export", h.CreateAccountExport)
+	r.Get("/me/export/{exportId}", h.GetAccountExport)
+	r.Get("/me/export/{exportId}/download", h.DownloadAccountExport)
+	r.Post("/me/account-cleanup/request-deletion", h.RequestAccountCleanup)
+}
+
+func (h *Handler) CreateAccountExport(w http.ResponseWriter, r *http.Request) {
+	var request service.AccountExportRequest
+	if err := decodeJSON(r, &request); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	job, err := h.svc.CreateAccountExport(r.Context(), request)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, accountExportResponse(job))
+}
+
+func (h *Handler) GetAccountExport(w http.ResponseWriter, r *http.Request) {
+	exportID, ok := parseAccountExportID(w, r)
+	if !ok {
+		return
+	}
+	job, err := h.svc.GetAccountExport(r.Context(), exportID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, accountExportResponse(job))
+}
+
+func (h *Handler) DownloadAccountExport(w http.ResponseWriter, r *http.Request) {
+	exportID, ok := parseAccountExportID(w, r)
+	if !ok {
+		return
+	}
+	file, err := h.svc.OpenAccountExport(r.Context(), exportID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	defer file.Reader.Close()
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.Filename}))
+	w.Header().Set("Cache-Control", "private, no-store, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if file.SizeBytes > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(file.SizeBytes, 10))
+	}
+	_, _ = io.Copy(w, file.Reader)
+}
+
+func (h *Handler) RequestAccountCleanup(w http.ResponseWriter, r *http.Request) {
+	var request service.AccountCleanupRequest
+	if err := decodeJSON(r, &request); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := h.svc.RequestAccountCleanup(r.Context(), request); err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "received", "message": "Account deletion is not automatic in this version. Your request has been recorded."})
+}
+
+func parseAccountExportID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, "exportId"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid export id")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func accountExportResponse(job *dataexport.Job) map[string]any {
+	result := map[string]any{"exportId": job.ID.String(), "status": job.Status, "createdAt": job.CreatedAt}
+	if job.FileName != nil {
+		result["fileName"] = *job.FileName
+	}
+	if job.SizeBytes != nil {
+		result["sizeBytes"] = *job.SizeBytes
+	}
+	if job.ChecksumSHA256 != nil {
+		result["checksumSha256"] = *job.ChecksumSHA256
+	}
+	if job.ExpiresAt != nil {
+		result["expiresAt"] = *job.ExpiresAt
+	}
+	if job.ErrorCode != nil {
+		result["errorCode"] = *job.ErrorCode
+	}
+	if job.ErrorMessageSafe != nil {
+		result["errorMessageSafe"] = *job.ErrorMessageSafe
+	}
+	if job.Status == dataexport.Completed {
+		result["downloadUrl"] = "/users/me/export/" + job.ID.String() + "/download"
+	}
+	return result
 }
 
 // GetPreferenceCompleteness handles GET /users/me/preferences/completeness.

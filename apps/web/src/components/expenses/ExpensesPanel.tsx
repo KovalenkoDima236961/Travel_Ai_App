@@ -59,6 +59,7 @@ import {
 } from "@/lib/offline/trip-cache";
 import { enqueueCompanionMutation } from "@/lib/offline/sync-queue";
 import { getErrorMessage } from "@/lib/utils";
+import { TripExportPanel } from "@/components/data";
 
 type ExpenseUserOption = {
   id: string;
@@ -297,6 +298,8 @@ export function ExpensesPanel({
           Using cached expense data. New expense and receipt drafts will sync when you are online.
         </div>
       ) : null}
+
+      {canEdit ? <TripExportPanel disabled={offline} tripId={trip.id} /> : null}
 
       {panelMessage ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">

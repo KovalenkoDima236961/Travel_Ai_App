@@ -59,6 +59,19 @@ type Config struct {
 	Copilot            CopilotConfig            `yaml:"copilot"`
 	TripRecap          TripRecapConfig          `yaml:"trip_recap"`
 	TripLibrary        TripLibraryConfig        `yaml:"trip_library"`
+	DataExports        DataExportsConfig        `yaml:"data_exports"`
+}
+
+// DataExportsConfig controls private, authenticated export packages. It never
+// enables public URLs or source-data deletion.
+type DataExportsConfig struct {
+	Enabled                      bool   `yaml:"enabled" env:"DATA_EXPORT_ENABLED" env-default:"true"`
+	StorageDir                   string `yaml:"storage_dir" env:"DATA_EXPORT_STORAGE_DIR" env-default:"./data/exports"`
+	TTLHours                     int    `yaml:"ttl_hours" env:"DATA_EXPORT_TTL_HOURS" env-default:"24" validate:"min=1,max=168"`
+	MaxTripExportMB              int    `yaml:"max_trip_export_mb" env:"DATA_EXPORT_MAX_TRIP_EXPORT_MB" env-default:"100" validate:"min=1,max=500"`
+	IncludeReceiptFilesByDefault bool   `yaml:"include_receipt_files_default" env:"DATA_EXPORT_INCLUDE_RECEIPT_FILES_DEFAULT" env-default:"false"`
+	CleanupEnabled               bool   `yaml:"cleanup_enabled" env:"DATA_EXPORT_CLEANUP_ENABLED" env-default:"true"`
+	CleanupIntervalMinutes       int    `yaml:"cleanup_interval_minutes" env:"DATA_EXPORT_CLEANUP_INTERVAL_MINUTES" env-default:"60" validate:"min=1,max=1440"`
 }
 
 // TripLibraryConfig controls private archive and historical-library behavior.

@@ -89,6 +89,15 @@ type UnsubscribePush struct {
 	Endpoint string `json:"endpoint"`
 }
 
+// CleanupNotifications is explicit because the current storage implementation
+// permanently removes selected notification rows. Unread items are preserved by
+// default in the handler when onlyRead is omitted.
+type CleanupNotifications struct {
+	OlderThanDays int      `json:"olderThanDays"`
+	OnlyRead      *bool    `json:"onlyRead,omitempty"`
+	Categories    []string `json:"categories,omitempty"`
+}
+
 // NotificationPreferenceItem is one requested channel/category setting. Enabled
 // is a pointer so omission is distinguishable from false and can be rejected.
 type NotificationPreferenceItem struct {

@@ -26,6 +26,17 @@ Add a key to `messages/en.json` first, then translate it in the other catalogs.
 The settings selector applies changes immediately and persists them to the
 profile when signed in.
 
+## Data export and privacy controls
+
+Settings includes a **Data & privacy** card implemented in
+`src/components/data/`. It creates authenticated account or trip export jobs,
+keeps receipt files opt-in, provides portable CSV downloads, and offers
+scoped local/offline, notification, and account-cleanup controls. Export
+downloads use the same-origin service proxy and bearer authentication; they are
+never linked as public files. See
+[`docs/data-export-portability.md`](../../docs/data-export-portability.md) for
+the server-side retention and authorization contract.
+
 ## Travel Library
 
 `/library` is the private long-term trip view. It uses

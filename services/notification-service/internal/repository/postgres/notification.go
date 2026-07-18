@@ -323,6 +323,31 @@ func (r *Repository) MarkTripNotificationsRead(ctx context.Context, userID, trip
 	return int(tag.RowsAffected()), nil
 }
 
+// CleanupNotifications is intentionally owner-scoped and explicit hard
+// deletion. Notification preferences live in a separate table and are never
+// included in this query.
+func (r *Repository) CleanupNotifications(ctx context.Context, userID uuid.UUID, olderThan time.Time, onlyRead bool, categories []string) (int, error) {
+	builder := r.db.Builder.Delete("notifications").Where(sq.Eq{"user_id": dto.IDArg(userID)})
+	if onlyRead {
+		builder = builder.Where(sq.NotEq{"read_at": nil})
+	}
+	if !olderThan.IsZero() {
+		builder = builder.Where(sq.Lt{"created_at": olderThan.UTC()})
+	}
+	if len(categories) > 0 {
+		builder = builder.Where(sq.Eq{"category": categories})
+	}
+	query, args, err := builder.ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("build notification cleanup: %w", err)
+	}
+	tag, err := r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("cleanup notifications: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 // ListNotificationPreferencesByUsers returns all stored preference overrides
 // for the given users. Missing rows are intentionally not synthesized here; the
 // preferences service merges defaults over the sparse stored overrides.

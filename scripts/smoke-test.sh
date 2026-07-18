@@ -4575,6 +4575,59 @@ if [[ "$(jq -r '.generationJob // empty' <<<"${LAST_BODY}")" != "" ]]; then
 fi
 
 echo "Verifying another user cannot access the first user's trip..."
+echo "Checking private data export and cleanup contracts..."
+TRIP_EXPORT_PAYLOAD='{"includeReceiptFiles":false,"includeRecapPdf":false,"includePrivateNotes":false}'
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/export/archive" "${ACCESS_TOKEN}" "${TRIP_EXPORT_PAYLOAD}"
+assert_status "Create private trip export" "202"
+TRIP_EXPORT_ID="$(jq -r '.exportId // empty' <<<"${LAST_BODY}")"
+if [[ -z "${TRIP_EXPORT_ID}" ]]; then
+  echo "Trip export response did not include an exportId." >&2
+  exit 1
+fi
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/export/${TRIP_EXPORT_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Read private trip export status"
+if [[ "$(jq -r '.status // empty' <<<"${LAST_BODY}")" != "completed" ]]; then
+  echo "Trip export did not complete in the synchronous v1 flow." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+TRIP_EXPORT_HEADERS="$(mktemp)"
+TRIP_EXPORT_DOWNLOAD_STATUS="$(curl -sS -o /dev/null -D "${TRIP_EXPORT_HEADERS}" -w "%{http_code}" -H "Authorization: Bearer ${ACCESS_TOKEN}" "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/export/${TRIP_EXPORT_ID}/download")"
+if [[ "${TRIP_EXPORT_DOWNLOAD_STATUS}" != "200" ]] || ! grep -qi '^Cache-Control: private, no-store' "${TRIP_EXPORT_HEADERS}"; then
+  rm -f "${TRIP_EXPORT_HEADERS}"
+  echo "Private trip export download was unavailable or cacheable." >&2
+  exit 1
+fi
+rm -f "${TRIP_EXPORT_HEADERS}"
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/expenses/export.csv" "${ACCESS_TOKEN}"
+assert_2xx "Download private expense CSV"
+request GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/export/${TRIP_EXPORT_ID}"
+assert_status "Unauthenticated trip export status" "401"
+
+ACCOUNT_EXPORT_PAYLOAD='{"sections":{"profile":true,"preferences":true},"includeReceiptFiles":false,"includeWorkspaceData":false}'
+request_with_bearer POST "${USER_SERVICE_URL}/users/me/export" "${ACCESS_TOKEN}" "${ACCOUNT_EXPORT_PAYLOAD}"
+assert_status "Create private account export" "202"
+ACCOUNT_EXPORT_ID="$(jq -r '.exportId // empty' <<<"${LAST_BODY}")"
+if [[ -z "${ACCOUNT_EXPORT_ID}" ]]; then
+  echo "Account export response did not include an exportId." >&2
+  exit 1
+fi
+request_with_bearer GET "${USER_SERVICE_URL}/users/me/export/${ACCOUNT_EXPORT_ID}" "${ACCESS_TOKEN}"
+assert_2xx "Read private account export status"
+ACCOUNT_EXPORT_HEADERS="$(mktemp)"
+ACCOUNT_EXPORT_DOWNLOAD_STATUS="$(curl -sS -o /dev/null -D "${ACCOUNT_EXPORT_HEADERS}" -w "%{http_code}" -H "Authorization: Bearer ${ACCESS_TOKEN}" "${USER_SERVICE_URL}/users/me/export/${ACCOUNT_EXPORT_ID}/download")"
+if [[ "${ACCOUNT_EXPORT_DOWNLOAD_STATUS}" != "200" ]] || ! grep -qi '^Cache-Control: private, no-store' "${ACCOUNT_EXPORT_HEADERS}"; then
+  rm -f "${ACCOUNT_EXPORT_HEADERS}"
+  echo "Private account export download was unavailable or cacheable." >&2
+  exit 1
+fi
+rm -f "${ACCOUNT_EXPORT_HEADERS}"
+request_with_bearer POST "${USER_SERVICE_URL}/users/me/account-cleanup/request-deletion" "${ACCESS_TOKEN}" '{"reason":"smoke test","exportRequestedFirst":true}'
+assert_status "Record account cleanup request without deletion" "202"
+
+request_with_bearer POST "${NOTIFICATION_SERVICE_URL}/notifications/cleanup" "${ACCESS_TOKEN}" '{"olderThanDays":0,"onlyRead":true}'
+assert_2xx "Clean up read notifications while keeping unread"
+
 OTHER_EMAIL="smoke-other+$(date +%s)-$$@example.com"
 OTHER_PAYLOAD="$(jq -nc --arg email "${OTHER_EMAIL}" --arg password "${AUTH_PASSWORD}" '{email:$email,password:$password}')"
 
@@ -4591,6 +4644,9 @@ fi
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's trip" "404"
+
+request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/export/${TRIP_EXPORT_ID}" "${OTHER_ACCESS_TOKEN}"
+assert_status "Second user fetch first user's export" "404"
 
 request_with_bearer GET "${TRIP_SERVICE_URL}/trip-discovery/sessions/${DISCOVERY_SESSION_ID}" "${OTHER_ACCESS_TOKEN}"
 assert_status "Second user fetch first user's discovery session" "404"

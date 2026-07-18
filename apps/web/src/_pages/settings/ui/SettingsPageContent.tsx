@@ -11,6 +11,7 @@ import { OnboardingSettingsCard } from "@/components/settings/OnboardingSettings
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { PwaSettingsSection } from "@/components/settings/PwaSettingsSection";
+import { DataPrivacySettings } from "@/components/data";
 import { SettingsSkeleton } from "@/components/settings/SettingsSkeleton";
 import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 import {
@@ -142,6 +143,8 @@ export function SettingsPageContent() {
             <OnboardingSettingsCard />
 
             <PwaSettingsSection />
+
+            <DataPrivacySettings />
 
             <div id="push-notifications">
               <PushNotificationSettings />

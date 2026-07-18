@@ -902,6 +902,7 @@ or itinerary JSON.
 | ----- | ------ |
 | Health | `GET /health`, `GET /ready`, `GET /metrics` |
 | Trips | `POST /trips`, `GET /trips`, `GET /trips/shared-with-me`, `GET /trips/{id}`, `GET/PUT /trips/{id}/route`, `GET /trips/{id}/approval-risk` |
+| Private data export | `POST /trips/{id}/export/archive`, status/download routes, and authenticated expense/settlement/budget/receipt-metadata CSV exports. Owner or editor only; receipt files are opt-in. |
 | Generation jobs | `POST /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs`, `GET /trips/{id}/generation-jobs/{jobId}`, `POST /trips/{id}/generation-jobs/{jobId}/cancel` |
 | Sync generation compatibility | `POST /trips/{id}/generate`, day regeneration, item regeneration |
 | Itinerary | `PUT /trips/{id}/itinerary`, version list/detail/restore routes |

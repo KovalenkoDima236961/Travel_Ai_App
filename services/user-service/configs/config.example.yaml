@@ -32,6 +32,20 @@ notifications:
   public_web_base_url: http://localhost:3000
   timeout_seconds: 3
 
+data_exports:
+  enabled: true
+  storage_dir: ./data/exports
+  ttl_hours: 24
+  max_account_export_mb: 250
+  cleanup_enabled: true
+  cleanup_interval_minutes: 60
+
+trip_exports:
+  enabled: true
+  trip_service_url: http://trip-service:8080
+  service_token: dev-internal-service-token
+  timeout_seconds: 60
+
 cors:
   allowed_origins: http://localhost:3000
   allowed_methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
