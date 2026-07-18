@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ type Runtime struct {
 	HTTPAddress            string `env:"WORKER_HTTP_ADDR" env-default:":8090"`
 	ShutdownTimeoutSeconds int    `env:"WORKER_SHUTDOWN_TIMEOUT_SECONDS" env-default:"30"`
 	Concurrency            int    `env:"WORKER_CONCURRENCY" env-default:"1"`
+	ScheduledJobsEnabled   bool   `env:"WORKER_SCHEDULED_JOBS_ENABLED" env-default:"true"`
 }
 
 type Config struct {
@@ -24,7 +27,25 @@ type Config struct {
 	RabbitMQManagement RabbitMQManagement
 	Reminders          ReminderWorker
 	Digests            DigestWorker
+	Cleanup            Cleanup
 	Trip               *tripconfig.Config
+}
+
+// Cleanup keeps the worker as an orchestrator. Retention choices remain in
+// configuration and are enforced by the service that owns the data.
+type Cleanup struct {
+	Enabled                bool   `env:"CLEANUP_JOBS_ENABLED" env-default:"true"`
+	DryRunDefault          bool   `env:"CLEANUP_DRY_RUN_DEFAULT" env-default:"true"`
+	BatchSize              int    `env:"CLEANUP_BATCH_SIZE" env-default:"500"`
+	MaxBatchesPerRun       int    `env:"CLEANUP_MAX_BATCHES_PER_RUN" env-default:"20"`
+	LockTTLSeconds         int    `env:"CLEANUP_LOCK_TTL_SECONDS" env-default:"3600"`
+	ScheduleCron           string `env:"CLEANUP_SCHEDULE_CRON" env-default:"0 3 * * *"`
+	FailOpen               bool   `env:"CLEANUP_FAIL_OPEN" env-default:"false"`
+	TimeoutSeconds         int    `env:"CLEANUP_TIMEOUT_SECONDS" env-default:"30"`
+	AuthServiceURL         string `env:"AUTH_SERVICE_INTERNAL_URL" env-default:"http://auth-service:8082"`
+	NotificationServiceURL string `env:"NOTIFICATION_SERVICE_INTERNAL_URL" env-default:"http://notification-service:8086"`
+	TripServiceURL         string `env:"TRIP_SERVICE_INTERNAL_URL" env-default:"http://trip-service:8080"`
+	ExternalServiceURL     string `env:"EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL" env-default:"http://external-integrations-service:8084"`
 }
 
 type DigestWorker struct {
@@ -73,6 +94,13 @@ func Load(tripConfigPath string) (*Config, error) {
 	if err := validateRabbitMQManagement(management, tripCfg.IsStrictEnv()); err != nil {
 		return nil, err
 	}
+	var cleanup Cleanup
+	if err := cleanenv.ReadEnv(&cleanup); err != nil {
+		return nil, fmt.Errorf("read cleanup config: %w", err)
+	}
+	if err := validateCleanup(&cleanup, tripCfg.Env); err != nil {
+		return nil, err
+	}
 	var reminders ReminderWorker
 	if err := cleanenv.ReadEnv(&reminders); err != nil {
 		return nil, fmt.Errorf("read reminder worker env config: %w", err)
@@ -119,9 +147,57 @@ func Load(tripConfigPath string) (*Config, error) {
 		RabbitMQManagement: management,
 		Reminders:          reminders,
 		Digests:            digests,
+		Cleanup:            cleanup,
 		Trip:               tripCfg,
 	}, nil
 }
+
+func (c Cleanup) LockTTL() time.Duration { return time.Duration(c.LockTTLSeconds) * time.Second }
+func (c Cleanup) Timeout() time.Duration { return time.Duration(c.TimeoutSeconds) * time.Second }
+
+func validateCleanup(c *Cleanup, appEnv string) error {
+	if c == nil {
+		return fmt.Errorf("cleanup config is required")
+	}
+	if strings.TrimSpace(appEnv) == "" {
+		return fmt.Errorf("cleanup cannot run when APP_ENV is unknown")
+	}
+	if c.BatchSize < 1 || c.BatchSize > 1000 {
+		return fmt.Errorf("CLEANUP_BATCH_SIZE must be between 1 and 1000")
+	}
+	if c.MaxBatchesPerRun < 1 || c.MaxBatchesPerRun > 100 {
+		return fmt.Errorf("CLEANUP_MAX_BATCHES_PER_RUN must be between 1 and 100")
+	}
+	if c.LockTTLSeconds < 60 || c.LockTTLSeconds > 86400 {
+		return fmt.Errorf("CLEANUP_LOCK_TTL_SECONDS must be between 60 and 86400")
+	}
+	if c.TimeoutSeconds < 1 || c.TimeoutSeconds > 300 {
+		return fmt.Errorf("CLEANUP_TIMEOUT_SECONDS must be between 1 and 300")
+	}
+	parts := strings.Fields(c.ScheduleCron)
+	if len(parts) != 5 || parts[2] != "*" || parts[3] != "*" || parts[4] != "*" {
+		return fmt.Errorf("CLEANUP_SCHEDULE_CRON must use daily form 'minute hour * * *'")
+	}
+	minute, minuteErr := strconv.Atoi(parts[0])
+	hour, hourErr := strconv.Atoi(parts[1])
+	if minuteErr != nil || minute < 0 || minute > 59 || hourErr != nil || hour < 0 || hour > 23 {
+		return fmt.Errorf("CLEANUP_SCHEDULE_CRON is invalid")
+	}
+	if !c.DryRunDefault && !envExplicitlySet("CLEANUP_DRY_RUN_DEFAULT") {
+		return fmt.Errorf("destructive cleanup requires an explicit CLEANUP_DRY_RUN_DEFAULT=false")
+	}
+	if !c.Enabled {
+		return nil
+	}
+	for name, value := range map[string]string{"AUTH_SERVICE_INTERNAL_URL": c.AuthServiceURL, "NOTIFICATION_SERVICE_INTERNAL_URL": c.NotificationServiceURL, "TRIP_SERVICE_INTERNAL_URL": c.TripServiceURL, "EXTERNAL_INTEGRATIONS_SERVICE_INTERNAL_URL": c.ExternalServiceURL} {
+		if err := validateHTTPURL(name, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func envExplicitlySet(name string) bool { _, ok := os.LookupEnv(name); return ok }
 
 func (c *Config) ShutdownTimeout() time.Duration {
 	return time.Duration(c.Runtime.ShutdownTimeoutSeconds) * time.Second

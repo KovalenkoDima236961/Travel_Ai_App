@@ -58,3 +58,6 @@ Production deployment is intentionally manual in v1. An operator selects the imm
 Roll back quickly for a widespread request failure, security regression introduced by the release, incompatible API deployment, worker backlog growth, or user-facing corruption with a known-good prior image. First disable an affected integration or stop a worker when that narrows impact. Do not automatically roll back a database after migrations: schema/data compatibility determines whether an app rollback is safe. Follow the scenario-specific [rollback playbook](rollback.md) and use a forward fix where rollback would violate migration compatibility.
 
 For urgent releases see the [hotfix process](hotfix-process.md), and for common failures see [troubleshooting](troubleshooting.md).
+# Data lifecycle release check
+
+For every new table, uploaded/generated file, provider cache, job, or proposal, define its retention category, owner, cleanup method, and environment configuration in `docs/data/retention-policy.md` before release.

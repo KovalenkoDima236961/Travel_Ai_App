@@ -33,6 +33,7 @@ func NewRouter(
 	corsCfg config.CORSConfig,
 	jwtCfg config.JWTConfig,
 	internalCfg config.InternalConfig,
+	cleanupHandlers ...interface{ RegisterRoutes(chi.Router) },
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -64,6 +65,11 @@ func NewRouter(
 	r.Group(func(r chi.Router) {
 		r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 		internalHandler.RegisterRoutes(r)
+		for _, cleanupHandler := range cleanupHandlers {
+			if cleanupHandler != nil {
+				cleanupHandler.RegisterRoutes(r)
+			}
+		}
 	})
 
 	return r

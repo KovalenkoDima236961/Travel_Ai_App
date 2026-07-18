@@ -25,6 +25,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/cleanup"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
 	workerdigests "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/digests"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/httpserver"
@@ -69,11 +70,27 @@ func buildContainer(
 		return consumer.Close()
 	})
 
-	httpServer, err := httpserver.New(cfg, db, consumer, log)
+	cleanupRunner, err := cleanup.NewRunner(cleanup.RunnerConfig{
+		DefaultDryRun: cfg.Cleanup.DryRunDefault,
+		BatchSize:     cfg.Cleanup.BatchSize,
+		MaxBatches:    cfg.Cleanup.MaxBatchesPerRun,
+		LockTTL:       cfg.Cleanup.LockTTL(),
+	}, cleanup.NewPostgresRunStore(db), cleanup.DefaultTasks(cfg.Cleanup, cfg.Trip.Auth.InternalServiceToken), log)
+	if err != nil {
+		return nil, fmt.Errorf("init cleanup runner: %w", err)
+	}
+	httpServer, err := httpserver.New(cfg, db, consumer, cleanupRunner, log)
 	if err != nil {
 		return nil, fmt.Errorf("init http server: %w", err)
 	}
 	shutdown.Add("http-server", httpServer.Shutdown)
+	if cfg.Cleanup.Enabled && cfg.Runtime.ScheduledJobsEnabled {
+		cleanupScheduler, err := cleanup.NewScheduler(cleanupRunner, true, cfg.Cleanup.FailOpen, cfg.Cleanup.ScheduleCron, log)
+		if err != nil {
+			return nil, fmt.Errorf("init cleanup scheduler: %w", err)
+		}
+		shutdown.Add("cleanup-scheduler", cleanupScheduler.Start(context.Background()))
+	}
 
 	if cfg.Reminders.Enabled {
 		reminderClient, err := reminders.NewClient(

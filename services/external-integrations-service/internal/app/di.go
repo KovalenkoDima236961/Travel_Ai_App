@@ -11,6 +11,7 @@ import (
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/availability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/calendar"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/cleanup"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/config"
 	tokencrypto "github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/crypto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/external-integrations-service/internal/httpserver"
@@ -144,6 +145,7 @@ func buildContainer(
 		cfg.Auth,
 		cfg.Internal,
 		cfg.Ops,
+		cleanup.New(db, cfg.Cleanup, log),
 	)
 
 	return &container{db: db, router: router}, nil

@@ -7,6 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/cleanup"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/controls"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/notification-service/internal/digests"
@@ -145,6 +146,7 @@ func buildContainer(
 		cfg.CORS,
 		cfg.JWT,
 		cfg.Internal,
+		cleanup.New(db, cfg.Cleanup, log),
 	)
 
 	return &container{

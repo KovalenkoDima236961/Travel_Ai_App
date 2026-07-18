@@ -76,3 +76,6 @@ volumes; use `--backup` to request a Postgres backup first.
 Take daily staging/production backups, retain them according to the data
 retention policy, encrypt them at rest, and practice restoration in staging.
 Backups must be stored outside the Compose host to survive host loss.
+# Cleanup policy
+
+The application worker does not delete production backups. Local/development backup directories can be reviewed with `BACKUP_DIR=./backups ./scripts/cleanup-backups.sh --dry-run` and deleted only with `--yes`. The script refuses broad paths, requires a positive `RETENTION_LOCAL_BACKUPS_DAYS`, avoids symlink traversal, and reports aggregate bytes freed. Verify restore posture before lowering retention.

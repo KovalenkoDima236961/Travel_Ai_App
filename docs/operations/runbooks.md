@@ -29,3 +29,6 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env logs --tail=200
 - [Troubleshooting](../development/troubleshooting.md)
 - [Ports](../development/ports.md)
 - [Deployment checklist](../deployment/checklist.md)
+# Data lifecycle
+
+See [cleanup failures](runbooks/cleanup-failed.md) and [storage growth](runbooks/storage-growth.md). Run cleanup dry-runs before destructive changes, and do not use lifecycle cleanup to remove protected receipts, audit events, or production backups.

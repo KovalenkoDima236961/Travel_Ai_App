@@ -9,3 +9,6 @@
 7. Update [AI generation guide](../../features/ai-generation.md), endpoint inventory, and observability dashboards if metrics change.
 
 See the [stuck jobs](../../operations/runbooks/rabbitmq-jobs-stuck.md) and [AI failure](../../operations/runbooks/ai-generation-failing.md) runbooks.
+# Retention check
+
+Document the terminal-job, payload, retry/DLQ, and proposal retention behavior for every new job type.

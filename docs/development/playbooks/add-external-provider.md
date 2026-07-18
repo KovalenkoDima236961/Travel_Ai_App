@@ -7,3 +7,6 @@
 5. Add provider status/quota metrics and safe diagnostics; redact tokens and URLs containing credentials.
 6. Test success, malformed payload, timeout, cache, fallback, quota/rate limit, and disabled/missing key paths.
 7. Document new env keys in `infra/.env.example`, service README, [environment guide](../environment.md), and [provider quota runbook](../../operations/runbooks/provider-quota-exceeded.md).
+# Retention check
+
+Document cache expiry/grace, OAuth-state lifetime, quota-counter retention, and disconnect token-redaction behavior for every provider.

@@ -9,3 +9,6 @@
 7. For staging/production: take and verify a backup, review locking/data-backfill risk, deploy migration once, verify readiness, and prefer a compensating forward migration over ad-hoc down SQL.
 
 See [data ownership](../../architecture/data-ownership.md) and the [failed-migration runbook](../../operations/runbooks/migrations-failed.md).
+# Retention check
+
+For a growing table, document a retention category, safe bounded cleanup query, and whether the record is protected from automatic deletion.

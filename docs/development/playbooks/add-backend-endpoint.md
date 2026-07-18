@@ -19,3 +19,6 @@ generated request/response type in the Web App wrapper, and update typed MSW
 fixtures. Add a focused handler response/error test and update `docs/api` plus
 the contract changelog for breaking changes. Internal-only routes belong in
 `docs/api/internal-contracts.md` and must not generate browser types.
+# Retention check
+
+If the endpoint creates persistent records, files, retries, or cache entries, define their retention and cleanup owner before merge.

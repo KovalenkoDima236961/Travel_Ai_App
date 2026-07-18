@@ -89,3 +89,6 @@ Offline keys and pending mutations are user-scoped. Logout removes the active
 user's cached private records; permission failures stop retry. The service
 worker caches the application shell/immutable assets, not authenticated API,
 receipt, or export responses.
+# Data lifecycle and deletion capability
+
+Retention cleanup reduces the exposure window for temporary and expired data, but Worker Service has sensitive deletion capability. Its manual cleanup operations require an authenticated ops admin; owning-service cleanup endpoints require `X-Internal-Service-Token`. Cleanup uses bounded ID batches, run locks, dry-run, and aggregate-only logs. Filesystem cleanup resolves paths inside configured storage directories. Audit/security logs are retained unless an explicit policy later enables their cleanup.

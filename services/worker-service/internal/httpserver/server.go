@@ -18,6 +18,7 @@ import (
 	tripauth "github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
 	tripops "github.com/KovalenkoDima236961/Travel_Ai_App/internal/ops"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/cleanup"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/rabbitmq"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/version"
@@ -30,6 +31,7 @@ func New(
 	cfg *workerconfig.Config,
 	db *postgres.DB,
 	consumer *rabbitmq.Consumer,
+	cleanupRunner *cleanup.Runner,
 	log *zap.Logger,
 ) (*http.Server, error) {
 	if log == nil {
@@ -52,7 +54,7 @@ func New(
 	r.Handle("/metrics", observability.MetricsHandler(nil))
 
 	if cfg.Trip.Ops.DashboardEnabled {
-		if err := mountOpsRoutes(r, cfg, db, consumer, startedAt, log); err != nil {
+		if err := mountOpsRoutes(r, cfg, db, consumer, cleanupRunner, startedAt, log); err != nil {
 			return nil, err
 		}
 	}
@@ -114,6 +116,7 @@ func mountOpsRoutes(
 	cfg *workerconfig.Config,
 	db *postgres.DB,
 	consumer *rabbitmq.Consumer,
+	cleanupRunner *cleanup.Runner,
 	startedAt time.Time,
 	log *zap.Logger,
 ) error {
@@ -136,6 +139,7 @@ func mountOpsRoutes(
 		cfg:        cfg,
 		db:         db,
 		consumer:   consumer,
+		cleanup:    cleanupRunner,
 		management: mgmt,
 		startedAt:  startedAt,
 		log:        log,
@@ -153,6 +157,11 @@ func mountOpsRoutes(
 		r.Get("/ops/dlq/messages", opsHandler.listDLQ)
 		r.Post("/ops/dlq/messages/{messageId}/requeue", opsHandler.requeueDLQ)
 		r.Post("/ops/dlq/messages/{messageId}/discard", opsHandler.discardDLQ)
+		r.Get("/ops/cleanup/tasks", opsHandler.cleanupTasks)
+		r.Get("/ops/cleanup/runs", opsHandler.cleanupRuns)
+		r.Get("/ops/cleanup/runs/{runId}", opsHandler.cleanupRun)
+		r.Post("/ops/cleanup/run", opsHandler.runCleanup)
+		r.Get("/ops/storage/summary", opsHandler.storageSummary)
 	})
 	return nil
 }
@@ -198,9 +207,117 @@ type workerOpsHandler struct {
 	cfg        *workerconfig.Config
 	db         *postgres.DB
 	consumer   *rabbitmq.Consumer
+	cleanup    *cleanup.Runner
 	management *rabbitmq.ManagementClient
 	startedAt  time.Time
 	log        *zap.Logger
+}
+
+func (h *workerOpsHandler) cleanupTasks(w http.ResponseWriter, _ *http.Request) {
+	if h.cleanup == nil {
+		writeError(w, http.StatusServiceUnavailable, "cleanup_disabled")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": h.cleanup.Tasks()})
+}
+
+func (h *workerOpsHandler) cleanupRuns(w http.ResponseWriter, r *http.Request) {
+	if h.cleanup == nil {
+		writeError(w, http.StatusServiceUnavailable, "cleanup_disabled")
+		return
+	}
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 200 {
+			writeError(w, http.StatusBadRequest, "cleanup_invalid_scope")
+			return
+		}
+		limit = parsed
+	}
+	runs, err := h.cleanup.Runs(r.Context(), limit)
+	if err != nil {
+		h.log.Warn("ops cleanup list failed", zap.Error(err))
+		writeError(w, http.StatusInternalServerError, "cleanup_internal_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+}
+
+func (h *workerOpsHandler) cleanupRun(w http.ResponseWriter, r *http.Request) {
+	if h.cleanup == nil {
+		writeError(w, http.StatusServiceUnavailable, "cleanup_disabled")
+		return
+	}
+	run, err := h.cleanup.RunByID(r.Context(), chi.URLParam(r, "runId"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "cleanup_task_not_found")
+		return
+	}
+	writeJSON(w, http.StatusOK, run)
+}
+
+func (h *workerOpsHandler) runCleanup(w http.ResponseWriter, r *http.Request) {
+	if h.cleanup == nil || !h.cfg.Cleanup.Enabled {
+		writeError(w, http.StatusServiceUnavailable, "cleanup_disabled")
+		return
+	}
+	var req struct {
+		TaskName   string `json:"taskName"`
+		DryRun     *bool  `json:"dryRun"`
+		BatchSize  int    `json:"batchSize"`
+		MaxBatches int    `json:"maxBatches"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "cleanup_invalid_scope")
+		return
+	}
+	if strings.TrimSpace(req.TaskName) == "" || req.DryRun == nil {
+		writeError(w, http.StatusBadRequest, "cleanup_invalid_scope")
+		return
+	}
+	params := cleanup.Params{DryRun: *req.DryRun, BatchSize: req.BatchSize, MaxBatches: req.MaxBatches, StartedBy: "ops", RequestID: r.Header.Get("X-Request-ID")}
+	run, err := h.cleanup.Run(r.Context(), req.TaskName, params)
+	if err != nil {
+		switch err.Error() {
+		case "cleanup_task_not_found":
+			writeError(w, http.StatusNotFound, err.Error())
+		case "cleanup_already_running":
+			writeError(w, http.StatusConflict, err.Error())
+		case "cleanup_invalid_scope":
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeError(w, http.StatusBadGateway, "cleanup_internal_error")
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, run)
+}
+
+// storageSummary intentionally reports only aggregates. It never returns file
+// names, users, prompts, receipt text, or other sensitive lifecycle data.
+func (h *workerOpsHandler) storageSummary(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		writeError(w, http.StatusServiceUnavailable, "cleanup_disabled")
+		return
+	}
+	type count struct {
+		Name   string     `json:"name"`
+		Count  int64      `json:"count"`
+		Oldest *time.Time `json:"oldest,omitempty"`
+	}
+	queries := []struct{ name, sql string }{{"cleanup_runs", "SELECT COUNT(*), MIN(started_at) FROM cleanup_runs"}, {"generation_jobs", "SELECT COUNT(*), MIN(created_at) FROM trip_generation_jobs"}, {"activity_events", "SELECT COUNT(*), MIN(created_at) FROM trip_activity_events"}, {"export_jobs", "SELECT COUNT(*), MIN(created_at) FROM data_export_jobs"}, {"receipt_ocr_results", "SELECT COUNT(*), MIN(created_at) FROM receipt_ocr_results"}}
+	items := make([]count, 0, len(queries))
+	for _, query := range queries {
+		var item count
+		item.Name = query.name
+		if err := h.db.QueryRow(r.Context(), query.sql).Scan(&item.Count, &item.Oldest); err != nil {
+			h.log.Warn("ops storage summary query failed", zap.String("category", query.name), zap.Error(err))
+			continue
+		}
+		items = append(items, item)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"categories": items})
 }
 
 func (h *workerOpsHandler) status(w http.ResponseWriter, r *http.Request) {

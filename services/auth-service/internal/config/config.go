@@ -31,7 +31,16 @@ type Config struct {
 	JWT        JWTConfig            `yaml:"jwt" validate:"required"`
 	Internal   InternalConfig       `yaml:"internal" validate:"required"`
 	RateLimits AuthRateLimitsConfig `yaml:"rate_limits" validate:"required"`
+	Cleanup    CleanupConfig        `yaml:"cleanup" validate:"required"`
 	CORS       CORSConfig           `yaml:"cors" validate:"required"`
+}
+
+// CleanupConfig is deliberately limited to token records owned by Auth
+// Service. Login rate-limit data is in-memory in v1 and has no database
+// lifecycle work to perform.
+type CleanupConfig struct {
+	ExpiredRefreshTokensDays int `yaml:"expired_refresh_tokens_days" env:"RETENTION_EXPIRED_REFRESH_TOKENS_DAYS" env-default:"30" validate:"min=1,max=3650"`
+	RevokedRefreshTokensDays int `yaml:"revoked_refresh_tokens_days" env:"RETENTION_REVOKED_REFRESH_TOKENS_DAYS" env-default:"30" validate:"min=1,max=3650"`
 }
 
 type AuthRateLimitsConfig struct {

@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	auth "github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/application/service"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/cleanup"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/config"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/auth-service/internal/httpserver/handler"
@@ -55,7 +56,7 @@ func buildContainer(
 		cfg.RateLimits.RefreshPerMinute,
 	)
 	readinessHandler := httpserver.NewReadinessHandler(db, log)
-	router := httpserver.NewRouter(log, authHandler, readinessHandler, cfg.CORS, cfg.Internal)
+	router := httpserver.NewRouter(log, authHandler, readinessHandler, cfg.CORS, cfg.Internal, cleanup.New(db, cfg.Cleanup, log))
 
 	return &container{
 		db:     db,

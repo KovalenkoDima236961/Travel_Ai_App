@@ -46,3 +46,17 @@ func TestStrictEnvValidConfigPasses(t *testing.T) {
 		t.Fatalf("expected valid worker config, got %v", err)
 	}
 }
+
+func TestCleanupConfigRejectsUnsafeBatchAndCron(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("CLEANUP_BATCH_SIZE", "1001")
+	if _, err := Load(""); err == nil {
+		t.Fatal("expected oversized cleanup batch to be rejected")
+	}
+
+	setBaseEnv(t)
+	t.Setenv("CLEANUP_SCHEDULE_CRON", "* * * * *")
+	if _, err := Load(""); err == nil {
+		t.Fatal("expected non-daily cleanup cron to be rejected")
+	}
+}

@@ -69,6 +69,15 @@ type Config struct {
 	Calendar             CalendarConfig             `yaml:"calendar" validate:"required"`
 	Ops                  OpsConfig                  `yaml:"ops"`
 	ProviderLimits       ProviderLimitsConfig       `yaml:"provider_limits"`
+	Cleanup              CleanupConfig              `yaml:"cleanup" validate:"required"`
+}
+
+// CleanupConfig covers only persisted integration metadata. Provider response
+// caches are process-local in v1 and already evict by TTL.
+type CleanupConfig struct {
+	ProviderCacheGraceDays int `yaml:"provider_cache_grace_days" env:"RETENTION_PROVIDER_CACHE_GRACE_DAYS" env-default:"7" validate:"min=1,max=3650"`
+	OAuthStatesDays        int `yaml:"oauth_states_days" env:"RETENTION_OAUTH_STATES_DAYS" env-default:"1" validate:"min=1,max=3650"`
+	QuotaCountersDays      int `yaml:"quota_counters_days" env:"RETENTION_PROVIDER_QUOTA_COUNTERS_DAYS" env-default:"400" validate:"min=1,max=3650"`
 }
 
 // HTTPServer holds the HTTP listener configuration.

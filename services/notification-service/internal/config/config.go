@@ -43,6 +43,16 @@ type Config struct {
 	Users      UsersConfig     `yaml:"users" validate:"required"`
 	SSE        SSEConfig       `yaml:"sse" validate:"required"`
 	Digest     DigestConfig    `yaml:"digest" validate:"required"`
+	Cleanup    CleanupConfig   `yaml:"cleanup" validate:"required"`
+}
+
+// CleanupConfig covers only transient/delivery records owned by Notification
+// Service. Preferences and active subscriptions are never cleanup targets.
+type CleanupConfig struct {
+	ReadNotificationsDays         int `yaml:"read_notifications_days" env:"RETENTION_READ_NOTIFICATIONS_DAYS" env-default:"180" validate:"min=1,max=3650"`
+	UnreadNotificationsDays       int `yaml:"unread_notifications_days" env:"RETENTION_UNREAD_NOTIFICATIONS_DAYS" env-default:"365" validate:"min=1,max=3650"`
+	NotificationDigestsDays       int `yaml:"notification_digests_days" env:"RETENTION_NOTIFICATION_DIGESTS_DAYS" env-default:"180" validate:"min=1,max=3650"`
+	InactivePushSubscriptionsDays int `yaml:"inactive_push_subscriptions_days" env:"RETENTION_INACTIVE_PUSH_SUBSCRIPTIONS_DAYS" env-default:"180" validate:"min=1,max=3650"`
 }
 
 type DigestConfig struct {

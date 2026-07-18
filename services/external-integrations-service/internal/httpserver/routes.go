@@ -40,6 +40,7 @@ func NewRouter(
 	authCfg config.AuthConfig,
 	internalCfg config.InternalConfig,
 	opsCfg config.OpsConfig,
+	cleanupHandlers ...interface{ RegisterRoutes(chi.Router) },
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -105,6 +106,16 @@ func NewRouter(
 			r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
 			r.Post("/internal/calendar/google/events/sync", internalCalendarHandler.SyncGoogleEvents)
 			r.Post("/internal/calendar/google/events/delete", internalCalendarHandler.DeleteGoogleEvents)
+		})
+	}
+	if len(cleanupHandlers) > 0 {
+		r.Group(func(r chi.Router) {
+			r.Use(internalmw.InternalServiceToken(internalCfg.ActiveServiceTokens(), log))
+			for _, cleanupHandler := range cleanupHandlers {
+				if cleanupHandler != nil {
+					cleanupHandler.RegisterRoutes(r)
+				}
+			}
 		})
 	}
 
