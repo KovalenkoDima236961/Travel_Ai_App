@@ -10,6 +10,7 @@ from app.schemas.generation_repair import (
     RepairGenerationOutputRequest,
     RepairGenerationOutputResponse,
 )
+from app.schemas.grounding import GroundingPlace
 from app.schemas.itinerary import (
     BudgetOptimizationChange,
     BudgetOptimizationPreservedItem,
@@ -72,7 +73,9 @@ class MockItineraryGenerator:
         days: list[ItineraryDay] = []
         for day_number in range(1, request.days + 1):
             items = self._items_for_day(request, day_number)
-            _localize_mock_items(items, request.output_language, request.destination)
+            if request.grounding_context is None or not request.grounding_context.places:
+                _localize_mock_items(items, request.output_language, request.destination)
+                _mark_generic_items(items)
             _finalize_item_costs(items, currency)
             days.append(
                 ItineraryDay(
@@ -553,6 +556,8 @@ class MockItineraryGenerator:
     def _items_for_day(
         self, request: GenerateItineraryRequest, day_number: int
     ) -> list[ItineraryItem]:
+        if request.grounding_context is not None and request.grounding_context.places:
+            return self._grounded_items_for_day(request, day_number)
         interests = self._personalized_interests(request)
         destination = request.destination
 
@@ -576,6 +581,41 @@ class MockItineraryGenerator:
                 request.weather_forecast.days if request.weather_forecast else [], day_number
             ),
         )
+
+    def _grounded_items_for_day(
+        self, request: GenerateItineraryRequest, day_number: int
+    ) -> list[ItineraryItem]:
+        assert request.grounding_context is not None
+        target_count = _ITEMS_PER_DAY_BY_PACE.get(request.pace, 4)
+        times = {
+            3: ["10:00", "13:00", "16:30"],
+            4: ["09:00", "12:30", "15:30", "19:00"],
+            5: ["08:30", "11:00", "13:00", "15:30", "20:00"],
+        }[target_count]
+        candidates = self._grounding_candidates(request, day_number)
+        offset = (day_number - 1) * target_count
+        return [
+            _grounded_item(candidates[(offset + index) % len(candidates)], times[index])
+            for index in range(target_count)
+        ]
+
+    def _grounding_candidates(
+        self, request: GenerateItineraryRequest, day_number: int
+    ) -> list[GroundingPlace]:
+        assert request.grounding_context is not None
+        places = list(request.grounding_context.places)
+        weather_day = _weather_day_for_number(
+            request.weather_forecast.days if request.weather_forecast else [], day_number
+        )
+        if weather_day is not None and weather_day.precipitation_chance >= 60:
+            rain_safe = [
+                place
+                for place in places
+                if place.rain_friendly is True or place.outdoor is False
+            ]
+            if rain_safe:
+                return rain_safe
+        return places
 
     def _balanced_items(
         self, destination: str, interests: set[str], day_number: int
@@ -806,6 +846,38 @@ def _localize_mock_items(items: list[ItineraryItem], language: str, destination:
     for index, item in enumerate(items):
         item.name = f"{names[index % len(names)]} — {destination}"
         item.note = localized["note"]
+
+
+def _grounded_item(place: GroundingPlace, time: str) -> ItineraryItem:
+    item_type = "food" if place.category in {"restaurant", "cafe", "market"} else "place"
+    duration = place.typical_duration_minutes
+    note_parts = [f"Grounded in curated knowledge as a {place.category}."]
+    if duration is not None:
+        note_parts.append(f"Typical visit: about {duration} minutes.")
+    if place.outdoor is True:
+        note_parts.append("Outdoor; check weather before going.")
+    if place.rain_friendly is True:
+        note_parts.append("Suitable as a rain-friendly option.")
+    return ItineraryItem(
+        time=time,
+        type=item_type,
+        name=place.canonical_name,
+        note=" ".join(note_parts),
+        durationMinutes=duration,
+        estimated_cost=Decimal("0"),
+        groundingSource="grounded",
+        groundingPlaceId=place.id,
+        groundingConfidence=place.confidence,
+        needsPlaceReview=False,
+        groundingWarnings=[],
+    )
+
+
+def _mark_generic_items(items: list[ItineraryItem]) -> None:
+    for item in items:
+        item.grounding_source = "generic"
+        item.needs_place_review = True
+        item.grounding_warnings = ["No destination-specific knowledge record was available."]
 
 
 def _route_stop_day_counts(request: GenerateItineraryRequest) -> list[int]:

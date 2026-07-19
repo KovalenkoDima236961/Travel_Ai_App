@@ -1,0 +1,21 @@
+{
+  "canonicalName": "Rome",
+  "countryCode": "IT",
+  "countryName": "Italy",
+  "lat": 41.9028,
+  "lng": 12.4964,
+  "aliases": ["Roma"],
+  "tags": ["culture", "food", "history"],
+  "places": [
+    {"name":"Colosseum","category":"landmark","lat":41.8902,"lng":12.4922,"tags":["history","architecture"],"typicalDurationMinutes":120,"priceLevel":"medium","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"Roman Forum","category":"landmark","lat":41.8925,"lng":12.4853,"tags":["archaeology","history"],"typicalDurationMinutes":120,"priceLevel":"medium","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning"],"sourceKey":"manual_curated","confidence":0.94},
+    {"name":"Pantheon","category":"landmark","lat":41.8986,"lng":12.4769,"tags":["architecture","history"],"typicalDurationMinutes":45,"priceLevel":"free","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"Trevi Fountain","category":"landmark","lat":41.9009,"lng":12.4833,"tags":["baroque","city-walk"],"typicalDurationMinutes":30,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","night"],"sourceKey":"manual_curated","confidence":0.94},
+    {"name":"Vatican Museums","category":"museum","lat":41.9065,"lng":12.4536,"tags":["art","history"],"typicalDurationMinutes":210,"priceLevel":"high","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning"],"avoidIf":["short visit"],"sourceKey":"manual_curated","confidence":0.93},
+    {"name":"Borghese Gallery","category":"museum","lat":41.9142,"lng":12.4923,"tags":["art","sculpture"],"typicalDurationMinutes":120,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.91},
+    {"name":"Villa Borghese","category":"park","lat":41.9142,"lng":12.4922,"tags":["green-space","walk"],"typicalDurationMinutes":90,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.92},
+    {"name":"Trastevere","category":"neighborhood","lat":41.8897,"lng":12.4708,"tags":["food","evening","walk"],"typicalDurationMinutes":120,"priceLevel":"medium","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["evening"],"sourceKey":"manual_curated","confidence":0.92},
+    {"name":"Orange Garden","category":"viewpoint","lat":41.8830,"lng":12.4813,"tags":["view","sunset"],"typicalDurationMinutes":35,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["evening"],"sourceKey":"manual_curated","confidence":0.9},
+    {"name":"Campo de' Fiori","category":"market","lat":41.8957,"lng":12.4727,"tags":["market","food"],"typicalDurationMinutes":45,"priceLevel":"low","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning"],"sourceKey":"manual_curated","confidence":0.88}
+  ]
+}

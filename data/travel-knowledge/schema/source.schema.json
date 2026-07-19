@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Travel knowledge source",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sourceKey", "sourceType", "displayName", "trustLevel", "enabled"],
+  "properties": {
+    "sourceKey": {"type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "sourceType": {"enum": ["manual_curated", "provider_place", "open_data", "user_approved_match", "user_feedback", "mock_test_data"]},
+    "displayName": {"type": "string", "minLength": 1, "maxLength": 200},
+    "licenseName": {"type": "string", "maxLength": 300},
+    "licenseUrl": {"type": "string", "format": "uri", "maxLength": 2000},
+    "attribution": {"type": "string", "maxLength": 500},
+    "trustLevel": {"enum": ["trusted_curated", "trusted_provider", "public_open_data", "app_observed", "user_feedback", "mock", "unknown"]},
+    "enabled": {"type": "boolean"}
+  }
+}

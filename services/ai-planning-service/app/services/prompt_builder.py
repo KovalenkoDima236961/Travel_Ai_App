@@ -289,6 +289,7 @@ def build_itinerary_prompt(
     start_date = request.start_date.isoformat() if request.start_date else "not provided"
     destination_context_section = _destination_context_section(request, destination_context)
     rag_context_section = _rag_context_section(rag_chunks)
+    grounding_context_section = _grounding_context_section(request)
     user_context_section = _user_context_section(request)
     weather_context_section = _weather_context_section(request.weather_forecast)
     accommodation_context_section = _accommodation_context_section(request.accommodation)
@@ -327,7 +328,12 @@ The JSON must exactly match this schema and must not include any other fields:
             "category": "ticket",
             "confidence": "medium",
             "source": "ai"
-          }}
+          }},
+          "groundingSource": "grounded",
+          "groundingPlaceId": "optional-id",
+          "groundingConfidence": 0.9,
+          "needsPlaceReview": false,
+          "groundingWarnings": []
         }}
       ]
     }}
@@ -352,6 +358,7 @@ Trip request:
 {route_context_section}
 {destination_context_section}
 {rag_context_section}
+{grounding_context_section}
 
 Rules:
 - Generate exactly {request.days} day objects.
@@ -395,6 +402,12 @@ Rules:
   and schedule parks/viewpoints/walking-heavy activities on better weather days.
 - Add indoor backup suggestions when rain chance is high.
 - Do not mention weather excessively unless relevant.
+- Prefer named places from GROUNDING CONTEXT. Do not invent a specific place name
+  unless it appears there. When no grounded place is appropriate, describe a
+  generic activity, set groundingSource to "generic", and set needsPlaceReview
+  to true. For a grounded place, copy its groundingPlaceId and confidence.
+- Use duration and indoor/outdoor hints from grounding context when present. Do
+  not present opening hours, availability, or booking status as certain.
 - Do not claim tickets, transport, accommodation, campsite, ferry, train, bus, or flight
   bookings are confirmed.
 - Do not include fields outside the schema.
@@ -2162,6 +2175,37 @@ def _rag_context_section(rag_chunks: list[KnowledgeSearchResult] | None) -> str:
     if len(lines) == 6:
         return ""
 
+    return "\n" + "\n".join(lines)
+
+
+def _grounding_context_section(request: GenerateItineraryRequest) -> str:
+    context = request.grounding_context
+    if context is None or context.status == "unavailable":
+        return (
+            "\nGROUNDING CONTEXT: unavailable. "
+            "Use generic activities rather than invented place names."
+        )
+
+    lines = ["GROUNDING CONTEXT:", f"- Status: {context.status}"]
+    if context.destination is not None:
+        lines.append(f"- Destination: {context.destination.canonical_name}")
+    for place in context.places[:20]:
+        fields = [
+            f"name={place.canonical_name}",
+            f"category={place.category}",
+            f"confidence={place.confidence:.2f}",
+        ]
+        if place.id:
+            fields.append(f"id={place.id}")
+        if place.typical_duration_minutes is not None:
+            fields.append(f"duration={place.typical_duration_minutes}m")
+        if place.rain_friendly is not None:
+            fields.append(f"rainFriendly={str(place.rain_friendly).lower()}")
+        if place.outdoor is not None:
+            fields.append(f"outdoor={str(place.outdoor).lower()}")
+        lines.append("- Place: " + "; ".join(fields))
+    for warning in context.retrieval_warnings[:5]:
+        lines.append(f"- Retrieval warning: {warning}")
     return "\n" + "\n".join(lines)
 
 

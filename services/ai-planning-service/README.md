@@ -459,6 +459,18 @@ Use [.env.example](.env.example) for the full template.
 
 ## Local Knowledge RAG
 
+### Grounding v1
+
+Generation requests can include a compact `groundingContext` containing only
+approved destination facts, high-confidence places, and short document
+summaries. The prompt prefers those records; a named place outside the context
+is marked for review rather than treated as verified. Mock mode deterministically
+uses supplied grounded places and never needs Ollama or provider access. Run
+`../../scripts/ai/run-itinerary-evals.sh` for the offline golden benchmark.
+
+Do not put raw user trips, comments, receipts, calendars, private notes, or raw
+prompts into grounding context or RAG files. See `docs/ai/grounding-data-pipeline.md`.
+
 ```mermaid
 flowchart LR
     Files["app/data/knowledge/**/*.md"] --> Indexer["python -m app.scripts.index_knowledge"]

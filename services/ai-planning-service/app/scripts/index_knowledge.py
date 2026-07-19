@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = get_settings()
     knowledge_dir = resolve_service_path(settings.rag_knowledge_dir)
+    curated_dir = resolve_service_path(settings.knowledge_curated_dir)
     chroma_dir = resolve_service_path(settings.rag_chroma_dir)
 
     if not knowledge_dir.exists() or not knowledge_dir.is_dir():
@@ -67,6 +69,14 @@ def main() -> None:
         indexed_files += 1
         indexed_chunks += len(chunks)
 
+    curated_files, curated_chunks = _index_curated_knowledge(
+        collection=collection,
+        embedding_client=embedding_client,
+        curated_dir=curated_dir,
+    )
+    indexed_files += curated_files
+    indexed_chunks += curated_chunks
+
     logger.info(
         "Knowledge indexing completed",
         extra={"files": indexed_files, "chunks": indexed_chunks},
@@ -101,6 +111,116 @@ def _iter_knowledge_files(knowledge_dir: Path) -> list[Path]:
         path
         for path in knowledge_dir.rglob("*")
         if path.is_file() and path.suffix.lower() in supported_suffixes
+    )
+
+
+def _index_curated_knowledge(
+    collection: Any,
+    embedding_client: OllamaEmbeddingClient,
+    curated_dir: Path,
+) -> tuple[int, int]:
+    """Index approved structured places and concise documents into the existing collection."""
+    if not curated_dir.is_dir():
+        logger.info(
+            "Curated knowledge directory is unavailable; skipping",
+            extra={"path": str(curated_dir)},
+        )
+        return 0, 0
+
+    indexed_files = indexed_chunks = 0
+    for path in sorted((curated_dir / "documents").glob("*.en.md")):
+        destination = path.name.removesuffix(".en.md").casefold()
+        chunks = chunk_text(path.read_text(encoding="utf-8"))
+        if not chunks:
+            continue
+        _upsert_chunks(
+            collection,
+            embedding_client,
+            ids=[f"curated:document:{destination}:{index}" for index in range(len(chunks))],
+            documents=chunks,
+            metadatas=[
+                {
+                    "destination": destination,
+                    "source": "manual_curated",
+                    "sourcePath": str(path.relative_to(curated_dir)),
+                    "recordType": "document",
+                    "chunkIndex": index,
+                }
+                for index in range(len(chunks))
+            ],
+        )
+        indexed_files += 1
+        indexed_chunks += len(chunks)
+
+    for path in sorted((curated_dir / "destinations").glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            logger.warning("Skipping invalid curated destination", extra={"path": str(path)})
+            continue
+        destination = str(payload.get("canonicalName", "")).strip().casefold()
+        places = payload.get("places")
+        if not destination or not isinstance(places, list):
+            continue
+        documents: list[str] = []
+        metadatas: list[dict[str, str | int | float | bool]] = []
+        for index, place in enumerate(places):
+            if not isinstance(place, dict):
+                continue
+            name = str(place.get("name", "")).strip()
+            category = str(place.get("category", "")).strip()
+            confidence = place.get("confidence")
+            if not name or not category or not isinstance(confidence, int | float):
+                continue
+            tags = ", ".join(str(tag) for tag in place.get("tags", []) if isinstance(tag, str))
+            duration = place.get("typicalDurationMinutes")
+            details = [f"{name} is a {category} in {payload.get('canonicalName')}."]
+            if tags:
+                details.append(f"Tags: {tags}.")
+            if isinstance(duration, int):
+                details.append(f"Typical duration: {duration} minutes.")
+            if place.get("outdoor") is True:
+                details.append("Outdoor.")
+            if place.get("rainFriendly") is True:
+                details.append("Rain-friendly.")
+            documents.append(" ".join(details))
+            metadatas.append(
+                {
+                    "destination": destination,
+                    "source": str(place.get("sourceKey", "manual_curated")),
+                    "sourcePath": str(path.relative_to(curated_dir)),
+                    "recordType": "place",
+                    "placeName": name,
+                    "category": category,
+                    "confidence": float(confidence),
+                    "chunkIndex": index,
+                }
+            )
+        if documents:
+            _upsert_chunks(
+                collection,
+                embedding_client,
+                ids=[f"curated:place:{destination}:{index}" for index in range(len(documents))],
+                documents=documents,
+                metadatas=metadatas,
+            )
+            indexed_files += 1
+            indexed_chunks += len(documents)
+    return indexed_files, indexed_chunks
+
+
+def _upsert_chunks(
+    collection: Any,
+    embedding_client: OllamaEmbeddingClient,
+    ids: list[str],
+    documents: list[str],
+    metadatas: list[dict[str, str | int | float | bool]],
+) -> None:
+    collection.upsert(
+        ids=ids,
+        documents=documents,
+        embeddings=[embedding_client.embed(document) for document in documents],
+        metadatas=metadatas,
     )
 
 

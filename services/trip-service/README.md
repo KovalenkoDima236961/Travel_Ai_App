@@ -1,5 +1,19 @@
 # Trip Service
 
+## AI grounding v1
+
+Trip Service owns normalized grounding tables and source provenance. Generated
+items retain compact `groundingSource`, `groundingPlaceId`, confidence, review,
+warning, and validation-status fields in private itinerary revisions; raw RAG
+documents and private prompt/user context are never stored there. The generation
+pipeline classifies grounded, provider-matched, generic, unverified, and
+duplicate items before save. Curated ingestion is performed through Worker
+Service and is idempotent by source/destination/place checksums and keys.
+
+Feedback signals are deliberately metadata-only and default to no training
+consent. They must never contain comments, notes, receipts, calendar data,
+emails, tokens, or raw prompts.
+
 Go service that owns trip planning state and the main domain workflow for the
 Travel AI App. It stores trips, itineraries, revision history, collaborators,
 comments, public shares, activity events, generation jobs, budget proposals,

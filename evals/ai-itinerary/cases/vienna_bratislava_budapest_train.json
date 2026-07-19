@@ -1,0 +1,1 @@
+{"id":"vienna_bratislava_budapest_train","input":{"destination":"Vienna","days":5,"budgetCurrency":"EUR","interests":["culture","food"]},"constraints":{"tripType":"multi_destination","route":["Vienna","Bratislava","Budapest"],"transport":"train"},"expectedQualities":{"schemaValidity":true,"minRoutePlausibilityScore":0.5}}

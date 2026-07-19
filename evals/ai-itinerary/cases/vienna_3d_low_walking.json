@@ -1,0 +1,1 @@
+{"id":"vienna_3d_low_walking","input":{"destination":"Vienna","days":3,"budgetCurrency":"EUR","interests":["music","museums"]},"constraints":{"pace":"relaxed","maxWalkingKmPerDay":3},"expectedQualities":{"minimumGroundedPlaceRate":0.7,"maxOverpackedDayCount":0,"maxDestinationMismatchCount":0}}

@@ -1,0 +1,1 @@
+{"id":"barcelona_4d_family","input":{"destination":"Barcelona","days":4,"budgetCurrency":"EUR","interests":["family","architecture"]},"constraints":{"pace":"relaxed","familyFriendly":true},"expectedQualities":{"schemaValidity":true,"maxOverpackedDayCount":0}}

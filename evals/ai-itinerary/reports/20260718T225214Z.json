@@ -1,0 +1,254 @@
+{
+  "generatedAt": "2026-07-18T22:52:14.761278+00:00",
+  "mode": "mock",
+  "results": [
+    {
+      "id": "barcelona_4d_family",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 0.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 0,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 1.0,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 0,
+        "overallScore": 0.45
+      }
+    },
+    {
+      "id": "bratislava_2d_budget",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 1.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 0,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 1.0,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 4,
+        "overallScore": 0.95
+      }
+    },
+    {
+      "id": "paris_2d_rain",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 1.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 0,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 1.0,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 3,
+        "overallScore": 0.95
+      }
+    },
+    {
+      "id": "rome_3d_food_culture_medium",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 1.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 2,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 1.0,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 3,
+        "overallScore": 0.89
+      }
+    },
+    {
+      "id": "senior_friendly_low_walking",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 1.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 0,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 1.0,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 6,
+        "overallScore": 0.95
+      }
+    },
+    {
+      "id": "slovakia_5d_hiking_nature",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 1.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 5,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 1.0,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 8,
+        "overallScore": 0.8
+      }
+    },
+    {
+      "id": "vienna_3d_low_walking",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 1.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 0,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 1.0,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 6,
+        "overallScore": 0.95
+      }
+    },
+    {
+      "id": "vienna_bratislava_budapest_train",
+      "passed": true,
+      "checks": {
+        "minimumGroundedPlaceRate": true,
+        "maxDestinationMismatchCount": true,
+        "maxHallucinatedPlaceCount": true,
+        "maxOverpackedDayCount": true,
+        "minRainFriendlyItems": true,
+        "schemaValidity": true,
+        "minRoutePlausibilityScore": true
+      },
+      "metrics": {
+        "groundedPlaceRate": 1.0,
+        "hallucinatedPlaceCount": 0,
+        "destinationMismatchCount": 0,
+        "duplicatePlaceCount": 10,
+        "missingCoordinateCount": 0,
+        "unrealisticDurationCount": 0,
+        "overpackedDayCount": 0,
+        "openingHoursRiskCount": 0,
+        "budgetPlausibilityScore": 0.8,
+        "routePlausibilityScore": 0.8,
+        "varietyScore": 0.75,
+        "preferenceMatchScore": 0.8,
+        "schemaValidity": true,
+        "repairNeeded": false,
+        "rainFriendlyItemCount": 12,
+        "overallScore": 0.65
+      }
+    }
+  ]
+}

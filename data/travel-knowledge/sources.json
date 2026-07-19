@@ -1,0 +1,11 @@
+[
+  {
+    "sourceKey": "manual_curated",
+    "sourceType": "manual_curated",
+    "displayName": "Travel Planner editorial knowledge",
+    "licenseName": "Original internal editorial data",
+    "attribution": "Travel Planner editorial team",
+    "trustLevel": "trusted_curated",
+    "enabled": true
+  }
+]

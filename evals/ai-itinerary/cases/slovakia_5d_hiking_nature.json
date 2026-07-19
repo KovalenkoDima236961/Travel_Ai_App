@@ -1,0 +1,1 @@
+{"id":"slovakia_5d_hiking_nature","input":{"destination":"Bratislava","days":5,"budgetCurrency":"EUR","interests":["nature","hiking"]},"constraints":{"pace":"relaxed","tripStyle":"hiking"},"expectedQualities":{"minimumGroundedPlaceRate":0.4,"maxDestinationMismatchCount":0,"maxOverpackedDayCount":0}}

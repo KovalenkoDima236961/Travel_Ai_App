@@ -14,6 +14,12 @@ from app.schemas.generation_repair import (
     RepairGenerationOutputRequest,
     RepairGenerationOutputResponse,
 )
+from app.schemas.grounding import (
+    GroundingContext,
+    GroundingDestination,
+    GroundingDocument,
+    GroundingPlace,
+)
 from app.schemas.itinerary import (
     BudgetOptimizationProposalResponse,
     GenerateItineraryRequest,
@@ -275,6 +281,7 @@ class OllamaItineraryGenerator:
     ) -> ItineraryResponse:
         destination_context = self._get_destination_context(request, log_context)
         rag_chunks = self._get_rag_chunks(request, log_context)
+        self._populate_retrieved_grounding(request, rag_chunks)
         prompt = build_itinerary_prompt(
             request,
             destination_context=destination_context,
@@ -291,7 +298,8 @@ class OllamaItineraryGenerator:
         )
 
         try:
-            return self._parse_and_validate(request, llm_response)
+            itinerary = self._parse_and_validate(request, llm_response)
+            return self._apply_grounding_metadata(itinerary, request)
         except (LLMResponseParseError, ItineraryValidationError) as exc:
             self._record_generation_error(log_context, exc)
 
@@ -322,7 +330,9 @@ class OllamaItineraryGenerator:
                 log_context,
             )
 
-            repaired_itinerary = self._parse_and_validate(request, repair_response)
+            repaired_itinerary = self._apply_grounding_metadata(
+                self._parse_and_validate(request, repair_response), request
+            )
             log_context["repair_succeeded"] = True
             record_ai_repair_attempt("generate_itinerary", "success")
             return repaired_itinerary
@@ -559,6 +569,79 @@ class OllamaItineraryGenerator:
                 },
             )
         return itinerary
+
+    def _apply_grounding_metadata(
+        self, itinerary: ItineraryResponse, request: GenerateItineraryRequest
+    ) -> ItineraryResponse:
+        context = request.grounding_context
+        if context is None:
+            return itinerary
+        known_by_name = {place.canonical_name.casefold(): place for place in context.places}
+        for day in itinerary.days:
+            for item in day.items:
+                if item.grounding_source is not None:
+                    continue
+                place = known_by_name.get(item.name.casefold())
+                if place is not None:
+                    item.grounding_source = "grounded"
+                    item.grounding_place_id = place.id
+                    item.grounding_confidence = place.confidence
+                    item.needs_place_review = False
+                else:
+                    item.grounding_source = "model_suggested"
+                    item.needs_place_review = True
+                    item.grounding_warnings = [
+                        "Named place was not matched to supplied grounding context."
+                    ]
+        return itinerary
+
+    def _populate_retrieved_grounding(
+        self, request: GenerateItineraryRequest, chunks: list[KnowledgeSearchResult]
+    ) -> None:
+        """Convert retrieval output into a compact typed context without exposing raw documents."""
+        if request.grounding_context is not None or not chunks:
+            return
+        places: list[GroundingPlace] = []
+        documents: list[GroundingDocument] = []
+        for chunk in chunks:
+            metadata = chunk.metadata
+            if metadata.get("recordType") == "place":
+                name = metadata.get("placeName")
+                category = metadata.get("category")
+                confidence = metadata.get("confidence", chunk.score or 0.7)
+                if not isinstance(name, str) or not isinstance(category, str):
+                    continue
+                try:
+                    places.append(
+                        GroundingPlace(
+                            id=chunk.id,
+                            canonicalName=name,
+                            category=category,
+                            confidence=float(confidence),
+                            sourceKey=str(metadata.get("source", chunk.source)),
+                        )
+                    )
+                except (TypeError, ValueError):
+                    continue
+            else:
+                documents.append(
+                    GroundingDocument(
+                        id=chunk.id,
+                        title=str(metadata.get("source", chunk.source)),
+                        summary=chunk.content[:2000],
+                        sourceKey=str(metadata.get("source", chunk.source)),
+                        confidence=chunk.score if chunk.score is not None else 0.7,
+                    )
+                )
+        if not places and not documents:
+            return
+        request.grounding_context = GroundingContext(
+            status="available" if places else "partial",
+            destination=GroundingDestination(canonicalName=request.destination),
+            places=places,
+            documents=documents[:8],
+            knowledgeVersion="rag-v1",
+        )
 
     def _post_to_ollama(self, payload: dict) -> httpx.Response:
         endpoint = f"{self._settings.ollama_base_url.rstrip('/')}/api/generate"

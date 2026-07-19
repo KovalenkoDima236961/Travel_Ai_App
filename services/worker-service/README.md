@@ -115,6 +115,17 @@ Default topology:
 - `budget_optimization_day`
 - `policy_repair`
 
+### Knowledge ingestion jobs
+
+Grounding v1 uses the worker-owned `knowledge_ingest_curated`,
+`knowledge_ingest_provider_places`, `knowledge_index_embeddings`,
+`knowledge_reindex_destination`, and `knowledge_quality_check` job categories.
+The initial safe entrypoint is `scripts/ai/ingest-knowledge.sh --dry-run` (or
+without `--dry-run` against a configured Trip Service database). It validates
+the original/approved corpus, normalizes names, checks provenance, upserts by
+stable keys, and chunks source documents. Vector indexing is independent and
+fail-open so an embedding outage cannot duplicate relational records.
+
 For budget optimization, a completed job means a pending proposal was stored for
 review. It does not mean the itinerary changed.
 For policy repair, a completed job means a pending repair proposal was stored

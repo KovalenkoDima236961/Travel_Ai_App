@@ -1,0 +1,1 @@
+{"id":"paris_2d_rain","input":{"destination":"Paris","days":2,"budgetCurrency":"EUR","interests":["art","food"],"rainy":true},"constraints":{"pace":"balanced","weather":"rain"},"expectedQualities":{"minimumGroundedPlaceRate":0.7,"minRainFriendlyItems":2,"maxDestinationMismatchCount":0}}

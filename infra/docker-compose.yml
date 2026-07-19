@@ -90,10 +90,14 @@ services:
       DESTINATION_CONTEXT_DIR: ${DESTINATION_CONTEXT_DIR:-app/data/destinations}
       RAG_ENABLED: ${RAG_ENABLED:-true}
       RAG_KNOWLEDGE_DIR: ${RAG_KNOWLEDGE_DIR:-app/data/knowledge}
+      KNOWLEDGE_CURATED_DIR: ${KNOWLEDGE_CURATED_DIR:-/app/data/travel-knowledge}
       RAG_CHROMA_DIR: ${RAG_CHROMA_DIR:-app/data/chroma}
       RAG_COLLECTION_NAME: ${RAG_COLLECTION_NAME:-travel_knowledge}
       RAG_TOP_K: ${RAG_TOP_K:-5}
       RAG_MIN_SCORE: ${RAG_MIN_SCORE:-0.0}
+      KNOWLEDGE_INDEXING_ENABLED: ${KNOWLEDGE_INDEXING_ENABLED:-true}
+      KNOWLEDGE_INDEX_BATCH_SIZE: ${KNOWLEDGE_INDEX_BATCH_SIZE:-50}
+      KNOWLEDGE_INDEX_FAIL_OPEN: ${KNOWLEDGE_INDEX_FAIL_OPEN:-true}
       ANONYMIZED_TELEMETRY: ${ANONYMIZED_TELEMETRY:-false}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       OLLAMA_EMBEDDING_TIMEOUT_SECONDS: ${OLLAMA_EMBEDDING_TIMEOUT_SECONDS:-60}
@@ -104,6 +108,7 @@ services:
       - "8000:8000"
     volumes:
       - chroma_data:/app/app/data/chroma
+      - ../data/travel-knowledge:/app/data/travel-knowledge:ro
     healthcheck:
       test:
         [

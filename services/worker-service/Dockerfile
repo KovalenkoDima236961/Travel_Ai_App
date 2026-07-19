@@ -9,6 +9,7 @@ ARG BUILD_TIME=unknown
 
 COPY services/trip-service services/trip-service
 COPY services/worker-service services/worker-service
+COPY data/travel-knowledge data/travel-knowledge
 
 WORKDIR /src/services/worker-service
 RUN go mod download
@@ -23,6 +24,7 @@ WORKDIR /app
 
 COPY --from=builder /out/worker-service /usr/local/bin/worker-service
 COPY --from=builder /src/services/trip-service/migrations /app/migrations
+COPY --from=builder /src/data/travel-knowledge /app/data/travel-knowledge
 
 USER appuser
 EXPOSE 8090

@@ -1,0 +1,21 @@
+{
+  "canonicalName": "Paris",
+  "countryCode": "FR",
+  "countryName": "France",
+  "lat": 48.8566,
+  "lng": 2.3522,
+  "aliases": ["Paris, France"],
+  "tags": ["art", "food", "architecture"],
+  "places": [
+    {"name":"Louvre Museum","category":"museum","lat":48.8606,"lng":2.3376,"tags":["art","museum"],"typicalDurationMinutes":180,"priceLevel":"high","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"Musée d'Orsay","category":"museum","lat":48.8600,"lng":2.3266,"tags":["impressionism","art"],"typicalDurationMinutes":150,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.94},
+    {"name":"Eiffel Tower","category":"landmark","lat":48.8584,"lng":2.2945,"tags":["landmark","view"],"typicalDurationMinutes":120,"priceLevel":"high","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","evening"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"Notre-Dame Cathedral","category":"landmark","lat":48.8530,"lng":2.3499,"tags":["architecture","history"],"typicalDurationMinutes":45,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.9},
+    {"name":"Sainte-Chapelle","category":"landmark","lat":48.8554,"lng":2.3450,"tags":["stained-glass","architecture"],"typicalDurationMinutes":60,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning"],"sourceKey":"manual_curated","confidence":0.92},
+    {"name":"Luxembourg Gardens","category":"park","lat":48.8462,"lng":2.3372,"tags":["park","rest"],"typicalDurationMinutes":75,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.93},
+    {"name":"Montmartre","category":"neighborhood","lat":48.8867,"lng":2.3431,"tags":["art","walk","view"],"typicalDurationMinutes":150,"priceLevel":"low","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","evening"],"sourceKey":"manual_curated","confidence":0.92},
+    {"name":"Le Marais","category":"neighborhood","lat":48.8590,"lng":2.3622,"tags":["food","shops","walk"],"typicalDurationMinutes":120,"priceLevel":"medium","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["afternoon","evening"],"sourceKey":"manual_curated","confidence":0.91},
+    {"name":"Canal Saint-Martin","category":"park","lat":48.8724,"lng":2.3638,"tags":["canal","walk"],"typicalDurationMinutes":60,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["afternoon"],"sourceKey":"manual_curated","confidence":0.87},
+    {"name":"Marché des Enfants Rouges","category":"market","lat":48.8625,"lng":2.3614,"tags":["food","market"],"typicalDurationMinutes":60,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["afternoon"],"sourceKey":"manual_curated","confidence":0.88}
+  ]
+}

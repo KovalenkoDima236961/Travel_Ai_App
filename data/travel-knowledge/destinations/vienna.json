@@ -1,0 +1,21 @@
+{
+  "canonicalName": "Vienna",
+  "countryCode": "AT",
+  "countryName": "Austria",
+  "lat": 48.2082,
+  "lng": 16.3738,
+  "aliases": ["Wien"],
+  "tags": ["music", "museums", "coffeehouses"],
+  "places": [
+    {"name":"Schönbrunn Palace","category":"landmark","lat":48.1845,"lng":16.3122,"tags":["palace","history"],"typicalDurationMinutes":180,"priceLevel":"high","outdoor":true,"rainFriendly":true,"bestTimeOfDay":["morning"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"St. Stephen's Cathedral","category":"landmark","lat":48.2085,"lng":16.3731,"tags":["architecture","history"],"typicalDurationMinutes":45,"priceLevel":"free","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"Kunsthistorisches Museum","category":"museum","lat":48.2038,"lng":16.3615,"tags":["art","museum"],"typicalDurationMinutes":150,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.94},
+    {"name":"Belvedere Museum","category":"museum","lat":48.1913,"lng":16.3809,"tags":["art","garden"],"typicalDurationMinutes":150,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning"],"sourceKey":"manual_curated","confidence":0.93},
+    {"name":"MuseumsQuartier","category":"neighborhood","lat":48.2028,"lng":16.3614,"tags":["museum","design","cafe"],"typicalDurationMinutes":120,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["afternoon","evening"],"sourceKey":"manual_curated","confidence":0.93},
+    {"name":"Prater","category":"park","lat":48.2167,"lng":16.3950,"tags":["park","family"],"typicalDurationMinutes":120,"priceLevel":"low","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["afternoon"],"sourceKey":"manual_curated","confidence":0.91},
+    {"name":"Naschmarkt","category":"market","lat":48.1983,"lng":16.3618,"tags":["food","market"],"typicalDurationMinutes":75,"priceLevel":"medium","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.9},
+    {"name":"Karlskirche","category":"landmark","lat":48.2009,"lng":16.3709,"tags":["baroque","architecture"],"typicalDurationMinutes":45,"priceLevel":"low","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.9},
+    {"name":"Danube Canal","category":"park","lat":48.2162,"lng":16.3746,"tags":["waterfront","walk"],"typicalDurationMinutes":60,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["evening"],"sourceKey":"manual_curated","confidence":0.86},
+    {"name":"Central Cemetery","category":"activity","lat":48.1496,"lng":16.4418,"tags":["history","music"],"typicalDurationMinutes":90,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["afternoon"],"sourceKey":"manual_curated","confidence":0.84}
+  ]
+}

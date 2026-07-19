@@ -4,6 +4,88 @@
  */
 
 export interface paths {
+    "/feature-flags/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPublicFeatureFlags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/feature-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listOpsFeatureFlags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/feature-flags/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        get: operations["getOpsFeatureFlag"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateOpsFeatureFlag"];
+        trace?: never;
+    };
+    "/ops/feature-flags/{key}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetOpsFeatureFlag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/feature-flags/{key}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listOpsFeatureFlagAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/version": {
         parameters: {
             query?: never;
@@ -768,13 +850,53 @@ export interface components {
         SuccessResponse: {
             success: boolean;
         };
+        PublicFeatureFlagsResponse: {
+            flags: {
+                [key: string]: boolean;
+            };
+            /** @enum {string} */
+            environment: "local" | "test" | "staging" | "production" | "development";
+            /** Format: date-time */
+            updatedAt?: string | null;
+        };
+        OpsFeatureFlag: {
+            key: string;
+            value: boolean;
+            /** @enum {string} */
+            type: "boolean" | "string" | "int";
+            category: string;
+            description?: string;
+            safeForFrontend: boolean;
+            requiresBackendEnforcement: boolean;
+            metadata: {
+                [key: string]: unknown;
+            };
+        };
+        OpsFeatureFlagsResponse: {
+            flags: components["schemas"]["OpsFeatureFlag"][];
+            environment: string;
+        };
+        UpdateFeatureFlagRequest: {
+            value: boolean;
+            reason?: string;
+        };
+        ResetFeatureFlagRequest: {
+            reason?: string;
+        };
+        FeatureFlagAuditResponse: {
+            events: {
+                [key: string]: unknown;
+            }[];
+        };
         ErrorResponse: {
             error: string | {
                 code: string;
                 message: string;
                 details?: {
                     [key: string]: unknown;
-                }[];
+                }[] | {
+                    [key: string]: unknown;
+                };
                 requestId?: string;
             };
             currentItineraryRevision?: number;
@@ -833,6 +955,155 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getPublicFeatureFlags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Browser-safe global boolean flags only. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicFeatureFlagsResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listOpsFeatureFlags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Allowlisted operator view of registered flags and sources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsFeatureFlagsResponse"];
+                };
+            };
+            403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getOpsFeatureFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved flag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsFeatureFlag"];
+                };
+            };
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateOpsFeatureFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFeatureFlagRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated resolved flag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsFeatureFlag"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    resetOpsFeatureFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetFeatureFlagRequest"];
+            };
+        };
+        responses: {
+            /** @description Resolved default flag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsFeatureFlag"];
+                };
+            };
+            403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listOpsFeatureFlagAudit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Flag audit events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureFlagAuditResponse"];
+                };
+            };
+            403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
     getTripServiceVersion: {
         parameters: {
             query?: never;

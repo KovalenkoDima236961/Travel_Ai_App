@@ -1,0 +1,1 @@
+{"id":"rome_3d_food_culture_medium","input":{"destination":"Rome","days":3,"budgetCurrency":"EUR","interests":["food","culture"]},"constraints":{"pace":"balanced","budget":"medium"},"expectedQualities":{"minimumGroundedPlaceRate":0.7,"maxDestinationMismatchCount":0,"maxHallucinatedPlaceCount":0}}

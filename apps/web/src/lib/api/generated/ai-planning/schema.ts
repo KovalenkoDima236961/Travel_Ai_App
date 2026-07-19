@@ -850,8 +850,18 @@ export interface components {
             /** Endtime */
             endTime?: string | null;
             estimatedCost?: components["schemas"]["EstimatedCost-Input"] | null;
+            /** Groundingconfidence */
+            groundingConfidence?: number | null;
+            /** Groundingplaceid */
+            groundingPlaceId?: string | null;
+            /** Groundingsource */
+            groundingSource?: ("grounded" | "provider" | "generic" | "model_suggested") | null;
+            /** Groundingwarnings */
+            groundingWarnings?: string[];
             /** Name */
             name: string;
+            /** Needsplacereview */
+            needsPlaceReview?: boolean | null;
             /** Note */
             note?: string | null;
             place?: components["schemas"]["PlaceRef"] | null;
@@ -1300,6 +1310,7 @@ export interface components {
             days: number;
             /** Destination */
             destination: string;
+            groundingContext?: components["schemas"]["GroundingContext"] | null;
             /** Instruction */
             instruction?: string | null;
             /** Interests */
@@ -1469,6 +1480,84 @@ export interface components {
             severity: string;
             /** Title */
             title: string;
+        };
+        /** GroundingContext */
+        GroundingContext: {
+            destination?: components["schemas"]["GroundingDestination"] | null;
+            /** Documents */
+            documents?: components["schemas"]["GroundingDocument"][];
+            /** Generatedat */
+            generatedAt?: string | null;
+            /** Knowledgeversion */
+            knowledgeVersion?: string | null;
+            /** Places */
+            places?: components["schemas"]["GroundingPlace"][];
+            /** Retrievalwarnings */
+            retrievalWarnings?: string[];
+            /**
+             * Status
+             * @default unavailable
+             * @enum {string}
+             */
+            status: "available" | "partial" | "unavailable";
+        };
+        /** GroundingDestination */
+        GroundingDestination: {
+            /** Aliases */
+            aliases?: string[];
+            /** Canonicalname */
+            canonicalName: string;
+            /** Countrycode */
+            countryCode?: string | null;
+            /** Countryname */
+            countryName?: string | null;
+            /** Id */
+            id?: string | null;
+            /** Tags */
+            tags?: string[];
+        };
+        /** GroundingDocument */
+        GroundingDocument: {
+            /**
+             * Confidence
+             * @default 0.7
+             */
+            confidence: number;
+            /** Id */
+            id?: string | null;
+            /** Sourcekey */
+            sourceKey?: string | null;
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+        };
+        /** GroundingPlace */
+        GroundingPlace: {
+            /** Besttimeofday */
+            bestTimeOfDay?: string[];
+            /** Canonicalname */
+            canonicalName: string;
+            /** Category */
+            category: string;
+            /** Confidence */
+            confidence: number;
+            /** Id */
+            id?: string | null;
+            /** Outdoor */
+            outdoor?: boolean | null;
+            /** Pricelevel */
+            priceLevel?: string | null;
+            /** Rainfriendly */
+            rainFriendly?: boolean | null;
+            /** Sourcekey */
+            sourceKey?: string | null;
+            /** Sourceurl */
+            sourceUrl?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Typicaldurationminutes */
+            typicalDurationMinutes?: number | null;
         };
         /** GroupPreferenceItem */
         GroupPreferenceItem: {

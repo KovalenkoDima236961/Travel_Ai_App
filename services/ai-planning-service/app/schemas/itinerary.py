@@ -18,6 +18,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.grounding import GroundingContext, GroundingSource
 from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
@@ -535,6 +536,7 @@ class GenerateItineraryRequest(APIModel):
     planning_constraints: PlanningConstraints | None = Field(
         default=None, alias="planningConstraints"
     )
+    grounding_context: GroundingContext | None = Field(default=None, alias="groundingContext")
 
     @field_validator("budget_currency", mode="before")
     @classmethod
@@ -717,6 +719,15 @@ class ItineraryItem(APIModel):
     duration_minutes: int | None = Field(default=None, ge=0, alias="durationMinutes")
     transfer: TransferDetails | None = None
     estimated_cost: EstimatedCost | None = Field(default=None, alias="estimatedCost")
+    grounding_source: GroundingSource | None = Field(default=None, alias="groundingSource")
+    grounding_place_id: str | None = Field(default=None, alias="groundingPlaceId", max_length=128)
+    grounding_confidence: float | None = Field(
+        default=None, alias="groundingConfidence", ge=0, le=1
+    )
+    needs_place_review: bool | None = Field(default=None, alias="needsPlaceReview")
+    grounding_warnings: list[str] = Field(
+        default_factory=list, alias="groundingWarnings", max_length=8
+    )
 
     @field_validator("type", mode="before")
     @classmethod
@@ -791,6 +802,16 @@ class ItineraryItem(APIModel):
                 exclude_none=True,
                 mode="json",
             )
+        if self.grounding_source is not None:
+            out["groundingSource"] = self.grounding_source
+        if self.grounding_place_id is not None:
+            out["groundingPlaceId"] = self.grounding_place_id
+        if self.grounding_confidence is not None:
+            out["groundingConfidence"] = self.grounding_confidence
+        if self.needs_place_review is not None:
+            out["needsPlaceReview"] = self.needs_place_review
+        if self.grounding_warnings:
+            out["groundingWarnings"] = self.grounding_warnings
         return out
 
 

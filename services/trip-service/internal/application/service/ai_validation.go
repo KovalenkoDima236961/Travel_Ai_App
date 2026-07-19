@@ -72,6 +72,7 @@ func (s *Service) validateGeneratedItinerary(
 	outputLanguage string,
 ) (aggregate.Itinerary, map[string]any, *aivalidation.PipelineResult, error) {
 	if s.generationReliability == nil {
+		itinerary, metadata = applyGroundingValidation(itinerary, metadata)
 		return itinerary, metadata, nil, nil
 	}
 	result, err := s.generationReliability.ValidateAndRepair(ctx, aivalidation.PipelineInput{
@@ -88,7 +89,9 @@ func (s *Service) validateGeneratedItinerary(
 		return itinerary, metadata, nil, err
 	}
 	if !result.SaveAllowed {
-		return itinerary, mergeGenerationQualityMetadata(metadata, result.GenerationQuality), &result, aivalidation.NewValidationError(result)
+		itinerary, metadata = applyGroundingValidation(itinerary, mergeGenerationQualityMetadata(metadata, result.GenerationQuality))
+		return itinerary, metadata, &result, aivalidation.NewValidationError(result)
 	}
-	return result.FinalOutput, mergeGenerationQualityMetadata(metadata, result.GenerationQuality), &result, nil
+	finalOutput, finalMetadata := applyGroundingValidation(result.FinalOutput, mergeGenerationQualityMetadata(metadata, result.GenerationQuality))
+	return finalOutput, finalMetadata, &result, nil
 }

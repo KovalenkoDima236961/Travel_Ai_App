@@ -68,6 +68,26 @@ jobs:
       - run: python -m ruff check app tests
       - run: python -m pytest
 
+  ai-grounding-evals:
+    name: AI grounding data and mock evaluations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
+      - run: ./scripts/ai/validate-knowledge.sh
+      - run: ./scripts/ai/run-itinerary-evals.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-itinerary-evaluation-report
+          path: evals/ai-itinerary/reports
+          if-no-files-found: ignore
+
   api-contracts:
     name: API contracts
     runs-on: ubuntu-latest

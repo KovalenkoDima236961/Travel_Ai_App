@@ -1707,9 +1707,70 @@
               }
             ]
           },
+          "groundingConfidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groundingconfidence"
+          },
+          "groundingPlaceId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groundingplaceid"
+          },
+          "groundingSource": {
+            "anyOf": [
+              {
+                "enum": [
+                  "grounded",
+                  "provider",
+                  "generic",
+                  "model_suggested"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groundingsource"
+          },
+          "groundingWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Groundingwarnings",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "needsPlaceReview": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needsplacereview"
           },
           "note": {
             "anyOf": [
@@ -3171,6 +3232,16 @@
             "title": "Destination",
             "type": "string"
           },
+          "groundingContext": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "instruction": {
             "anyOf": [
               {
@@ -3727,6 +3798,317 @@
           "title"
         ],
         "title": "GenerationValidationIssue",
+        "type": "object"
+      },
+      "GroundingContext": {
+        "properties": {
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/GroundingDocument"
+            },
+            "maxItems": 8,
+            "title": "Documents",
+            "type": "array"
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generatedat"
+          },
+          "knowledgeVersion": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledgeversion"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/GroundingPlace"
+            },
+            "maxItems": 20,
+            "title": "Places",
+            "type": "array"
+          },
+          "retrievalWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Retrievalwarnings",
+            "type": "array"
+          },
+          "status": {
+            "default": "unavailable",
+            "enum": [
+              "available",
+              "partial",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "GroundingContext",
+        "type": "object"
+      },
+      "GroundingDestination": {
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "canonicalName": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Canonicalname",
+            "type": "string"
+          },
+          "countryCode": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countrycode"
+          },
+          "countryName": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countryname"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "canonicalName"
+        ],
+        "title": "GroundingDestination",
+        "type": "object"
+      },
+      "GroundingDocument": {
+        "properties": {
+          "confidence": {
+            "default": 0.7,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "sourceKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcekey"
+          },
+          "summary": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "summary"
+        ],
+        "title": "GroundingDocument",
+        "type": "object"
+      },
+      "GroundingPlace": {
+        "properties": {
+          "bestTimeOfDay": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Besttimeofday",
+            "type": "array"
+          },
+          "canonicalName": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Canonicalname",
+            "type": "string"
+          },
+          "category": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "outdoor": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outdoor"
+          },
+          "priceLevel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricelevel"
+          },
+          "rainFriendly": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rainfriendly"
+          },
+          "sourceKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcekey"
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceurl"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "typicalDurationMinutes": {
+            "anyOf": [
+              {
+                "maximum": 720.0,
+                "minimum": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typicaldurationminutes"
+          }
+        },
+        "required": [
+          "canonicalName",
+          "category",
+          "confidence"
+        ],
+        "title": "GroundingPlace",
         "type": "object"
       },
       "GroupPreferenceItem": {

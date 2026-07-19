@@ -1,0 +1,1 @@
+{"id":"bratislava_2d_budget","input":{"destination":"Bratislava","days":2,"budgetCurrency":"EUR","interests":["history","food"]},"constraints":{"pace":"balanced","budget":"low"},"expectedQualities":{"minimumGroundedPlaceRate":0.7,"maxDestinationMismatchCount":0,"maxHallucinatedPlaceCount":0}}

@@ -1,0 +1,21 @@
+{
+  "canonicalName": "Bratislava",
+  "countryCode": "SK",
+  "countryName": "Slovakia",
+  "lat": 48.1486,
+  "lng": 17.1077,
+  "aliases": ["Pressburg", "Pozsony"],
+  "tags": ["old-town", "danube", "budget-friendly"],
+  "places": [
+    {"name":"Bratislava Castle","category":"landmark","lat":48.1424,"lng":17.1008,"tags":["castle","view"],"typicalDurationMinutes":90,"priceLevel":"low","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","evening"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"Old Town","category":"neighborhood","lat":48.1489,"lng":17.1071,"tags":["walk","history","food"],"typicalDurationMinutes":120,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.95},
+    {"name":"St. Martin's Cathedral","category":"landmark","lat":48.1434,"lng":17.1048,"tags":["architecture","history"],"typicalDurationMinutes":35,"priceLevel":"free","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.91},
+    {"name":"Slovak National Gallery","category":"museum","lat":48.1417,"lng":17.1094,"tags":["art","danube"],"typicalDurationMinutes":100,"priceLevel":"low","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["afternoon"],"sourceKey":"manual_curated","confidence":0.9},
+    {"name":"Blue Church","category":"landmark","lat":48.1467,"lng":17.1184,"tags":["architecture","art-nouveau"],"typicalDurationMinutes":30,"priceLevel":"free","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.9},
+    {"name":"UFO Observation Deck","category":"viewpoint","lat":48.1389,"lng":17.1044,"tags":["view","danube"],"typicalDurationMinutes":60,"priceLevel":"medium","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["evening"],"sourceKey":"manual_curated","confidence":0.9},
+    {"name":"Sad Janka Kráľa","category":"park","lat":48.1323,"lng":17.1070,"tags":["park","danube"],"typicalDurationMinutes":60,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["afternoon"],"sourceKey":"manual_curated","confidence":0.87},
+    {"name":"Danube Embankment","category":"park","lat":48.1409,"lng":17.1163,"tags":["walk","river"],"typicalDurationMinutes":60,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["evening"],"sourceKey":"manual_curated","confidence":0.88},
+    {"name":"Old Market Hall","category":"market","lat":48.1468,"lng":17.1122,"tags":["market","food"],"typicalDurationMinutes":45,"priceLevel":"low","outdoor":false,"rainFriendly":true,"bestTimeOfDay":["morning","afternoon"],"sourceKey":"manual_curated","confidence":0.87},
+    {"name":"Slavín Memorial","category":"viewpoint","lat":48.1587,"lng":17.1058,"tags":["memorial","view"],"typicalDurationMinutes":60,"priceLevel":"free","outdoor":true,"rainFriendly":false,"bestTimeOfDay":["evening"],"sourceKey":"manual_curated","confidence":0.87}
+  ]
+}
