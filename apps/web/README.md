@@ -1188,3 +1188,9 @@ and [query hook](../../docs/development/playbooks/add-query-hook.md) checklists.
 The [offline/PWA guide](../../docs/features/offline-pwa.md),
 [API overview](../../docs/api/overview.md), and [testing strategy](../../docs/testing/strategy.md)
 cover the cross-cutting constraints.
+
+## Ops AI Knowledge Quality
+
+The Ops Dashboard surfaces provider-backed travel knowledge under `/ops/ai/knowledge` (ops admin only). It exposes the ingestion status and run action, a place list filterable by low quality, stale, missing coordinates, needs review, duplicates, and rejected, a place detail drawer with provenance, quality breakdown, and provider observations, approve/reject/refresh actions, and the duplicate merge workflow.
+
+Rejecting a record requires a reason: the API refuses an unexplained rejection because it is not auditable. Raw provider payloads are ops-admin-only and disabled by default, and no private user feedback or trip content is exposed in these views. See [trusted travel data providers](../../docs/ai/trusted-travel-data-providers.md).

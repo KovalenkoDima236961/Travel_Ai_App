@@ -6,6 +6,7 @@ from app.schemas.checklist import GenerateChecklistRequest
 from app.schemas.destination_context import DestinationContext
 from app.schemas.destination_suggestion import DestinationSuggestionRequest
 from app.schemas.generation_repair import RepairGenerationOutputRequest
+from app.schemas.grounding import GroundingPlace
 from app.schemas.itinerary import (
     GenerateItineraryRequest,
     OpeningHoursInterval,
@@ -406,6 +407,11 @@ Rules:
   unless it appears there. When no grounded place is appropriate, describe a
   generic activity, set groundingSource to "generic", and set needsPlaceReview
   to true. For a grounded place, copy its groundingPlaceId and confidence.
+- Prefer places listed as verified. A place listed as unverified may be used when
+  verified options are insufficient, but you must then set needsPlaceReview to
+  true for that item.
+- When destination coverage is limited, prefer generic activities over specific
+  place names rather than filling the gap with plausible-sounding invented names.
 - Use duration and indoor/outdoor hints from grounding context when present. Do
   not present opening hours, availability, or booking status as certain.
 - Do not claim tickets, transport, accommodation, campsite, ferry, train, bus, or flight
@@ -2189,24 +2195,72 @@ def _grounding_context_section(request: GenerateItineraryRequest) -> str:
     lines = ["GROUNDING CONTEXT:", f"- Status: {context.status}"]
     if context.destination is not None:
         lines.append(f"- Destination: {context.destination.canonical_name}")
-    for place in context.places[:20]:
-        fields = [
-            f"name={place.canonical_name}",
-            f"category={place.category}",
-            f"confidence={place.confidence:.2f}",
-        ]
-        if place.id:
-            fields.append(f"id={place.id}")
-        if place.typical_duration_minutes is not None:
-            fields.append(f"duration={place.typical_duration_minutes}m")
-        if place.rain_friendly is not None:
-            fields.append(f"rainFriendly={str(place.rain_friendly).lower()}")
-        if place.outdoor is not None:
-            fields.append(f"outdoor={str(place.outdoor).lower()}")
-        lines.append("- Place: " + "; ".join(fields))
+
+    # Strong records are listed first and separately from weak ones. The split
+    # is explicit in the prompt so the model does not have to infer which
+    # records it may assert confidently.
+    strong_places = context.strong_places[:20]
+    weak_places = context.weak_places[: max(0, 20 - len(strong_places))]
+
+    if strong_places:
+        lines.append("- Verified places (safe to name directly):")
+        for place in strong_places:
+            lines.append("  - Place: " + "; ".join(_grounding_place_fields(place)))
+    if weak_places:
+        lines.append(
+            "- Unverified places (lower quality; if used, set needsPlaceReview=true):"
+        )
+        for place in weak_places:
+            lines.append("  - Place: " + "; ".join(_grounding_place_fields(place)))
+
+    coverage = context.coverage
+    if coverage is not None:
+        lines.append(
+            f"- Destination coverage: {coverage.status} "
+            f"(score={coverage.coverage_score:.2f}, "
+            f"highQualityPlaces={coverage.high_quality_place_count})"
+        )
+        if coverage.status in {"limited", "unavailable"}:
+            lines.append(
+                "- Coverage is limited: prefer generic activities over specific "
+                "place names that are not listed above."
+            )
     for warning in context.retrieval_warnings[:5]:
         lines.append(f"- Retrieval warning: {warning}")
+    if context.attributions:
+        lines.append("- Data attribution: " + "; ".join(context.attributions[:5]))
     return "\n" + "\n".join(lines)
+
+
+def _grounding_place_fields(place: GroundingPlace) -> list[str]:
+    """Render one grounding place, quality metadata included.
+
+    Quality and freshness are shown to the model because they justify the
+    strong/weak split; warnings are shown so an item built on an incomplete
+    record can carry the right caveat.
+    """
+    fields = [
+        f"name={place.canonical_name}",
+        f"category={place.category}",
+        f"confidence={place.confidence:.2f}",
+        f"quality={place.quality_score:.2f}",
+        f"grounding={place.grounding_strength}",
+    ]
+    if place.id:
+        fields.append(f"id={place.id}")
+    if place.review_status:
+        fields.append(f"reviewStatus={place.review_status}")
+    if place.typical_duration_minutes is not None:
+        fields.append(f"duration={place.typical_duration_minutes}m")
+    if place.rain_friendly is not None:
+        fields.append(f"rainFriendly={str(place.rain_friendly).lower()}")
+    if place.outdoor is not None:
+        fields.append(f"outdoor={str(place.outdoor).lower()}")
+    if place.opening_hours_summary:
+        fields.append(f"hours={place.opening_hours_summary}")
+    if place.warnings:
+        fields.append("warnings=" + " | ".join(place.warnings[:3]))
+    return fields
 
 
 def _user_context_section(request: GenerateItineraryRequest) -> str:

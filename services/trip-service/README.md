@@ -1591,3 +1591,15 @@ Use [trips](../../docs/features/trips.md) for the domain map,
 [API inventory](../../docs/api/endpoint-inventory.md) for route groups, and
 [runbooks](../../docs/operations/runbooks.md) for operations. New writes must
 preserve permission and `expectedItineraryRevision` behavior.
+
+## Travel knowledge quality and grounding filters
+
+Trip Service owns the normalized knowledge store, its quality scoring, and the review workflow, because knowledge is planning input and itinerary-validation evidence.
+
+`internal/knowledge` holds normalization into the app taxonomy, deterministic quality/freshness/source-trust scoring, match and duplicate scoring, the provider observation store, and grounding retrieval. Scoring is pure arithmetic over explicit inputs — no clock, randomness, or model call — so a score is reproducible and explainable in the Ops quality breakdown.
+
+Grounding retrieval (`RetrieveGrounding`) is the single path by which knowledge reaches the AI Planning Service. It excludes rejected and merged records **in SQL**, orders strong records first, caps the result, and attaches quality, freshness, review status, grounding strength, warnings, and destination coverage to each place. Retrieval is fail-open: a knowledge store problem degrades generation to ungrounded output rather than failing a user's request.
+
+User feedback modifies confidence but is bounded — two distinct users must report a problem before a record is flagged for review, so no single user can reject a place.
+
+Ops endpoints live under `/ops/ai/knowledge` and require ops admin. Every review and merge action writes an audit event in the same transaction as the change. See [trusted travel data providers](../../docs/ai/trusted-travel-data-providers.md).

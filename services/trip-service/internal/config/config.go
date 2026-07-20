@@ -61,7 +61,30 @@ type Config struct {
 	TripRecap          TripRecapConfig          `yaml:"trip_recap"`
 	TripLibrary        TripLibraryConfig        `yaml:"trip_library"`
 	DataExports        DataExportsConfig        `yaml:"data_exports"`
+	Knowledge          KnowledgeConfig          `yaml:"knowledge"`
 	FeatureFlags       featureflags.Config      `yaml:"feature_flags"`
+}
+
+// KnowledgeConfig controls provider-backed grounding knowledge: which provider
+// supplies observations and the quality gates that decide whether a record may
+// influence AI generation.
+//
+// Defaults are the safe ones. The provider is the deterministic mock, raw
+// provider payloads are not retained, and the thresholds match
+// docs/ai/trusted-travel-data-providers.md.
+type KnowledgeConfig struct {
+	Provider         string  `yaml:"provider" env:"KNOWLEDGE_PROVIDER" env-default:"mock"`
+	FallbackToMock   bool    `yaml:"fallback_to_mock" env:"KNOWLEDGE_PROVIDER_FALLBACK_TO_MOCK" env-default:"true"`
+	TimeoutSeconds   int     `yaml:"timeout_seconds" env:"KNOWLEDGE_PROVIDER_TIMEOUT_SECONDS" env-default:"8" validate:"min=1,max=60"`
+	MaxResults       int     `yaml:"max_results_per_destination" env:"KNOWLEDGE_PROVIDER_MAX_RESULTS_PER_DESTINATION" env-default:"100" validate:"min=1,max=500"`
+	RefreshEnabled   bool    `yaml:"refresh_enabled" env:"KNOWLEDGE_PROVIDER_REFRESH_ENABLED" env-default:"true"`
+	StoreRawPayload  bool    `yaml:"store_raw_payload" env:"KNOWLEDGE_PROVIDER_STORE_RAW_PAYLOAD" env-default:"false"`
+	StaleAfterDays   int     `yaml:"stale_after_days" env:"KNOWLEDGE_REFRESH_STALE_AFTER_DAYS" env-default:"30" validate:"min=1,max=365"`
+	RefreshBatchSize int     `yaml:"refresh_batch_size" env:"KNOWLEDGE_REFRESH_BATCH_SIZE" env-default:"100" validate:"min=1,max=500"`
+	StrongMinQuality float64 `yaml:"ai_strong_min_quality" env:"KNOWLEDGE_AI_STRONG_MIN_QUALITY" env-default:"0.75" validate:"min=0,max=1"`
+	WeakMinQuality   float64 `yaml:"ai_weak_min_quality" env:"KNOWLEDGE_AI_WEAK_MIN_QUALITY" env-default:"0.55" validate:"min=0,max=1"`
+	NeedsReviewBelow float64 `yaml:"needs_review_below_quality" env:"KNOWLEDGE_NEEDS_REVIEW_BELOW_QUALITY" env-default:"0.65" validate:"min=0,max=1"`
+	RejectBelow      float64 `yaml:"reject_below_quality" env:"KNOWLEDGE_REJECT_BELOW_QUALITY" env-default:"0.30" validate:"min=0,max=1"`
 }
 
 // DataExportsConfig controls private, authenticated export packages. It never

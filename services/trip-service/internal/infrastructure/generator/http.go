@@ -37,6 +37,17 @@ type AIPlanningHTTPGenerator struct {
 	baseURL string
 	client  *http.Client
 	logger  *zap.Logger
+	// grounding is optional. When unset the generator behaves exactly as it
+	// did before provider-backed knowledge existed.
+	grounding GroundingRetriever
+}
+
+// WithGrounding attaches the knowledge retriever that supplies quality-filtered
+// grounding context. Retrieval is fail-open, so generation still succeeds when
+// the knowledge store is unavailable.
+func (g *AIPlanningHTTPGenerator) WithGrounding(retriever GroundingRetriever) *AIPlanningHTTPGenerator {
+	g.grounding = retriever
+	return g
 }
 
 type aiPlanningGenerateRequest struct {
@@ -61,6 +72,7 @@ type aiPlanningGenerateRequest struct {
 	TripStyles                 []string                                 `json:"tripStyles,omitempty"`
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
 	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
+	GroundingContext           *aiPlanningGroundingContext              `json:"groundingContext,omitempty"`
 }
 
 type aiPlanningTripRequest struct {
@@ -487,6 +499,7 @@ func NewAIPlanningHTTPGenerator(baseURL string, client *http.Client, logger *zap
 func (g *AIPlanningHTTPGenerator) Generate(ctx context.Context, input application.GenerateItineraryInput) (*aggregate.Itinerary, error) {
 	trip := input.Trip
 	payload := newAIPlanningGenerateRequest(input)
+	payload.GroundingContext = buildGroundingContext(ctx, g.grounding, g.logger, trip.Destination, "")
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(payload); err != nil {

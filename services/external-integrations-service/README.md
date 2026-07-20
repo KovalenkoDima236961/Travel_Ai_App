@@ -509,3 +509,11 @@ Run `go test ./...` for provider, cache, quota, mapping, fallback, handler, and 
 Use the [provider playbook](../../docs/development/playbooks/add-external-provider.md),
 [environment guide](../../docs/development/environment.md), and [quota runbook](../../docs/operations/runbooks/provider-quota-exceeded.md).
 Mock providers remain the expected local and CI default.
+
+## Travel knowledge providers
+
+Network-backed travel knowledge adapters belong in this service, behind the existing provider config, quota guard, cache, and timeout patterns — the same infrastructure used by the places, weather, and routes providers.
+
+The ingestion-side contract is `TravelKnowledgeProvider` in Trip Service (`internal/knowledge/provider`). It is deliberately narrower than the `service.PlaceProvider` used for live trip flows: knowledge ingestion needs provenance and refresh semantics, not booking or availability data.
+
+No real knowledge provider adapter ships in v1. Before adding one, its license, attribution requirement, terms URL, rate limits, and raw-payload stance must be documented, and its `rate_limit_category` mapped onto the existing quota buckets. Follow [add a travel data provider](../../docs/development/playbooks/add-travel-data-provider.md); real provider calls must never run in CI.

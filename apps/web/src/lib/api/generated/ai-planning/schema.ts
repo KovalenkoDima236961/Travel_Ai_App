@@ -955,6 +955,58 @@ export interface components {
              */
             source: string;
         };
+        /**
+         * DestinationCoverage
+         * @description Coverage tells generation when to stop asserting specific places.
+         *
+         *     Low coverage produces generic activities and a partial-quality result
+         *     rather than plausible-sounding invented place names.
+         */
+        DestinationCoverage: {
+            /**
+             * Categorycoverage
+             * @default 0
+             */
+            categoryCoverage: number;
+            /**
+             * Coordinatecoverage
+             * @default 0
+             */
+            coordinateCoverage: number;
+            /**
+             * Coveragescore
+             * @default 0
+             */
+            coverageScore: number;
+            /**
+             * Freshnesscoverage
+             * @default 0
+             */
+            freshnessCoverage: number;
+            /**
+             * Highqualityplacecount
+             * @default 0
+             */
+            highQualityPlaceCount: number;
+            /**
+             * Openinghourscoverage
+             * @default 0
+             */
+            openingHoursCoverage: number;
+            /**
+             * Placecount
+             * @default 0
+             */
+            placeCount: number;
+            /**
+             * Status
+             * @default unavailable
+             * @enum {string}
+             */
+            status: "available" | "partial" | "limited" | "unavailable";
+            /** Warnings */
+            warnings?: string[];
+        };
         /** DestinationRefinementContext */
         DestinationRefinementContext: {
             /**
@@ -1483,6 +1535,9 @@ export interface components {
         };
         /** GroundingContext */
         GroundingContext: {
+            /** Attributions */
+            attributions?: string[];
+            coverage?: components["schemas"]["DestinationCoverage"] | null;
             destination?: components["schemas"]["GroundingDestination"] | null;
             /** Documents */
             documents?: components["schemas"]["GroundingDocument"][];
@@ -1542,14 +1597,36 @@ export interface components {
             category: string;
             /** Confidence */
             confidence: number;
+            /**
+             * Freshnessscore
+             * @default 0
+             */
+            freshnessScore: number;
+            /**
+             * Groundingstrength
+             * @default weak
+             * @enum {string}
+             */
+            groundingStrength: "strong" | "weak" | "excluded";
             /** Id */
             id?: string | null;
+            /** Neighborhood */
+            neighborhood?: string | null;
+            /** Openinghourssummary */
+            openingHoursSummary?: string | null;
             /** Outdoor */
             outdoor?: boolean | null;
             /** Pricelevel */
             priceLevel?: string | null;
+            /**
+             * Qualityscore
+             * @default 0
+             */
+            qualityScore: number;
             /** Rainfriendly */
             rainFriendly?: boolean | null;
+            /** Reviewstatus */
+            reviewStatus?: string | null;
             /** Sourcekey */
             sourceKey?: string | null;
             /** Sourceurl */
@@ -1558,6 +1635,8 @@ export interface components {
             tags?: string[];
             /** Typicaldurationminutes */
             typicalDurationMinutes?: number | null;
+            /** Warnings */
+            warnings?: string[];
         };
         /** GroupPreferenceItem */
         GroupPreferenceItem: {

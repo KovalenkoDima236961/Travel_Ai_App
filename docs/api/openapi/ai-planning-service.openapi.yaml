@@ -2047,6 +2047,79 @@
         "title": "DestinationContextSummary",
         "type": "object"
       },
+      "DestinationCoverage": {
+        "description": "Coverage tells generation when to stop asserting specific places.\n\nLow coverage produces generic activities and a partial-quality result\nrather than plausible-sounding invented place names.",
+        "properties": {
+          "categoryCoverage": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Categorycoverage",
+            "type": "number"
+          },
+          "coordinateCoverage": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Coordinatecoverage",
+            "type": "number"
+          },
+          "coverageScore": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Coveragescore",
+            "type": "number"
+          },
+          "freshnessCoverage": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Freshnesscoverage",
+            "type": "number"
+          },
+          "highQualityPlaceCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Highqualityplacecount",
+            "type": "integer"
+          },
+          "openingHoursCoverage": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Openinghourscoverage",
+            "type": "number"
+          },
+          "placeCount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Placecount",
+            "type": "integer"
+          },
+          "status": {
+            "default": "unavailable",
+            "enum": [
+              "available",
+              "partial",
+              "limited",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "DestinationCoverage",
+        "type": "object"
+      },
       "DestinationRefinementContext": {
         "properties": {
           "instruction": {
@@ -3802,6 +3875,24 @@
       },
       "GroundingContext": {
         "properties": {
+          "attributions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Attributions",
+            "type": "array"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DestinationCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "destination": {
             "anyOf": [
               {
@@ -4016,6 +4107,23 @@
             "title": "Confidence",
             "type": "number"
           },
+          "freshnessScore": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Freshnessscore",
+            "type": "number"
+          },
+          "groundingStrength": {
+            "default": "weak",
+            "enum": [
+              "strong",
+              "weak",
+              "excluded"
+            ],
+            "title": "Groundingstrength",
+            "type": "string"
+          },
           "id": {
             "anyOf": [
               {
@@ -4026,6 +4134,29 @@
               }
             ],
             "title": "Id"
+          },
+          "neighborhood": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Neighborhood"
+          },
+          "openingHoursSummary": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openinghourssummary"
           },
           "outdoor": {
             "anyOf": [
@@ -4049,6 +4180,13 @@
             ],
             "title": "Pricelevel"
           },
+          "qualityScore": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Qualityscore",
+            "type": "number"
+          },
           "rainFriendly": {
             "anyOf": [
               {
@@ -4059,6 +4197,18 @@
               }
             ],
             "title": "Rainfriendly"
+          },
+          "reviewStatus": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewstatus"
           },
           "sourceKey": {
             "anyOf": [
@@ -4101,6 +4251,14 @@
               }
             ],
             "title": "Typicaldurationminutes"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [

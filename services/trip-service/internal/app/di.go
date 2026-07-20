@@ -29,6 +29,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/generator"
 	triprepo "github.com/KovalenkoDima236961/Travel_Ai_App/internal/infrastructure/repository/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/jobqueue"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/knowledge"
+	knowledgeprovider "github.com/KovalenkoDima236961/Travel_Ai_App/internal/knowledge/provider"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placecontext"
@@ -85,9 +87,21 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	repo := triprepo.New(db)
 	featureFlagSvc := featureflags.New(featureflags.NewPostgresRepository(db), cfg.FeatureFlags, cfg.Env, log)
 	personalizationSvc := personalization.New(personalization.NewRepository(db), log)
+	// Provider-backed knowledge. Trip Service owns these tables, so the store is
+	// always available; the ingestor is only wired when a provider is
+	// configured.
+	knowledgeStore := knowledge.NewStore(db)
+	knowledgeIngestor := buildKnowledgeIngestor(knowledgeStore, cfg.Knowledge, log)
+
 	gen, err := generator.NewItineraryGenerator(cfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("init itinerary generator: %w", err)
+	}
+	// Attach quality-filtered grounding to the HTTP generator. Without this the
+	// knowledge store's exclusion rules would never run on a generation request.
+	// The mock generator has no prompt to ground, so it is left untouched.
+	if httpGenerator, ok := gen.(*generator.AIPlanningHTTPGenerator); ok {
+		gen = httpGenerator.WithGrounding(knowledgeStore)
 	}
 	repairClient, err := generator.NewGenerationRepairClient(cfg, log)
 	if err != nil {
@@ -562,6 +576,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	closer.Add("trip-edit-lock-cleanup", editlocks.StartCleanupLoop(context.Background(), editLockManager, editLocksCfg, log))
 
 	tripHandler := handler.New(svc, validator, log).
+		EnableKnowledgeOps(knowledgeStore, knowledgeIngestor).
 		EnableSecurityLimits(
 			cfg.PublicSharing.UnlockRateLimitPerMinute,
 			cfg.PublicSharing.AccessRateLimitPerMinute,
@@ -622,4 +637,74 @@ func splitCSV(value string) []string {
 		}
 	}
 	return out
+}
+
+// buildKnowledgeIngestor selects the configured knowledge provider adapter.
+//
+// Selection never fails startup: knowledge ingestion is an ops capability, not
+// a request-path dependency, so a misconfigured provider disables ingestion and
+// logs the reason rather than preventing the service from serving trips. The
+// read-only knowledge review endpoints keep working either way.
+func buildKnowledgeIngestor(store *knowledge.Store, cfg config.KnowledgeConfig, log *zap.Logger) *knowledge.Ingestor {
+	name := strings.ToLower(strings.TrimSpace(cfg.Provider))
+	if name == "" {
+		name = knowledgeprovider.ProviderMock
+	}
+
+	var selected knowledgeprovider.TravelKnowledgeProvider
+	switch name {
+	case knowledgeprovider.ProviderMock:
+		selected = knowledgeprovider.NewMockKnowledgeProvider()
+	case knowledgeprovider.ProviderFoursquare,
+		knowledgeprovider.ProviderOpenTripMap,
+		knowledgeprovider.ProviderWikidata:
+		// Network-backed adapters live in External Integrations Service behind
+		// its quota and cache guards. Until one is wired, fall back to mock
+		// when configured so local and CI runs stay deterministic.
+		if !cfg.FallbackToMock {
+			log.Warn("knowledge provider is not available in this deployment; ingestion disabled",
+				zap.String("provider", name),
+				zap.Bool("fallbackToMock", cfg.FallbackToMock),
+			)
+			return nil
+		}
+		log.Warn("falling back to the mock knowledge provider",
+			zap.String("provider", name),
+			zap.String("fallbackProvider", knowledgeprovider.ProviderMock),
+			zap.Bool("fallbackUsed", true),
+		)
+		selected = knowledgeprovider.NewMockKnowledgeProvider()
+	default:
+		log.Warn("unsupported KNOWLEDGE_PROVIDER; knowledge ingestion disabled",
+			zap.String("provider", cfg.Provider),
+		)
+		return nil
+	}
+
+	thresholds := knowledge.DefaultThresholds()
+	if cfg.StrongMinQuality > 0 {
+		thresholds.StrongMinQuality = cfg.StrongMinQuality
+	}
+	if cfg.WeakMinQuality > 0 {
+		thresholds.WeakMinQuality = cfg.WeakMinQuality
+	}
+	if cfg.NeedsReviewBelow > 0 {
+		thresholds.NeedsReviewBelow = cfg.NeedsReviewBelow
+	}
+	if cfg.RejectBelow > 0 {
+		thresholds.RejectBelow = cfg.RejectBelow
+	}
+	if cfg.StaleAfterDays > 0 {
+		thresholds.StaleAfterDays = cfg.StaleAfterDays
+	}
+
+	policy := knowledgeprovider.DefaultSourcePolicy()
+	policy.AllowRawPayload = cfg.StoreRawPayload
+
+	log.Info("knowledge provider configured",
+		zap.String("provider", selected.ProviderName()),
+		zap.Bool("refreshSupported", selected.SupportsRefresh()),
+		zap.Bool("storeRawPayload", policy.AllowRawPayload),
+	)
+	return knowledge.NewIngestor(store, selected, thresholds, policy)
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/request"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/http-server/dto/response"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/knowledge"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/presence"
@@ -60,6 +61,8 @@ type Handler struct {
 	shareUnlockLimiter   *tripsecurity.RateLimiter
 	publicShareLimiter   *tripsecurity.RateLimiter
 	receiptUploadLimiter *tripsecurity.RateLimiter
+	knowledge            *knowledge.Store
+	knowledgeIngestor    *knowledge.Ingestor
 }
 
 // New constructs the trip HTTP handler.
@@ -78,6 +81,15 @@ func (h *Handler) EnableSecurityLimits(shareUnlock, publicShare, receiptUpload i
 	h.shareUnlockLimiter = tripsecurity.NewRateLimiter(shareUnlock, time.Minute)
 	h.publicShareLimiter = tripsecurity.NewRateLimiter(publicShare, time.Minute)
 	h.receiptUploadLimiter = tripsecurity.NewRateLimiter(receiptUpload, time.Minute)
+	return h
+}
+
+// EnableKnowledgeOps wires the AI knowledge quality ops endpoints. The
+// ingestor is optional: without it the review endpoints still work and only the
+// ingestion-triggering actions report that no provider is configured.
+func (h *Handler) EnableKnowledgeOps(store *knowledge.Store, ingestor *knowledge.Ingestor) *Handler {
+	h.knowledge = store
+	h.knowledgeIngestor = ingestor
 	return h
 }
 

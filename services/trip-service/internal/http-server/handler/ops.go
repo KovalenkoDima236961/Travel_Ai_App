@@ -36,6 +36,7 @@ func (h *Handler) RegisterOpsRoutes(r chi.Router, staleThreshold time.Duration) 
 		r.Post("/jobs/{jobId}/mark-failed", h.OpsMarkJobFailed(staleThreshold))
 		r.Get("/ai-generations", h.OpsListAIGenerations)
 		r.Get("/ai-generations/{traceId}", h.OpsGetAIGeneration)
+		h.registerOpsKnowledgeRoutes(r)
 	})
 }
 

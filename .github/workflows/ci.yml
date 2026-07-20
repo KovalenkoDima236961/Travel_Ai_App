@@ -80,7 +80,30 @@ jobs:
           cache-dependency-path: services/ai-planning-service/requirements-dev.txt
       - run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
       - run: ./scripts/ai/validate-knowledge.sh
+      - run: ./scripts/ai/validate-knowledge-sources.sh
       - run: ./scripts/ai/run-itinerary-evals.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/trip-service/go.mod
+          cache-dependency-path: services/trip-service/go.sum
+      # Deterministic mock-provider ingestion. KNOWLEDGE_PROVIDER is pinned to
+      # mock and no provider credentials are present, so these tests cannot
+      # reach a real provider API.
+      - name: Knowledge provider ingestion tests (mock only)
+        env:
+          KNOWLEDGE_PROVIDER: mock
+          KNOWLEDGE_PROVIDER_FALLBACK_TO_MOCK: 'true'
+        working-directory: services/trip-service
+        run: go test ./internal/knowledge/... -count=1
+      - name: Knowledge provider worker job tests
+        env:
+          KNOWLEDGE_PROVIDER: mock
+        working-directory: services/worker-service
+        run: go test ./internal/knowledge/... -count=1
+      # Guard the CI invariant itself: no real provider adapter may be
+      # constructed from the knowledge provider selection path.
+      - name: Assert no real provider adapters are reachable
+        run: ./scripts/ai/assert-no-real-providers.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

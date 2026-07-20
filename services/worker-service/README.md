@@ -309,3 +309,27 @@ The direct Trip job-state write is an intentional v1 compatibility path, not a
 new cross-service persistence pattern. See [data ownership](../../docs/architecture/data-ownership.md),
 [generation-job playbook](../../docs/development/playbooks/add-generation-job.md),
 and the [stuck-jobs runbook](../../docs/operations/runbooks/rabbitmq-jobs-stuck.md).
+
+## Knowledge provider ingestion jobs
+
+Provider-backed travel knowledge is ingested through `cmd/knowledge-provider`, mirroring the curated `cmd/knowledge-ingest` command. Both reuse Trip Service's knowledge module rather than maintaining a second store, so scoring and review rules cannot diverge between them.
+
+Job types: `knowledge_provider_ingest_destination`, `knowledge_provider_refresh_stale_places`, `knowledge_provider_match_observations`, `knowledge_quality_score_recompute`, `knowledge_duplicate_detection`, `knowledge_reindex_after_merge`.
+
+```bash
+# Preview scores without writing.
+go run ./cmd/knowledge-provider --job knowledge_provider_ingest_destination \
+  --destination Rome --country-code IT --dry-run
+
+# Refresh records whose provider data has aged out.
+go run ./cmd/knowledge-provider --job knowledge_provider_refresh_stale_places
+
+# Current knowledge health.
+go run ./cmd/knowledge-provider --summary
+```
+
+Jobs are idempotent: observations are keyed by `(provider, provider_place_id)` and places by `(destination_id, canonical_name)`, so a retry after a partial failure converges instead of duplicating rows. Refresh batches are bounded by `KNOWLEDGE_REFRESH_BATCH_SIZE` and grouped by destination, so one destination costs one provider search rather than one request per stale place.
+
+`KNOWLEDGE_PROVIDER` defaults to `mock`, which serves deterministic fixtures for Rome, Paris, Vienna, and Bratislava. CI runs these jobs with no provider credentials present. Duplicate detection proposes groups only; merging is an explicit Ops action. See [trusted travel data providers](../../docs/ai/trusted-travel-data-providers.md).
+
+Note: these jobs are CLI entry points and scheduled runs, not RabbitMQ consumers. Scheduling a periodic refresh is a deployment concern, as it is for curated ingestion.
