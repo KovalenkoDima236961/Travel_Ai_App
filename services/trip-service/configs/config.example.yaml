@@ -59,6 +59,18 @@ data_exports:
   cleanup_enabled: true
   cleanup_interval_minutes: 60
 
+ai_datasets:
+  export_enabled: false
+  export_dir: ./data/ai-datasets
+  export_retention_days: 30
+  min_auto_review_score: 0.7
+  min_approval_score: 0.85
+  max_duplicate_similarity: 0.95
+  require_human_review: true
+  golden_cases_dir: ./evals/ai-itinerary/cases
+  manual_examples_dir: ./data/ai-training/manual
+  training_instruction_text: Generate schema-valid grounded travel itineraries.
+
 trip_health:
   enabled: true
   cache_ttl_seconds: 60

@@ -38,6 +38,17 @@ existing clients:
 | `public_share_expired` | 404/410 | Show expired share; do not reveal private trip data. |
 | `public_share_password_required` | 401/403 | Show unlock form; rate-limit attempts. |
 | `internal_auth_required` | 401/403 | Service configuration/caller bug; never expose token to browser. |
+| `ai_dataset_consent_required` | 409 | Do not approve/export the example; ask for explicit user consent or choose non-user-derived examples. |
+| `ai_dataset_consent_revoked` | 409 | Treat the example as ineligible; remove it from pending approval/export workflows. |
+| `ai_dataset_sanitization_failed` | 409 | Keep the example blocked; inspect sanitizer findings and do not bypass review. |
+| `ai_dataset_quality_too_low` | 409 | Keep the example pending/rejected; improve or replace the candidate before retrying approval. |
+| `ai_dataset_duplicate` | 409 | Resolve the duplicate group before including the example in a version. |
+| `ai_dataset_version_exists` | 409 | Pick a new semantic dataset version or inspect the existing one. |
+| `ai_dataset_version_not_ready` | 409 | Wait for/build a ready version before export/download. |
+| `ai_dataset_export_disabled` | 503 | Hide export/download actions unless `AI_DATASET_EXPORT_ENABLED=true` is deliberately configured. |
+| `ai_dataset_export_failed` | 500 | Keep the version unexported and inspect server logs/storage permissions. |
+| `ai_dataset_private_data_detected` | 409 | Block approval/export and route the candidate to privacy review. |
+| `ai_dataset_license_not_allowed` | 409 | Exclude provider/copyrighted content that is not licensed for training use. |
 | `unknown_error` | any | Preserve safe local state and show a generic retryable failure with request ID when available. |
 
 ## Rules for new handlers

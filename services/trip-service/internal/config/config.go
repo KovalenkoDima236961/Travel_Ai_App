@@ -61,6 +61,7 @@ type Config struct {
 	TripRecap          TripRecapConfig          `yaml:"trip_recap"`
 	TripLibrary        TripLibraryConfig        `yaml:"trip_library"`
 	DataExports        DataExportsConfig        `yaml:"data_exports"`
+	AIDatasets         AIDatasetsConfig         `yaml:"ai_datasets"`
 	Knowledge          KnowledgeConfig          `yaml:"knowledge"`
 	FeatureFlags       featureflags.Config      `yaml:"feature_flags"`
 }
@@ -97,6 +98,22 @@ type DataExportsConfig struct {
 	IncludeReceiptFilesByDefault bool   `yaml:"include_receipt_files_default" env:"DATA_EXPORT_INCLUDE_RECEIPT_FILES_DEFAULT" env-default:"false"`
 	CleanupEnabled               bool   `yaml:"cleanup_enabled" env:"DATA_EXPORT_CLEANUP_ENABLED" env-default:"true"`
 	CleanupIntervalMinutes       int    `yaml:"cleanup_interval_minutes" env:"DATA_EXPORT_CLEANUP_INTERVAL_MINUTES" env-default:"60" validate:"min=1,max=1440"`
+}
+
+// AIDatasetsConfig controls consent-gated, sanitized dataset curation for
+// future AI fine-tuning experiments. Export is disabled by default and all
+// generated packages stay private on local storage.
+type AIDatasetsConfig struct {
+	ExportEnabled           bool    `yaml:"export_enabled" env:"AI_DATASET_EXPORT_ENABLED" env-default:"false"`
+	ExportDir               string  `yaml:"export_dir" env:"AI_DATASET_EXPORT_DIR" env-default:"./data/ai-datasets"`
+	ExportRetentionDays     int     `yaml:"export_retention_days" env:"AI_DATASET_EXPORT_RETENTION_DAYS" env-default:"30" validate:"min=1,max=365"`
+	MinAutoReviewScore      float64 `yaml:"min_auto_review_score" env:"AI_DATASET_MIN_AUTO_REVIEW_SCORE" env-default:"0.70" validate:"min=0,max=1"`
+	MinApprovalScore        float64 `yaml:"min_approval_score" env:"AI_DATASET_MIN_APPROVAL_SCORE" env-default:"0.85" validate:"min=0,max=1"`
+	MaxDuplicateSimilarity  float64 `yaml:"max_duplicate_similarity" env:"AI_DATASET_MAX_DUPLICATE_SIMILARITY" env-default:"0.95" validate:"min=0,max=1"`
+	RequireHumanReview      bool    `yaml:"require_human_review" env:"AI_DATASET_REQUIRE_HUMAN_REVIEW" env-default:"true"`
+	GoldenCasesDir          string  `yaml:"golden_cases_dir" env:"AI_DATASET_GOLDEN_CASES_DIR" env-default:"./evals/ai-itinerary/cases"`
+	ManualExamplesDir       string  `yaml:"manual_examples_dir" env:"AI_DATASET_MANUAL_EXAMPLES_DIR" env-default:"./data/ai-training/manual"`
+	TrainingInstructionText string  `yaml:"training_instruction_text" env:"AI_DATASET_TRAINING_INSTRUCTION_TEXT" env-default:"Generate schema-valid grounded travel itineraries."`
 }
 
 // TripLibraryConfig controls private archive and historical-library behavior.

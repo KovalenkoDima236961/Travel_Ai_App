@@ -11,6 +11,7 @@ import { OnboardingSettingsCard } from "@/components/settings/OnboardingSettings
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { PwaSettingsSection } from "@/components/settings/PwaSettingsSection";
+import { AIImprovementConsentSection } from "@/components/settings/AIImprovementConsentSection";
 import { DataPrivacySettings } from "@/components/data";
 import { SettingsSkeleton } from "@/components/settings/SettingsSkeleton";
 import { LanguageSelector } from "@/components/i18n/LanguageSelector";
@@ -144,6 +145,8 @@ export function SettingsPageContent() {
             <OnboardingSettingsCard />
 
             <PwaSettingsSection />
+
+            <AIImprovementConsentSection />
 
             <DataPrivacySettings />
 

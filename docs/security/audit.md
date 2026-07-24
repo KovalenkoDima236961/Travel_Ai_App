@@ -61,6 +61,10 @@ The full model is in [threat-model.md](threat-model.md).
 - Receipt storage uses generated keys outside a public root, byte sniffing,
   MIME/extension/size validation, re-authorization on download, and no-store
   response headers. Export handling is owner-scoped and expiry-aware.
+- AI dataset curation requires explicit consent for user-derived examples,
+  sanitizer pass, deterministic quality scoring, human review, license checks,
+  immutable manifests, audit events, and private export storage disabled by
+  default.
 
 ## Initial scan record
 

@@ -1603,3 +1603,16 @@ Grounding retrieval (`RetrieveGrounding`) is the single path by which knowledge 
 User feedback modifies confidence but is bounded — two distinct users must report a problem before a record is flagged for review, so no single user can reject a place.
 
 Ops endpoints live under `/ops/ai/knowledge` and require ops admin. Every review and merge action writes an audit event in the same transaction as the change. See [trusted travel data providers](../../docs/ai/trusted-travel-data-providers.md).
+
+## AI dataset curation
+
+Trip Service owns AI dataset projects, consent records, sanitized examples,
+review events, immutable version manifests, and private export packages. Export
+is disabled by default with `AI_DATASET_EXPORT_ENABLED=false`; enabling it only
+writes private JSONL/manifest/checksum packages under `AI_DATASET_EXPORT_DIR`.
+
+User-derived examples require explicit consent, sanitizer pass, quality score,
+human review, and license/provenance checks before approval or export. Golden
+eval cases import as holdout examples and must not be used for training. See
+[`docs/ai/fine-tuning-readiness.md`](../../docs/ai/fine-tuning-readiness.md)
+and [`docs/ai/dataset-governance.md`](../../docs/ai/dataset-governance.md).

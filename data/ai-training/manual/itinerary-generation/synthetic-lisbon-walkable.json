@@ -1,0 +1,48 @@
+{
+  "id": "synthetic-lisbon-walkable",
+  "taskType": "itinerary_generation",
+  "language": "en",
+  "input": {
+    "destinationName": "Lisbon",
+    "days": 2,
+    "budgetCurrency": "EUR",
+    "interests": ["food", "viewpoints", "walkable neighborhoods"],
+    "pace": "balanced"
+  },
+  "grounding": {
+    "groundingIds": ["places/time-out-market", "places/miradouro-santa-catarina"],
+    "confidence": 0.95
+  },
+  "output": {
+    "days": [
+      {
+        "day": 1,
+        "items": [
+          { "name": "Baixa orientation walk", "area": "Baixa", "durationMinutes": 75 },
+          { "name": "Time Out Market lunch", "area": "Cais do Sodre", "durationMinutes": 90 },
+          { "name": "Miradouro de Santa Catarina", "area": "Bica", "durationMinutes": 45 }
+        ]
+      },
+      {
+        "day": 2,
+        "items": [
+          { "name": "Alfama morning walk", "area": "Alfama", "durationMinutes": 120 },
+          { "name": "Tile museum visit", "area": "Xabregas", "durationMinutes": 90 },
+          { "name": "Riverside dinner", "area": "Cais do Sodre", "durationMinutes": 90 }
+        ]
+      }
+    ]
+  },
+  "labels": {
+    "matchesPreferences": true,
+    "budgetPlausible": true,
+    "userAccepted": true,
+    "groundedPlaceRate": 1
+  },
+  "provenance": {
+    "source": "synthetic_manual_seed",
+    "licenseStatus": "project_owned",
+    "copiesProviderText": false,
+    "reviewed": true
+  }
+}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aidataset"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
@@ -494,6 +495,18 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		Mode:                      cfg.ItineraryGenerator.Mode,
 	}, log)
 	closer.Add("ai-generation-trace-cleanup", aiobservability.StartCleanupLoop(context.Background(), aiTraceService, 24*time.Hour, log))
+	aiDatasetSvc := aidataset.NewService(aidataset.NewRepository(db), aidataset.Config{
+		ExportEnabled:           cfg.AIDatasets.ExportEnabled,
+		ExportDir:               cfg.AIDatasets.ExportDir,
+		ExportRetentionDays:     cfg.AIDatasets.ExportRetentionDays,
+		MinAutoReviewScore:      cfg.AIDatasets.MinAutoReviewScore,
+		MinApprovalScore:        cfg.AIDatasets.MinApprovalScore,
+		MaxDuplicateSimilarity:  cfg.AIDatasets.MaxDuplicateSimilarity,
+		RequireHumanReview:      cfg.AIDatasets.RequireHumanReview,
+		GoldenCasesDir:          cfg.AIDatasets.GoldenCasesDir,
+		ManualExamplesDir:       cfg.AIDatasets.ManualExamplesDir,
+		TrainingInstructionText: cfg.AIDatasets.TrainingInstructionText,
+	}, log)
 	copilotHandler, err := copilot.NewHandler(
 		svc,
 		copilot.Config{
@@ -587,6 +600,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		EnableEditLocks(editLockManager, editLocksCfg).
 		EnableGenerationJobs(generationJobSvc).
 		EnableAIObservability(aiTraceService).
+		EnableAIDatasets(aiDatasetSvc).
 		EnableWorkspacePolicies(policySvc).
 		EnableFeatureFlags(featureFlagSvc)
 	readinessHandler := httpserver.NewReadinessHandler(

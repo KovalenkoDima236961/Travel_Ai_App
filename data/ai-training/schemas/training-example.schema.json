@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://travel-ai.local/schemas/training-example.schema.json",
+  "title": "AI training example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "taskType", "language", "input", "output", "labels", "provenance"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "taskType": {
+      "type": "string",
+      "enum": [
+        "itinerary_generation",
+        "day_regeneration",
+        "item_regeneration",
+        "place_replacement",
+        "policy_repair",
+        "budget_optimization",
+        "route_alternatives",
+        "checklist_generation",
+        "copilot_response",
+        "recap_generation"
+      ]
+    },
+    "language": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 16
+    },
+    "input": {
+      "type": "object"
+    },
+    "grounding": {
+      "type": ["object", "null"]
+    },
+    "output": {
+      "type": "object"
+    },
+    "negativeOutput": {
+      "type": ["object", "null"]
+    },
+    "labels": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source", "licenseStatus", "copiesProviderText"],
+      "properties": {
+        "source": { "type": "string" },
+        "licenseStatus": {
+          "type": "string",
+          "enum": ["project_owned", "allowed", "not_allowed", "unknown", "incompatible"]
+        },
+        "copiesProviderText": { "type": "boolean" },
+        "sourcePath": { "type": "string" },
+        "reviewed": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

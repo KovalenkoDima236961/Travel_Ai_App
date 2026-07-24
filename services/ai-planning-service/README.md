@@ -633,3 +633,10 @@ See [AI generation](../../docs/features/ai-generation.md), the
 [generation-job playbook](../../docs/development/playbooks/add-generation-job.md),
 and [AI failure runbook](../../docs/operations/runbooks/ai-generation-failing.md).
 Treat Trip Service as the authority for trip permissions and persistence.
+
+## Fine-tuning boundary
+
+This service does not train or fine-tune models in v1. Dataset curation,
+consent, sanitizer, review, versioning, and export are owned by Trip Service.
+AI Planning continues to use RAG/provider grounding as factual input and must
+not treat a future adapter as a replacement for current provider verification.

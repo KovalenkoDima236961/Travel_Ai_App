@@ -83,6 +83,10 @@ Service redacts AI-bound context, excluding OCR, comments, raw calendar data,
 credentials, share values and storage paths. AI Planning treats RAG/user text as
 untrusted and does not log raw prompts by default.
 
+### AI dataset curation
+
+Training-dataset curation is a separate Trip Service trust boundary. User-derived examples require explicit consent and remain blocked when consent is revoked. Sanitization excludes receipts/OCR, calendar details, comments, private notes, user identifiers, secrets, raw prompts, hidden system instructions, raw logs, and unlicensed provider text before review. Private exports are disabled by default and never served as public URLs.
+
 ### Offline and service-worker data
 
 Offline keys and pending mutations are user-scoped. Logout removes the active

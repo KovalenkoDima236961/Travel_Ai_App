@@ -333,3 +333,15 @@ Jobs are idempotent: observations are keyed by `(provider, provider_place_id)` a
 `KNOWLEDGE_PROVIDER` defaults to `mock`, which serves deterministic fixtures for Rome, Paris, Vienna, and Bratislava. CI runs these jobs with no provider credentials present. Duplicate detection proposes groups only; merging is an explicit Ops action. See [trusted travel data providers](../../docs/ai/trusted-travel-data-providers.md).
 
 Note: these jobs are CLI entry points and scheduled runs, not RabbitMQ consumers. Scheduling a periodic refresh is a deployment concern, as it is for curated ingestion.
+
+## AI dataset jobs
+
+Trip Service defines stable AI dataset job names for future orchestration:
+`ai_dataset_extract_candidates`, `ai_dataset_resanitize_examples`,
+`ai_dataset_rescore_examples`, `ai_dataset_build_version`, and
+`ai_dataset_export_version`.
+
+Worker Service must treat Trip Service as the owner of dataset tables. Future
+workers should call authenticated Trip Service endpoints and avoid putting
+private itinerary JSON, prompts, receipts/OCR, calendar details, or provider
+payloads in queue messages.

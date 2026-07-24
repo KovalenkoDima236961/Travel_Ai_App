@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 
 /**
@@ -20,15 +20,17 @@ export const INPUT_CLASS =
 export const SELECT_CLASS = INPUT_CLASS;
 
 export function SettingsCard({
-  children,
-  className
+ children,
+  className,
+  ...props
 }: {
   children: ReactNode;
   className?: string;
-}) {
+} & HTMLAttributes<HTMLElement>) {
   return (
     <section
       className={cn("rounded-[20px] border border-sand-300 bg-white p-7 sm:px-8", className)}
+      {...props}
     >
       {children}
     </section>

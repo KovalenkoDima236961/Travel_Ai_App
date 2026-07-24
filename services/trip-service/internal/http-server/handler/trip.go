@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aidataset"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
@@ -56,6 +57,7 @@ type Handler struct {
 	editLockCfg          editlocks.Config
 	generationJobs       *generationjobs.Service
 	aiObservability      *aiobservability.Service
+	aiDatasets           *aidataset.Service
 	workspacePolicies    *workspacepolicies.Service
 	featureFlags         *featureflags.Service
 	shareUnlockLimiter   *tripsecurity.RateLimiter
@@ -124,6 +126,11 @@ func (h *Handler) EnableAIObservability(svc *aiobservability.Service) *Handler {
 	return h
 }
 
+func (h *Handler) EnableAIDatasets(svc *aidataset.Service) *Handler {
+	h.aiDatasets = svc
+	return h
+}
+
 func (h *Handler) EnableWorkspacePolicies(svc *workspacepolicies.Service) *Handler {
 	h.workspacePolicies = svc
 	return h
@@ -138,6 +145,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/personalization/feedback", h.SubmitPersonalizationFeedback)
 	r.Get("/personalization/feedback/summary", h.GetPersonalizationFeedbackSummary)
 	r.Delete("/personalization/feedback", h.ClearPersonalizationFeedback)
+	r.Get("/ai-training/consent", h.GetAITrainingConsent)
+	r.Put("/ai-training/consent", h.UpdateAITrainingConsent)
 	r.Get("/trip-templates/recommended", h.GetRecommendedTemplates)
 	r.Post("/route-alternatives/suggest", h.gateFeature(featureflags.RouteAlternativesEnabled, h.SuggestRouteAlternatives))
 	r.Get("/route-alternatives/sessions", h.ListRouteAlternativeSessions)
@@ -170,6 +179,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/health", h.GetTripHealth)
 		r.Get("/{id}/verification", h.GetTripVerification)
 		r.Post("/{id}/verification/actions", h.RunTripVerificationAction)
+		r.Post("/{id}/ai-training/consent", h.GrantTripAITrainingConsent)
+		r.Delete("/{id}/ai-training/consent", h.RevokeTripAITrainingConsent)
 		r.Get("/{id}/group-readiness", h.GetGroupReadiness)
 		r.Post("/{id}/group-readiness/nudge", h.SendGroupReadinessNudge)
 		r.Post("/{id}/group-readiness/nudge-missing-availability", h.NudgeMissingAvailability)
@@ -296,6 +307,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/itinerary/reactions", h.ListItineraryItemReactions)
 		r.Get("/{id}/itinerary/versions", h.ListItineraryVersions)
 		r.Get("/{id}/itinerary/versions/{versionId}", h.GetItineraryVersion)
+		r.Post("/{id}/itinerary/versions/{versionId}/ai-training/consent", h.GrantItineraryVersionAITrainingConsent)
 		r.Post("/{id}/itinerary/versions/{versionId}/restore", h.RestoreItineraryVersion)
 		r.Post("/{id}/itinerary/days/{dayNumber}/regenerate", h.gateFeature(featureflags.AIGenerationEnabled, h.RegenerateDay))
 		r.Post("/{id}/itinerary/days/{dayNumber}/items/{itemIndex}/regenerate", h.gateFeature(featureflags.AIGenerationEnabled, h.RegenerateItem))

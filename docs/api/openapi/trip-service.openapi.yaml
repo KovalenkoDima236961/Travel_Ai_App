@@ -14,6 +14,7 @@ tags:
   - name: Collaboration
   - name: Public sharing
   - name: Planning
+  - name: AI datasets
 paths:
   /feature-flags/public:
     get:
@@ -76,6 +77,182 @@ paths:
       responses:
         '200': { description: Flag audit events, content: { application/json: { schema: { $ref: '#/components/schemas/FeatureFlagAuditResponse' } } } }
         '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ai-training/consent:
+    get:
+      tags: [AI datasets]
+      operationId: getAITrainingConsent
+      responses:
+        '200':
+          description: Current user's global future-example AI training consent.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AITrainingConsentResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    put:
+      tags: [AI datasets]
+      operationId: updateAITrainingConsent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [granted]
+              properties: { granted: { type: boolean } }
+      responses:
+        '200':
+          description: Updated AI training consent.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AITrainingConsentResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/ai-training/consent:
+    post:
+      tags: [AI datasets]
+      operationId: grantTripAITrainingConsent
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Consent granted for a trip scope.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AITrainingConsentResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    delete:
+      tags: [AI datasets]
+      operationId: revokeTripAITrainingConsent
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Consent revoked for a trip scope.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AITrainingConsentResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/itinerary/versions/{versionId}/ai-training/consent:
+    post:
+      tags: [AI datasets]
+      operationId: grantItineraryVersionAITrainingConsent
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { $ref: '#/components/parameters/VersionId' }]
+      responses:
+        '200':
+          description: Consent granted for one itinerary version scope.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AITrainingConsentResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/fine-tuning/readiness:
+    get:
+      tags: [AI datasets]
+      operationId: getFineTuningReadiness
+      responses:
+        '200':
+          description: Operator readiness summary; ready=false blocks training/export workflows.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetReadiness' } } }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/projects:
+    get:
+      tags: [AI datasets]
+      operationId: listAIDatasetProjects
+      responses:
+        '200':
+          description: Dataset projects.
+          content: { application/json: { schema: { type: object, required: [projects], properties: { projects: { type: array, items: { $ref: '#/components/schemas/AIDatasetProject' } } } } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [AI datasets]
+      operationId: createAIDatasetProject
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateAIDatasetProjectRequest' } } }
+      responses:
+        '201':
+          description: Created dataset project.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetProject' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/projects/{projectId}/extract-golden:
+    post:
+      tags: [AI datasets]
+      operationId: extractGoldenAIDatasetExamples
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '202': { description: Golden/eval holdout examples imported, content: { application/json: { schema: { type: object, properties: { created: { type: integer } } } } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/projects/{projectId}/extract-manual:
+    post:
+      tags: [AI datasets]
+      operationId: extractManualAIDatasetExamples
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '202': { description: Manual curated examples imported, content: { application/json: { schema: { type: object, properties: { created: { type: integer } } } } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/projects/{projectId}/versions:
+    post:
+      tags: [AI datasets]
+      operationId: buildAIDatasetVersion
+      parameters: [{ name: projectId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BuildAIDatasetVersionRequest' } } }
+      responses:
+        '202':
+          description: Dataset version built from approved, sanitized, consent-valid examples.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetVersion' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/examples:
+    get:
+      tags: [AI datasets]
+      operationId: listAIDatasetExamples
+      parameters:
+        - { name: datasetProjectId, in: query, schema: { type: string, format: uuid } }
+        - { name: reviewStatus, in: query, schema: { type: string } }
+        - { name: sanitizationStatus, in: query, schema: { type: string } }
+        - { name: qualityStatus, in: query, schema: { type: string } }
+        - { name: consentStatus, in: query, schema: { type: string } }
+        - { name: taskType, in: query, schema: { type: string } }
+        - { name: sourceType, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200':
+          description: Dataset examples for ops review.
+          content: { application/json: { schema: { type: object, required: [examples], properties: { examples: { type: array, items: { $ref: '#/components/schemas/AIDatasetExample' } } } } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/examples/{exampleId}/approve:
+    post:
+      tags: [AI datasets]
+      operationId: approveAIDatasetExample
+      parameters: [{ name: exampleId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetReviewRequest' } } }
+      responses:
+        '200': { description: Approved example, content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetExample' } } } }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/examples/{exampleId}/reject:
+    post:
+      tags: [AI datasets]
+      operationId: rejectAIDatasetExample
+      parameters: [{ name: exampleId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetReviewRequest' } } }
+      responses:
+        '200': { description: Rejected example, content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetExample' } } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/versions/{versionId}/export:
+    post:
+      tags: [AI datasets]
+      operationId: exportAIDatasetVersion
+      parameters: [{ name: versionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '202': { description: Private export package created, content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetVersion' } } } }
+        '503': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/datasets/versions/{versionId}/download:
+    get:
+      tags: [AI datasets]
+      operationId: downloadAIDatasetVersion
+      parameters: [{ name: versionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Private ZIP stream for an exported dataset version.
+          content: { application/zip: { schema: { type: string, format: binary } } }
         default: { $ref: '#/components/responses/ErrorResponse' }
   /version:
     get:
@@ -663,6 +840,118 @@ components:
         buildTime: { type: string }
         environment: { type: string }
         apiContractVersion: { type: string }
+    AITrainingConsentResponse:
+      type: object
+      required: [status, granted, consentVersion, excludedData]
+      properties:
+        status: { type: string, enum: [not_granted, granted, revoked] }
+        granted: { type: boolean }
+        consentVersion: { type: string }
+        excludedData: { type: array, items: { type: string } }
+        record: { type: object, nullable: true, additionalProperties: true }
+    AIDatasetProject:
+      type: object
+      required: [id, key, name, taskType, schemaVersion, status, minimumQualityScore, consentRequired, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        key: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        taskType: { $ref: '#/components/schemas/AIDatasetTaskType' }
+        schemaVersion: { type: string }
+        status: { type: string, enum: [draft, active, frozen, archived] }
+        minimumQualityScore: { type: number, minimum: 0, maximum: 1 }
+        consentRequired: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateAIDatasetProjectRequest:
+      type: object
+      required: [key, name, taskType]
+      properties:
+        key: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        description: { type: string, nullable: true }
+        taskType: { $ref: '#/components/schemas/AIDatasetTaskType' }
+        schemaVersion: { type: string }
+        minimumQualityScore: { type: number, minimum: 0, maximum: 1 }
+        consentRequired: { type: boolean }
+    AIDatasetTaskType:
+      type: string
+      enum: [itinerary_generation, day_regeneration, item_regeneration, place_replacement, policy_repair, budget_optimization, route_alternatives, checklist_generation, copilot_response, recap_generation]
+    AIDatasetExample:
+      type: object
+      required: [id, datasetProjectId, sourceType, taskType, language, input, expectedOutput, labels, provenance, consentStatus, sanitizationStatus, qualityStatus, reviewStatus, exportStatus, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        datasetProjectId: { type: string, format: uuid }
+        sourceType: { type: string }
+        sourceEntityType: { type: string, nullable: true }
+        sourceEntityId: { type: string, nullable: true }
+        taskType: { $ref: '#/components/schemas/AIDatasetTaskType' }
+        language: { type: string }
+        input: { type: object, additionalProperties: true }
+        grounding: { type: object, nullable: true, additionalProperties: true }
+        expectedOutput: { type: object, additionalProperties: true }
+        negativeOutput: { type: object, nullable: true, additionalProperties: true }
+        labels: { type: object, additionalProperties: true }
+        provenance: { type: object, additionalProperties: true }
+        consentStatus: { type: string, enum: [not_required, pending, granted, revoked, prohibited] }
+        sanitizationStatus: { type: string, enum: [pending, passed, failed, needs_review] }
+        qualityStatus: { type: string, enum: [pending, passed, failed, needs_review] }
+        reviewStatus: { type: string, enum: [pending, approved, rejected, needs_changes] }
+        qualityScore: { type: number, minimum: 0, maximum: 1, nullable: true }
+        duplicateGroupId: { type: string, format: uuid, nullable: true }
+        split: { type: string, enum: [train, validation, test, holdout], nullable: true }
+        exportStatus: { type: string, enum: [not_exported, exported, invalidated] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AIDatasetReviewRequest:
+      type: object
+      properties:
+        reason: { type: string }
+    BuildAIDatasetVersionRequest:
+      type: object
+      required: [version]
+      properties:
+        version: { type: string, minLength: 1 }
+        minimumQualityScore: { type: number, minimum: 0, maximum: 1 }
+        languages: { type: array, items: { type: string } }
+        taskTypes: { type: array, items: { $ref: '#/components/schemas/AIDatasetTaskType' } }
+        includeManual: { type: boolean }
+    AIDatasetVersion:
+      type: object
+      required: [id, datasetProjectId, version, status, schemaVersion, exampleCount, trainCount, validationCount, testCount, holdoutCount, manifest, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        datasetProjectId: { type: string, format: uuid }
+        version: { type: string }
+        status: { type: string, enum: [building, ready, exported, invalidated, archived] }
+        schemaVersion: { type: string }
+        exampleCount: { type: integer, minimum: 0 }
+        trainCount: { type: integer, minimum: 0 }
+        validationCount: { type: integer, minimum: 0 }
+        testCount: { type: integer, minimum: 0 }
+        holdoutCount: { type: integer, minimum: 0 }
+        manifest: { type: object, additionalProperties: true }
+        checksum: { type: string, nullable: true }
+        exportPath: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        finalizedAt: { type: string, format: date-time, nullable: true }
+    AIDatasetReadiness:
+      type: object
+      required: [ready, blockers, approvedExampleCount, taskDistribution, languageDistribution, consentCoverage, sanitizationFailureCount, duplicateCount, holdoutCount, baselineEvalStatus, recommendation]
+      properties:
+        ready: { type: boolean }
+        blockers: { type: array, items: { type: string } }
+        approvedExampleCount: { type: integer, minimum: 0 }
+        taskDistribution: { type: object, additionalProperties: { type: integer } }
+        languageDistribution: { type: object, additionalProperties: { type: integer } }
+        consentCoverage: { type: object, additionalProperties: { type: integer } }
+        sanitizationFailureCount: { type: integer, minimum: 0 }
+        duplicateCount: { type: integer, minimum: 0 }
+        holdoutCount: { type: integer, minimum: 0 }
+        baselineEvalStatus: { type: string }
+        recommendation: { type: string }
     Money:
       type: object
       required: [amount, currency]
