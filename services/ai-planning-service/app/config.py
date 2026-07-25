@@ -30,6 +30,20 @@ class Settings(BaseModel):
     ollama_repair_enabled: bool = True
     ollama_repair_attempts: int = Field(default=1, ge=0)
     log_llm_payloads: bool = False
+    ai_fine_tuning_experiments_enabled: bool = False
+    ai_adapter_inference_enabled: bool = False
+    ai_adapter_staging_enabled: bool = False
+    ai_adapter_enabled: bool = False
+    ai_adapter_path: str = ""
+    ai_adapter_key: str = ""
+    ai_adapter_checksum: str = ""
+    ai_adapter_experiment_key: str = ""
+    ai_adapter_dataset_version: str = ""
+    ai_adapter_fallback_to_base: bool = True
+    ai_adapter_strict_load: bool = True
+    ai_model_variant: str = "grounded_baseline"
+    ai_model_load_timeout_seconds: int = Field(default=120, ge=1)
+    ai_model_artifact_dir: str = "app/data/model-adapters"
     ai_prompt_logging_enabled: bool = False
     ai_prompt_logging_redacted_only: bool = True
     destination_context_enabled: bool = True
@@ -157,6 +171,22 @@ def get_settings() -> Settings:
         ollama_repair_enabled=_env_bool("OLLAMA_REPAIR_ENABLED", True),
         ollama_repair_attempts=_env_int("OLLAMA_REPAIR_ATTEMPTS", 1),
         log_llm_payloads=_env_bool("LOG_LLM_PAYLOADS", False),
+        ai_fine_tuning_experiments_enabled=_env_bool(
+            "AI_FINE_TUNING_EXPERIMENTS_ENABLED", False
+        ),
+        ai_adapter_inference_enabled=_env_bool("AI_ADAPTER_INFERENCE_ENABLED", False),
+        ai_adapter_staging_enabled=_env_bool("AI_ADAPTER_STAGING_ENABLED", False),
+        ai_adapter_enabled=_env_bool("AI_ADAPTER_ENABLED", False),
+        ai_adapter_path=_env_string("AI_ADAPTER_PATH", ""),
+        ai_adapter_key=_env_string("AI_ADAPTER_KEY", ""),
+        ai_adapter_checksum=_env_string("AI_ADAPTER_CHECKSUM", ""),
+        ai_adapter_experiment_key=_env_string("AI_ADAPTER_EXPERIMENT_KEY", ""),
+        ai_adapter_dataset_version=_env_string("AI_ADAPTER_DATASET_VERSION", ""),
+        ai_adapter_fallback_to_base=_env_bool("AI_ADAPTER_FALLBACK_TO_BASE", True),
+        ai_adapter_strict_load=_env_bool("AI_ADAPTER_STRICT_LOAD", True),
+        ai_model_variant=_env_string("AI_MODEL_VARIANT", "grounded_baseline"),
+        ai_model_load_timeout_seconds=_env_int("AI_MODEL_LOAD_TIMEOUT_SECONDS", 120),
+        ai_model_artifact_dir=_env_string("AI_MODEL_ARTIFACT_DIR", "app/data/model-adapters"),
         ai_prompt_logging_enabled=_env_bool("AI_PROMPT_LOGGING_ENABLED", False),
         ai_prompt_logging_redacted_only=_env_bool("AI_PROMPT_LOGGING_REDACTED_ONLY", True),
         destination_context_enabled=_env_bool("DESTINATION_CONTEXT_ENABLED", True),
@@ -212,3 +242,36 @@ def _validate_startup_settings(settings: Settings) -> None:
         _validate_http_url("OLLAMA_BASE_URL", settings.ollama_base_url)
     if settings.rag_enabled and not settings.rag_chroma_dir.strip():
         raise ValueError("RAG_CHROMA_DIR is required when RAG_ENABLED=true")
+    model_variant = settings.ai_model_variant.strip().lower()
+    if model_variant not in {"base", "grounded_baseline", "adapter"}:
+        raise ValueError("AI_MODEL_VARIANT must be base, grounded_baseline, or adapter")
+    adapter_gate_enabled = settings.ai_adapter_inference_enabled or (
+        settings.app_env in {"local", "development", "test", "staging"}
+        and settings.ai_adapter_staging_enabled
+    )
+    if settings.ai_adapter_enabled and not adapter_gate_enabled:
+        raise ValueError(
+            "AI_ADAPTER_ENABLED requires AI_ADAPTER_INFERENCE_ENABLED=true or "
+            "AI_ADAPTER_STAGING_ENABLED=true outside production"
+        )
+    if settings.app_env == "production" and settings.ai_adapter_enabled:
+        if not settings.ai_adapter_inference_enabled:
+            raise ValueError(
+                "Production adapter inference requires AI_ADAPTER_INFERENCE_ENABLED=true"
+            )
+        if settings.ai_adapter_staging_enabled:
+            raise ValueError("AI_ADAPTER_STAGING_ENABLED must be false in production")
+    if settings.ai_adapter_enabled:
+        if model_variant != "adapter":
+            raise ValueError("AI_MODEL_VARIANT must be adapter when AI_ADAPTER_ENABLED=true")
+        if not settings.ai_adapter_key.strip():
+            raise ValueError("AI_ADAPTER_KEY is required when AI_ADAPTER_ENABLED=true")
+        if not settings.ai_adapter_path.strip():
+            raise ValueError("AI_ADAPTER_PATH is required when AI_ADAPTER_ENABLED=true")
+        if settings.is_strict_env and not settings.ai_adapter_checksum.strip():
+            raise ValueError("AI_ADAPTER_CHECKSUM is required in staging and production")
+        if (
+            settings.ai_adapter_checksum.strip()
+            and len(settings.ai_adapter_checksum.strip()) < 32
+        ):
+            raise ValueError("AI_ADAPTER_CHECKSUM must be at least 32 characters")

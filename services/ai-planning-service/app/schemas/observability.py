@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ObservabilityModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, protected_namespaces=())
 
 
 class TokenEstimate(ObservabilityModel):
@@ -18,6 +18,18 @@ class AIResponseMetadata(ObservabilityModel):
     provider: str
     model: str | None = None
     mode: str
+    model_variant: str | None = Field(default=None, alias="modelVariant")
+    adapter_enabled: bool | None = Field(default=None, alias="adapterEnabled")
+    adapter_loaded: bool | None = Field(default=None, alias="adapterLoaded")
+    adapter_key: str | None = Field(default=None, alias="adapterKey")
+    adapter_checksum: str | None = Field(default=None, alias="adapterChecksum")
+    adapter_checksum_verified: bool | None = Field(
+        default=None,
+        alias="adapterChecksumVerified",
+    )
+    experiment_key: str | None = Field(default=None, alias="experimentKey")
+    dataset_version: str | None = Field(default=None, alias="datasetVersion")
+    fallback_to_base: bool | None = Field(default=None, alias="fallbackToBase")
     duration_ms: int = Field(alias="durationMs", ge=0)
     token_estimate: TokenEstimate = Field(alias="tokenEstimate")
 

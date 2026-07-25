@@ -12,6 +12,7 @@ import sys
 root = pathlib.Path(sys.argv[1])
 required = {"id", "taskType", "language", "input", "output", "labels", "provenance"}
 allowed_tasks = {
+    "grounded_itinerary_generation",
     "itinerary_generation",
     "day_regeneration",
     "item_regeneration",

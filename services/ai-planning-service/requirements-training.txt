@@ -1,0 +1,11 @@
+-r requirements.txt
+
+accelerate>=0.34,<2.0
+datasets>=2.20,<4.0
+peft>=0.12,<1.0
+safetensors>=0.4,<1.0
+sentencepiece>=0.2,<1.0
+torch>=2.3,<3.0
+transformers>=4.44,<5.0
+trl>=0.10,<1.0
+bitsandbytes>=0.43,<1.0; platform_system != "Darwin"

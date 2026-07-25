@@ -98,6 +98,13 @@ def test_version_endpoint_returns_safe_build_metadata(monkeypatch) -> None:
         "buildTime": "unknown",
         "environment": "local",
         "apiContractVersion": "dev",
+        "modelRuntime": {
+            "modelVariant": "grounded_baseline",
+            "adapterEnabled": False,
+            "adapterLoaded": False,
+            "adapterChecksumVerified": False,
+            "fallbackToBase": False,
+        },
     }
 
 
@@ -111,8 +118,15 @@ def test_ready_endpoint_returns_ready_in_mock_mode() -> None:
     assert response.json() == {
         "status": "ready",
         "service": "ai-planning-service",
-        "dependencies": {"app": "ok"},
-        "checks": {"app": "ok"},
+        "dependencies": {"app": "ok", "adapter": "disabled"},
+        "checks": {"app": "ok", "adapter": "disabled"},
+        "modelRuntime": {
+            "modelVariant": "grounded_baseline",
+            "adapterEnabled": False,
+            "adapterLoaded": False,
+            "adapterChecksumVerified": False,
+            "fallbackToBase": False,
+        },
     }
 
 

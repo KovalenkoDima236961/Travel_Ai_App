@@ -25,6 +25,7 @@ The full model is in [threat-model.md](threat-model.md).
 | Authorization/sharing/files | `services/trip-service/internal/security`, routes, receipt/export/share services and tests |
 | Internal trust | all `/internal/*` route groups and token middleware |
 | Calendar/AI | integration crypto/calendar code; Trip and AI privacy/redaction code and tests |
+| AI fine-tuning | dataset governance, training scaffold, adapter runtime metadata, promotion gate scripts |
 | Browser | `apps/web/next.config.ts`, token/offline/service-worker code, external-link rendering |
 | Infrastructure | Dockerfiles, `.dockerignore`, `infra/docker-compose.yml`, env validation and CI |
 
@@ -65,6 +66,10 @@ The full model is in [threat-model.md](threat-model.md).
   sanitizer pass, deterministic quality scoring, human review, license checks,
   immutable manifests, audit events, and private export storage disabled by
   default.
+- AI fine-tuning is disabled by default, limited to
+  `grounded_itinerary_generation`, validates curated export checksums and split
+  isolation, excludes holdout from training, and requires manual promotion plus
+  adapter checksum verification before runtime activation.
 
 ## Initial scan record
 

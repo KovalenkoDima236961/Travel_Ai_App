@@ -17,16 +17,17 @@ const (
 	ProjectStatusFrozen   = "frozen"
 	ProjectStatusArchived = "archived"
 
-	TaskItineraryGeneration = "itinerary_generation"
-	TaskDayRegeneration     = "day_regeneration"
-	TaskItemRegeneration    = "item_regeneration"
-	TaskPlaceReplacement    = "place_replacement"
-	TaskPolicyRepair        = "policy_repair"
-	TaskBudgetOptimization  = "budget_optimization"
-	TaskRouteAlternatives   = "route_alternatives"
-	TaskChecklistGeneration = "checklist_generation"
-	TaskCopilotResponse     = "copilot_response"
-	TaskRecapGeneration     = "recap_generation"
+	TaskGroundedItineraryGeneration = "grounded_itinerary_generation"
+	TaskItineraryGeneration         = "itinerary_generation"
+	TaskDayRegeneration             = "day_regeneration"
+	TaskItemRegeneration            = "item_regeneration"
+	TaskPlaceReplacement            = "place_replacement"
+	TaskPolicyRepair                = "policy_repair"
+	TaskBudgetOptimization          = "budget_optimization"
+	TaskRouteAlternatives           = "route_alternatives"
+	TaskChecklistGeneration         = "checklist_generation"
+	TaskCopilotResponse             = "copilot_response"
+	TaskRecapGeneration             = "recap_generation"
 
 	ConsentNotRequired = "not_required"
 	ConsentPending     = "pending"
@@ -90,16 +91,17 @@ const (
 )
 
 var allowedTaskTypes = map[string]struct{}{
-	TaskItineraryGeneration: {},
-	TaskDayRegeneration:     {},
-	TaskItemRegeneration:    {},
-	TaskPlaceReplacement:    {},
-	TaskPolicyRepair:        {},
-	TaskBudgetOptimization:  {},
-	TaskRouteAlternatives:   {},
-	TaskChecklistGeneration: {},
-	TaskCopilotResponse:     {},
-	TaskRecapGeneration:     {},
+	TaskGroundedItineraryGeneration: {},
+	TaskItineraryGeneration:         {},
+	TaskDayRegeneration:             {},
+	TaskItemRegeneration:            {},
+	TaskPlaceReplacement:            {},
+	TaskPolicyRepair:                {},
+	TaskBudgetOptimization:          {},
+	TaskRouteAlternatives:           {},
+	TaskChecklistGeneration:         {},
+	TaskCopilotResponse:             {},
+	TaskRecapGeneration:             {},
 }
 
 type Config struct {

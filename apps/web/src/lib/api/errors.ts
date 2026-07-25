@@ -126,6 +126,11 @@ function isKnownErrorCode(value: string): boolean {
     "ai_dataset_quality_too_low", "ai_dataset_duplicate", "ai_dataset_version_exists",
     "ai_dataset_version_not_ready", "ai_dataset_export_disabled", "ai_dataset_export_failed",
     "ai_dataset_private_data_detected", "ai_dataset_license_not_allowed", "ai_dataset_no_eligible_examples",
+    "ai_training_disabled", "ai_training_dataset_invalid", "ai_training_dataset_not_frozen",
+    "ai_training_holdout_leak_detected", "ai_training_model_incompatible",
+    "ai_training_hardware_unsupported", "ai_training_failed", "ai_adapter_load_failed",
+    "ai_adapter_checksum_mismatch", "ai_evaluation_failed", "ai_promotion_gate_failed",
+    "ai_model_variant_unavailable",
     "unknown_error"
   ].includes(value);
 }

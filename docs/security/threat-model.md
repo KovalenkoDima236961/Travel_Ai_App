@@ -87,6 +87,16 @@ untrusted and does not log raw prompts by default.
 
 Training-dataset curation is a separate Trip Service trust boundary. User-derived examples require explicit consent and remain blocked when consent is revoked. Sanitization excludes receipts/OCR, calendar details, comments, private notes, user identifiers, secrets, raw prompts, hidden system instructions, raw logs, and unlicensed provider text before review. Private exports are disabled by default and never served as public URLs.
 
+### AI fine-tuning and adapter runtime
+
+Local fine-tuning is an operator-only workflow behind explicit feature flags.
+The training runner consumes curated exports, validates checksums and split
+isolation, and never loads holdout examples into training. Adapter runtime
+activation is disabled by default, constrained to an approved artifact directory,
+and guarded by checksum validation plus environment-specific gates. Runtime
+metadata may expose safe keys/checksums/variant names, but not paths, prompts,
+responses, user IDs, trip IDs, or provider payloads.
+
 ### Offline and service-worker data
 
 Offline keys and pending mutations are user-scoped. Logout removes the active

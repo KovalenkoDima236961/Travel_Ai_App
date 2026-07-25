@@ -22,6 +22,7 @@ jobs:
         run: |
           docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core config --quiet
           docker compose -f infra/docker-compose.yml --env-file infra/.env --profile core --profile ai --profile rag --profile observability --profile dev-tools config --quiet
+          docker compose -f infra/docker-compose.yml --env-file infra/.env --profile ai-training config --quiet
           docker compose -p travel-ai-test -f infra/docker-compose.yml --env-file infra/.env.test.example --profile test config --quiet
       - name: Validate deterministic test environment
         run: ./scripts/validate-env.sh test --env-file infra/.env.test.example
@@ -65,7 +66,7 @@ jobs:
           cache-dependency-path: services/ai-planning-service/requirements-dev.txt
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements-dev.txt
-      - run: python -m ruff check app tests
+      - run: python -m ruff check app tests training
       - run: python -m pytest
 
   ai-grounding-evals:

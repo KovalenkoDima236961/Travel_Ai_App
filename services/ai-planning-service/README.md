@@ -9,6 +9,21 @@ Trip Service is the normal caller. The AI service does not own trips, users,
 jobs, notifications, or budgets in storage; it receives context, returns a
 validated JSON proposal/itinerary, and leaves persistence to Trip Service.
 
+## Local Fine-Tuning v1
+
+The service includes local LoRA/QLoRA scaffolding for the single task
+`grounded_itinerary_generation`. Training is disabled by default and is not part
+of CI. Use curated Trip Service dataset exports only:
+
+```bash
+scripts/ai/validate-training-run.sh --config services/ai-planning-service/training/example.config.json --dataset-path data/ai-datasets/<export-dir>
+AI_FINE_TUNING_EXPERIMENTS_ENABLED=true scripts/ai/run-local-fine-tuning.sh --config services/ai-planning-service/training/example.config.json
+```
+
+Adapter inference is separately gated by `AI_ADAPTER_*` settings. `/ready`,
+`/version`, and AI response metadata expose only safe model variant/adapter
+metadata and never raw prompts or adapter filesystem paths.
+
 ## Output language
 
 Generation, packing checklist generation, day/item regeneration, budget

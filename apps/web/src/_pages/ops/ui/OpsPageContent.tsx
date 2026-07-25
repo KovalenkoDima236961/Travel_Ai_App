@@ -35,6 +35,7 @@ import {
 import { instrumentSans, jetBrainsMono, newsreader } from "./fonts";
 import { OpsHeader } from "./OpsHeader";
 import { AIDatasetCurationPanel } from "@/components/ops/AIDatasetCurationPanel";
+import { AIExperimentsPanel } from "@/components/ops/AIExperimentsPanel";
 import { FeatureFlagsPanel } from "@/components/ops/FeatureFlagsPanel";
 import {
   CARD,
@@ -255,6 +256,8 @@ export function OpsPageContent() {
       <FeatureFlagsPanel />
 
       <AIDatasetCurationPanel />
+
+      <AIExperimentsPanel />
 
       <section className="mt-7 grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-6">
         <SummaryCard label="Queued" value={summary.data?.countsByStatus.queued ?? 0} />

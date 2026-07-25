@@ -45,6 +45,7 @@ from app.schemas.repair import RepairItineraryRequest, RepairItineraryResponse
 from app.schemas.route_alternatives import RouteAlternativeRequest, RouteAlternativeResponse
 from app.schemas.template_adaptation import TemplateAdaptationRequest, TemplateAdaptationResponse
 from app.schemas.trip_recap import GenerateTripRecapRequest, GenerateTripRecapResponse
+from app.services.adapter_runtime import adapter_response_metadata
 from app.services.copilot import CopilotResponder
 from app.services.destination_suggestion import DestinationSuggestionGenerator
 from app.services.itinerary_generator import ItineraryGenerator
@@ -159,8 +160,10 @@ def health() -> dict[str, str]:
 
 
 @router.get("/version")
-def version() -> dict[str, str]:
-    return version_payload()
+def version(settings: Settings = Depends(get_configured_settings)) -> dict[str, object]:
+    payload: dict[str, object] = version_payload()
+    payload["modelRuntime"] = adapter_response_metadata(settings)
+    return payload
 
 
 @router.get("/ready")
@@ -182,6 +185,7 @@ def ready(settings: Settings = Depends(get_configured_settings)) -> JSONResponse
             "service": "ai-planning-service",
             "dependencies": result.checks,
             "checks": result.checks,
+            "modelRuntime": adapter_response_metadata(settings),
         },
     )
 
@@ -442,11 +446,21 @@ def _with_metadata(
     normalized_mode = mode.strip().lower()
     provider = "ollama" if normalized_mode == "ollama" else "mock"
     model = settings.ollama_model if provider == "ollama" else "mock-v1"
+    runtime = adapter_response_metadata(settings)
     metadata = AIResponseMetadata(
         promptVersion=_PROMPT_VERSIONS.get(operation, "unknown_v1"),
         provider=provider,
         model=model,
         mode=normalized_mode,
+        modelVariant=runtime.get("modelVariant"),
+        adapterEnabled=runtime.get("adapterEnabled"),
+        adapterLoaded=runtime.get("adapterLoaded"),
+        adapterKey=runtime.get("adapterKey"),
+        adapterChecksum=runtime.get("adapterChecksum"),
+        adapterChecksumVerified=runtime.get("adapterChecksumVerified"),
+        experimentKey=runtime.get("experimentKey"),
+        datasetVersion=runtime.get("datasetVersion"),
+        fallbackToBase=runtime.get("fallbackToBase"),
         durationMs=max(0, int((time.monotonic() - started_at) * 1000)),
         tokenEstimate=TokenEstimate(
             prompt=0, completion=completion_tokens, total=completion_tokens

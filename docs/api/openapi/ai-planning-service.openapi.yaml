@@ -3,10 +3,98 @@
     "schemas": {
       "AIResponseMetadata": {
         "properties": {
+          "adapterChecksum": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapterchecksum"
+          },
+          "adapterChecksumVerified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapterchecksumverified"
+          },
+          "adapterEnabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapterenabled"
+          },
+          "adapterKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapterkey"
+          },
+          "adapterLoaded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapterloaded"
+          },
+          "datasetVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datasetversion"
+          },
           "durationMs": {
             "minimum": 0.0,
             "title": "Durationms",
             "type": "integer"
+          },
+          "experimentKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experimentkey"
+          },
+          "fallbackToBase": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallbacktobase"
           },
           "mode": {
             "title": "Mode",
@@ -22,6 +110,17 @@
               }
             ],
             "title": "Model"
+          },
+          "modelVariant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelvariant"
           },
           "promptVersion": {
             "title": "Promptversion",
@@ -10347,9 +10446,6 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
                   "title": "Response Version Version Get",
                   "type": "object"
                 }

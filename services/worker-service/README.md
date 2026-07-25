@@ -8,6 +8,11 @@ proposal, version, activity, and notification effects.
 The Web App does not call Worker Service directly. It creates and polls jobs
 through Trip Service.
 
+AI fine-tuning v1 is not a normal Worker Service generation job. Local
+experiment runs are explicit operator commands or the opt-in Compose
+`ai-training` profile, while Trip Service remains the owner of dataset and
+experiment metadata.
+
 ## Reliability contract
 
 RabbitMQ delivery is at-least-once, so the worker atomically claims the persisted job and skips terminal/already-owned duplicates before producing itinerary versions, activity, or notifications. Errors are classified as transient or permanent; transient work is republished to the retry route with a bounded attempt header, while permanent/exhausted work is failed and dead-lettered. Startup/periodic cleanup marks stale running rows, and shutdown stops intake before waiting for active handlers. Monitor `worker_messages_{consumed,acked,retried,dead_lettered}_total`, queue depth, active jobs, queue delay, and duration. Use `scripts/worker-reliability-smoke-test.sh`; deterministic failure instructions are optional and should exist only in mock test deployments.

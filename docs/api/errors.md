@@ -49,6 +49,18 @@ existing clients:
 | `ai_dataset_export_failed` | 500 | Keep the version unexported and inspect server logs/storage permissions. |
 | `ai_dataset_private_data_detected` | 409 | Block approval/export and route the candidate to privacy review. |
 | `ai_dataset_license_not_allowed` | 409 | Exclude provider/copyrighted content that is not licensed for training use. |
+| `ai_training_disabled` | 403/503 | Hide experiment controls unless `AI_FINE_TUNING_EXPERIMENTS_ENABLED=true` is deliberately configured. |
+| `ai_training_dataset_invalid` | 409/422 | Stop the run; validate export shape, checksums, consent/sanitization, and task distribution. |
+| `ai_training_dataset_not_frozen` | 409 | Require a frozen/exported dataset version before any training run. |
+| `ai_training_holdout_leak_detected` | 409 | Abort the run and invalidate the candidate; holdout data must never enter training. |
+| `ai_training_model_incompatible` | 409 | Choose a Hugging Face-compatible base/revision and record license/lineage before retrying. |
+| `ai_training_hardware_unsupported` | 503 | Keep the experiment queued/failed; run on an approved local GPU host or lower the method footprint. |
+| `ai_training_failed` | 500 | Keep the candidate unpromoted; inspect local training logs and checkpoint state. |
+| `ai_adapter_load_failed` | 503 | Fail readiness unless explicit base fallback is configured; do not serve the candidate blindly. |
+| `ai_adapter_checksum_mismatch` | 409/503 | Reject the adapter load/promotion until the recorded checksum and artifact checksum match. |
+| `ai_evaluation_failed` | 500 | Keep promotion controls disabled until validation/test reports are regenerated. |
+| `ai_promotion_gate_failed` | 409 | Block staging/production approval; show failed gates and require a manual reject/retrain decision. |
+| `ai_model_variant_unavailable` | 404/503 | Fall back only when explicitly configured; otherwise mark the requested variant unavailable. |
 | `unknown_error` | any | Preserve safe local state and show a generic retryable failure with request ID when available. |
 
 ## Rules for new handlers

@@ -38,9 +38,16 @@ Quality scoring is deterministic and advisory. Human approval remains required f
 
 Dataset versions are immutable manifests built from approved examples. Splits are deterministic by source group so examples from the same trip/source do not cross train/eval boundaries. Golden benchmark cases marked `holdout` remain holdout and must not be used for training.
 
+Fine-tuning v1 currently supports only `grounded_itinerary_generation`. Training
+loaders must validate split disjointness, checksums, task distribution, and
+private-data markers before creating any adapter artifact.
+
 ## Export
 
 Exports require `AI_DATASET_EXPORT_ENABLED=true`. The package contains JSONL files for train/validation/test/holdout plus `manifest.json`, `checksums.txt`, and `README.md`. Exports are stored under `AI_DATASET_EXPORT_DIR` with private filesystem permissions and must be validated with `scripts/ai/validate-dataset-export.sh`.
+
+Local fine-tuning uses these exports through
+`scripts/ai/validate-training-run.sh`; it never trains on holdout JSONL.
 
 ## Audit and retention
 

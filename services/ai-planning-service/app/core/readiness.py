@@ -5,6 +5,7 @@ import httpx
 
 from app.config import Settings
 from app.core.paths import resolve_service_path
+from app.services.adapter_runtime import validate_adapter_runtime
 from app.services.chroma_client import create_persistent_chroma_client
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,11 @@ class ReadinessResult:
 def check_readiness(settings: Settings) -> ReadinessResult:
     checks: dict[str, str] = {"app": "ok"}
     is_ready = True
+
+    adapter_status = validate_adapter_runtime(settings)
+    checks["adapter"] = adapter_status.check_status
+    if not adapter_status.is_ready:
+        is_ready = False
 
     if settings.itinerary_generator_mode.strip().lower() == "ollama":
         ollama_error = _check_ollama(settings)

@@ -1,0 +1,21 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    AI_FINE_TUNING_EXPERIMENTS_ENABLED=false \
+    AI_ADAPTER_INFERENCE_ENABLED=false \
+    AI_ADAPTER_STAGING_ENABLED=false \
+    AI_ADAPTER_ENABLED=false
+
+WORKDIR /app
+
+COPY requirements-training.txt requirements.txt ./
+RUN pip install --no-cache-dir -r requirements-training.txt
+RUN useradd --create-home --uid 10001 trainer
+
+COPY --chown=trainer:trainer app ./app
+COPY --chown=trainer:trainer training ./training
+COPY --chown=trainer:trainer scripts ./scripts
+
+USER trainer
+CMD ["python", "-m", "training.cli", "--help"]

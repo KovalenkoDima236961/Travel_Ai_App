@@ -1,0 +1,60 @@
+name: AI Training Experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_path:
+        description: "Training config path"
+        required: true
+        default: "services/ai-planning-service/training/example.config.json"
+      dataset_path:
+        description: "Curated dataset export path"
+        required: true
+      dry_run:
+        description: "Validate only"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate training run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
+      - name: Validate curated export and training config
+        env:
+          TRAINING_CONFIG_PATH: ${{ inputs.config_path }}
+          TRAINING_DATASET_PATH: ${{ inputs.dataset_path }}
+        run: >-
+          scripts/ai/validate-training-run.sh
+          --config "${TRAINING_CONFIG_PATH}"
+          --dataset-path "${TRAINING_DATASET_PATH}"
+
+  train:
+    name: Local self-hosted training
+    if: ${{ !inputs.dry_run }}
+    needs: validate
+    runs-on: [self-hosted, ai-training]
+    environment: local-ai-training
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run local fine-tuning
+        env:
+          AI_FINE_TUNING_EXPERIMENTS_ENABLED: "true"
+          TRAINING_CONFIG_PATH: ${{ inputs.config_path }}
+          TRAINING_DATASET_PATH: ${{ inputs.dataset_path }}
+        run: >-
+          scripts/ai/run-local-fine-tuning.sh
+          --config "${TRAINING_CONFIG_PATH}"
+          --dataset-path "${TRAINING_DATASET_PATH}"
+          --evaluate-after
