@@ -21,6 +21,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 )
 
 const (
@@ -234,7 +235,10 @@ func (s *Service) ApplyTripDateOption(
 	}
 
 	start, _ := parseAvailabilityDate(selected.StartDate)
-	newDays := int32(selected.DurationDays)
+	newDays, err := safeconv.IntToInt32(selected.DurationDays, "duration days")
+	if err != nil {
+		return appdto.ApplyDateOptionResult{}, apperrs.NewInvalidInput("date option duration is invalid")
+	}
 	metadata := cloneMetadata(current.CreationMetadata)
 	metadata["selectedDateOption"] = selectedDateOptionMetadata(*selected)
 	metadata["selectedDateOptionAppliedAt"] = time.Now().UTC().Format(time.RFC3339)

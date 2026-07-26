@@ -191,13 +191,22 @@ func (r *Repository) GetByIDAndUserID(ctx context.Context, id, userID uuid.UUID)
 // ListByUser returns one user's trips ordered by created_at DESC.
 // Callers are expected to pass already-validated, normalised parameters.
 func (r *Repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Trip, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+	offsetValue, err := offsetArg(offset)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Select(dto.Columns).
 		From("trips").
 		Where(sq.Eq{"user_id": dto.IDArg(userID)}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
-		Offset(uint64(offset)).
+		Limit(limitValue).
+		Offset(offsetValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list: %w", err)
@@ -232,6 +241,15 @@ func (r *Repository) ListAccessible(
 	workspaceID *uuid.UUID,
 	limit, offset int,
 ) ([]entity.Trip, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+	offsetValue, err := offsetArg(offset)
+	if err != nil {
+		return nil, err
+	}
+
 	builder := r.db.Builder.
 		Select(dto.Columns).
 		From("trips")
@@ -259,8 +277,8 @@ func (r *Repository) ListAccessible(
 
 	query, args, err := builder.
 		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
-		Offset(uint64(offset)).
+		Limit(limitValue).
+		Offset(offsetValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build accessible trips list: %w", err)
@@ -455,13 +473,22 @@ func (r *Repository) ListItineraryVersionsByTrip(
 	tripID uuid.UUID,
 	limit, offset int,
 ) ([]entity.ItineraryVersion, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+	offsetValue, err := offsetArg(offset)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Select(dto.ItineraryVersionSummaryColumns).
 		From("itinerary_versions").
 		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
 		OrderBy("version_number DESC").
-		Limit(uint64(limit)).
-		Offset(uint64(offset)).
+		Limit(limitValue).
+		Offset(offsetValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list itinerary versions: %w", err)

@@ -15,10 +15,15 @@ func (r *Repository) CreateBudgetOptimizationProposal(
 	ctx context.Context,
 	proposal *entity.BudgetOptimizationProposal,
 ) (*entity.BudgetOptimizationProposal, error) {
+	values, err := dto.BudgetOptimizationProposalInsertValues(proposal)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("budget_optimization_proposals").
 		Columns(dto.BudgetOptimizationProposalInsertColumns()...).
-		Values(dto.BudgetOptimizationProposalInsertValues(proposal)...).
+		Values(values...).
 		Suffix("RETURNING " + dto.BudgetOptimizationProposalColumns).
 		ToSql()
 	if err != nil {
@@ -69,12 +74,17 @@ func (r *Repository) ListBudgetOptimizationProposalsByTrip(
 	status *entity.BudgetOptimizationProposalStatus,
 	limit int,
 ) ([]entity.BudgetOptimizationProposal, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+
 	builder := r.db.Builder.
 		Select(dto.BudgetOptimizationProposalColumns).
 		From("budget_optimization_proposals").
 		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit))
+		Limit(limitValue)
 	if status != nil {
 		builder = builder.Where(sq.Eq{"status": string(*status)})
 	}

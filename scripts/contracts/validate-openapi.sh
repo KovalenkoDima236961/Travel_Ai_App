@@ -3,10 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WEB_DIR="$ROOT_DIR/apps/web"
-SPECTRAL="$WEB_DIR/node_modules/.bin/spectral"
+VALIDATOR="$WEB_DIR/scripts/validate-openapi.mjs"
 
-if [[ ! -x "$SPECTRAL" ]]; then
-  echo "OpenAPI lint tooling is missing. Run npm ci in apps/web first." >&2
+if [[ ! -f "$VALIDATOR" ]]; then
+  echo "OpenAPI validation tooling is missing. Restore apps/web/scripts/validate-openapi.mjs." >&2
   exit 1
 fi
 
@@ -17,4 +17,4 @@ if [[ ${#SPECS[@]} -eq 0 ]]; then
   exit 1
 fi
 
-"$SPECTRAL" lint --ruleset "$ROOT_DIR/.spectral.yaml" "${SPECS[@]}"
+node "$VALIDATOR" "${SPECS[@]}"

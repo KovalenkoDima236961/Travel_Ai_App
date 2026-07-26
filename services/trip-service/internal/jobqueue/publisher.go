@@ -12,6 +12,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 )
 
 type RabbitMQPublisher struct {
@@ -106,6 +107,15 @@ func (p *RabbitMQPublisher) publish(
 		recordPublishFailure(p.cfg.QueueName, routingKey, "channel_closed", time.Since(startedAt))
 		return fmt.Errorf("rabbitmq channel is closed")
 	}
+	if attempt < 0 {
+		recordPublishFailure(p.cfg.QueueName, routingKey, "invalid_attempt", time.Since(startedAt))
+		return fmt.Errorf("generation job attempt must be non-negative")
+	}
+	attemptHeader, err := safeconv.IntToInt32(attempt, "generation job attempt")
+	if err != nil {
+		recordPublishFailure(p.cfg.QueueName, routingKey, "invalid_attempt", time.Since(startedAt))
+		return err
+	}
 
 	ctx, msg.RequestID, msg.CorrelationID = ensureMessageRequestIDs(ctx, msg)
 
@@ -132,7 +142,7 @@ func (p *RabbitMQPublisher) publish(
 			Type:         generationjobs.MessageTypeTripGenerationJob,
 			Timestamp:    time.Now().UTC(),
 			Headers: amqp.Table{
-				generationjobs.HeaderAttempts:      int32(attempt),
+				generationjobs.HeaderAttempts:      attemptHeader,
 				generationjobs.HeaderRequestID:     msg.RequestID,
 				generationjobs.HeaderCorrelationID: msg.CorrelationID,
 				generationjobs.HeaderSourceService: sourceService,
@@ -210,9 +220,9 @@ func DeclareTopology(ch *amqp.Channel, cfg Config) error {
 		return fmt.Errorf("bind rabbitmq dead-letter queue: %w", err)
 	}
 
-	retryDelayMs := int32(cfg.RetryDelay / time.Millisecond)
-	if retryDelayMs < 1 {
-		retryDelayMs = int32((10 * time.Second) / time.Millisecond)
+	retryDelayMs, err := retryDelayMilliseconds(cfg.RetryDelay)
+	if err != nil {
+		return err
 	}
 	if _, err := ch.QueueDeclare(
 		cfg.RetryQueueName,
@@ -250,6 +260,14 @@ func DeclareTopology(ch *amqp.Channel, cfg Config) error {
 	}
 
 	return nil
+}
+
+func retryDelayMilliseconds(delay time.Duration) (int32, error) {
+	if delay < time.Millisecond {
+		delay = 10 * time.Second
+	}
+	milliseconds := int64(delay / time.Millisecond)
+	return safeconv.Int64ToInt32(milliseconds, "retry delay milliseconds")
 }
 
 func dialWithRetry(ctx context.Context, url string, attempts int, delay time.Duration) (*amqp.Connection, error) {

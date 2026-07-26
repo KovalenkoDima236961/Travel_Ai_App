@@ -253,11 +253,13 @@ func NormalizeAndScore(response *Response, budget *BudgetEstimate, constraints *
 	seen := map[string]int{}
 	for index := range response.Alternatives {
 		alt := &response.Alternatives[index]
-		alt.ID = normalizeID(alt.ID, alt.Title, index)
-		if count := seen[alt.ID]; count > 0 {
-			alt.ID = alt.ID + "-" + string(rune('a'+count))
+		baseID := normalizeID(alt.ID, alt.Title, index)
+		count := seen[baseID]
+		alt.ID = baseID
+		if count > 0 {
+			alt.ID = baseID + "-" + intString(count+1)
 		}
-		seen[alt.ID]++
+		seen[baseID] = count + 1
 		NormalizeAlternative(alt, budget, constraints)
 	}
 	response.ComparisonSummary = BuildComparison(response.Alternatives)

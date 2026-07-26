@@ -93,12 +93,17 @@ func (r *Repository) ListTripDiscoverySessionsByUser(
 	userID uuid.UUID,
 	limit int,
 ) ([]tripdiscovery.Session, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Select(discoverySessionColumns).
 		From("trip_discovery_sessions").
 		Where(sq.Eq{"user_id": userID}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
+		Limit(limitValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list discovery sessions: %w", err)

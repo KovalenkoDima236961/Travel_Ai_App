@@ -14,6 +14,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 )
 
 type tripTemplateJSON struct {
@@ -76,7 +77,11 @@ func buildTemplateJSON(
 
 	durationDays := trip.Days
 	if durationDays <= 0 {
-		durationDays = int32(maxItineraryDayNumber(itinerary.Days))
+		maxDay, err := safeconv.IntToInt32(maxItineraryDayNumber(itinerary.Days), "itinerary day number")
+		if err != nil {
+			return nil, 0, nil, nil, apperrs.NewInvalidInput("source trip duration is invalid")
+		}
+		durationDays = maxDay
 	}
 	if durationDays <= 0 {
 		return nil, 0, nil, nil, apperrs.NewInvalidInput("source trip duration is invalid")

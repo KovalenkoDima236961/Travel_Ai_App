@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -382,16 +383,30 @@ func readAttempt(headers amqp.Table) int {
 	case int32:
 		return int(v)
 	case int64:
-		return int(v)
+		return int64HeaderValue(v)
 	case uint8:
 		return int(v)
 	case uint16:
 		return int(v)
 	case uint32:
-		return int(v)
+		return uint64HeaderValue(uint64(v))
 	case uint64:
-		return int(v)
+		return uint64HeaderValue(v)
 	default:
 		return 0
 	}
+}
+
+func int64HeaderValue(value int64) int {
+	if value < 0 || value > math.MaxInt {
+		return 0
+	}
+	return int(value)
+}
+
+func uint64HeaderValue(value uint64) int {
+	if value > math.MaxInt {
+		return 0
+	}
+	return int(value)
 }

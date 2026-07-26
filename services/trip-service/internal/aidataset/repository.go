@@ -14,6 +14,7 @@ import (
 
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	storage "github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 )
 
 type Repository struct {
@@ -300,12 +301,20 @@ func (r *Repository) ListExamples(ctx context.Context, filters ExampleFilters) (
 	if filters.Limit > 200 {
 		filters.Limit = 200
 	}
+	limit, err := safeconv.NonNegativeIntToUint64(filters.Limit, "limit")
+	if err != nil {
+		return nil, err
+	}
+	offset, err := safeconv.NonNegativeIntToUint64(maxInt(filters.Offset, 0), "offset")
+	if err != nil {
+		return nil, err
+	}
 	builder := r.db.Builder.
 		Select(exampleColumns).
 		From("ai_training_examples").
 		OrderBy("created_at DESC", "id DESC").
-		Limit(uint64(filters.Limit)).
-		Offset(uint64(maxInt(filters.Offset, 0)))
+		Limit(limit).
+		Offset(offset)
 	if filters.DatasetProjectID != nil {
 		builder = builder.Where(sq.Eq{"dataset_project_id": *filters.DatasetProjectID})
 	}

@@ -15,10 +15,15 @@ func (r *Repository) CreateTripRepairProposal(
 	ctx context.Context,
 	proposal *entity.TripRepairProposal,
 ) (*entity.TripRepairProposal, error) {
+	values, err := dto.TripRepairProposalInsertValues(proposal)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("trip_repair_proposals").
 		Columns(dto.TripRepairProposalInsertColumns()...).
-		Values(dto.TripRepairProposalInsertValues(proposal)...).
+		Values(values...).
 		Suffix("RETURNING " + dto.TripRepairProposalColumns).
 		ToSql()
 	if err != nil {
@@ -69,12 +74,17 @@ func (r *Repository) ListTripRepairProposalsByTrip(
 	status *entity.TripRepairProposalStatus,
 	limit int,
 ) ([]entity.TripRepairProposal, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+
 	builder := r.db.Builder.
 		Select(dto.TripRepairProposalColumns).
 		From("trip_repair_proposals").
 		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit))
+		Limit(limitValue)
 	if status != nil {
 		builder = builder.Where(sq.Eq{"status": string(*status)})
 	}

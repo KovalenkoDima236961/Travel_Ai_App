@@ -42,6 +42,11 @@ func (r *Repository) ListTripActivityEvents(
 	cursorCreatedAt *time.Time,
 	cursorID *uuid.UUID,
 ) ([]entity.TripActivityEvent, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+
 	builder := r.db.Builder.
 		Select(dto.TripActivityEventColumns).
 		From("trip_activity_events").
@@ -59,7 +64,7 @@ func (r *Repository) ListTripActivityEvents(
 
 	query, args, err := builder.
 		OrderBy("created_at DESC", "id DESC").
-		Limit(uint64(limit)).
+		Limit(limitValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list trip activity events: %w", err)

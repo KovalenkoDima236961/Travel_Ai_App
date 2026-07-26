@@ -64,10 +64,18 @@ func (r *Repository) ListTripExpenseReceipts(ctx context.Context, tripID uuid.UU
 	}
 	builder = builder.OrderBy("created_at DESC", "id DESC")
 	if filters.Limit > 0 {
-		builder = builder.Limit(uint64(filters.Limit))
+		limitValue, err := limitArg(filters.Limit)
+		if err != nil {
+			return nil, fmt.Errorf("build list trip expense receipts: %w", err)
+		}
+		builder = builder.Limit(limitValue)
 	}
 	if filters.Offset > 0 {
-		builder = builder.Offset(uint64(filters.Offset))
+		offsetValue, err := offsetArg(filters.Offset)
+		if err != nil {
+			return nil, fmt.Errorf("build list trip expense receipts: %w", err)
+		}
+		builder = builder.Offset(offsetValue)
 	}
 	query, args, err := builder.ToSql()
 	if err != nil {

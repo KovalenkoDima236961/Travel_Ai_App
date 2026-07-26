@@ -15,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
@@ -913,12 +914,16 @@ func (g *MockItineraryGenerator) AdaptTemplate(_ context.Context, input template
 		summary.MajorChanges = append(summary.MajorChanges,
 			fmt.Sprintf("Extended the plan from %d to %d day(s).", len(sourceDays), target.DurationDays))
 	}
+	travelers, err := safeconv.IntToInt32(target.Travelers, "travelers")
+	if err != nil {
+		return nil, err
+	}
 
 	return &templateadaptation.AdaptResult{
 		Itinerary: aggregate.Itinerary{
 			Destination: destination,
 			Summary:     fmt.Sprintf("%s trip adapted from template", destination),
-			Travelers:   int32(target.Travelers),
+			Travelers:   travelers,
 			Pace:        target.Pace,
 			Currency:    currency,
 			Days:        days,

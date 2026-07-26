@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budget"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 )
 
 func Compute(ctx context.Context, in Input) Response {
@@ -142,7 +143,11 @@ func tripDays(in Input) int32 {
 	if in.Trip != nil {
 		return in.Trip.Days
 	}
-	return int32(len(in.Itinerary.Days))
+	days, err := safeconv.IntToInt32(len(in.Itinerary.Days), "itinerary days")
+	if err != nil {
+		return 1<<31 - 1
+	}
+	return days
 }
 
 func dedupeStrings(values []string) []string {

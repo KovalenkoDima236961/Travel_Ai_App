@@ -39,6 +39,15 @@ func newTMTestProvider(t *testing.T, baseURL string) AvailabilityProvider {
 	return provider
 }
 
+func newTMTestClient(t *testing.T, baseURL string, timeout time.Duration) *ticketmasterClient {
+	t.Helper()
+	client, err := newTicketmasterClient("k", baseURL, timeout, zap.NewNop())
+	if err != nil {
+		t.Fatalf("newTicketmasterClient: %v", err)
+	}
+	return client
+}
+
 // tmServer starts a test server that returns the given body/status and records
 // whether it was hit, so tests can assert the network was (or was not) used.
 func tmServer(t *testing.T, status int, body string) (*httptest.Server, *int) {
@@ -250,7 +259,7 @@ func TestTicketmasterClientClassifiesHTTPErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, _ := tmServer(t, tc.status, `{}`)
-			client := newTicketmasterClient("k", srv.URL, 5*time.Second, zap.NewNop())
+			client := newTMTestClient(t, srv.URL, 5*time.Second)
 			_, err := client.searchEvents(context.Background(), url.Values{})
 			assertProviderErrorKind(t, err, tc.kind)
 		})
@@ -259,7 +268,7 @@ func TestTicketmasterClientClassifiesHTTPErrors(t *testing.T) {
 
 func TestTicketmasterClientClassifiesMalformedResponse(t *testing.T) {
 	srv, _ := tmServer(t, http.StatusOK, `{not valid json`)
-	client := newTicketmasterClient("k", srv.URL, 5*time.Second, zap.NewNop())
+	client := newTMTestClient(t, srv.URL, 5*time.Second)
 	_, err := client.searchEvents(context.Background(), url.Values{})
 	assertProviderErrorKind(t, err, providerErrorBadResponse)
 }
@@ -270,14 +279,14 @@ func TestTicketmasterClientClassifiesTimeout(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	t.Cleanup(srv.Close)
-	client := newTicketmasterClient("k", srv.URL, time.Millisecond, zap.NewNop())
+	client := newTMTestClient(t, srv.URL, time.Millisecond)
 	_, err := client.searchEvents(context.Background(), url.Values{})
 	assertProviderErrorKind(t, err, providerErrorTimeout)
 }
 
 func TestTicketmasterClient404IsEmptyResult(t *testing.T) {
 	srv, _ := tmServer(t, http.StatusNotFound, `{}`)
-	client := newTicketmasterClient("k", srv.URL, 5*time.Second, zap.NewNop())
+	client := newTMTestClient(t, srv.URL, 5*time.Second)
 	payload, err := client.searchEvents(context.Background(), url.Values{})
 	if err != nil {
 		t.Fatalf("expected nil error for 404, got %v", err)

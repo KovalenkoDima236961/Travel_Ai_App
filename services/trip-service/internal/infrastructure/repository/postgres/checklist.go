@@ -42,10 +42,15 @@ func (r *Repository) GetChecklistByID(ctx context.Context, checklistID uuid.UUID
 }
 
 func (r *Repository) CreateChecklist(ctx context.Context, checklist *entity.TripChecklist) (*entity.TripChecklist, error) {
+	values, err := dto.TripChecklistInsertValues(checklist)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("trip_checklists").
 		Columns(dto.TripChecklistInsertColumns()...).
-		Values(dto.TripChecklistInsertValues(checklist)...).
+		Values(values...).
 		Suffix("RETURNING " + dto.TripChecklistColumns).
 		ToSql()
 	if err != nil {
@@ -95,10 +100,15 @@ func (r *Repository) ArchiveActiveChecklistForTrip(ctx context.Context, tripID, 
 }
 
 func (r *Repository) CreateChecklistItem(ctx context.Context, item *entity.TripChecklistItem) (*entity.TripChecklistItem, error) {
+	values, err := dto.TripChecklistItemInsertValues(item)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("trip_checklist_items").
 		Columns(dto.TripChecklistItemInsertColumns()...).
-		Values(dto.TripChecklistItemInsertValues(item)...).
+		Values(values...).
 		Suffix("RETURNING " + dto.TripChecklistItemColumns).
 		ToSql()
 	if err != nil {

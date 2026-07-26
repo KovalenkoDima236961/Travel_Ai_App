@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	storage "github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 )
 
 type PostgresRepository struct{ db *storage.DB }
@@ -33,7 +34,11 @@ func (r *PostgresRepository) ListByUser(ctx context.Context, userID uuid.UUID, l
 	if limit <= 0 || limit > 100 {
 		limit = 100
 	}
-	query, args, err := r.db.Builder.Select("id, user_id, workspace_id, trip_id, entity_type, entity_id, feedback_type, feedback_value, metadata_json, created_at").From("personalization_feedback").Where(sq.Eq{"user_id": userID}).OrderBy("created_at DESC", "id DESC").Limit(uint64(limit)).ToSql()
+	limitValue, err := safeconv.NonNegativeIntToUint64(limit, "limit")
+	if err != nil {
+		return nil, err
+	}
+	query, args, err := r.db.Builder.Select("id, user_id, workspace_id, trip_id, entity_type, entity_id, feedback_type, feedback_value, metadata_json, created_at").From("personalization_feedback").Where(sq.Eq{"user_id": userID}).OrderBy("created_at DESC", "id DESC").Limit(limitValue).ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list personalization feedback: %w", err)
 	}

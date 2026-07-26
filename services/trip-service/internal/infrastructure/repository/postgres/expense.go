@@ -150,10 +150,18 @@ func (r *Repository) ListTripExpensesByTrip(ctx context.Context, tripID uuid.UUI
 	}
 	builder = builder.OrderBy("expense_date DESC", "created_at DESC", "id DESC")
 	if filters.Limit > 0 {
-		builder = builder.Limit(uint64(filters.Limit))
+		limitValue, err := limitArg(filters.Limit)
+		if err != nil {
+			return nil, fmt.Errorf("build list trip expenses: %w", err)
+		}
+		builder = builder.Limit(limitValue)
 	}
 	if filters.Offset > 0 {
-		builder = builder.Offset(uint64(filters.Offset))
+		offsetValue, err := offsetArg(filters.Offset)
+		if err != nil {
+			return nil, fmt.Errorf("build list trip expenses: %w", err)
+		}
+		builder = builder.Offset(offsetValue)
 	}
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -296,10 +304,15 @@ func (r *Repository) CancelTripSettlement(ctx context.Context, tripID, settlemen
 }
 
 func (r *Repository) createTripExpense(ctx context.Context, q rowQuerier, expense *entity.TripExpense) (*entity.TripExpense, error) {
+	values, err := dto.TripExpenseInsertValues(expense)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("trip_expenses").
 		Columns(dto.TripExpenseInsertColumns()...).
-		Values(dto.TripExpenseInsertValues(expense)...).
+		Values(values...).
 		Suffix("RETURNING " + dto.TripExpenseColumns).
 		ToSql()
 	if err != nil {
@@ -309,6 +322,15 @@ func (r *Repository) createTripExpense(ctx context.Context, q rowQuerier, expens
 }
 
 func (r *Repository) updateTripExpense(ctx context.Context, q rowQuerier, expense *entity.TripExpense) (*entity.TripExpense, error) {
+	linkedDayNumber, err := dto.IntPtrArg(expense.LinkedDayNumber, "linked day number")
+	if err != nil {
+		return nil, err
+	}
+	linkedItemIndex, err := dto.IntPtrArg(expense.LinkedItemIndex, "linked item index")
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Update("trip_expenses").
 		Set("title", expense.Title).
@@ -319,8 +341,8 @@ func (r *Repository) updateTripExpense(ctx context.Context, q rowQuerier, expens
 		Set("expense_date", dto.DateArg(&expense.ExpenseDate)).
 		Set("paid_by_user_id", dto.IDArg(expense.PaidByUserID)).
 		Set("split_type", string(expense.SplitType)).
-		Set("linked_day_number", dto.IntPtrArg(expense.LinkedDayNumber)).
-		Set("linked_item_index", dto.IntPtrArg(expense.LinkedItemIndex)).
+		Set("linked_day_number", linkedDayNumber).
+		Set("linked_item_index", linkedItemIndex).
 		Set("linked_item_id", dto.TextPtrArg(expense.LinkedItemID)).
 		Set("linked_route_leg_id", dto.TextPtrArg(expense.LinkedRouteLegID)).
 		Set("linked_accommodation", expense.LinkedAccommodation).

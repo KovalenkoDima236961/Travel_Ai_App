@@ -46,6 +46,15 @@ func (r *Repository) ListTripTemplates(
 	workspaceIDs []uuid.UUID,
 	in appdto.ListTripTemplatesInput,
 ) ([]entity.TripTemplate, error) {
+	limit, err := limitArg(in.Limit)
+	if err != nil {
+		return nil, err
+	}
+	offset, err := offsetArg(in.Offset)
+	if err != nil {
+		return nil, err
+	}
+
 	builder := r.db.Builder.
 		Select(dto.TripTemplateSummaryColumns).
 		From("trip_templates")
@@ -104,8 +113,8 @@ func (r *Repository) ListTripTemplates(
 
 	query, args, err := builder.
 		OrderBy("created_at DESC", "id DESC").
-		Limit(uint64(in.Limit)).
-		Offset(uint64(in.Offset)).
+		Limit(limit).
+		Offset(offset).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list trip templates: %w", err)

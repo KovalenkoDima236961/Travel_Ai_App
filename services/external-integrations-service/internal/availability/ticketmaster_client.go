@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -18,24 +20,28 @@ import (
 // payloads to callers.
 type ticketmasterClient struct {
 	apiKey  string
-	baseURL string
+	baseURL *url.URL
 	http    *http.Client
 	log     *zap.Logger
 }
 
-func newTicketmasterClient(apiKey, baseURL string, timeout time.Duration, log *zap.Logger) *ticketmasterClient {
+func newTicketmasterClient(apiKey, baseURL string, timeout time.Duration, log *zap.Logger) (*ticketmasterClient, error) {
 	if log == nil {
 		log = zap.NewNop()
+	}
+	normalizedBaseURL, err := normalizeTicketmasterBaseURL(baseURL)
+	if err != nil {
+		return nil, err
 	}
 	if timeout <= 0 {
 		timeout = 8 * time.Second
 	}
 	return &ticketmasterClient{
 		apiKey:  apiKey,
-		baseURL: baseURL,
+		baseURL: normalizedBaseURL,
 		http:    &http.Client{Timeout: timeout},
 		log:     log,
-	}
+	}, nil
 }
 
 // searchEvents performs a GET /events.json with the given query parameters. The
@@ -46,13 +52,13 @@ func (c *ticketmasterClient) searchEvents(ctx context.Context, params url.Values
 		return nil, &ProviderError{Provider: ticketmasterProviderName, Kind: providerErrorRequest, Err: err}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil) // #nosec G704 -- endpoint is built from a validated Ticketmaster base URL and fixed path.
 	if err != nil {
 		return nil, &ProviderError{Provider: ticketmasterProviderName, Kind: providerErrorRequest, Err: err}
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.http.Do(req)
+	resp, err := c.http.Do(req) // #nosec G704 -- request URL is built from a validated Ticketmaster base URL and fixed path.
 	if err != nil {
 		return nil, classifyTicketmasterTransportError(err)
 	}
@@ -74,12 +80,37 @@ func (c *ticketmasterClient) searchEvents(ctx context.Context, params url.Values
 	return &payload, nil
 }
 
+func normalizeTicketmasterBaseURL(raw string) (*url.URL, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return nil, fmt.Errorf("TICKETMASTER_BASE_URL is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("parse TICKETMASTER_BASE_URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("TICKETMASTER_BASE_URL must use http or https")
+	}
+	if parsed.Host == "" {
+		return nil, fmt.Errorf("TICKETMASTER_BASE_URL must include a host")
+	}
+	if parsed.User != nil {
+		return nil, fmt.Errorf("TICKETMASTER_BASE_URL must not include user info")
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, fmt.Errorf("TICKETMASTER_BASE_URL must not include query or fragment")
+	}
+	return parsed, nil
+}
+
 // buildURL appends the API key as a query parameter. The key is never logged.
 func (c *ticketmasterClient) buildURL(path string, values url.Values) (string, error) {
-	parsed, err := url.Parse(c.baseURL + path)
-	if err != nil {
-		return "", err
-	}
+	parsed := *c.baseURL
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + strings.TrimLeft(path, "/")
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
 	query := parsed.Query()
 	for key, list := range values {
 		for _, value := range list {

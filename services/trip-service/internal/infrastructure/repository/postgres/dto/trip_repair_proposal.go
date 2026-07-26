@@ -36,7 +36,15 @@ func TripRepairProposalInsertColumns() []string {
 	}
 }
 
-func TripRepairProposalInsertValues(p *entity.TripRepairProposal) []any {
+func TripRepairProposalInsertValues(p *entity.TripRepairProposal) ([]any, error) {
+	baseRiskScore, err := toPgIntPtr(p.BaseRiskScore, "base risk score")
+	if err != nil {
+		return nil, err
+	}
+	proposedRiskScore, err := toPgIntPtr(p.ProposedRiskScore, "proposed risk score")
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		toPgUUID(p.ID),
 		toPgUUID(p.TripID),
@@ -45,13 +53,13 @@ func TripRepairProposalInsertValues(p *entity.TripRepairProposal) []any {
 		string(p.Status),
 		p.RepairMode,
 		p.BaseItineraryRevision,
-		toPgIntPtr(p.BaseRiskScore),
-		toPgIntPtr(p.ProposedRiskScore),
+		baseRiskScore,
+		proposedRiskScore,
 		toPgTextPtr(p.BasePolicyStatus),
 		toPgTextPtr(p.ProposedPolicyStatus),
 		p.IssuesJSON,
 		p.ProposalJSON,
-	}
+	}, nil
 }
 
 func ScanTripRepairProposal(row pgx.Row) (*entity.TripRepairProposal, error) {

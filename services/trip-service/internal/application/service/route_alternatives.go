@@ -15,6 +15,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 )
 
@@ -384,9 +385,13 @@ func (s *Service) CreateTripFromRouteAlternative(
 	if in.Travelers != nil {
 		travelers = *in.Travelers
 	}
-	days := int32(original.DurationDays)
-	if days < 1 {
-		days = int32(routeDurationDays(alternative.Route))
+	durationDays := original.DurationDays
+	if durationDays < 1 {
+		durationDays = routeDurationDays(alternative.Route)
+	}
+	days, err := safeconv.IntToInt32(durationDays, "duration days")
+	if err != nil {
+		return nil, apperrs.NewInvalidInput("durationDays is invalid")
 	}
 	currency, amount := budgetParts(budget)
 	trip, err := s.Create(ctx, appdto.CreateTripInput{

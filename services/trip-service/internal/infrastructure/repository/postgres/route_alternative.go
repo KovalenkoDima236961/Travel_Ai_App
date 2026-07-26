@@ -71,13 +71,18 @@ func (r *Repository) ListRouteAlternativeSessionsByTrip(
 	tripID uuid.UUID,
 	limit int,
 ) ([]routealternatives.Session, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Select(dto.RouteAlternativeSessionColumns).
 		From("route_alternative_sessions").
 		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
 		Where(sq.NotEq{"status": routealternatives.StatusArchived}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
+		Limit(limitValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list trip route alternative sessions: %w", err)
@@ -95,13 +100,18 @@ func (r *Repository) ListRouteAlternativeSessionsByUser(
 	userID uuid.UUID,
 	limit int,
 ) ([]routealternatives.Session, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Select(dto.RouteAlternativeSessionColumns).
 		From("route_alternative_sessions").
 		Where(sq.Eq{"user_id": dto.IDArg(userID)}).
 		Where(sq.NotEq{"status": routealternatives.StatusArchived}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
+		Limit(limitValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list user route alternative sessions: %w", err)

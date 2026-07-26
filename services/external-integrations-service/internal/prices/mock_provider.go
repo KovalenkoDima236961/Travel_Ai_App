@@ -143,7 +143,18 @@ func deterministicAmount(minValue, maxValue int, key string) float64 {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(key))
 	span := maxValue - minValue + 1
-	return float64(minValue + int(h.Sum32()%uint32(span)))
+	return float64(minValue + deterministicOffset(h.Sum32(), span))
+}
+
+func deterministicOffset(sum uint32, span int) int {
+	if span <= 0 {
+		return 0
+	}
+	if span > math.MaxInt32 {
+		span = math.MaxInt32
+	}
+	span32 := uint32(span)
+	return int(sum % span32)
 }
 
 func convertMockAmount(eurAmount float64, currency string) float64 {

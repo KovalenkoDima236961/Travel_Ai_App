@@ -43,13 +43,17 @@ func newTicketmasterProvider(cfg config.AvailabilityConfig, log *zap.Logger) (Av
 		baseURL = "https://app.ticketmaster.com/discovery/v2"
 	}
 	timeout := time.Duration(cfg.TicketmasterTimeoutSeconds) * time.Second
+	client, err := newTicketmasterClient(apiKey, baseURL, timeout, log)
+	if err != nil {
+		return nil, &ProviderError{Provider: ticketmasterProviderName, Kind: providerErrorAuthConfig, Err: err}
+	}
 
 	maxOptions := cfg.MaxOptions
 	if maxOptions <= 0 {
 		maxOptions = 10
 	}
 	return &ticketmasterProvider{
-		client:                 newTicketmasterClient(apiKey, baseURL, timeout, log),
+		client:                 client,
 		minMatchConfidence:     cfg.MinMatchConfidence,
 		lowConfidenceThreshold: cfg.LowConfidenceThreshold,
 		maxOptions:             maxOptions,

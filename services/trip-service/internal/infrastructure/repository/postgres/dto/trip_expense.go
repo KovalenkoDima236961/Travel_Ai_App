@@ -43,8 +43,16 @@ func TripExpenseInsertColumns() []string {
 	}
 }
 
-func TripExpenseInsertValues(expense *entity.TripExpense) []any {
+func TripExpenseInsertValues(expense *entity.TripExpense) ([]any, error) {
 	amount := expense.Amount
+	linkedDayNumber, err := intPtrArg(expense.LinkedDayNumber, "linked day number")
+	if err != nil {
+		return nil, err
+	}
+	linkedItemIndex, err := intPtrArg(expense.LinkedItemIndex, "linked item index")
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		IDArg(expense.ID),
 		IDArg(expense.TripID),
@@ -56,8 +64,8 @@ func TripExpenseInsertValues(expense *entity.TripExpense) []any {
 		toPgDate(&expense.ExpenseDate),
 		IDArg(expense.PaidByUserID),
 		string(expense.SplitType),
-		intPtrArg(expense.LinkedDayNumber),
-		intPtrArg(expense.LinkedItemIndex),
+		linkedDayNumber,
+		linkedItemIndex,
 		textPtrArg(expense.LinkedItemID),
 		textPtrArg(expense.LinkedRouteLegID),
 		expense.LinkedAccommodation,
@@ -66,7 +74,7 @@ func TripExpenseInsertValues(expense *entity.TripExpense) []any {
 		jsonArg(expense.Metadata),
 		IDArg(expense.CreatedByUserID),
 		toPgUUIDPtr(expense.UpdatedByUserID),
-	}
+	}, nil
 }
 
 func TripExpenseParticipantInsertColumns() []string {

@@ -1,5 +1,6 @@
 # Root build contexts are used by worker-service and the one-shot migration
-# runner. Keep only their Go sources, migration assets, and runner script.
+# runner. Keep only their Go sources, migration assets, curated knowledge data,
+# and runner script.
 *
 
 !services/auth-service
@@ -8,6 +9,9 @@
 !services/notification-service
 !services/external-integrations-service
 !services/worker-service
+!data
+!data/travel-knowledge
+!data/travel-knowledge/**
 !infra
 !scripts/run-migrations.sh
 

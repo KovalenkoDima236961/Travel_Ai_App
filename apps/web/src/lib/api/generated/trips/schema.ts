@@ -86,6 +86,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-training/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAITrainingConsent"];
+        put: operations["updateAITrainingConsent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/ai-training/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["grantTripAITrainingConsent"];
+        delete: operations["revokeTripAITrainingConsent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/itinerary/versions/{versionId}/ai-training/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["grantItineraryVersionAITrainingConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/fine-tuning/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFineTuningReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAIDatasetProjects"];
+        put?: never;
+        post: operations["createAIDatasetProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/projects/{projectId}/extract-golden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["extractGoldenAIDatasetExamples"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/projects/{projectId}/extract-manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["extractManualAIDatasetExamples"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/projects/{projectId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["buildAIDatasetVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAIDatasetExamples"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/examples/{exampleId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approveAIDatasetExample"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/examples/{exampleId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rejectAIDatasetExample"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/versions/{versionId}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["exportAIDatasetVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/datasets/versions/{versionId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadAIDatasetVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/version": {
         parameters: {
             query?: never;
@@ -577,6 +785,145 @@ export interface components {
             buildTime: string;
             environment: string;
             apiContractVersion: string;
+        };
+        AITrainingConsentResponse: {
+            /** @enum {string} */
+            status: "not_granted" | "granted" | "revoked";
+            granted: boolean;
+            consentVersion: string;
+            excludedData: string[];
+            record?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        AIDatasetProject: {
+            /** Format: uuid */
+            id: string;
+            key: string;
+            name: string;
+            description?: string | null;
+            taskType: components["schemas"]["AIDatasetTaskType"];
+            schemaVersion: string;
+            /** @enum {string} */
+            status: "draft" | "active" | "frozen" | "archived";
+            minimumQualityScore: number;
+            consentRequired: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateAIDatasetProjectRequest: {
+            key: string;
+            name: string;
+            description?: string | null;
+            taskType: components["schemas"]["AIDatasetTaskType"];
+            schemaVersion?: string;
+            minimumQualityScore?: number;
+            consentRequired?: boolean;
+        };
+        /** @enum {string} */
+        AIDatasetTaskType: "itinerary_generation" | "day_regeneration" | "item_regeneration" | "place_replacement" | "policy_repair" | "budget_optimization" | "route_alternatives" | "checklist_generation" | "copilot_response" | "recap_generation";
+        AIDatasetExample: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            datasetProjectId: string;
+            sourceType: string;
+            sourceEntityType?: string | null;
+            sourceEntityId?: string | null;
+            taskType: components["schemas"]["AIDatasetTaskType"];
+            language: string;
+            input: {
+                [key: string]: unknown;
+            };
+            grounding?: {
+                [key: string]: unknown;
+            } | null;
+            expectedOutput: {
+                [key: string]: unknown;
+            };
+            negativeOutput?: {
+                [key: string]: unknown;
+            } | null;
+            labels: {
+                [key: string]: unknown;
+            };
+            provenance: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            consentStatus: "not_required" | "pending" | "granted" | "revoked" | "prohibited";
+            /** @enum {string} */
+            sanitizationStatus: "pending" | "passed" | "failed" | "needs_review";
+            /** @enum {string} */
+            qualityStatus: "pending" | "passed" | "failed" | "needs_review";
+            /** @enum {string} */
+            reviewStatus: "pending" | "approved" | "rejected" | "needs_changes";
+            qualityScore?: number | null;
+            /** Format: uuid */
+            duplicateGroupId?: string | null;
+            /** @enum {string|null} */
+            split?: "train" | "validation" | "test" | "holdout" | null;
+            /** @enum {string} */
+            exportStatus: "not_exported" | "exported" | "invalidated";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AIDatasetReviewRequest: {
+            reason?: string;
+        };
+        BuildAIDatasetVersionRequest: {
+            version: string;
+            minimumQualityScore?: number;
+            languages?: string[];
+            taskTypes?: components["schemas"]["AIDatasetTaskType"][];
+            includeManual?: boolean;
+        };
+        AIDatasetVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            datasetProjectId: string;
+            version: string;
+            /** @enum {string} */
+            status: "building" | "ready" | "exported" | "invalidated" | "archived";
+            schemaVersion: string;
+            exampleCount: number;
+            trainCount: number;
+            validationCount: number;
+            testCount: number;
+            holdoutCount: number;
+            manifest: {
+                [key: string]: unknown;
+            };
+            checksum?: string | null;
+            exportPath?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            finalizedAt?: string | null;
+        };
+        AIDatasetReadiness: {
+            ready: boolean;
+            blockers: string[];
+            approvedExampleCount: number;
+            taskDistribution: {
+                [key: string]: number;
+            };
+            languageDistribution: {
+                [key: string]: number;
+            };
+            consentCoverage: {
+                [key: string]: number;
+            };
+            sanitizationFailureCount: number;
+            duplicateCount: number;
+            holdoutCount: number;
+            baselineEvalStatus: string;
+            recommendation: string;
         };
         Money: {
             amount: number;
@@ -1101,6 +1448,408 @@ export interface operations {
                 };
             };
             403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAITrainingConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user's global future-example AI training consent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AITrainingConsentResponse"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateAITrainingConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    granted: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated AI training consent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AITrainingConsentResponse"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    grantTripAITrainingConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Consent granted for a trip scope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AITrainingConsentResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeTripAITrainingConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Consent revoked for a trip scope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AITrainingConsentResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    grantItineraryVersionAITrainingConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                versionId: components["parameters"]["VersionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Consent granted for one itinerary version scope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AITrainingConsentResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getFineTuningReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operator readiness summary; ready=false blocks training/export workflows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIDatasetReadiness"];
+                };
+            };
+            403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAIDatasetProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dataset projects. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        projects: components["schemas"]["AIDatasetProject"][];
+                    };
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAIDatasetProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAIDatasetProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Created dataset project. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIDatasetProject"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    extractGoldenAIDatasetExamples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Golden/eval holdout examples imported */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created?: number;
+                    };
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    extractManualAIDatasetExamples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Manual curated examples imported */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created?: number;
+                    };
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    buildAIDatasetVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildAIDatasetVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Dataset version built from approved, sanitized, consent-valid examples. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIDatasetVersion"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAIDatasetExamples: {
+        parameters: {
+            query?: {
+                datasetProjectId?: string;
+                reviewStatus?: string;
+                sanitizationStatus?: string;
+                qualityStatus?: string;
+                consentStatus?: string;
+                taskType?: string;
+                sourceType?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dataset examples for ops review. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        examples: components["schemas"]["AIDatasetExample"][];
+                    };
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    approveAIDatasetExample: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exampleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AIDatasetReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Approved example */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIDatasetExample"];
+                };
+            };
+            409: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    rejectAIDatasetExample: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exampleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AIDatasetReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Rejected example */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIDatasetExample"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    exportAIDatasetVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private export package created */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIDatasetVersion"];
+                };
+            };
+            503: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    downloadAIDatasetVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private ZIP stream for an exported dataset version. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
             default: components["responses"]["ErrorResponse"];
         };
     };

@@ -100,11 +100,8 @@ func ScanTripAvailabilityResponseRows(rows pgx.Rows) ([]entity.TripAvailabilityR
 	return items, nil
 }
 
-func IntNullableArg(value *int) pgtype.Int4 {
-	if value == nil {
-		return pgtype.Int4{}
-	}
-	return pgtype.Int4{Int32: int32(*value), Valid: true}
+func IntNullableArg(value *int, name string) (pgtype.Int4, error) {
+	return int4PtrArg(value, name)
 }
 
 func unmarshalAvailabilityRanges(raw []byte) ([]entity.AvailabilityDateRange, error) {

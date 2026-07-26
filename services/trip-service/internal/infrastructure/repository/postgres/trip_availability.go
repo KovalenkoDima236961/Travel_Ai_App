@@ -30,6 +30,14 @@ func (r *Repository) UpsertTripAvailabilityResponse(
 	if err != nil {
 		return nil, err
 	}
+	minTripDays, err := dto.IntNullableArg(response.MinTripDays, "min trip days")
+	if err != nil {
+		return nil, err
+	}
+	maxTripDays, err := dto.IntNullableArg(response.MaxTripDays, "max trip days")
+	if err != nil {
+		return nil, err
+	}
 
 	query, args, err := r.db.Builder.
 		Insert("trip_availability_responses").
@@ -52,8 +60,8 @@ func (r *Repository) UpsertTripAvailabilityResponse(
 			available,
 			unavailable,
 			preferred,
-			dto.IntNullableArg(response.MinTripDays),
-			dto.IntNullableArg(response.MaxTripDays),
+			minTripDays,
+			maxTripDays,
 			dto.TextNullableArg(response.Timezone),
 			dto.TextNullableArg(response.Notes),
 		).

@@ -1,11 +1,9 @@
-import { FlatCompat } from "@eslint/eslintrc";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import nextPlugin from "@next/eslint-plugin-next";
+import reactHooks from "eslint-plugin-react-hooks";
+import globals from "globals";
+import tseslint from "typescript-eslint";
 
-const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const compat = new FlatCompat({ baseDirectory: currentDirectory });
-
-const config = [
+const config = tseslint.config(
   {
     ignores: [
       ".next/**",
@@ -13,12 +11,28 @@ const config = [
       "next-env.d.ts",
       "node_modules/**",
       "playwright-report/**",
-      "test-results/**"
+      "test-results/**",
+      "vendor/**"
     ]
   },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...tseslint.configs.recommended,
   {
+    files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node
+      }
+    },
+    plugins: {
+      "@next/next": nextPlugin,
+      "react-hooks": reactHooks
+    },
     rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs["core-web-vitals"].rules,
+      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/rules-of-hooks": "error",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
@@ -28,6 +42,11 @@ const config = [
           varsIgnorePattern: "^_"
         }
       ]
+    },
+    settings: {
+      next: {
+        rootDir: "."
+      }
     }
   },
   {
@@ -36,6 +55,6 @@ const config = [
       "react-hooks/rules-of-hooks": "off"
     }
   }
-];
+);
 
 export default config;

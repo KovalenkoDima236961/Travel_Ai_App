@@ -16,8 +16,9 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/generationjobs"
-	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
@@ -71,7 +72,9 @@ type WorkspaceProvider interface {
 type WorkspacePolicyProvider interface {
 	GetActive(context.Context, uuid.UUID) (*workspacepolicies.Policy, error)
 }
-type PersonalizationProvider interface { Build(context.Context, personalization.BuildInput) (personalization.Context, error) }
+type PersonalizationProvider interface {
+	Build(context.Context, personalization.BuildInput) (personalization.Context, error)
+}
 
 type Config struct {
 	Enabled                bool
@@ -80,16 +83,16 @@ type Config struct {
 }
 
 type Service struct {
-	repo       Repository
-	ai         AIClient
-	trips      TripCreator
-	jobs       GenerationJobCreator
-	users      UserContextProvider
-	workspaces WorkspaceProvider
-	policies   WorkspacePolicyProvider
+	repo         Repository
+	ai           AIClient
+	trips        TripCreator
+	jobs         GenerationJobCreator
+	users        UserContextProvider
+	workspaces   WorkspaceProvider
+	policies     WorkspacePolicyProvider
 	personalizer PersonalizationProvider
-	cfg        Config
-	log        *zap.Logger
+	cfg          Config
+	log          *zap.Logger
 }
 
 func NewService(
@@ -415,10 +418,17 @@ func (s *Service) CreateTrip(
 	}
 	travelers := input.Travelers
 	if travelers == 0 {
-		travelers = int32(session.Request.TripContext.Travelers)
+		travelers, err = safeconv.IntToInt32(session.Request.TripContext.Travelers, "travelers")
+		if err != nil {
+			return nil, apperrs.NewInvalidInput("travelers must be between 1 and 50")
+		}
 	}
 	if travelers < 1 || travelers > 50 {
 		return nil, apperrs.NewInvalidInput("travelers must be between 1 and 50")
+	}
+	durationDays, err := safeconv.IntToInt32(duration, "duration days")
+	if err != nil {
+		return nil, apperrs.NewInvalidInput("durationDays must be between 1 and 30")
 	}
 	budget := input.Budget
 	if budget == nil {
@@ -448,7 +458,7 @@ func (s *Service) CreateTrip(
 		Destination:    destination,
 		WorkspaceID:    input.WorkspaceID,
 		StartDate:      startDate,
-		Days:           int32(duration),
+		Days:           durationDays,
 		BudgetAmount:   &budget.Amount,
 		BudgetCurrency: budget.Currency,
 		Travelers:      travelers,
@@ -594,9 +604,15 @@ func (s *Service) buildAIRequest(
 	var personalizationSummary *personalization.PlanningSummary
 	if s.personalizer != nil {
 		contextValue, contextErr := s.personalizer.Build(ctx, personalization.BuildInput{UserID: user.ID, WorkspaceID: input.WorkspaceID, Source: personalization.SourceTripDiscovery, UserContext: planningUserContext, PreviousTrips: previous, WorkspacePolicy: policy})
-		if contextErr != nil { return AIRequest{}, contextErr }
+		if contextErr != nil {
+			return AIRequest{}, contextErr
+		}
 		value := contextValue.PlanningSummary()
 		personalizationSummary = &value
+	}
+	travelerOverride, err := discoveryTravelersOverride(input.Travelers)
+	if err != nil {
+		return AIRequest{}, err
 	}
 	planning := planningconstraints.Build(planningconstraints.BuildInput{
 		UserID:      user.ID,
@@ -608,7 +624,7 @@ func (s *Service) buildAIRequest(
 			DurationDays:    input.DurationDays,
 			DateFlexibility: input.DateFlexibility,
 			Budget:          discoveryBudgetOverride(input.Budget),
-			Travelers:       discoveryTravelersOverride(input.Travelers),
+			Travelers:       travelerOverride,
 			Prompt: &planningconstraints.Prompt{
 				UserPrompt: prompt,
 				QuickChips: input.QuickChips,
@@ -896,12 +912,18 @@ func discoveryBudgetOverride(value *Budget) *planningconstraints.BudgetOverride 
 	return &planningconstraints.BudgetOverride{Amount: &amount, Currency: value.Currency}
 }
 
-func discoveryTravelersOverride(value int) *planningconstraints.TravelerOverride {
+func discoveryTravelersOverride(value int) (*planningconstraints.TravelerOverride, error) {
 	if value <= 0 {
-		return nil
+		return nil, nil
 	}
-	count := int32(value)
-	return &planningconstraints.TravelerOverride{Count: &count}
+	if value > 50 {
+		return nil, apperrs.NewInvalidInput("travelers must be between 1 and 50")
+	}
+	count, err := safeconv.IntToInt32(value, "travelers")
+	if err != nil {
+		return nil, err
+	}
+	return &planningconstraints.TravelerOverride{Count: &count}, nil
 }
 
 func suggestionVoteScore(vote entity.DiscoverySuggestionVoteValue) int {

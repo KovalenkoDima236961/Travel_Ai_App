@@ -35,14 +35,18 @@ func BudgetOptimizationProposalInsertColumns() []string {
 	}
 }
 
-func BudgetOptimizationProposalInsertValues(p *entity.BudgetOptimizationProposal) []any {
+func BudgetOptimizationProposalInsertValues(p *entity.BudgetOptimizationProposal) ([]any, error) {
+	dayNumber, err := toPgIntPtr(p.DayNumber, "day number")
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		toPgUUID(p.ID),
 		toPgUUID(p.TripID),
 		toPgUUIDPtr(p.JobID),
 		toPgUUID(p.CreatedByUserID),
 		string(p.Scope),
-		toPgIntPtr(p.DayNumber),
+		dayNumber,
 		p.ExpectedItineraryRevision,
 		p.BaseItineraryRevision,
 		string(p.Status),
@@ -50,7 +54,7 @@ func BudgetOptimizationProposalInsertValues(p *entity.BudgetOptimizationProposal
 		NumericArg(p.TargetReductionAmount),
 		NumericArg(p.EstimatedSavingsAmount),
 		p.ProposalJSON,
-	}
+	}, nil
 }
 
 func ScanBudgetOptimizationProposal(row pgx.Row) (*entity.BudgetOptimizationProposal, error) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -679,14 +680,19 @@ func (s *Service) ImportManualExamples(ctx context.Context, projectID uuid.UUID)
 	}
 	count := 0
 	root := filepath.Join(s.cfg.ManualExamplesDir, strings.ReplaceAll(project.TaskType, "_", "-"))
-	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+	examplesRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return count, err
+	}
+	defer examplesRoot.Close()
+	err = fs.WalkDir(examplesRoot.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			return nil
 		}
-		raw, err := os.ReadFile(path)
+		raw, err := examplesRoot.ReadFile(path)
 		if err != nil {
 			return err
 		}

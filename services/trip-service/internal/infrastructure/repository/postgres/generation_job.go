@@ -19,10 +19,15 @@ func (r *Repository) CreateGenerationJob(
 	ctx context.Context,
 	job *entity.GenerationJob,
 ) (*entity.GenerationJob, error) {
+	values, err := dto.GenerationJobInsertValues(job)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("trip_generation_jobs").
 		Columns(dto.GenerationJobInsertColumns()...).
-		Values(dto.GenerationJobInsertValues(job)...).
+		Values(values...).
 		Suffix("RETURNING " + dto.GenerationJobColumns).
 		ToSql()
 	if err != nil {
@@ -72,12 +77,17 @@ func (r *Repository) ListGenerationJobsByTrip(
 	tripID uuid.UUID,
 	limit int,
 ) ([]entity.GenerationJob, error) {
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Select(dto.GenerationJobColumns).
 		From("trip_generation_jobs").
 		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
+		Limit(limitValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list generation jobs: %w", err)
@@ -96,12 +106,21 @@ func (r *Repository) ListOpsGenerationJobs(
 	ctx context.Context,
 	filters generationjobs.OpsJobListFilters,
 ) ([]entity.GenerationJob, error) {
+	limitValue, err := limitArg(filters.Limit)
+	if err != nil {
+		return nil, err
+	}
+	offsetValue, err := offsetArg(filters.Offset)
+	if err != nil {
+		return nil, err
+	}
+
 	builder := r.db.Builder.
 		Select(dto.GenerationJobColumns).
 		From("trip_generation_jobs").
 		OrderBy("created_at DESC", "id DESC").
-		Limit(uint64(filters.Limit)).
-		Offset(uint64(filters.Offset))
+		Limit(limitValue).
+		Offset(offsetValue)
 
 	if filters.Status != nil {
 		builder = builder.Where(sq.Eq{"status": string(*filters.Status)})
@@ -236,12 +255,16 @@ func (r *Repository) ListRecentFailedOpsJobs(ctx context.Context, limit int) ([]
 	if limit < 1 {
 		limit = 10
 	}
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
 	query, args, err := r.db.Builder.
 		Select(dto.GenerationJobColumns).
 		From("trip_generation_jobs").
 		Where(sq.Eq{"status": string(entity.GenerationJobStatusFailed)}).
 		OrderBy("updated_at DESC", "created_at DESC").
-		Limit(uint64(limit)).
+		Limit(limitValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build recent failed generation jobs: %w", err)

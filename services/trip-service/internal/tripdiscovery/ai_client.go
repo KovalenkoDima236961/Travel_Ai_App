@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -20,14 +21,14 @@ type AIClient interface {
 }
 
 type HTTPAIClient struct {
-	baseURL string
+	baseURL *url.URL
 	client  *http.Client
 }
 
 func NewHTTPAIClient(baseURL string, timeout time.Duration) (*HTTPAIClient, error) {
-	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if normalized == "" {
-		return nil, fmt.Errorf("AI_PLANNING_SERVICE_URL is required")
+	normalized, err := normalizeAIPlanningBaseURL(baseURL)
+	if err != nil {
+		return nil, err
 	}
 	if timeout <= 0 {
 		timeout = 120 * time.Second
@@ -38,6 +39,39 @@ func NewHTTPAIClient(baseURL string, timeout time.Duration) (*HTTPAIClient, erro
 	}, nil
 }
 
+func normalizeAIPlanningBaseURL(raw string) (*url.URL, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return nil, fmt.Errorf("AI_PLANNING_SERVICE_URL is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("parse AI_PLANNING_SERVICE_URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("AI_PLANNING_SERVICE_URL must use http or https")
+	}
+	if parsed.Host == "" {
+		return nil, fmt.Errorf("AI_PLANNING_SERVICE_URL must include a host")
+	}
+	if parsed.User != nil {
+		return nil, fmt.Errorf("AI_PLANNING_SERVICE_URL must not include user info")
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, fmt.Errorf("AI_PLANNING_SERVICE_URL must not include query or fragment")
+	}
+	return parsed, nil
+}
+
+func (c *HTTPAIClient) endpoint(path string) string {
+	endpoint := *c.baseURL
+	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + "/" + strings.TrimLeft(path, "/")
+	endpoint.RawPath = ""
+	endpoint.RawQuery = ""
+	endpoint.Fragment = ""
+	return endpoint.String()
+}
+
 func (c *HTTPAIClient) SuggestDestinations(
 	ctx context.Context,
 	input AIRequest,
@@ -46,10 +80,10 @@ func (c *HTTPAIClient) SuggestDestinations(
 	if err != nil {
 		return nil, fmt.Errorf("marshal destination suggestion request: %w", err)
 	}
-	req, err := http.NewRequestWithContext(
+	req, err := http.NewRequestWithContext( // #nosec G704 -- endpoint is built from a validated service base URL.
 		ctx,
 		http.MethodPost,
-		c.baseURL+"/suggest-destinations",
+		c.endpoint("suggest-destinations"),
 		bytes.NewReader(body),
 	)
 	if err != nil {
@@ -57,7 +91,7 @@ func (c *HTTPAIClient) SuggestDestinations(
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(req) // #nosec G704 -- request URL is built from a validated service base URL.
 	if err != nil {
 		return nil, fmt.Errorf("call destination suggestion endpoint: %w", err)
 	}

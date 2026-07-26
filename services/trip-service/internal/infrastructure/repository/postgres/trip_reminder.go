@@ -13,10 +13,15 @@ import (
 )
 
 func (r *Repository) CreateTripReminder(ctx context.Context, reminder *entity.TripReminder) (*entity.TripReminder, error) {
+	values, err := dto.TripReminderInsertValues(reminder)
+	if err != nil {
+		return nil, err
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("trip_reminders").
 		Columns(dto.TripReminderInsertColumns()...).
-		Values(dto.TripReminderInsertValues(reminder)...).
+		Values(values...).
 		Suffix("RETURNING " + dto.TripReminderColumns).
 		ToSql()
 	if err != nil {
@@ -99,6 +104,10 @@ func (r *Repository) ListDueTripReminders(ctx context.Context, now time.Time, li
 	if limit <= 0 {
 		limit = 100
 	}
+	limitValue, err := limitArg(limit)
+	if err != nil {
+		return nil, err
+	}
 	query, args, err := r.db.Builder.
 		Select(dto.TripReminderColumns).
 		From("trip_reminders").
@@ -106,7 +115,7 @@ func (r *Repository) ListDueTripReminders(ctx context.Context, now time.Time, li
 		Where("deleted_at IS NULL").
 		Where(sq.LtOrEq{"trigger_date": now.UTC().Add(24 * time.Hour)}).
 		OrderBy("trigger_date ASC", "trigger_time ASC NULLS FIRST", "created_at ASC").
-		Limit(uint64(limit)).
+		Limit(limitValue).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build list due trip reminders: %w", err)

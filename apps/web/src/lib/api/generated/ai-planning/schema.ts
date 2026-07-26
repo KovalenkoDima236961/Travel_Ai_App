@@ -333,12 +333,30 @@ export interface components {
     schemas: {
         /** AIResponseMetadata */
         AIResponseMetadata: {
+            /** Adapterchecksum */
+            adapterChecksum?: string | null;
+            /** Adapterchecksumverified */
+            adapterChecksumVerified?: boolean | null;
+            /** Adapterenabled */
+            adapterEnabled?: boolean | null;
+            /** Adapterkey */
+            adapterKey?: string | null;
+            /** Adapterloaded */
+            adapterLoaded?: boolean | null;
+            /** Datasetversion */
+            datasetVersion?: string | null;
             /** Durationms */
             durationMs: number;
+            /** Experimentkey */
+            experimentKey?: string | null;
+            /** Fallbacktobase */
+            fallbackToBase?: boolean | null;
             /** Mode */
             mode: string;
             /** Model */
             model?: string | null;
+            /** Modelvariant */
+            modelVariant?: string | null;
             /** Promptversion */
             promptVersion: string;
             /** Provider */
@@ -4155,9 +4173,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description User-safe AI planning failure. */

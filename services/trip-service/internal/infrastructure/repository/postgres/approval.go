@@ -68,7 +68,11 @@ func (r *Repository) ListTripApprovalEventsByTrip(ctx context.Context, tripID uu
 		Where(sq.Eq{"trip_id": dto.IDArg(tripID)}).
 		OrderBy("created_at DESC", "id DESC")
 	if limit > 0 {
-		builder = builder.Limit(uint64(limit))
+		limitValue, err := limitArg(limit)
+		if err != nil {
+			return nil, err
+		}
+		builder = builder.Limit(limitValue)
 	}
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -116,10 +120,18 @@ func (r *Repository) ListWorkspaceApprovals(ctx context.Context, params entity.L
 		"id DESC",
 	)
 	if params.Limit > 0 {
-		builder = builder.Limit(uint64(params.Limit))
+		limitValue, err := limitArg(params.Limit)
+		if err != nil {
+			return nil, err
+		}
+		builder = builder.Limit(limitValue)
 	}
 	if params.Offset > 0 {
-		builder = builder.Offset(uint64(params.Offset))
+		offsetValue, err := offsetArg(params.Offset)
+		if err != nil {
+			return nil, err
+		}
+		builder = builder.Offset(offsetValue)
 	}
 	query, args, err := builder.ToSql()
 	if err != nil {

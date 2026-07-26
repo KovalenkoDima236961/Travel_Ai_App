@@ -36,7 +36,15 @@ func GenerationJobInsertColumns() []string {
 	}
 }
 
-func GenerationJobInsertValues(job *entity.GenerationJob) []any {
+func GenerationJobInsertValues(job *entity.GenerationJob) ([]any, error) {
+	dayNumber, err := toPgIntPtr(job.DayNumber, "day number")
+	if err != nil {
+		return nil, err
+	}
+	itemIndex, err := toPgIntPtr(job.ItemIndex, "item index")
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		toPgUUID(job.ID),
 		toPgUUID(job.TripID),
@@ -45,13 +53,13 @@ func GenerationJobInsertValues(job *entity.GenerationJob) []any {
 		string(job.Status),
 		job.ExpectedItineraryRevision,
 		toPgTextPtr(job.Instruction),
-		toPgIntPtr(job.DayNumber),
-		toPgIntPtr(job.ItemIndex),
+		dayNumber,
+		itemIndex,
 		rawJSONArg(job.Payload),
 		toPgTextPtr(job.CorrelationID),
 		toPgTextPtr(job.RequestID),
 		toPgUUIDPtr(job.RetriedFromJobID),
-	}
+	}, nil
 }
 
 func ScanGenerationJob(row pgx.Row) (*entity.GenerationJob, error) {
@@ -156,11 +164,8 @@ func ScanGenerationJobRows(rows pgx.Rows) ([]entity.GenerationJob, error) {
 	return jobs, nil
 }
 
-func toPgIntPtr(value *int) pgtype.Int4 {
-	if value == nil {
-		return pgtype.Int4{Valid: false}
-	}
-	return pgtype.Int4{Int32: int32(*value), Valid: true}
+func toPgIntPtr(value *int, name string) (pgtype.Int4, error) {
+	return int4PtrArg(value, name)
 }
 
 func fromPgIntPtr(value pgtype.Int4) *int {

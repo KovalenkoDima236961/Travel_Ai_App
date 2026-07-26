@@ -34,20 +34,31 @@ func TripChecklistInsertColumns() []string {
 	}
 }
 
-func TripChecklistInsertValues(checklist *entity.TripChecklist) []any {
+func TripChecklistInsertValues(checklist *entity.TripChecklist) ([]any, error) {
+	generatedFromItineraryRevision, err := intPtrArg(
+		checklist.GeneratedFromItineraryRevision,
+		"generated from itinerary revision",
+	)
+	if err != nil {
+		return nil, err
+	}
+	generatedFromRouteRevision, err := intPtrArg(checklist.GeneratedFromRouteRevision, "generated from route revision")
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		IDArg(checklist.ID),
 		IDArg(checklist.TripID),
 		string(checklist.Status),
 		checklist.Title,
 		textPtrArg(checklist.Summary),
-		intPtrArg(checklist.GeneratedFromItineraryRevision),
-		intPtrArg(checklist.GeneratedFromRouteRevision),
+		generatedFromItineraryRevision,
+		generatedFromRouteRevision,
 		toPgUUIDPtr(checklist.GeneratedByUserID),
 		IDArg(checklist.CreatedByUserID),
 		toPgUUIDPtr(checklist.UpdatedByUserID),
 		jsonArg(checklist.Metadata),
-	}
+	}, nil
 }
 
 func TripChecklistItemInsertColumns() []string {
@@ -78,7 +89,19 @@ func TripChecklistItemInsertColumns() []string {
 	}
 }
 
-func TripChecklistItemInsertValues(item *entity.TripChecklistItem) []any {
+func TripChecklistItemInsertValues(item *entity.TripChecklistItem) ([]any, error) {
+	quantity, err := intPtrArg(item.Quantity, "quantity")
+	if err != nil {
+		return nil, err
+	}
+	relatedDayNumber, err := intPtrArg(item.RelatedDayNumber, "related day number")
+	if err != nil {
+		return nil, err
+	}
+	relatedItemIndex, err := intPtrArg(item.RelatedItemIndex, "related item index")
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		IDArg(item.ID),
 		IDArg(item.ChecklistID),
@@ -88,7 +111,7 @@ func TripChecklistItemInsertValues(item *entity.TripChecklistItem) []any {
 		string(item.Category),
 		string(item.ItemType),
 		string(item.Priority),
-		intPtrArg(item.Quantity),
+		quantity,
 		toPgUUIDPtr(item.AssignedToUserID),
 		toPgDate(item.DueDate),
 		item.Checked,
@@ -96,14 +119,14 @@ func TripChecklistItemInsertValues(item *entity.TripChecklistItem) []any {
 		toPgUUIDPtr(item.CheckedByUserID),
 		string(item.Source),
 		textPtrArg(item.Reason),
-		intPtrArg(item.RelatedDayNumber),
-		intPtrArg(item.RelatedItemIndex),
+		relatedDayNumber,
+		relatedItemIndex,
 		textPtrArg(item.RelatedItemID),
 		item.SortOrder,
 		jsonArg(item.Metadata),
 		toPgUUIDPtr(item.CreatedByUserID),
 		toPgUUIDPtr(item.UpdatedByUserID),
-	}
+	}, nil
 }
 
 func ScanTripChecklist(row pgx.Row) (*entity.TripChecklist, error) {
@@ -273,15 +296,12 @@ func textPtr(value pgtype.Text) *string {
 	return &value.String
 }
 
-func intPtrArg(value *int) pgtype.Int4 {
-	if value == nil {
-		return pgtype.Int4{Valid: false}
-	}
-	return pgtype.Int4{Int32: int32(*value), Valid: true}
+func intPtrArg(value *int, name string) (pgtype.Int4, error) {
+	return int4PtrArg(value, name)
 }
 
-func IntPtrArg(value *int) pgtype.Int4 {
-	return intPtrArg(value)
+func IntPtrArg(value *int, name string) (pgtype.Int4, error) {
+	return intPtrArg(value, name)
 }
 
 func int4Ptr(value pgtype.Int4) *int {

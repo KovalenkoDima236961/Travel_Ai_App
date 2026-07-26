@@ -23,6 +23,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/routealternatives"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/triprepair"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
@@ -392,10 +393,10 @@ func (g *AIPlanningHTTPGenerator) AdaptTemplate(ctx context.Context, input templ
 	if len(result.Itinerary.Days) == 0 {
 		return nil, fmt.Errorf("ai planning service returned empty adapted itinerary days")
 	}
-	return mapAdaptResponse(result, input), nil
+	return mapAdaptResponse(result, input)
 }
 
-func mapAdaptResponse(result aiPlanningAdaptResponse, input templateadaptation.AdaptInput) *templateadaptation.AdaptResult {
+func mapAdaptResponse(result aiPlanningAdaptResponse, input templateadaptation.AdaptInput) (*templateadaptation.AdaptResult, error) {
 	days := make([]aggregate.ItineraryDay, 0, len(result.Itinerary.Days))
 	for index, day := range result.Itinerary.Days {
 		items := make([]aggregate.ItineraryItem, 0, len(day.Items))
@@ -417,10 +418,14 @@ func mapAdaptResponse(result aiPlanningAdaptResponse, input templateadaptation.A
 	if input.Target.Budget != nil && input.Target.Budget.Currency != "" {
 		currency = input.Target.Budget.Currency
 	}
+	travelers, err := safeconv.IntToInt32(input.Target.Travelers, "travelers")
+	if err != nil {
+		return nil, err
+	}
 	itinerary := aggregate.Itinerary{
 		Destination: input.Target.Destination,
 		Summary:     strings.TrimSpace(result.Itinerary.Title),
-		Travelers:   int32(input.Target.Travelers),
+		Travelers:   travelers,
 		Pace:        input.Target.Pace,
 		Currency:    currency,
 		Days:        days,
@@ -436,7 +441,7 @@ func mapAdaptResponse(result aiPlanningAdaptResponse, input templateadaptation.A
 		MajorChanges:       nonNilStrings(result.AdaptationSummary.MajorChanges),
 		Warnings:           nonNilStrings(result.AdaptationSummary.Warnings),
 	}
-	return &templateadaptation.AdaptResult{Itinerary: itinerary, Summary: summary}
+	return &templateadaptation.AdaptResult{Itinerary: itinerary, Summary: summary}, nil
 }
 
 func mapAdaptedItem(item aiPlanningAdaptedItem) aggregate.ItineraryItem {

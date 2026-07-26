@@ -21,6 +21,7 @@ import (
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/safeconv"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/templateadaptation"
 )
 
@@ -81,13 +82,17 @@ func (s *Service) PrepareTemplateAdaptation(
 			return nil, nil, err
 		}
 	}
+	durationDays, err := safeconv.IntToInt32(normalized.DurationDays, "duration days")
+	if err != nil {
+		return nil, nil, apperrs.NewInvalidInput("durationDays must be between 1 and %d", maxAdaptationDurationDays)
+	}
 
 	created, err := s.repo.Create(ctx, &entity.Trip{
 		UserID:         &user.ID,
 		WorkspaceID:    normalized.WorkspaceID,
 		Destination:    normalized.Destination,
 		StartDate:      parseTemplateDate(normalized.StartDate),
-		Days:           int32(normalized.DurationDays),
+		Days:           durationDays,
 		BudgetAmount:   normalized.BudgetAmount,
 		BudgetCurrency: normalized.BudgetCurrency,
 		Travelers:      *normalized.Travelers,
@@ -182,12 +187,16 @@ func (s *Service) AdaptTemplateForActor(
 	if err != nil {
 		return nil, nil, err
 	}
+	planningRequest, err := templateAdaptationPlanningRequest(payload)
+	if err != nil {
+		return nil, nil, err
+	}
 	constraints, err := s.buildPlanningConstraints(
 		ctx,
 		user,
 		planningconstraints.SourceTemplateAdaptation,
 		current,
-		templateAdaptationPlanningRequest(payload),
+		planningRequest,
 		userContext,
 		true,
 	)
@@ -383,9 +392,9 @@ func (s *Service) deterministicFallbackItinerary(
 	template *entity.TripTemplate,
 	payload templateadaptation.JobPayload,
 ) (*aggregate.Itinerary, error) {
-	travelers := int32(payload.Travelers)
-	if travelers < 1 {
-		travelers = 1
+	travelers, err := templatePayloadTravelers(payload.Travelers)
+	if err != nil {
+		return nil, err
 	}
 	currency := ""
 	if payload.Budget != nil {
@@ -579,7 +588,7 @@ func normalizeAdaptationTags(values []string, maxCount, maxLength int, field str
 	return out, nil
 }
 
-func templateAdaptationPlanningRequest(payload templateadaptation.JobPayload) planningconstraints.RequestOverride {
+func templateAdaptationPlanningRequest(payload templateadaptation.JobPayload) (planningconstraints.RequestOverride, error) {
 	var budgetOverride *planningconstraints.BudgetOverride
 	if payload.Budget != nil {
 		amount := payload.Budget.Amount
@@ -588,7 +597,10 @@ func templateAdaptationPlanningRequest(payload templateadaptation.JobPayload) pl
 			Currency: payload.Budget.Currency,
 		}
 	}
-	count := int32(payload.Travelers)
+	count, err := templatePayloadTravelers(payload.Travelers)
+	if err != nil {
+		return planningconstraints.RequestOverride{}, err
+	}
 	duration := payload.DurationDays
 	return planningconstraints.RequestOverride{
 		Destination:    payload.Destination,
@@ -601,5 +613,15 @@ func templateAdaptationPlanningRequest(payload templateadaptation.JobPayload) pl
 		Avoid:          payload.Avoid,
 		Prompt:         &planningconstraints.Prompt{UserPrompt: payload.SpecialInstructions},
 		OutputLanguage: "",
+	}, nil
+}
+
+func templatePayloadTravelers(value int) (int32, error) {
+	if value <= 0 {
+		value = 1
 	}
+	if value > maxAdaptationTravelers {
+		return 0, apperrs.NewInvalidInput("travelers must be between 1 and %d", maxAdaptationTravelers)
+	}
+	return safeconv.IntToInt32(value, "travelers")
 }

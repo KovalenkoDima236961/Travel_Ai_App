@@ -40,7 +40,19 @@ func TripReminderInsertColumns() []string {
 	}
 }
 
-func TripReminderInsertValues(reminder *entity.TripReminder) []any {
+func TripReminderInsertValues(reminder *entity.TripReminder) ([]any, error) {
+	relativeOffsetDays, err := intPtrArg(reminder.RelativeOffsetDays, "relative offset days")
+	if err != nil {
+		return nil, err
+	}
+	relatedDayNumber, err := intPtrArg(reminder.RelatedDayNumber, "related day number")
+	if err != nil {
+		return nil, err
+	}
+	relatedItemIndex, err := intPtrArg(reminder.RelatedItemIndex, "related item index")
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		IDArg(reminder.ID),
 		IDArg(reminder.TripID),
@@ -53,16 +65,16 @@ func TripReminderInsertValues(reminder *entity.TripReminder) []any {
 		toPgDate(&reminder.TriggerDate),
 		toPgTime(reminder.TriggerTime),
 		textPtrArg(reminder.Timezone),
-		intPtrArg(reminder.RelativeOffsetDays),
+		relativeOffsetDays,
 		toPgUUIDPtr(reminder.AssignedToUserID),
 		toPgUUIDPtr(reminder.ChecklistItemID),
-		intPtrArg(reminder.RelatedDayNumber),
-		intPtrArg(reminder.RelatedItemIndex),
+		relatedDayNumber,
+		relatedItemIndex,
 		textPtrArg(reminder.RelatedItemID),
 		jsonArg(reminder.Metadata),
 		toPgUUIDPtr(reminder.CreatedByUserID),
 		toPgUUIDPtr(reminder.UpdatedByUserID),
-	}
+	}, nil
 }
 
 func ScanTripReminder(row pgx.Row) (*entity.TripReminder, error) {
