@@ -184,6 +184,7 @@
           "estimatedCost": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -341,6 +342,7 @@
           "destinationContext": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -352,6 +354,7 @@
           "userPreferences": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -363,6 +366,7 @@
           "userProfile": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -374,6 +378,7 @@
           "weatherContext": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -777,9 +782,11 @@
           "dailyBudgetShare": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -795,6 +802,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -815,6 +823,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -824,9 +833,11 @@
           "tripBudget": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -842,6 +853,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -861,6 +873,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -980,8 +993,15 @@
       "BudgetOptimizationProposalResponse": {
         "properties": {
           "baseDayEstimatedTotal": {
-            "title": "Basedayestimatedtotal",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Basedayestimatedtotal"
           },
           "changes": {
             "items": {
@@ -1013,8 +1033,15 @@
             "type": "integer"
           },
           "estimatedSavingsAmount": {
-            "title": "Estimatedsavingsamount",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Estimatedsavingsamount"
           },
           "metadata": {
             "anyOf": [
@@ -1037,15 +1064,19 @@
             "$ref": "#/components/schemas/ItineraryDay"
           },
           "proposedDayEstimatedTotal": {
-            "title": "Proposeddayestimatedtotal",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Proposeddayestimatedtotal"
           },
           "scope": {
             "const": "day",
             "default": "day",
-            "enum": [
-              "day"
-            ],
             "title": "Scope",
             "type": "string"
           },
@@ -1348,9 +1379,11 @@
           "amount": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1588,6 +1621,7 @@
             "$ref": "#/components/schemas/CopilotPermissionSummary"
           },
           "safeContext": {
+            "additionalProperties": true,
             "title": "Safecontext",
             "type": "object"
           }
@@ -1899,7 +1933,7 @@
           "transfer": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TransferDetails"
+                "$ref": "#/components/schemas/TransferDetails-Input"
               },
               {
                 "type": "null"
@@ -2965,6 +2999,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3261,6 +3296,7 @@
           "groupPreferences": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -3375,9 +3411,11 @@
           "budgetAmount": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3591,15 +3629,13 @@
             "type": "string"
           },
           "sourceSummary": {
+            "additionalProperties": true,
             "title": "Sourcesummary",
             "type": "object"
           },
           "style": {
             "const": "concise",
             "default": "concise",
-            "enum": [
-              "concise"
-            ],
             "title": "Style",
             "type": "string"
           }
@@ -3694,6 +3730,7 @@
             "type": "string"
           },
           "metadata": {
+            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -3859,6 +3896,7 @@
           "metadata": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -4457,11 +4495,11 @@
         "type": "object"
       },
       "ItineraryDay": {
-        "title": "ItineraryDay",
+        "additionalProperties": true,
         "type": "object"
       },
       "ItineraryItem": {
-        "title": "ItineraryItem",
+        "additionalProperties": true,
         "type": "object"
       },
       "ItineraryResponse": {
@@ -4638,6 +4676,7 @@
             "type": "string"
           },
           "metadata": {
+            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -4801,9 +4840,11 @@
           "budgetAmount": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5544,6 +5585,7 @@
           "affected": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -5742,6 +5784,7 @@
           "rules": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -5880,6 +5923,7 @@
             ]
           },
           "profile": {
+            "additionalProperties": true,
             "title": "Profile",
             "type": "object"
           },
@@ -5896,6 +5940,7 @@
           "route": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6274,6 +6319,7 @@
           "after": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6285,6 +6331,7 @@
           "before": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6347,6 +6394,7 @@
           "destinationContext": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6361,6 +6409,7 @@
                 "$ref": "#/components/schemas/UserPreferences"
               },
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6375,6 +6424,7 @@
                 "$ref": "#/components/schemas/UserProfile"
               },
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6386,6 +6436,7 @@
           "weatherContext": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6404,6 +6455,7 @@
             "$ref": "#/components/schemas/app__schemas__generation_repair__RepairConstraints"
           },
           "currentOutput": {
+            "additionalProperties": true,
             "title": "Currentoutput",
             "type": "object"
           },
@@ -6454,6 +6506,7 @@
             ]
           },
           "repairedOutput": {
+            "additionalProperties": true,
             "title": "Repairedoutput",
             "type": "object"
           },
@@ -6479,6 +6532,7 @@
                 "$ref": "#/components/schemas/RepairAffected"
               },
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6523,6 +6577,7 @@
           "approvalRisk": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6540,6 +6595,7 @@
                 "$ref": "#/components/schemas/RepairContext"
               },
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6557,6 +6613,7 @@
             "type": "array"
           },
           "itinerary": {
+            "additionalProperties": true,
             "title": "Itinerary",
             "type": "object"
           },
@@ -6584,6 +6641,7 @@
           "policy": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6595,6 +6653,7 @@
           "policyEvaluation": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6636,6 +6695,7 @@
             "$ref": "#/components/schemas/RepairSummary"
           },
           "repairedItinerary": {
+            "additionalProperties": true,
             "title": "Repaireditinerary",
             "type": "object"
           }
@@ -6650,8 +6710,15 @@
       "RepairMoney": {
         "properties": {
           "amount": {
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Amount"
           },
           "currency": {
             "default": "EUR",
@@ -6672,6 +6739,7 @@
           "accommodation": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6683,6 +6751,7 @@
           "budgetSummary": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6694,6 +6763,7 @@
           "planningConstraints": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6705,6 +6775,7 @@
           "route": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6714,12 +6785,14 @@
             "title": "Route"
           },
           "trip": {
+            "additionalProperties": true,
             "title": "Trip",
             "type": "object"
           },
           "weatherForecast": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6731,6 +6804,7 @@
           "workspacePolicy": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6892,6 +6966,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -7274,9 +7349,11 @@
           "amount": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -7311,9 +7388,11 @@
           "amount": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -7712,9 +7791,11 @@
           "amount": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -7961,6 +8042,7 @@
           "providerMetadata": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8093,6 +8175,7 @@
           "providerMetadata": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8406,6 +8489,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               }
             ],
@@ -8855,7 +8939,7 @@
         "title": "TokenEstimate",
         "type": "object"
       },
-      "TransferDetails": {
+      "TransferDetails-Input": {
         "properties": {
           "bookingRequired": {
             "default": false,
@@ -8866,6 +8950,104 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/EstimatedCost-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimatedDistanceKm": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimateddistancekm"
+          },
+          "estimatedDurationMinutes": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimateddurationminutes"
+          },
+          "from": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "From",
+            "type": "string"
+          },
+          "legId": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legid"
+          },
+          "mode": {
+            "default": "train",
+            "title": "Mode",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "to": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "To",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "TransferDetails",
+        "type": "object"
+      },
+      "TransferDetails-Output": {
+        "properties": {
+          "bookingRequired": {
+            "default": false,
+            "title": "Bookingrequired",
+            "type": "boolean"
+          },
+          "estimatedCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimatedCost-Output"
               },
               {
                 "type": "null"
@@ -9039,9 +9221,6 @@
           "schemaVersion": {
             "const": "trip_recap_v1",
             "default": "trip_recap_v1",
-            "enum": [
-              "trip_recap_v1"
-            ],
             "title": "Schemaversion",
             "type": "string"
           },
@@ -9319,6 +9498,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -9456,6 +9642,7 @@
       "app__schemas__destination_suggestion__WorkspacePolicyConstraints": {
         "properties": {
           "rules": {
+            "additionalProperties": true,
             "title": "Rules",
             "type": "object"
           },
@@ -9494,6 +9681,7 @@
         "description": "Trusted workspace planning guidance supplied by Trip Service.\n\nThe AI uses this context as guidance; Trip Service evaluates the persisted\nitinerary authoritatively after generation.",
         "properties": {
           "rules": {
+            "additionalProperties": true,
             "title": "Rules",
             "type": "object"
           },
@@ -10446,6 +10634,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Version Version Get",
                   "type": "object"
                 }

@@ -13,9 +13,9 @@ Install the named CLI tools, then run:
 Individual scripts live under `scripts/security/`: `gitleaks.sh`, `gosec.sh`,
 `govulncheck.sh`, `bandit.sh`, `pip-audit.sh`, `npm-audit.sh`, `trivy.sh`,
 `semgrep.sh`, and `zap-baseline.sh`. `gosec` and `govulncheck` can be installed
-with `go install`; Bandit/pip-audit/Semgrep are Python CLIs; Trivy and Gitleaks
-are standalone CLIs. CI installs these tools and uses no provider credentials or
-Ollama models.
+with `go install`; Bandit/pip-audit/Semgrep are Python CLIs; Trivy can be
+installed with `scripts/security/install-trivy.sh`; and Gitleaks is a standalone
+CLI. CI installs these tools and uses no provider credentials or Ollama models.
 
 `trivy.sh --image IMAGE` scans an already-built image in addition to the
 filesystem. Set `ZAP_TARGET` for a host-reachable target on Linux. ZAP v1 is

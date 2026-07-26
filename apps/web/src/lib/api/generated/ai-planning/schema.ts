@@ -372,7 +372,9 @@ export interface components {
             /** Checkoutdate */
             checkOutDate?: string | null;
             /** Estimatedcost */
-            estimatedCost?: Record<string, never> | null;
+            estimatedCost?: {
+                [key: string]: unknown;
+            } | null;
             /** Name */
             name: string;
             /** Notes */
@@ -411,13 +413,21 @@ export interface components {
          */
         AdaptationContext: {
             /** Destinationcontext */
-            destinationContext?: Record<string, never> | null;
+            destinationContext?: {
+                [key: string]: unknown;
+            } | null;
             /** Userpreferences */
-            userPreferences?: Record<string, never> | null;
+            userPreferences?: {
+                [key: string]: unknown;
+            } | null;
             /** Userprofile */
-            userProfile?: Record<string, never> | null;
+            userProfile?: {
+                [key: string]: unknown;
+            } | null;
             /** Weathercontext */
-            weatherContext?: Record<string, never> | null;
+            weatherContext?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** AdaptationSummary */
         AdaptationSummary: {
@@ -604,7 +614,7 @@ export interface components {
         /** BudgetOptimizationProposalResponse */
         BudgetOptimizationProposalResponse: {
             /** Basedayestimatedtotal */
-            baseDayEstimatedTotal: string;
+            baseDayEstimatedTotal: number;
             /** Changes */
             changes?: components["schemas"]["BudgetOptimizationChange"][];
             /**
@@ -621,18 +631,17 @@ export interface components {
             /** Daynumber */
             dayNumber: number;
             /** Estimatedsavingsamount */
-            estimatedSavingsAmount: string;
+            estimatedSavingsAmount: number;
             metadata?: components["schemas"]["AIResponseMetadata"] | null;
             /** Preserveditems */
             preservedItems?: components["schemas"]["BudgetOptimizationPreservedItem"][];
             proposedDay: components["schemas"]["ItineraryDay"];
             /** Proposeddayestimatedtotal */
-            proposedDayEstimatedTotal: string;
+            proposedDayEstimatedTotal: number;
             /**
              * Scope
              * @default day
              * @constant
-             * @enum {string}
              */
             scope: "day";
             /** Summary */
@@ -820,7 +829,9 @@ export interface components {
             message: string;
             permissionSummary: components["schemas"]["CopilotPermissionSummary"];
             /** Safecontext */
-            safeContext: Record<string, never>;
+            safeContext: {
+                [key: string]: unknown;
+            };
         };
         /** CopilotRespondResponse */
         CopilotRespondResponse: {
@@ -885,7 +896,7 @@ export interface components {
             place?: components["schemas"]["PlaceRef"] | null;
             /** Time */
             time: string;
-            transfer?: components["schemas"]["TransferDetails"] | null;
+            transfer?: components["schemas"]["TransferDetails-Input"] | null;
             /** Transportmode */
             transportMode?: string | null;
             /** Type */
@@ -1350,7 +1361,9 @@ export interface components {
             existingChecklist?: components["schemas"]["ExistingChecklist"] | null;
             generationOptions?: components["schemas"]["ChecklistGenerationOptions"];
             /** Grouppreferences */
-            groupPreferences?: Record<string, never> | null;
+            groupPreferences?: {
+                [key: string]: unknown;
+            } | null;
             itinerary?: components["schemas"]["CurrentItinerary"] | null;
             /**
              * Outputlanguage
@@ -1436,12 +1449,13 @@ export interface components {
              */
             language: "en" | "es" | "uk" | "fr";
             /** Sourcesummary */
-            sourceSummary: Record<string, never>;
+            sourceSummary: {
+                [key: string]: unknown;
+            };
             /**
              * Style
              * @default concise
              * @constant
-             * @enum {string}
              */
             style: "concise";
         };
@@ -1474,7 +1488,9 @@ export interface components {
              */
             itemType: "packing" | "preparation" | "booking_check" | "document" | "shared_group_item" | "reminder" | "safety_check" | "other";
             /** Metadata */
-            metadata?: Record<string, never>;
+            metadata?: {
+                [key: string]: unknown;
+            };
             /**
              * Priority
              * @default medium
@@ -1524,7 +1540,9 @@ export interface components {
             /** Itemindex */
             itemIndex?: number | null;
             /** Metadata */
-            metadata?: Record<string, never> | null;
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
             /** Type */
             type: string;
         };
@@ -1713,10 +1731,12 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** ItineraryDay */
-        ItineraryDay: Record<string, never>;
-        /** ItineraryItem */
-        ItineraryItem: Record<string, never>;
+        ItineraryDay: {
+            [key: string]: unknown;
+        };
+        ItineraryItem: {
+            [key: string]: unknown;
+        };
         /** ItineraryResponse */
         ItineraryResponse: {
             /** Days */
@@ -1781,7 +1801,9 @@ export interface components {
             /** Label */
             label: string;
             /** Metadata */
-            metadata?: Record<string, never>;
+            metadata?: {
+                [key: string]: unknown;
+            };
             /**
              * Value
              * @default
@@ -2128,7 +2150,9 @@ export interface components {
         /** PlanningConstraintIssue */
         PlanningConstraintIssue: {
             /** Affected */
-            affected?: Record<string, never> | null;
+            affected?: {
+                [key: string]: unknown;
+            } | null;
             /** Message */
             message: string;
             /**
@@ -2200,7 +2224,9 @@ export interface components {
             /** Policyid */
             policyId?: string | null;
             /** Rules */
-            rules?: Record<string, never> | null;
+            rules?: {
+                [key: string]: unknown;
+            } | null;
             /** Summary */
             summary?: string | null;
             /** Warningrules */
@@ -2237,10 +2263,14 @@ export interface components {
             personalization?: components["schemas"]["PersonalizationSummary"] | null;
             previousTripSignals?: components["schemas"]["PreviousTripSignals"] | null;
             /** Profile */
-            profile?: Record<string, never>;
+            profile?: {
+                [key: string]: unknown;
+            };
             prompt?: components["schemas"]["PlanningConstraintPrompt"] | null;
             /** Route */
-            route?: Record<string, never> | null;
+            route?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Schemaversion
              * @default 1
@@ -2351,9 +2381,13 @@ export interface components {
         /** RepairChange */
         RepairChange: {
             /** After */
-            after?: Record<string, never> | null;
+            after?: {
+                [key: string]: unknown;
+            } | null;
             /** Before */
-            before?: Record<string, never> | null;
+            before?: {
+                [key: string]: unknown;
+            } | null;
             /** Daynumber */
             dayNumber?: number | null;
             /** Itemindex */
@@ -2366,19 +2400,29 @@ export interface components {
         /** RepairContext */
         RepairContext: {
             /** Destinationcontext */
-            destinationContext?: Record<string, never> | null;
+            destinationContext?: {
+                [key: string]: unknown;
+            } | null;
             /** Userpreferences */
-            userPreferences?: components["schemas"]["UserPreferences"] | Record<string, never> | null;
+            userPreferences?: components["schemas"]["UserPreferences"] | {
+                [key: string]: unknown;
+            } | null;
             /** Userprofile */
-            userProfile?: components["schemas"]["UserProfile"] | Record<string, never> | null;
+            userProfile?: components["schemas"]["UserProfile"] | {
+                [key: string]: unknown;
+            } | null;
             /** Weathercontext */
-            weatherContext?: Record<string, never> | null;
+            weatherContext?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** RepairGenerationOutputRequest */
         RepairGenerationOutputRequest: {
             constraints?: components["schemas"]["app__schemas__generation_repair__RepairConstraints"];
             /** Currentoutput */
-            currentOutput: Record<string, never>;
+            currentOutput: {
+                [key: string]: unknown;
+            };
             /** Generationtype */
             generationType: string;
             planningContext: components["schemas"]["RepairPlanningContext"];
@@ -2392,14 +2436,18 @@ export interface components {
             changesMade?: components["schemas"]["GenerationRepairChange"][];
             metadata?: components["schemas"]["AIResponseMetadata"] | null;
             /** Repairedoutput */
-            repairedOutput: Record<string, never>;
+            repairedOutput: {
+                [key: string]: unknown;
+            };
             /** Warnings */
             warnings?: string[];
         };
         /** RepairIssue */
         RepairIssue: {
             /** Affected */
-            affected?: components["schemas"]["RepairAffected"] | Record<string, never> | null;
+            affected?: components["schemas"]["RepairAffected"] | {
+                [key: string]: unknown;
+            } | null;
             /**
              * Message
              * @default
@@ -2413,14 +2461,20 @@ export interface components {
         /** RepairItineraryRequest */
         RepairItineraryRequest: {
             /** Approvalrisk */
-            approvalRisk?: Record<string, never> | null;
+            approvalRisk?: {
+                [key: string]: unknown;
+            } | null;
             constraints?: components["schemas"]["app__schemas__repair__RepairConstraints"];
             /** Context */
-            context?: components["schemas"]["RepairContext"] | Record<string, never> | null;
+            context?: components["schemas"]["RepairContext"] | {
+                [key: string]: unknown;
+            } | null;
             /** Issues */
             issues?: components["schemas"]["RepairIssue"][];
             /** Itinerary */
-            itinerary: Record<string, never>;
+            itinerary: {
+                [key: string]: unknown;
+            };
             /**
              * Outputlanguage
              * @default en
@@ -2429,9 +2483,13 @@ export interface components {
             outputLanguage: "en" | "es" | "uk" | "fr";
             planningConstraints?: components["schemas"]["PlanningConstraints"] | null;
             /** Policy */
-            policy?: Record<string, never> | null;
+            policy?: {
+                [key: string]: unknown;
+            } | null;
             /** Policyevaluation */
-            policyEvaluation?: Record<string, never> | null;
+            policyEvaluation?: {
+                [key: string]: unknown;
+            } | null;
             tripContext?: components["schemas"]["RepairTripContext"];
         };
         /** RepairItineraryResponse */
@@ -2441,12 +2499,14 @@ export interface components {
             metadata?: components["schemas"]["AIResponseMetadata"] | null;
             repairSummary: components["schemas"]["RepairSummary"];
             /** Repaireditinerary */
-            repairedItinerary: Record<string, never>;
+            repairedItinerary: {
+                [key: string]: unknown;
+            };
         };
         /** RepairMoney */
         RepairMoney: {
             /** Amount */
-            amount: string;
+            amount: number;
             /**
              * Currency
              * @default EUR
@@ -2456,19 +2516,33 @@ export interface components {
         /** RepairPlanningContext */
         RepairPlanningContext: {
             /** Accommodation */
-            accommodation?: Record<string, never> | null;
+            accommodation?: {
+                [key: string]: unknown;
+            } | null;
             /** Budgetsummary */
-            budgetSummary?: Record<string, never> | null;
+            budgetSummary?: {
+                [key: string]: unknown;
+            } | null;
             /** Planningconstraints */
-            planningConstraints?: Record<string, never> | null;
+            planningConstraints?: {
+                [key: string]: unknown;
+            } | null;
             /** Route */
-            route?: Record<string, never> | null;
+            route?: {
+                [key: string]: unknown;
+            } | null;
             /** Trip */
-            trip?: Record<string, never>;
+            trip?: {
+                [key: string]: unknown;
+            };
             /** Weatherforecast */
-            weatherForecast?: Record<string, never> | null;
+            weatherForecast?: {
+                [key: string]: unknown;
+            } | null;
             /** Workspacepolicy */
-            workspacePolicy?: Record<string, never> | null;
+            workspacePolicy?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** RepairScope */
         RepairScope: {
@@ -2855,7 +2929,9 @@ export interface components {
             /** Notes */
             notes?: string | null;
             /** Providermetadata */
-            providerMetadata?: Record<string, never> | null;
+            providerMetadata?: {
+                [key: string]: unknown;
+            } | null;
             /** Toname */
             toName?: string | null;
             /** Tostopid */
@@ -2884,7 +2960,9 @@ export interface components {
             /** Notes */
             notes?: string | null;
             /** Providermetadata */
-            providerMetadata?: Record<string, never> | null;
+            providerMetadata?: {
+                [key: string]: unknown;
+            } | null;
             /** Toname */
             toName?: string | null;
             /** Tostopid */
@@ -3172,13 +3250,41 @@ export interface components {
             total: number;
         };
         /** TransferDetails */
-        TransferDetails: {
+        "TransferDetails-Input": {
             /**
              * Bookingrequired
              * @default false
              */
             bookingRequired: boolean;
             estimatedCost?: components["schemas"]["EstimatedCost-Input"] | null;
+            /** Estimateddistancekm */
+            estimatedDistanceKm?: number | null;
+            /** Estimateddurationminutes */
+            estimatedDurationMinutes?: number | null;
+            /** From */
+            from: string;
+            /** Legid */
+            legId?: string | null;
+            /**
+             * Mode
+             * @default train
+             */
+            mode: string;
+            /** Notes */
+            notes?: string | null;
+            /** To */
+            to: string;
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** TransferDetails */
+        "TransferDetails-Output": {
+            /**
+             * Bookingrequired
+             * @default false
+             */
+            bookingRequired: boolean;
+            estimatedCost?: components["schemas"]["EstimatedCost-Output"] | null;
             /** Estimateddistancekm */
             estimatedDistanceKm?: number | null;
             /** Estimateddurationminutes */
@@ -3231,7 +3337,6 @@ export interface components {
              * Schemaversion
              * @default trip_recap_v1
              * @constant
-             * @enum {string}
              */
             schemaVersion: "trip_recap_v1";
             /** Summary */
@@ -3318,6 +3423,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -3366,7 +3475,9 @@ export interface components {
         /** WorkspacePolicyConstraints */
         app__schemas__destination_suggestion__WorkspacePolicyConstraints: {
             /** Rules */
-            rules?: Record<string, never>;
+            rules?: {
+                [key: string]: unknown;
+            };
             /**
              * Summary
              * @default
@@ -3400,7 +3511,9 @@ export interface components {
          */
         app__schemas__itinerary__WorkspacePolicyConstraints: {
             /** Rules */
-            rules?: Record<string, never>;
+            rules?: {
+                [key: string]: unknown;
+            };
             /** Summary */
             summary: string;
         };
@@ -4173,7 +4286,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description User-safe AI planning failure. */

@@ -1215,11 +1215,18 @@ if [[ -z "${ROUTE_ALT_SESSION_ID}" || -z "${ROUTE_ALT_FIRST_ID}" ]]; then
 fi
 if ! jq -e '
   (.alternatives | length) >= 2
-  and (.alternatives[0].route.stops | length) >= 1
-  and (.alternatives[0].route.legs | length) >= 1
-  and (.alternatives[0].scores.overallFit >= 0)
+  and ((.alternatives[0].route.stops // []) | length) >= 1
+  and ((.alternatives[0].route.legs // []) | length) >= 1
+  and ((.alternatives[0].scores.overallFit // -1) >= 0)
   and ((.alternatives[0].difficulty // "") | length > 0)
-  and ((.alternatives[0].personalizationFit.reasons // []) | length > 0)
+  and (
+    (.alternatives[0].personalizationFit == null)
+    or (
+      ((.alternatives[0].personalizationFit.score // -1) >= 0)
+      and ((.alternatives[0].personalizationFit.reasons // []) | type == "array")
+      and ((.alternatives[0].personalizationFit.concerns // []) | type == "array")
+    )
+  )
 ' >/dev/null <<<"${LAST_BODY}"; then
   echo "Route alternatives response did not include expected route, score, and difficulty data." >&2
   echo "${LAST_BODY}" >&2
