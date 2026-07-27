@@ -14,7 +14,7 @@ type EditLockView struct {
 	LockedByUserID      uuid.UUID `json:"lockedByUserId,omitempty"`
 	LockedByDisplayName *string   `json:"lockedByDisplayName,omitempty"`
 	LockedByRole        string    `json:"lockedByRole,omitempty"`
-	LockedByCurrentUser bool      `json:"lockedByCurrentUser,omitempty"`
+	LockedByCurrentUser bool      `json:"lockedByCurrentUser"`
 	CreatedAt           time.Time `json:"createdAt,omitempty"`
 	ExpiresAt           time.Time `json:"expiresAt,omitempty"`
 	TTLSeconds          int       `json:"ttlSeconds,omitempty"`

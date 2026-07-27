@@ -118,6 +118,21 @@ func TestPreviousTripsAreSummarizedWithoutItinerary(t *testing.T) {
 	}
 }
 
+func TestPreviousTripSummaryUsesEmptyTagsList(t *testing.T) {
+	summaries := summarizeTrips([]entity.Trip{{
+		Destination: "Prague, Czechia",
+		Days:        3,
+		CreatedAt:   time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC),
+	}})
+
+	if len(summaries) != 1 {
+		t.Fatalf("expected one summary, got %+v", summaries)
+	}
+	if summaries[0].Tags == nil {
+		t.Fatalf("expected empty tags slice, got nil")
+	}
+}
+
 func newTestService(
 	repo *fakeRepository,
 	trips *fakeTripCreator,

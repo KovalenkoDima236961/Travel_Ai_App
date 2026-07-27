@@ -33,6 +33,9 @@ func (s *LocalStorage) Save(key string, content []byte) (int64, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return 0, "", fmt.Errorf("create export package directory: %w", err)
+	}
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return 0, "", fmt.Errorf("create export package: %w", err)

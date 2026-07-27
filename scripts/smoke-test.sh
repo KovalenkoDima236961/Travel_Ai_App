@@ -347,10 +347,15 @@ assert_notification_has() {
   local label="$1"
   local token="$2"
   local notification_type="$3"
+  local entity_id="${4:-}"
   local attempt
   for attempt in 1 2 3 4 5; do
     fetch_notifications "${token}"
-    if jq -e --arg t "${notification_type}" '.items | any(.type == $t)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
+    if [[ -n "${entity_id}" ]]; then
+      if jq -e --arg t "${notification_type}" --arg id "${entity_id}" '.items | any(.type == $t and .entityId == $id)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
+        return 0
+      fi
+    elif jq -e --arg t "${notification_type}" '.items | any(.type == $t)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
       return 0
     fi
     sleep 0.5
@@ -366,7 +371,16 @@ assert_notification_absent() {
   local label="$1"
   local token="$2"
   local notification_type="$3"
+  local entity_id="${4:-}"
   fetch_notifications "${token}"
+  if [[ -n "${entity_id}" ]]; then
+    if jq -e --arg t "${notification_type}" --arg id "${entity_id}" '.items | any(.type == $t and .entityId == $id)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
+      echo "${label}: notifications unexpectedly contained type '${notification_type}' for entity '${entity_id}'" >&2
+      echo "${LAST_BODY}" >&2
+      exit 1
+    fi
+    return 0
+  fi
   if jq -e --arg t "${notification_type}" '.items | any(.type == $t)' <<<"${LAST_BODY}" >/dev/null 2>&1; then
     echo "${label}: notifications unexpectedly contained type '${notification_type}'" >&2
     echo "${LAST_BODY}" >&2
@@ -378,7 +392,11 @@ assert_notification_absent() {
 unread_count() {
   local token="$1"
   request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/unread-count" "${token}"
-  assert_2xx "Unread notification count"
+  if [[ ! "${LAST_STATUS}" =~ ^2 ]]; then
+    echo "Unread notification count failed with HTTP ${LAST_STATUS}" >&2
+    echo "${LAST_BODY}" >&2
+    exit 1
+  fi
   jq -r '.count // 0' <<<"${LAST_BODY}"
 }
 
@@ -1309,6 +1327,7 @@ if ! jq -e --arg sessionId "${ROUTE_ALT_EXISTING_SESSION_ID}" '
   echo "${LAST_BODY}" >&2
   exit 1
 fi
+NOTIFICATION_TRIP_ID="${ROUTE_ALT_TRIP_ID}"
 
 echo "Checking default notification preferences..."
 request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${ACCESS_TOKEN}"
@@ -1332,11 +1351,11 @@ if ! jq -e '.settings.quietHoursEnabled == true and (.items[] | select(.channel 
   echo "${LAST_BODY}" >&2
   exit 1
 fi
-TRIP_COMMENT_MUTE="$(jq -nc --arg tripId "${TRIP_ID}" '{tripId:$tripId,category:"comments",mutedUntil:null}')"
+TRIP_COMMENT_MUTE="$(jq -nc --arg tripId "${NOTIFICATION_TRIP_ID}" '{tripId:$tripId,category:"comments",mutedUntil:null}')"
 request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes" "${ACCESS_TOKEN}" "${TRIP_COMMENT_MUTE}"
 assert_2xx "Mute trip comments"
 TRIP_COMMENT_MUTE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
-request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes?tripId=${TRIP_ID}" "${ACCESS_TOKEN}"
+request_with_bearer GET "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes?tripId=${NOTIFICATION_TRIP_ID}" "${ACCESS_TOKEN}"
 assert_2xx "List trip notification mutes"
 if ! jq -e '.items[] | select(.category == "comments")' <<<"${LAST_BODY}" >/dev/null; then
   echo "Trip comment mute was not returned." >&2
@@ -1349,10 +1368,10 @@ assert_2xx "List pending notification digests"
 
 if [[ -n "${SMOKE_INTERNAL_SERVICE_TOKEN:-}" ]]; then
   echo "Checking grouped digest delivery, mute decisions, and urgent bypass..."
-  DIGEST_KEY="trip:${TRIP_ID}:comments"
+  DIGEST_KEY="trip:${NOTIFICATION_TRIP_ID}:comments"
   for DIGEST_INDEX in 1 2 3; do
     DIGEST_EVENT_PAYLOAD="$(jq -nc \
-      --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" \
+      --arg userId "${OWNER_USER_ID}" --arg tripId "${NOTIFICATION_TRIP_ID}" \
       --arg digestKey "${DIGEST_KEY}" --arg dedupeKey "smoke:${RUN_ID:-manual}:digest:${DIGEST_INDEX}" \
       '{notifications:[{userId:$userId,tripId:$tripId,type:"comment_created",priority:"normal",category:"comments",title:"Smoke digest comment",message:"A collaborator added a comment.",digestKey:$digestKey,dedupeKey:$dedupeKey,metadata:{tripName:"Smoke Trip"}}]}')"
     request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${DIGEST_EVENT_PAYLOAD}"
@@ -1382,7 +1401,7 @@ if [[ -n "${SMOKE_INTERNAL_SERVICE_TOKEN:-}" ]]; then
   request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes" "${ACCESS_TOKEN}" "${TRIP_COMMENT_MUTE}"
   assert_2xx "Re-enable trip comment mute for delivery check"
   TRIP_COMMENT_MUTE_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
-  MUTED_COMMENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:muted" '{notifications:[{userId:$userId,tripId:$tripId,type:"comment_created",priority:"normal",category:"comments",title:"Muted comment",message:"A collaborator added a comment.",digestKey:("trip:"+$tripId+":comments"),dedupeKey:$dedupeKey,metadata:{}}]}')"
+  MUTED_COMMENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${NOTIFICATION_TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:muted" '{notifications:[{userId:$userId,tripId:$tripId,type:"comment_created",priority:"normal",category:"comments",title:"Muted comment",message:"A collaborator added a comment.",digestKey:("trip:"+$tripId+":comments"),dedupeKey:$dedupeKey,metadata:{}}]}')"
   request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${MUTED_COMMENT_PAYLOAD}"
   assert_2xx "Apply trip category mute"
   if ! jq -e '.created == 0 and .muted >= 1' <<<"${LAST_BODY}" >/dev/null; then
@@ -1393,7 +1412,7 @@ if [[ -n "${SMOKE_INTERNAL_SERVICE_TOKEN:-}" ]]; then
   request_with_bearer DELETE "${NOTIFICATION_SERVICE_URL}/notifications/trip-mutes/${TRIP_COMMENT_MUTE_ID}" "${ACCESS_TOKEN}"
   assert_2xx "Remove trip comment mute after delivery check"
 
-  URGENT_FAILURE_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:urgent" '{notifications:[{userId:$userId,tripId:$tripId,type:"generation_job_failed",priority:"urgent",category:"ai_generation",title:"Generation failed",message:"Your itinerary generation could not be completed. Open the trip to retry.",digestKey:("trip:"+$tripId+":ai_generation"),dedupeKey:$dedupeKey,metadata:{errorCode:"smoke_failure"}}]}')"
+  URGENT_FAILURE_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${NOTIFICATION_TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:urgent" '{notifications:[{userId:$userId,tripId:$tripId,type:"generation_job_failed",priority:"urgent",category:"ai_generation",title:"Generation failed",message:"Your itinerary generation could not be completed. Open the trip to retry.",digestKey:("trip:"+$tripId+":ai_generation"),dedupeKey:$dedupeKey,metadata:{errorCode:"smoke_failure"}}]}')"
   request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${URGENT_FAILURE_PAYLOAD}"
   assert_2xx "Urgent generation failure bypasses digest defaults"
   if ! jq -e '.created == 1 and .email.sent >= 1' <<<"${LAST_BODY}" >/dev/null; then
@@ -1405,7 +1424,7 @@ if [[ -n "${SMOKE_INTERNAL_SERVICE_TOKEN:-}" ]]; then
   ALL_DAY_QUIET_PREFS='{"items":[{"channel":"email","category":"trip_updates","deliveryMode":"instant"}],"settings":{"quietHoursEnabled":true,"quietHoursStart":"00:00","quietHoursEnd":"00:00","quietHoursTimezone":"UTC","urgentBypassesQuietHours":true,"dailyDigestTime":"08:00","weeklyDigestDay":1,"weeklyDigestTime":"08:00"}}'
   request_with_bearer PUT "${NOTIFICATION_SERVICE_URL}/notifications/preferences" "${ACCESS_TOKEN}" "${ALL_DAY_QUIET_PREFS}"
   assert_2xx "Enable deterministic all-day quiet hours"
-  QUIET_EVENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:quiet" '{notifications:[{userId:$userId,tripId:$tripId,type:"itinerary_updated",priority:"normal",category:"trip_updates",title:"Itinerary updated",message:"The itinerary was updated.",digestKey:("trip:"+$tripId+":trip_updates"),dedupeKey:$dedupeKey,metadata:{}}]}')"
+  QUIET_EVENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${NOTIFICATION_TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:quiet" '{notifications:[{userId:$userId,tripId:$tripId,type:"itinerary_updated",priority:"normal",category:"trip_updates",title:"Itinerary updated",message:"The itinerary was updated.",digestKey:("trip:"+$tripId+":trip_updates"),dedupeKey:$dedupeKey,metadata:{}}]}')"
   request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${QUIET_EVENT_PAYLOAD}"
   assert_2xx "Delay normal email during quiet hours"
   if ! jq -e '.delayed >= 1 and .email.sent == 0' <<<"${LAST_BODY}" >/dev/null; then
@@ -1413,7 +1432,7 @@ if [[ -n "${SMOKE_INTERNAL_SERVICE_TOKEN:-}" ]]; then
     echo "${LAST_BODY}" >&2
     exit 1
   fi
-  SECURITY_EVENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:security" '{notifications:[{userId:$userId,tripId:$tripId,type:"share_security_changed",priority:"urgent",category:"security",title:"Sharing security changed",message:"Security settings for a shared trip changed.",digestKey:("trip:"+$tripId+":security"),dedupeKey:$dedupeKey,metadata:{}}]}')"
+  SECURITY_EVENT_PAYLOAD="$(jq -nc --arg userId "${OWNER_USER_ID}" --arg tripId "${NOTIFICATION_TRIP_ID}" --arg dedupeKey "smoke:${RUN_ID:-manual}:security" '{notifications:[{userId:$userId,tripId:$tripId,type:"share_security_changed",priority:"urgent",category:"security",title:"Sharing security changed",message:"Security settings for a shared trip changed.",digestKey:("trip:"+$tripId+":security"),dedupeKey:$dedupeKey,metadata:{}}]}')"
   request_with_internal_token POST "${NOTIFICATION_SERVICE_URL}/internal/notifications/batch" "${SMOKE_INTERNAL_SERVICE_TOKEN}" "${SECURITY_EVENT_PAYLOAD}"
   assert_2xx "Urgent security notification bypasses quiet hours"
   if ! jq -e '.created == 1 and .email.sent >= 1' <<<"${LAST_BODY}" >/dev/null; then
@@ -1767,7 +1786,8 @@ if ! jq -e '.proposal.status == "applied"' <<<"${LAST_BODY}" >/dev/null; then
 fi
 WORKSPACE_TRIP_REVISION="${REPAIR_APPLIED_REVISION}"
 
-request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals/${REPAIR_PROPOSAL_ID}/apply" "${COLLAB_ACCESS_TOKEN}" "${REPAIR_APPLY_PAYLOAD}"
+REPAIR_REAPPLY_PAYLOAD="$(jq -nc --argjson revision "${WORKSPACE_TRIP_REVISION}" '{expectedItineraryRevision:$revision}')"
+request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${WORKSPACE_TRIP_ID}/repair-proposals/${REPAIR_PROPOSAL_ID}/apply" "${COLLAB_ACCESS_TOKEN}" "${REPAIR_REAPPLY_PAYLOAD}"
 assert_status "Reapply policy repair proposal" "400"
 
 WORKSPACE_STRICT_POLICY_RULES="$(jq '.rules.maxTripBudget.amount = 10' <<<"${WORKSPACE_WARNING_POLICY_RULES}")"
@@ -1820,7 +1840,7 @@ assert_notification_has "Owner notified of approval submission" "${ACCESS_TOKEN}
 # Owner sees the pending trip in the workspace approvals queue.
 request_with_bearer GET "${TRIP_SERVICE_URL}/workspaces/${WORKSPACE_ID}/approvals?status=pending_approval" "${ACCESS_TOKEN}"
 assert_2xx "List workspace approvals as owner"
-if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '.approvals | any(.tripId == $id and .approvalStatus == "pending_approval") and (.counts.pendingApproval >= 1)' <<<"${LAST_BODY}" >/dev/null; then
+if ! jq -e --arg id "${WORKSPACE_TRIP_ID}" '(.approvals | any(.tripId == $id and .approvalStatus == "pending_approval")) and (.counts.pendingApproval >= 1)' <<<"${LAST_BODY}" >/dev/null; then
   echo "Pending trip did not appear in the workspace approvals queue." >&2
   echo "${LAST_BODY}" >&2
   exit 1
@@ -2366,13 +2386,15 @@ if [[ "${SMOKE_EXPECT_OBSERVABILITY:-true}" == "true" ]]; then
   echo "Checking job and queue metrics after full generation..."
   assert_metrics_contains "Trip generation job metrics" "${TRIP_SERVICE_URL}/metrics" "generation_jobs_created_total"
   assert_metrics_contains "Trip RabbitMQ publish metrics" "${TRIP_SERVICE_URL}/metrics" "rabbitmq_messages_published_total"
-  assert_metrics_contains "AI generation trace metrics" "${TRIP_SERVICE_URL}/metrics" "ai_generation_traces_started_total"
   if [[ "${SMOKE_EXPECT_WORKER_SERVICE:-true}" == "true" ]]; then
+    assert_metrics_contains "Worker AI generation trace metrics" "${WORKER_SERVICE_URL}/metrics" "ai_generation_traces_started_total"
     assert_metrics_contains "Worker job start metrics" "${WORKER_SERVICE_URL}/metrics" "worker_jobs_started_total"
     if [[ "${LAST_BODY}" != *"worker_jobs_completed_total"* && "${LAST_BODY}" != *"worker_jobs_failed_total"* ]]; then
       echo "Worker metrics missing both worker_jobs_completed_total and worker_jobs_failed_total." >&2
       exit 1
     fi
+  else
+    assert_metrics_contains "AI generation trace metrics" "${TRIP_SERVICE_URL}/metrics" "ai_generation_traces_started_total"
   fi
 fi
 
@@ -3537,7 +3559,7 @@ assert_status "Viewer delete accommodation" "403"
 echo "Checking accepted viewer checklist permissions..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/checklist" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer get checklist"
-VIEWER_CHECKLIST_CAN_GENERATE="$(jq -r '.canGenerate // true' <<<"${LAST_BODY}")"
+VIEWER_CHECKLIST_CAN_GENERATE="$(jq -r 'if .canGenerate == null then true else .canGenerate end' <<<"${LAST_BODY}")"
 VIEWER_CHECKLIST_UNASSIGNED_ID="$(jq -r '[.checklist.items[] | select(.assignedToUserId == null)][0].id // empty' <<<"${LAST_BODY}")"
 if [[ "${VIEWER_CHECKLIST_CAN_GENERATE}" != "false" || -z "${VIEWER_CHECKLIST_UNASSIGNED_ID}" ]]; then
   echo "Viewer checklist read response was unexpected." >&2
@@ -3562,7 +3584,7 @@ echo "Checking viewer can view but cannot edit..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer collaborator fetch trip"
 VIEWER_ACCESS_ROLE="$(jq -r '.access.role // empty' <<<"${LAST_BODY}")"
-VIEWER_CAN_EDIT="$(jq -r '.access.canEdit // true' <<<"${LAST_BODY}")"
+VIEWER_CAN_EDIT="$(jq -r 'if .access.canEdit == null then true else .access.canEdit end' <<<"${LAST_BODY}")"
 if [[ "${VIEWER_ACCESS_ROLE}" != "viewer" || "${VIEWER_CAN_EDIT}" != "false" ]]; then
   echo "Viewer trip access metadata was unexpected." >&2
   echo "${LAST_BODY}" >&2
@@ -3807,7 +3829,7 @@ assert_status "Viewer calendar sync" "403"
 echo "Checking viewer can read but cannot acquire edit lock..."
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Viewer read edit lock"
-VIEWER_LOCKED="$(jq -r '.locked // true' <<<"${LAST_BODY}")"
+VIEWER_LOCKED="$(jq -r 'if .locked == null then true else .locked end' <<<"${LAST_BODY}")"
 if [[ "${VIEWER_LOCKED}" != "false" ]]; then
   echo "Expected no active edit lock before owner acquires one." >&2
   echo "${LAST_BODY}" >&2
@@ -3859,7 +3881,13 @@ echo "Confirming disabled in-app comments suppress future collaborator notificat
 OWNER_COMMENT_PREF_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Owner: preference smoke check."}'
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" "${OWNER_COMMENT_PREF_PAYLOAD}"
 assert_2xx "Owner create preference-check comment"
-assert_notification_absent "Collaborator disabled comment preference" "${COLLAB_ACCESS_TOKEN}" "comment_created"
+OWNER_COMMENT_PREF_ID="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${OWNER_COMMENT_PREF_ID}" ]]; then
+  echo "Preference-check comment response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_absent "Collaborator disabled comment preference" "${COLLAB_ACCESS_TOKEN}" "comment_created" "${OWNER_COMMENT_PREF_ID}"
 
 echo "Re-enabling collaborator in-app comment notifications..."
 ENABLE_COLLAB_COMMENT_PREF='{"items":[{"channel":"in_app","category":"comments","enabled":true}]}'
@@ -3870,7 +3898,13 @@ echo "Confirming re-enabled in-app comments create future collaborator notificat
 OWNER_COMMENT_PREF_PAYLOAD_2='{"dayNumber":1,"itemIndex":0,"body":"Owner: notification should return."}'
 request_with_bearer POST "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/comments" "${ACCESS_TOKEN}" "${OWNER_COMMENT_PREF_PAYLOAD_2}"
 assert_2xx "Owner create re-enabled notification comment"
-assert_notification_has "Collaborator re-enabled comment notification" "${COLLAB_ACCESS_TOKEN}" "comment_created"
+OWNER_COMMENT_PREF_ID_2="$(jq -r '.id // empty' <<<"${LAST_BODY}")"
+if [[ -z "${OWNER_COMMENT_PREF_ID_2}" ]]; then
+  echo "Re-enabled notification comment response did not include an id." >&2
+  echo "${LAST_BODY}" >&2
+  exit 1
+fi
+assert_notification_has "Collaborator re-enabled comment notification" "${COLLAB_ACCESS_TOKEN}" "comment_created" "${OWNER_COMMENT_PREF_ID_2}"
 
 echo "Adding a viewer collaborator comment..."
 COLLAB_COMMENT_PAYLOAD='{"dayNumber":1,"itemIndex":0,"body":"Viewer: sounds good to me."}'
@@ -4021,7 +4055,7 @@ fi
 request_with_bearer GET "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/edit-lock" "${COLLAB_ACCESS_TOKEN}"
 assert_2xx "Editor read owner edit lock"
 EDITOR_SEES_OWNER_LOCK="$(jq -r '.lockedByUserId // empty' <<<"${LAST_BODY}")"
-EDITOR_LOCK_CURRENT="$(jq -r '.lockedByCurrentUser // true' <<<"${LAST_BODY}")"
+EDITOR_LOCK_CURRENT="$(jq -r 'if .lockedByCurrentUser == null then true else .lockedByCurrentUser end' <<<"${LAST_BODY}")"
 if [[ "${EDITOR_SEES_OWNER_LOCK}" != "${OWNER_USER_ID}" || "${EDITOR_LOCK_CURRENT}" != "false" ]]; then
   echo "Editor did not see the owner edit lock as expected." >&2
   echo "${LAST_BODY}" >&2
@@ -4249,7 +4283,7 @@ echo "Clearing public share password and expiration..."
 request_with_bearer PATCH "${TRIP_SERVICE_URL}/trips/${TRIP_ID}/share" "${ACCESS_TOKEN}" '{"clearPassword":true,"clearExpiration":true}'
 assert_2xx "Clear public share password"
 
-CLEARED_PASSWORD_REQUIRED="$(jq -r '.passwordRequired // true' <<<"${LAST_BODY}")"
+CLEARED_PASSWORD_REQUIRED="$(jq -r 'if .passwordRequired == null then true else .passwordRequired end' <<<"${LAST_BODY}")"
 CLEARED_EXPIRES_AT="$(jq -r '.expiresAt // empty' <<<"${LAST_BODY}")"
 if [[ "${CLEARED_PASSWORD_REQUIRED}" != "false" || -n "${CLEARED_EXPIRES_AT}" ]]; then
   echo "Share settings were not cleared." >&2

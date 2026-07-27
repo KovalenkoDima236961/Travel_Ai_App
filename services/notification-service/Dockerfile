@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X github.com/Ko
 # --- runtime stage ---
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates wget && adduser -D -u 10001 appuser
+RUN apk add --no-cache ca-certificates tzdata wget && adduser -D -u 10001 appuser
 
 WORKDIR /app
 

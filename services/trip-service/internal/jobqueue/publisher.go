@@ -82,13 +82,15 @@ func (p *RabbitMQPublisher) Close() error {
 			err = closeErr
 		}
 	}
+	p.channel = nil
+	p.conn = nil
 	return err
 }
 
 func (p *RabbitMQPublisher) IsReady() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed()
+	return p.isReadyLocked()
 }
 
 func (p *RabbitMQPublisher) publish(
@@ -103,9 +105,11 @@ func (p *RabbitMQPublisher) publish(
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.channel == nil || p.channel.IsClosed() {
-		recordPublishFailure(p.cfg.QueueName, routingKey, "channel_closed", time.Since(startedAt))
-		return fmt.Errorf("rabbitmq channel is closed")
+	if !p.isReadyLocked() {
+		if err := p.reconnectLocked(ctx); err != nil {
+			recordPublishFailure(p.cfg.QueueName, routingKey, "channel_closed", time.Since(startedAt))
+			return err
+		}
 	}
 	if attempt < 0 {
 		recordPublishFailure(p.cfg.QueueName, routingKey, "invalid_attempt", time.Since(startedAt))
@@ -128,8 +132,7 @@ func (p *RabbitMQPublisher) publish(
 	publishCtx, cancel := context.WithTimeout(ctx, p.cfg.PublishTimeout)
 	defer cancel()
 
-	confirms := p.channel.NotifyPublish(make(chan amqp.Confirmation, 1))
-	err = p.channel.PublishWithContext(
+	confirm, err := p.channel.PublishWithDeferredConfirmWithContext(
 		publishCtx,
 		exchange,
 		routingKey,
@@ -155,16 +158,19 @@ func (p *RabbitMQPublisher) publish(
 		recordPublishFailure(p.cfg.QueueName, routingKey, "publish_failed", time.Since(startedAt))
 		return fmt.Errorf("publish generation job: %w", err)
 	}
+	if confirm == nil {
+		recordPublishFailure(p.cfg.QueueName, routingKey, "confirm_unavailable", time.Since(startedAt))
+		return fmt.Errorf("rabbitmq publisher confirm unavailable")
+	}
 
-	select {
-	case confirm := <-confirms:
-		if !confirm.Ack {
-			recordPublishFailure(p.cfg.QueueName, routingKey, "negative_ack", time.Since(startedAt))
-			return fmt.Errorf("rabbitmq negatively acknowledged publish")
-		}
-	case <-publishCtx.Done():
+	ack, err := confirm.WaitContext(publishCtx)
+	if err != nil {
 		recordPublishFailure(p.cfg.QueueName, routingKey, "confirm_timeout", time.Since(startedAt))
-		return fmt.Errorf("wait for rabbitmq publish confirm: %w", publishCtx.Err())
+		return fmt.Errorf("wait for rabbitmq publish confirm: %w", err)
+	}
+	if !ack {
+		recordPublishFailure(p.cfg.QueueName, routingKey, "negative_ack", time.Since(startedAt))
+		return fmt.Errorf("rabbitmq negatively acknowledged publish")
 	}
 	recordPublishSuccess(p.cfg.QueueName, routingKey, generationjobs.MessageTypeTripGenerationJob, time.Since(startedAt))
 
@@ -180,6 +186,51 @@ func (p *RabbitMQPublisher) publish(
 	fields = append(fields, observability.RequestIDFields(ctx)...)
 	p.log.Info("generation job message published", fields...)
 	return nil
+}
+
+func (p *RabbitMQPublisher) isReadyLocked() bool {
+	return p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed()
+}
+
+func (p *RabbitMQPublisher) reconnectLocked(ctx context.Context) error {
+	p.closeLocked()
+
+	conn, err := dialWithRetry(ctx, p.cfg.URL, 3, 500*time.Millisecond)
+	if err != nil {
+		return fmt.Errorf("reconnect rabbitmq publisher: %w", err)
+	}
+
+	ch, err := conn.Channel()
+	if err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("open rabbitmq publisher channel: %w", err)
+	}
+	if err := DeclareTopology(ch, p.cfg); err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return err
+	}
+	if err := ch.Confirm(false); err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return fmt.Errorf("enable publisher confirms: %w", err)
+	}
+
+	p.conn = conn
+	p.channel = ch
+	p.log.Info("rabbitmq publisher reconnected", zap.String("queue", p.cfg.QueueName))
+	return nil
+}
+
+func (p *RabbitMQPublisher) closeLocked() {
+	if p.channel != nil {
+		_ = p.channel.Close()
+	}
+	if p.conn != nil {
+		_ = p.conn.Close()
+	}
+	p.channel = nil
+	p.conn = nil
 }
 
 func ensureMessageRequestIDs(ctx context.Context, msg generationjobs.QueueMessage) (context.Context, string, string) {

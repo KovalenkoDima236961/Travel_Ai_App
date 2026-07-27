@@ -16,6 +16,7 @@ import (
 type MockCalendarProvider struct {
 	accountEmail string
 	linkBase     string
+	redirectURL  string
 	mu           sync.Mutex
 	events       map[string]CalendarEventInput
 }
@@ -24,12 +25,16 @@ func NewMockCalendarProvider(cfg config.CalendarConfig) *MockCalendarProvider {
 	return &MockCalendarProvider{
 		accountEmail: cfg.MockAccountEmail,
 		linkBase:     cfg.MockEventLinkBase,
+		redirectURL:  cfg.GoogleRedirectURL,
 		events:       make(map[string]CalendarEventInput),
 	}
 }
 
 func (p *MockCalendarProvider) BuildAuthURL(_ context.Context, state string) (string, error) {
-	u, _ := url.Parse("http://localhost:8084/calendar/google/callback")
+	u, err := url.Parse(p.redirectURL)
+	if err != nil {
+		return "", fmt.Errorf("parse mock calendar redirect url: %w", err)
+	}
 	q := u.Query()
 	q.Set("code", "mock-code")
 	q.Set("state", state)

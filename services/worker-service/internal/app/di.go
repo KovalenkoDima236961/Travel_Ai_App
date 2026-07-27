@@ -25,6 +25,8 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/usercontext"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/weathercontext"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspaces"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/cleanup"
 	workerconfig "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/config"
 	workerdigests "github.com/KovalenkoDima236961/Travel_Ai_App/services/worker-service/internal/digests"
@@ -141,7 +143,7 @@ func buildProcessor(
 		return nil, nil, nil, fmt.Errorf("init itinerary generator: %w", err)
 	}
 
-	opts, err := tripServiceOptions(cfg, repo, log)
+	opts, err := tripServiceOptions(cfg, db, repo, log)
 	if err != nil {
 		db.Close()
 		return nil, nil, nil, err
@@ -203,12 +205,14 @@ func providerForAIMode(mode string) string {
 
 func tripServiceOptions(
 	cfg *tripconfig.Config,
+	db *postgres.DB,
 	repo *triprepo.Repository,
 	log *zap.Logger,
 ) ([]appservice.Option, error) {
 	opts := []appservice.Option{
 		appservice.WithActivity(activity.New(repo, log)),
 	}
+	var workspaceClient *workspaces.Client
 
 	if cfg.UserContext.Enabled {
 		client, err := usercontext.New(usercontext.Config{
@@ -224,6 +228,22 @@ func tripServiceOptions(
 			cfg.UserContext.FailOpen,
 		))
 	}
+
+	if cfg.Workspaces.Enabled {
+		client, err := workspaces.New(workspaces.Config{
+			BaseURL:        cfg.Workspaces.UserServiceURL,
+			Token:          cfg.Workspaces.ServiceToken,
+			TimeoutSeconds: cfg.Workspaces.TimeoutSeconds,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init workspace client: %w", err)
+		}
+		workspaceClient = client
+		opts = append(opts, appservice.WithWorkspaces(client, cfg.Workspaces.Enabled))
+	}
+	opts = append(opts, appservice.WithWorkspacePolicies(
+		workspacepolicies.New(workspacepolicies.NewRepository(db), workspaceClient),
+	))
 
 	if cfg.WeatherContext.Enabled {
 		client, err := weathercontext.New(weathercontext.Config{

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -171,11 +172,13 @@ func (h *Handler) MarkTripSettlementPaid(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	settlementID := strings.TrimSpace(chi.URLParam(r, "settlementId"))
-	if settlementID == "" {
+	rawSettlementID := strings.TrimSpace(chi.URLParam(r, "settlementId"))
+	settlementID, err := url.PathUnescape(rawSettlementID)
+	if err != nil || strings.TrimSpace(settlementID) == "" {
 		writeError(w, http.StatusBadRequest, "invalid settlement id")
 		return
 	}
+	settlementID = strings.TrimSpace(settlementID)
 	var req request.MarkSettlementPaid
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 		writeError(w, http.StatusBadRequest, "invalid request body")

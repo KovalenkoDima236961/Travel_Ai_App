@@ -787,15 +787,22 @@ func mapUserContext(value *usercontext.UserContext) *UserContext {
 	}
 	if value.Preferences != nil {
 		result.Preferences = &UserPreferences{
-			TravelStyles:       append([]string(nil), value.Preferences.TravelStyles...),
+			TravelStyles:       cloneStringSlice(value.Preferences.TravelStyles),
 			Pace:               value.Preferences.Pace,
 			MaxWalkingKmPerDay: value.Preferences.MaxWalkingKmPerDay,
-			FoodPreferences:    append([]string(nil), value.Preferences.FoodPreferences...),
-			Avoid:              append([]string(nil), value.Preferences.Avoid...),
-			PreferredTransport: append([]string(nil), value.Preferences.PreferredTransport...),
+			FoodPreferences:    cloneStringSlice(value.Preferences.FoodPreferences),
+			Avoid:              cloneStringSlice(value.Preferences.Avoid),
+			PreferredTransport: cloneStringSlice(value.Preferences.PreferredTransport),
 		}
 	}
 	return result
+}
+
+func cloneStringSlice(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	return append([]string(nil), values...)
 }
 
 func summarizeTrips(trips []entity.Trip) []PreviousTripSummary {
@@ -806,7 +813,7 @@ func summarizeTrips(trips []entity.Trip) []PreviousTripSummary {
 			Destination:  destination,
 			Country:      country,
 			DurationDays: trip.Days,
-			Tags:         append([]string(nil), trip.Interests...),
+			Tags:         cloneStringSlice(trip.Interests),
 			Pace:         trip.Pace,
 			CreatedAt:    trip.CreatedAt.Format("2006-01-02"),
 		}
