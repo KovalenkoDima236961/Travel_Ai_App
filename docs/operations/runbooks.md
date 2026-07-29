@@ -9,6 +9,7 @@ owner's approved change process.
 - [Migrations failed](runbooks/migrations-failed.md)
 - [RabbitMQ jobs stuck](runbooks/rabbitmq-jobs-stuck.md)
 - [AI generation failing](runbooks/ai-generation-failing.md)
+- [AI model rollout regression](runbooks/ai-model-rollout-regression.md)
 - [Provider quota exceeded](runbooks/provider-quota-exceeded.md)
 - [Notifications not sending](runbooks/notifications-not-sending.md)
 - [Playwright failures](runbooks/playwright-failures.md)
@@ -29,6 +30,7 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env logs --tail=200
 - [Troubleshooting](../development/troubleshooting.md)
 - [Ports](../development/ports.md)
 - [Deployment checklist](../deployment/checklist.md)
-# Data lifecycle
+
+## Data lifecycle
 
 See [cleanup failures](runbooks/cleanup-failed.md) and [storage growth](runbooks/storage-growth.md). Run cleanup dry-runs before destructive changes, and do not use lifecycle cleanup to remove protected receipts, audit events, or production backups.

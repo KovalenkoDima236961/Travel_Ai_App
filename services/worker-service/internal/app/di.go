@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aimodel"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	appservice "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	tripconfig "github.com/KovalenkoDima236961/Travel_Ai_App/internal/config"
@@ -211,6 +212,7 @@ func tripServiceOptions(
 ) ([]appservice.Option, error) {
 	opts := []appservice.Option{
 		appservice.WithActivity(activity.New(repo, log)),
+		appservice.WithAIModelRouter(aimodel.NewDBRouter(db, cfg.AIModelServing.RuntimeConfig(), cfg.Env)),
 	}
 	var workspaceClient *workspaces.Client
 

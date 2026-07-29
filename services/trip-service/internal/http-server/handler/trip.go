@@ -18,6 +18,7 @@ import (
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aidataset"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aimodel"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
@@ -58,6 +59,8 @@ type Handler struct {
 	generationJobs       *generationjobs.Service
 	aiObservability      *aiobservability.Service
 	aiDatasets           *aidataset.Service
+	aiModelFeedback      *aimodel.FeedbackService
+	aiModelOps           *aimodel.OpsService
 	workspacePolicies    *workspacepolicies.Service
 	featureFlags         *featureflags.Service
 	shareUnlockLimiter   *tripsecurity.RateLimiter
@@ -131,6 +134,16 @@ func (h *Handler) EnableAIDatasets(svc *aidataset.Service) *Handler {
 	return h
 }
 
+func (h *Handler) EnableAIModelFeedback(svc *aimodel.FeedbackService) *Handler {
+	h.aiModelFeedback = svc
+	return h
+}
+
+func (h *Handler) EnableAIModelOps(svc *aimodel.OpsService) *Handler {
+	h.aiModelOps = svc
+	return h
+}
+
 func (h *Handler) EnableWorkspacePolicies(svc *workspacepolicies.Service) *Handler {
 	h.workspacePolicies = svc
 	return h
@@ -180,6 +193,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/verification", h.GetTripVerification)
 		r.Post("/{id}/verification/actions", h.RunTripVerificationAction)
 		r.Post("/{id}/ai-training/consent", h.GrantTripAITrainingConsent)
+		r.Post("/{id}/ai-model-feedback", h.SubmitAIModelFeedback)
 		r.Delete("/{id}/ai-training/consent", h.RevokeTripAITrainingConsent)
 		r.Get("/{id}/group-readiness", h.GetGroupReadiness)
 		r.Post("/{id}/group-readiness/nudge", h.SendGroupReadinessNudge)

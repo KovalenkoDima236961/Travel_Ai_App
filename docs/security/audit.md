@@ -91,3 +91,15 @@ The full model is in [threat-model.md](threat-model.md).
 3. Hash public-share tokens in a backward-compatible migration.
 4. Add a production malware-scanner adapter before enabling file scanning.
 5. Add an authenticated ZAP context/script after test-user bootstrap is stable.
+
+## AI Model Deployment Audit
+
+Every deployment state/configuration change must write
+`ai_model_deployment_events` with actor, action, old/new state when available,
+reason, request ID, and timestamp. Required audited actions include creation,
+shadow/internal/allowlist enablement, rollout changes, pause/resume,
+activation, rejection, retirement, guardrail pause, and rollback.
+
+Ops access to shadow snapshots or candidate debug output, when enabled outside
+production, must be separately audited. Audit logs must not include prompts,
+full outputs, adapter paths, or provider secrets.

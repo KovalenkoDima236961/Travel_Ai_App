@@ -5,6 +5,8 @@ package application
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetoptimization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/aggregate"
@@ -18,6 +20,14 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/workspacepolicies"
 )
 
+// ModelRoutingMetadata is backend-only serving metadata resolved by Trip
+// Service. Public clients cannot set these values.
+type ModelRoutingMetadata struct {
+	DeploymentKey       string
+	RequestAssignmentID *uuid.UUID
+	InferenceMode       string
+}
+
 // GenerateItineraryInput is the internal generator request. Trip Service owns
 // loading trusted user context; frontend callers cannot submit these fields.
 type GenerateItineraryInput struct {
@@ -29,6 +39,7 @@ type GenerateItineraryInput struct {
 	WeatherForecast            *weathercontext.WeatherForecast
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints
 	PlanningConstraints        *planningconstraints.PlanningConstraints
+	ModelRouting               *ModelRoutingMetadata
 }
 
 // GenerateChecklistInput is the internal AI request for practical packing and

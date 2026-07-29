@@ -35,6 +35,7 @@ a client. Private routes require bearer JWT unless stated otherwise.
 | Method/path | Service | Permission | Request and response | Important errors |
 | --- | --- | --- | --- | --- |
 | `POST /trips/{id}/generate`, `/generation-jobs`; `GET .../generation-jobs/{jobId}`; cancel | Trip | Owner/editor | Create/read/cancel async generation | conflict, generation failed |
+| `POST /trips/{id}/ai-model-feedback` | Trip | Private trip read access | Bounded user feedback linked to generation/model assignment metadata | validation, forbidden |
 | Budget optimization and repair job/proposal routes | Trip | Owner/editor | Queued proposal then revision-safe apply/discard | conflict, generation failed |
 | `POST /trip-discovery/suggestions`, `/surprise-me`, sessions/refine/vote | Trip | Private | Discovery sessions and votes | validation, provider/AI failure |
 | `POST /route-alternatives/suggest` and session/trip alternative routes | Trip | Private/read-edit by action | Route alternatives/create/apply/poll | conflict |
@@ -62,8 +63,9 @@ a client. Private routes require bearer JWT unless stated otherwise.
 | `/places/*`, `/routes/estimate`, `/weather/forecast`, `/exchange-rates/*`, prices/availability/transport | External | Bearer where route middleware applies | Normalized/mock provider estimates | provider errors |
 | Calendar connect/status/free-busy/disconnect and callback | External | Bearer except OAuth callback | OAuth and calendar data controls | unauthorized, provider unavailable |
 | `/ops/providers/*` | External | Ops/internal configuration | Provider status/quota/reset-dev | forbidden, quota |
-| `/generate-itinerary`, checklist, regenerate, optimize, repair, adapt, discovery, Copilot, recap, knowledge/destination context | AI | Service-to-service deployment boundary | Strict validated AI schemas | validation, generation failed |
+| `/generate-itinerary`, checklist, regenerate, optimize, repair, adapt, discovery, Copilot, recap, knowledge/destination context | AI | Service-to-service deployment boundary | Strict validated AI schemas; itinerary generation accepts backend-owned model routing metadata | validation, generation failed |
 | `/ops/jobs*`, `/ops/ai-generations*` | Trip | Ops authorization | Job/trace list, retry/cancel/mark failed | forbidden, conflict |
+| `/ops/ai/model-deployments*` | Trip | Ops authorization | Register deployments, enable shadow sampling, pause/rollback, and read online comparison summary | forbidden, validation, conflict |
 | `GET /feature-flags/public`; `/ops/feature-flags*` | Trip | Public safe projection; ops routes require allowlisted admin | Browser-safe booleans; list/change/reset/audit reviewed runtime controls | feature disabled, forbidden |
 | `/ops/worker/status`, queues and DLQ routes | Worker | Ops authorization | Worker/queue/DLQ diagnostics and action | forbidden, conflict |
 | `/health`, `/ready`, `/version`, `/metrics` | Go services and AI; Web exposes version at `/api/version` | Public local/monitoring | Liveness, dependencies, non-sensitive build metadata, metrics | service unavailable |

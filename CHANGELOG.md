@@ -7,6 +7,10 @@ All notable changes are recorded here following [Keep a Changelog](https://keepa
 ### Added
 
 - Release management and versioning v1: release metadata, version endpoints, tagged image builds, staging-like Compose verification, and release playbooks.
+- AI model-serving rollout foundation: deployment/assignment/comparison/feedback
+  tables, deterministic baseline/candidate/shadow routing core, backend-owned AI
+  Planning routing metadata, user feedback capture, rollout playbooks, and
+  operational docs.
 
 ### Changed
 
@@ -26,15 +30,20 @@ All notable changes are recorded here following [Keep a Changelog](https://keepa
 
 ### Security
 
-- None.
+- AI model-serving docs and defaults keep prompts, raw outputs, adapter paths,
+  provider payloads, and training consent separate from online rollout metadata.
 
 ### Migration Notes
 
-- None.
+- Trip Service migration `000046_create_ai_model_serving_tables` adds
+  append-only deployment, assignment, online comparison, shadow snapshot, rollout
+  window, and feedback tables. It is additive.
 
 ### API Contract Changes
 
 - Added public, non-sensitive `GET /version` metadata endpoints for all API services and the Web App.
+- Added Trip Service `POST /trips/{id}/ai-model-feedback` and optional AI
+  Planning `/generate-itinerary` serving metadata fields.
 
 ### Known Issues
 

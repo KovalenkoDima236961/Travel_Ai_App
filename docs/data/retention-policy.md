@@ -18,6 +18,7 @@ This policy reduces unnecessary storage and exposure. It is an engineering polic
 | AI dataset examples and review events | Trip Service / `ai_training_examples`, `ai_dataset_review_events`, `ai_dataset_versions` | Retained for audit until a later archival/deletion policy is approved | dataset governance policy | User-derived examples become ineligible when consent is revoked; review/audit records are preserved. |
 | AI dataset exports | Trip Service / private `AI_DATASET_EXPORT_DIR` | 30 days by default; local private package deletion after audit record is preserved | `AI_DATASET_EXPORT_RETENTION_DAYS` | Export is disabled by default; paths are generated under the configured private directory. |
 | AI model experiments and adapters | Trip Service metadata tables and local `data/model-adapters` | Retain metadata and promoted/rejected adapter manifests for audit until an archival policy is approved; checkpoint cleanup is manual dry-run first | `AI_MODEL_ARTIFACT_DIR`, local operator policy | Never commit adapters/checkpoints; preserve checksum and decision records before deleting local artifacts. |
+| AI model serving assignments and comparisons | Trip Service / `ai_model_*` serving tables | Assignments and online comparisons: 90 days; rollout metric windows: 365 days; shadow input snapshots: 48 hours | `AI_ASSIGNMENT_RETENTION_DAYS`, `AI_COMPARISON_RETENTION_DAYS`, `AI_SHADOW_INPUT_RETENTION_HOURS` | Candidate raw outputs are disabled in production by default; deployment events follow audit retention. |
 | Presence/edit locks | Trip Service | In-memory only; existing TTL cleanup applies | existing lock TTL config | No database cleanup is needed in v1. |
 | Offline client data | Browser IndexedDB and service-worker caches | Cached trips: optional stale cleanup (default 30 days); pending mutations preserved; drafts require confirmation | `NEXT_PUBLIC_OFFLINE_CACHE_MAX_AGE_DAYS` | User-scoped clear/logout cleanup is available. |
 | Provider caches / OAuth state | External Integrations Service | Persisted cache: expiry + 7 days; OAuth state: 1 day | `RETENTION_PROVIDER_CACHE_GRACE_DAYS`, `RETENTION_OAUTH_STATES_DAYS` | Current v1 provider caches are in-memory and self-evict. Disconnection removes encrypted calendar tokens. |
@@ -42,3 +43,15 @@ Scheduled cleanup is enabled with `CLEANUP_JOBS_ENABLED=true` and `WORKER_SCHEDU
 - No cloud-provider or paid-object-store lifecycle policy.
 - No automatic deletion of audit/security logs unless a later explicit policy enables it.
 - No production-backup deletion by the application worker.
+
+## AI Model Serving Retention
+
+Model request assignments and online comparison rows are retained for 90 days by
+default. Aggregate rollout windows may be retained for one year because they
+contain only metrics. Encrypted shadow input snapshots are short-lived
+operational data and expire after 24-72 hours; the default is 48 hours.
+
+Candidate raw outputs are disabled in production by default. If local/staging
+debug retention is enabled, it must be encrypted, ops-only, audited, and kept
+under 24 hours. Deployment events are audit records and follow long-lived audit
+retention.

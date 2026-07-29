@@ -74,6 +74,9 @@ type aiPlanningGenerateRequest struct {
 	WorkspacePolicyConstraints *workspacepolicies.AIConstraints         `json:"workspacePolicyConstraints,omitempty"`
 	PlanningConstraints        *planningconstraints.PlanningConstraints `json:"planningConstraints,omitempty"`
 	GroundingContext           *aiPlanningGroundingContext              `json:"groundingContext,omitempty"`
+	DeploymentKey              string                                   `json:"deploymentKey,omitempty"`
+	RequestAssignmentID        string                                   `json:"requestAssignmentId,omitempty"`
+	InferenceMode              string                                   `json:"inferenceMode,omitempty"`
 }
 
 type aiPlanningTripRequest struct {
@@ -743,6 +746,35 @@ func newAIPlanningGenerateRequest(input application.GenerateItineraryInput) aiPl
 		TripStyles:                 routeTripStyles(trip.Route),
 		WorkspacePolicyConstraints: input.WorkspacePolicyConstraints,
 		PlanningConstraints:        input.PlanningConstraints,
+		DeploymentKey:              modelRoutingDeploymentKey(input.ModelRouting),
+		RequestAssignmentID:        modelRoutingAssignmentID(input.ModelRouting),
+		InferenceMode:              modelRoutingInferenceMode(input.ModelRouting),
+	}
+}
+
+func modelRoutingDeploymentKey(metadata *application.ModelRoutingMetadata) string {
+	if metadata == nil {
+		return ""
+	}
+	return strings.TrimSpace(metadata.DeploymentKey)
+}
+
+func modelRoutingAssignmentID(metadata *application.ModelRoutingMetadata) string {
+	if metadata == nil || metadata.RequestAssignmentID == nil {
+		return ""
+	}
+	return metadata.RequestAssignmentID.String()
+}
+
+func modelRoutingInferenceMode(metadata *application.ModelRoutingMetadata) string {
+	if metadata == nil {
+		return ""
+	}
+	switch strings.TrimSpace(metadata.InferenceMode) {
+	case "primary", "shadow", "evaluation":
+		return strings.TrimSpace(metadata.InferenceMode)
+	default:
+		return ""
 	}
 }
 

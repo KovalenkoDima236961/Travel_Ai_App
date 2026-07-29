@@ -19,6 +19,7 @@ from app.api.dependencies import (
 from app.config import Settings
 from app.core.errors import ItineraryGenerationError
 from app.core.readiness import check_readiness
+from app.model_router.routing import safe_request_routing_metadata
 from app.observability import record_ai_request, record_ai_validation_failure
 from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
 from app.schemas.copilot import CopilotRespondRequest, CopilotRespondResponse
@@ -124,7 +125,7 @@ def suggest_destinations(
     try:
         response = generator.suggest(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(response, settings, operation, mode, started_at, request)
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -436,7 +437,12 @@ _PROMPT_VERSIONS = {
 
 
 def _with_metadata(
-    response: object, settings: Settings, operation: str, mode: str, started_at: float
+    response: object,
+    settings: Settings,
+    operation: str,
+    mode: str,
+    started_at: float,
+    request: object | None = None,
 ):
     """Attach safe provider/timing metadata without returning prompts or input."""
     if not hasattr(response, "model_copy") or not hasattr(response, "model_dump"):
@@ -447,11 +453,15 @@ def _with_metadata(
     provider = "ollama" if normalized_mode == "ollama" else "mock"
     model = settings.ollama_model if provider == "ollama" else "mock-v1"
     runtime = adapter_response_metadata(settings)
+    routing_metadata = safe_request_routing_metadata(request) if request is not None else {}
     metadata = AIResponseMetadata(
         promptVersion=_PROMPT_VERSIONS.get(operation, "unknown_v1"),
         provider=provider,
         model=model,
         mode=normalized_mode,
+        deploymentKey=routing_metadata.get("deploymentKey"),
+        requestAssignmentId=routing_metadata.get("requestAssignmentId"),
+        inferenceMode=routing_metadata.get("inferenceMode"),
         modelVariant=runtime.get("modelVariant"),
         adapterEnabled=runtime.get("adapterEnabled"),
         adapterLoaded=runtime.get("adapterLoaded"),

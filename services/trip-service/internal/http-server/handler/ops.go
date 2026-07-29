@@ -37,6 +37,7 @@ func (h *Handler) RegisterOpsRoutes(r chi.Router, staleThreshold time.Duration) 
 		r.Get("/ai-generations", h.OpsListAIGenerations)
 		r.Get("/ai-generations/{traceId}", h.OpsGetAIGeneration)
 		h.registerOpsAIDatasetRoutes(r)
+		h.registerOpsAIModelRoutes(r)
 		h.registerOpsKnowledgeRoutes(r)
 	})
 }

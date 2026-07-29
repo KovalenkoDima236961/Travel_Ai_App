@@ -12,6 +12,12 @@ repository conventions rather than replacing code review.
 - [Add an external provider](playbooks/add-external-provider.md)
 - [Add a security-sensitive feature](playbooks/add-security-sensitive-feature.md)
 - [Add a Playwright test](playbooks/add-playwright-test.md)
+- [Register an AI model deployment](playbooks/register-ai-model-deployment.md)
+- [Start AI shadow evaluation](playbooks/start-ai-shadow-evaluation.md)
+- [Start AI internal rollout](playbooks/start-ai-internal-rollout.md)
+- [Increase AI rollout percentage](playbooks/increase-ai-rollout-percentage.md)
+- [Pause and rollback an AI model](playbooks/pause-and-rollback-ai-model.md)
+- [Analyze an AI online regression](playbooks/analyze-ai-online-regression.md)
 
 ## Common commands
 

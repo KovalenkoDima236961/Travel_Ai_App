@@ -153,6 +153,44 @@ func TestAIPlanningHTTPGeneratorGenerate_DefaultsRequestPayload(t *testing.T) {
 	}
 }
 
+func TestAIPlanningHTTPGeneratorGenerate_CarriesInternalRoutingMetadata(t *testing.T) {
+	var captured aiPlanningGenerateRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		fmt.Fprint(w, `{"days":[{"day":1,"title":"Day","items":[]} ]}`)
+	}))
+	defer server.Close()
+
+	client := server.Client()
+	client.Timeout = time.Second
+	gen := newTestHTTPGenerator(t, server.URL, client)
+
+	assignmentID := uuid.New()
+	_, err := gen.Generate(context.Background(), application.GenerateItineraryInput{
+		Trip: validTrip(),
+		ModelRouting: &application.ModelRoutingMetadata{
+			DeploymentKey:       "grounded-baseline",
+			RequestAssignmentID: &assignmentID,
+			InferenceMode:       "primary",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if captured.DeploymentKey != "grounded-baseline" {
+		t.Fatalf("expected deployment key to be sent, got %q", captured.DeploymentKey)
+	}
+	if captured.RequestAssignmentID != assignmentID.String() {
+		t.Fatalf("expected assignment id %s, got %q", assignmentID, captured.RequestAssignmentID)
+	}
+	if captured.InferenceMode != "primary" {
+		t.Fatalf("expected primary inference mode, got %q", captured.InferenceMode)
+	}
+}
+
 func TestAIPlanningHTTPGeneratorGenerate_Non2xxReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "invalid trip", http.StatusUnprocessableEntity)

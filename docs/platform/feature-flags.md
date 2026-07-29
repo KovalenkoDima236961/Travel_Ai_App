@@ -60,6 +60,26 @@ flag, ensure that service’s configuration and credentials are present; the
 environment validator checks that dependency relationship in strict
 environments.
 
+## AI model-serving controls
+
+AI model-serving rollout flags are backend-only and are never exposed through
+`GET /feature-flags/public`:
+
+- `ai_model_serving_enabled`
+- `ai_shadow_evaluation_enabled`
+- `ai_candidate_internal_rollout_enabled`
+- `ai_candidate_allowlist_rollout_enabled`
+- `ai_candidate_percentage_rollout_enabled`
+- `ai_candidate_user_opt_in_enabled`
+- `ai_automatic_guardrail_pause_enabled`
+
+`ai_model_serving_enabled` may remain on while traffic stays pinned to the
+baseline deployment. Candidate-visible flags default off in production and must
+be paired with deployment state, rollout configuration, guardrail thresholds,
+and the playbooks in `docs/development/playbooks`. The first rollback action is
+to pause the deployment or turn off the candidate/shadow flag; never remove
+assignment/comparison tables during an incident.
+
 ## Operations and auditing
 
 Allowlisted ops admins use:

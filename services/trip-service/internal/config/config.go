@@ -8,6 +8,7 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aimodel"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/featureflags"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/validation"
@@ -57,6 +58,7 @@ type Config struct {
 	Search             SearchConfig             `yaml:"search"`
 	AIValidation       AIValidationConfig       `yaml:"ai_validation"`
 	AIObservability    AIObservabilityConfig    `yaml:"ai_observability"`
+	AIModelServing     AIModelServingConfig     `yaml:"ai_model_serving"`
 	Copilot            CopilotConfig            `yaml:"copilot"`
 	TripRecap          TripRecapConfig          `yaml:"trip_recap"`
 	TripLibrary        TripLibraryConfig        `yaml:"trip_library"`
@@ -197,6 +199,87 @@ type AIValidationConfig struct {
 	BlockOnCriticalRouteErrors bool `yaml:"block_on_critical_route_errors" env:"AI_VALIDATION_BLOCK_ON_CRITICAL_ROUTE_ERRORS" env-default:"true"`
 	BlockOnBudgetErrors        bool `yaml:"block_on_budget_errors" env:"AI_VALIDATION_BLOCK_ON_BUDGET_ERRORS" env-default:"true"`
 	FailOpen                   bool `yaml:"fail_open" env:"AI_VALIDATION_FAIL_OPEN" env-default:"false"`
+}
+
+// AIModelServingConfig controls deployment-aware model assignment. It is
+// intentionally backend-only; frontend flags can expose opt-in UI, but routing
+// and adapter keys are never client-selected.
+type AIModelServingConfig struct {
+	Enabled                                   bool    `yaml:"enabled" env:"AI_MODEL_SERVING_ENABLED" env-default:"true"`
+	DefaultDeploymentKey                      string  `yaml:"default_deployment_key" env:"AI_DEFAULT_DEPLOYMENT_KEY" env-default:"grounded-baseline"`
+	ShadowEnabled                             bool    `yaml:"shadow_enabled" env:"AI_SHADOW_ENABLED" env-default:"false"`
+	ShadowSamplePercent                       float64 `yaml:"shadow_sample_percent" env:"AI_SHADOW_SAMPLE_PERCENT" env-default:"0" validate:"min=0,max=100"`
+	ShadowMaxConcurrent                       int     `yaml:"shadow_max_concurrent" env:"AI_SHADOW_MAX_CONCURRENT" env-default:"1" validate:"min=1,max=100"`
+	ShadowQueueName                           string  `yaml:"shadow_queue_name" env:"AI_SHADOW_QUEUE_NAME" env-default:"ai.shadow.evaluations"`
+	ShadowTimeoutSeconds                      int     `yaml:"shadow_timeout_seconds" env:"AI_SHADOW_TIMEOUT_SECONDS" env-default:"180" validate:"min=1,max=3600"`
+	ShadowMaxQueueAgeSeconds                  int     `yaml:"shadow_max_queue_age_seconds" env:"AI_SHADOW_MAX_QUEUE_AGE_SECONDS" env-default:"900" validate:"min=1,max=86400"`
+	ShadowSkipWhenQueueDepthAbove             int     `yaml:"shadow_skip_when_queue_depth_above" env:"AI_SHADOW_SKIP_WHEN_QUEUE_DEPTH_ABOVE" env-default:"100" validate:"min=1,max=100000"`
+	ShadowFailOpen                            bool    `yaml:"shadow_fail_open" env:"AI_SHADOW_FAIL_OPEN" env-default:"true"`
+	CandidateRolloutPercent                   float64 `yaml:"candidate_rollout_percent" env:"AI_CANDIDATE_ROLLOUT_PERCENT" env-default:"0" validate:"min=0,max=100"`
+	CandidateInternalOnly                     bool    `yaml:"candidate_internal_only" env:"AI_CANDIDATE_INTERNAL_ONLY" env-default:"true"`
+	CandidateFallbackToBaseline               bool    `yaml:"candidate_fallback_to_baseline" env:"AI_CANDIDATE_FALLBACK_TO_BASELINE" env-default:"true"`
+	DeploymentAssignmentSalt                  string  `yaml:"deployment_assignment_salt" env:"AI_DEPLOYMENT_ASSIGNMENT_SALT"`
+	ComparisonRetentionDays                   int     `yaml:"comparison_retention_days" env:"AI_COMPARISON_RETENTION_DAYS" env-default:"90" validate:"min=1,max=3650"`
+	AssignmentRetentionDays                   int     `yaml:"assignment_retention_days" env:"AI_ASSIGNMENT_RETENTION_DAYS" env-default:"90" validate:"min=1,max=3650"`
+	ShadowInputRetentionHours                 int     `yaml:"shadow_input_retention_hours" env:"AI_SHADOW_INPUT_RETENTION_HOURS" env-default:"48" validate:"min=1,max=168"`
+	InternalRolloutEnabled                    bool    `yaml:"internal_rollout_enabled" env:"AI_CANDIDATE_INTERNAL_ROLLOUT_ENABLED" env-default:"false"`
+	AllowlistRolloutEnabled                   bool    `yaml:"allowlist_rollout_enabled" env:"AI_CANDIDATE_ALLOWLIST_ROLLOUT_ENABLED" env-default:"false"`
+	PercentageRolloutEnabled                  bool    `yaml:"percentage_rollout_enabled" env:"AI_CANDIDATE_PERCENTAGE_ROLLOUT_ENABLED" env-default:"false"`
+	UserOptInEnabled                          bool    `yaml:"user_opt_in_enabled" env:"AI_CANDIDATE_USER_OPT_IN_ENABLED" env-default:"false"`
+	AutomaticGuardrailPauseEnabled            bool    `yaml:"automatic_guardrail_pause_enabled" env:"AI_AUTOMATIC_GUARDRAIL_PAUSE_ENABLED" env-default:"false"`
+	GuardrailMinSampleCount                   int     `yaml:"guardrail_min_sample_count" env:"AI_ROLLOUT_GUARDRAIL_MIN_SAMPLE_COUNT" env-default:"50" validate:"min=1,max=100000"`
+	GuardrailWindowMinutes                    int     `yaml:"guardrail_window_minutes" env:"AI_ROLLOUT_GUARDRAIL_WINDOW_MINUTES" env-default:"60" validate:"min=1,max=10080"`
+	GuardrailMaxFailureRate                   float64 `yaml:"guardrail_max_failure_rate" env:"AI_ROLLOUT_MAX_FAILURE_RATE" env-default:"0.05" validate:"min=0,max=1"`
+	GuardrailMaxParseFailureRate              float64 `yaml:"guardrail_max_parse_failure_rate" env:"AI_ROLLOUT_MAX_PARSE_FAILURE_RATE" env-default:"0.01" validate:"min=0,max=1"`
+	GuardrailMaxHallucinationRegression       float64 `yaml:"guardrail_max_hallucination_regression" env:"AI_ROLLOUT_MAX_HALLUCINATION_REGRESSION" env-default:"0" validate:"min=0,max=1"`
+	GuardrailMaxDestinationMismatchRegression float64 `yaml:"guardrail_max_destination_mismatch_regression" env:"AI_ROLLOUT_MAX_DESTINATION_MISMATCH_REGRESSION" env-default:"0" validate:"min=0,max=1"`
+	GuardrailMaxRepairRateIncrease            float64 `yaml:"guardrail_max_repair_rate_increase" env:"AI_ROLLOUT_MAX_REPAIR_RATE_INCREASE" env-default:"0.05" validate:"min=0,max=1"`
+	GuardrailMaxP95LatencyIncreasePercent     float64 `yaml:"guardrail_max_p95_latency_increase_percent" env:"AI_ROLLOUT_MAX_P95_LATENCY_INCREASE_PERCENT" env-default:"25" validate:"min=0,max=10000"`
+	GuardrailMaxP95LatencyMS                  int     `yaml:"guardrail_max_p95_latency_ms" env:"AI_ROLLOUT_MAX_P95_LATENCY_MS" env-default:"0" validate:"min=0"`
+	GuardrailMinGroundedPlaceRate             float64 `yaml:"guardrail_min_grounded_place_rate" env:"AI_ROLLOUT_MIN_GROUNDED_PLACE_RATE" env-default:"0" validate:"min=0,max=1"`
+	GuardrailMinOverallQualityDelta           float64 `yaml:"guardrail_min_overall_quality_delta" env:"AI_ROLLOUT_MIN_OVERALL_QUALITY_DELTA" env-default:"0" validate:"min=-1,max=1"`
+	GuardrailMaxLanguageScoreDrop             float64 `yaml:"guardrail_max_language_score_drop" env:"AI_ROLLOUT_MAX_LANGUAGE_SCORE_DROP" env-default:"0.05" validate:"min=0,max=1"`
+}
+
+func (c AIModelServingConfig) RuntimeConfig() aimodel.Config {
+	return aimodel.NormalizeConfig(aimodel.Config{
+		ModelServingEnabled:            c.Enabled,
+		DefaultDeploymentKey:           c.DefaultDeploymentKey,
+		ShadowEnabled:                  c.ShadowEnabled,
+		ShadowSamplePercent:            c.ShadowSamplePercent,
+		ShadowMaxConcurrent:            c.ShadowMaxConcurrent,
+		ShadowQueueName:                c.ShadowQueueName,
+		ShadowTimeout:                  time.Duration(c.ShadowTimeoutSeconds) * time.Second,
+		ShadowMaxQueueAge:              time.Duration(c.ShadowMaxQueueAgeSeconds) * time.Second,
+		ShadowSkipWhenQueueDepthAbove:  c.ShadowSkipWhenQueueDepthAbove,
+		ShadowFailOpen:                 c.ShadowFailOpen,
+		CandidateRolloutPercent:        c.CandidateRolloutPercent,
+		CandidateInternalOnly:          c.CandidateInternalOnly,
+		CandidateFallbackToBaseline:    c.CandidateFallbackToBaseline,
+		DeploymentAssignmentSalt:       c.DeploymentAssignmentSalt,
+		ComparisonRetentionDays:        c.ComparisonRetentionDays,
+		AssignmentRetentionDays:        c.AssignmentRetentionDays,
+		ShadowInputRetention:           time.Duration(c.ShadowInputRetentionHours) * time.Hour,
+		InternalRolloutEnabled:         c.InternalRolloutEnabled,
+		AllowlistRolloutEnabled:        c.AllowlistRolloutEnabled,
+		PercentageRolloutEnabled:       c.PercentageRolloutEnabled,
+		UserOptInEnabled:               c.UserOptInEnabled,
+		AutomaticGuardrailPauseEnabled: c.AutomaticGuardrailPauseEnabled,
+		Guardrails: aimodel.GuardrailConfig{
+			MinSampleCount:                   c.GuardrailMinSampleCount,
+			WindowDuration:                   time.Duration(c.GuardrailWindowMinutes) * time.Minute,
+			MaxCandidateFailureRate:          c.GuardrailMaxFailureRate,
+			MaxParseFailureRate:              c.GuardrailMaxParseFailureRate,
+			MaxHallucinationRegression:       c.GuardrailMaxHallucinationRegression,
+			MaxDestinationMismatchRegression: c.GuardrailMaxDestinationMismatchRegression,
+			MaxRepairRateIncrease:            c.GuardrailMaxRepairRateIncrease,
+			MaxP95LatencyIncreasePercent:     c.GuardrailMaxP95LatencyIncreasePercent,
+			MaxP95LatencyMS:                  c.GuardrailMaxP95LatencyMS,
+			MinGroundedPlaceRate:             c.GuardrailMinGroundedPlaceRate,
+			MinOverallQualityDelta:           c.GuardrailMinOverallQualityDelta,
+			MaxLanguageScoreDrop:             c.GuardrailMaxLanguageScoreDrop,
+		},
+	})
 }
 
 type TripHealthConfig struct {
@@ -608,6 +691,9 @@ func (c *Config) validateStrictConfig() error {
 	if err := c.validateAIObservability(); err != nil {
 		return err
 	}
+	if err := c.validateAIModelServing(); err != nil {
+		return err
+	}
 	if c.IsProduction() && c.Receipts.FileScanningEnabled && c.Receipts.FileScanningFailOpen {
 		return fmt.Errorf("FILE_SCANNING_FAIL_OPEN must be false when scanning is enabled in production")
 	}
@@ -739,6 +825,16 @@ func (c *Config) validateGenerationJobs() error {
 		return nil
 	}
 	return validateRabbitMQURL("RABBITMQ_URL", c.GenerationJobs.RabbitMQURL, c.IsStrictEnv())
+}
+
+func (c *Config) validateAIModelServing() error {
+	if err := aimodel.ValidateConfig(c.AIModelServing.RuntimeConfig(), c.IsStrictEnv()); err != nil {
+		return err
+	}
+	if c.IsProduction() && c.AIModelServing.PercentageRolloutEnabled && !c.AIModelServing.AutomaticGuardrailPauseEnabled {
+		return fmt.Errorf("AI_AUTOMATIC_GUARDRAIL_PAUSE_ENABLED must be true for production percentage rollout")
+	}
+	return nil
 }
 
 func (c *Config) validateInternalTokens() error {

@@ -174,6 +174,33 @@ Prometheus metrics use the `ai_generation_*` prefix for validation status,
 issue counts, repair attempts, repair success/failure, blocked saves, and saves
 with warnings.
 
+## AI Model Serving, Shadow Evaluation, and Rollout Metadata
+
+Trip Service owns model-serving assignment policy for itinerary generation.
+`AI_MODEL_SERVING_ENABLED` defaults to a safe baseline route through
+`AI_DEFAULT_DEPLOYMENT_KEY`; candidate and shadow traffic require explicit
+serving configuration, deployment rows, and backend feature flags. The
+database-backed router falls back to the grounded baseline when no active
+deployment row exists. It uses request/user/workspace/trip identity plus
+`AI_DEPLOYMENT_ASSIGNMENT_SALT` so a percentage rollout is sticky without
+trusting frontend input.
+
+Generation calls forward backend-owned `deploymentKey`,
+`requestAssignmentId`, and `inferenceMode` metadata to AI Planning Service.
+Persisted itinerary-version metadata records only safe routing fields such as
+deployment key, variant, assignment type, and prompt/grounding/validator
+versions. It does not store prompts, raw candidate output, adapter paths,
+private trip context, or provider payloads.
+
+`POST /trips/{id}/ai-model-feedback` records bounded online comparison
+feedback categories with an optional redacted note. Feedback requires private
+trip read access and is separate from AI training consent. Model-serving tables
+are created by migration `000046_create_ai_model_serving_tables`.
+Ops-admin routes under `/ops/ai/model-deployments*` register deployments,
+enable shadow sampling, pause, rollback, and return online summaries; rollout
+playbooks and smoke scripts live under `docs/development/playbooks` and
+`scripts/ai`.
+
 ## Smart Packing Checklist
 
 Smart Packing & Preparation Checklist v1 uses migration

@@ -74,6 +74,17 @@
             "title": "Durationms",
             "type": "integer"
           },
+          "deploymentKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploymentkey"
+          },
           "experimentKey": {
             "anyOf": [
               {
@@ -121,6 +132,33 @@
               }
             ],
             "title": "Modelvariant"
+          },
+          "requestAssignmentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestassignmentid"
+          },
+          "inferenceMode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "primary",
+                  "shadow"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inferencemode"
           },
           "promptVersion": {
             "title": "Promptversion",
@@ -3442,6 +3480,18 @@
             "title": "Destination",
             "type": "string"
           },
+          "deploymentKey": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploymentkey"
+          },
           "groundingContext": {
             "anyOf": [
               {
@@ -3463,6 +3513,21 @@
               }
             ],
             "title": "Instruction"
+          },
+          "inferenceMode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "primary",
+                  "shadow"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inferencemode"
           },
           "interests": {
             "items": {
@@ -6771,6 +6836,18 @@
               }
             ],
             "title": "Planningconstraints"
+          },
+          "requestAssignmentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestassignmentid"
           },
           "route": {
             "anyOf": [

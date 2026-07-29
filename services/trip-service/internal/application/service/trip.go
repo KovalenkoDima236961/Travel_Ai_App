@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aimodel"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
@@ -28,6 +29,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/priceenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/providerlimit"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/recap"
@@ -303,6 +305,10 @@ type workspacePolicyProvider interface {
 	GetActive(ctx context.Context, workspaceID uuid.UUID) (*workspacepolicies.Policy, error)
 }
 
+type modelRoutingProvider interface {
+	Decide(ctx context.Context, in aimodel.RoutingContext) (aimodel.RoutingDecision, error)
+}
+
 // Option customizes Service dependencies that are not required for the core
 // trip CRUD flow.
 type Option func(*Service)
@@ -442,6 +448,12 @@ func WithGenerationReliability(pipeline aivalidation.GenerationReliabilityPipeli
 	}
 }
 
+func WithAIModelRouter(router modelRoutingProvider) Option {
+	return func(s *Service) {
+		s.aiModelRouter = router
+	}
+}
+
 func WithReceipts(storage receipts.Storage, ocr receipts.OCRProvider, cfg receipts.Config) Option {
 	return func(s *Service) {
 		s.receiptStorage = storage
@@ -538,6 +550,7 @@ type Service struct {
 	commandCenterParallel              bool
 	libraryInsightsCacheTTL            time.Duration
 	generationReliability              aivalidation.GenerationReliabilityPipeline
+	aiModelRouter                      modelRoutingProvider
 	recapClient                        recap.Client
 	recapEnabled                       bool
 	recapAIEnabled                     bool
@@ -819,7 +832,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 		return nil, err
 	}
 
-	current, _, err := s.requireEditorOrOwner(ctx, id, user.ID)
+	current, access, err := s.requireEditorOrOwner(ctx, id, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -859,6 +872,8 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 	if err := s.requireNoPlanningBlockers(constraints, planningconstraints.SourceTripGeneration); err != nil {
 		return nil, err
 	}
+	ctx, requestID, _ := observability.EnsureRequestIDs(ctx)
+	modelDecision := s.resolveModelRouting(ctx, requestID, current, user.ID, access)
 
 	if _, err := s.repo.UpdateStatusByUserID(ctx, id, ownerID, entity.StatusProcessing); err != nil {
 		return nil, err
@@ -877,6 +892,7 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 		WeatherForecast:            weatherForecast,
 		WorkspacePolicyConstraints: s.workspacePolicyAIConstraints(ctx, current),
 		PlanningConstraints:        constraints,
+		ModelRouting:               modelRoutingMetadata(modelDecision),
 	})
 	if err != nil {
 		s.markFailed(ctx, id, ownerID)
@@ -894,10 +910,10 @@ func (s *Service) Generate(ctx context.Context, id uuid.UUID, in appdto.Generate
 		*current,
 		*itinerary,
 		entity.ItineraryVersionSourceGenerated,
-		map[string]any{
+		modelGenerationMetadata(map[string]any{
 			"generator":     "full",
 			"routeSnapshot": current.Route,
-		},
+		}, modelDecision),
 		constraints,
 		weatherForecast,
 		outputLanguage,
@@ -980,6 +996,94 @@ func discoveryGenerationInstruction(trip *entity.Trip) string {
 	}
 	instruction, _ := trip.CreationMetadata["suggestedPromptForItinerary"].(string)
 	return strings.TrimSpace(instruction)
+}
+
+func (s *Service) resolveModelRouting(
+	ctx context.Context,
+	requestID string,
+	trip *entity.Trip,
+	userID uuid.UUID,
+	access TripAccess,
+) *aimodel.RoutingDecision {
+	if s.aiModelRouter == nil || trip == nil {
+		return nil
+	}
+	decision, err := s.aiModelRouter.Decide(ctx, aimodel.RoutingContext{
+		RequestKey:        requestID,
+		UserID:            &userID,
+		WorkspaceID:       trip.WorkspaceID,
+		TripID:            &trip.ID,
+		TaskType:          aimodel.TaskGroundedItineraryGeneration,
+		Environment:       "",
+		AuthenticatedRole: access.Role(),
+		FeatureFlags: map[string]bool{
+			"ai_model_serving_enabled": true,
+		},
+	})
+	if err != nil {
+		s.log.Warn("ai model routing failed; continuing with grounded baseline",
+			zap.String("trip_id", trip.ID.String()),
+			zap.String("user_id", userID.String()),
+			zap.Error(err),
+		)
+		return nil
+	}
+	return &decision
+}
+
+func modelRoutingMetadata(decision *aimodel.RoutingDecision) *application.ModelRoutingMetadata {
+	if decision == nil {
+		return nil
+	}
+	return &application.ModelRoutingMetadata{
+		DeploymentKey:       decision.PrimaryDeployment.DeploymentKey,
+		RequestAssignmentID: requestAssignmentIDFromDecision(decision),
+		InferenceMode:       string(aimodel.InferenceModePrimary),
+	}
+}
+
+func requestAssignmentIDFromDecision(decision *aimodel.RoutingDecision) *uuid.UUID {
+	if decision == nil || decision.Metadata == nil {
+		return nil
+	}
+	raw, ok := decision.Metadata["requestAssignmentId"]
+	if !ok {
+		return nil
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return nil
+	}
+	parsed, err := uuid.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return nil
+	}
+	return &parsed
+}
+
+func modelGenerationMetadata(metadata map[string]any, decision *aimodel.RoutingDecision) map[string]any {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	if decision == nil {
+		return metadata
+	}
+	metadata["modelDeploymentKey"] = decision.PrimaryDeployment.DeploymentKey
+	metadata["modelVariant"] = string(decision.UserVisibleVariant)
+	metadata["assignmentType"] = string(decision.AssignmentType)
+	if requestAssignmentID := requestAssignmentIDFromDecision(decision); requestAssignmentID != nil {
+		metadata["requestAssignmentId"] = requestAssignmentID.String()
+	}
+	if decision.PrimaryDeployment.PromptVersion != "" {
+		metadata["promptVersion"] = decision.PrimaryDeployment.PromptVersion
+	}
+	if decision.PrimaryDeployment.GroundingVersion != "" {
+		metadata["groundingVersion"] = decision.PrimaryDeployment.GroundingVersion
+	}
+	if decision.PrimaryDeployment.ValidatorVersion != "" {
+		metadata["validatorVersion"] = decision.PrimaryDeployment.ValidatorVersion
+	}
+	return metadata
 }
 
 // UpdateItinerary validates and replaces the full itinerary JSON for a trip

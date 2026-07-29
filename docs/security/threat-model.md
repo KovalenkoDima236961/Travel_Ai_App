@@ -103,6 +103,23 @@ Offline keys and pending mutations are user-scoped. Logout removes the active
 user's cached private records; permission failures stop retry. The service
 worker caches the application shell/immutable assets, not authenticated API,
 receipt, or export responses.
-# Data lifecycle and deletion capability
+
+### Data lifecycle and deletion capability
 
 Retention cleanup reduces the exposure window for temporary and expired data, but Worker Service has sensitive deletion capability. Its manual cleanup operations require an authenticated ops admin; owning-service cleanup endpoints require `X-Internal-Service-Token`. Cleanup uses bounded ID batches, run locks, dry-run, and aggregate-only logs. Filesystem cleanup resolves paths inside configured storage directories. Audit/security logs are retained unless an explicit policy later enables their cleanup.
+
+### AI model serving
+
+Shadow inference handles sensitive planning context. RabbitMQ messages must
+carry safe references and immutable metadata only, not raw prompts, complete
+itineraries, calendar details, comments, receipts, profile identity fields,
+private addresses, provider secrets, or adapter paths.
+
+Model assignment is a backend decision. Users and public share viewers cannot
+submit arbitrary `deploymentKey`, adapter IDs, model paths, rollout salts, or
+traffic modes. Frontend flags are UX hints only.
+
+Adapter artifacts are supply-chain sensitive. Candidate serving requires
+checksum verification, artifact path confinement, approved adapter status, and
+guardrail configuration. Critical guardrail failures must be able to pause
+candidate traffic without redeploying.

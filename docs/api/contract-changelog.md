@@ -4,6 +4,11 @@
 
 - **Trip service:** Added safe public feature-flag projection, ops flag
   management/audit routes, and the `feature_disabled` error code. Additive.
+- **AI model serving:** Added Trip Service user feedback submission for online
+  model comparisons, ops deployment registration/pause/rollback/summary
+  routes, and AI Planning optional `deploymentKey`, `requestAssignmentId`, and
+  `inferenceMode` routing metadata on itinerary generation. Additive and
+  backend-owned.
 - **Release metadata:** Every API service now exposes public, non-sensitive `GET /version` metadata. This is additive and does not change existing endpoint bodies.
 
 Release rule: when an OpenAPI document changes, update this file, regenerate the Web App types, and include the changed specifications in the release artifact.

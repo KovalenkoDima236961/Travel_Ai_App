@@ -13,6 +13,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activity"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/activitystream"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aidataset"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aimodel"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
@@ -221,6 +222,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 	}
 
 	opts := []service.Option{
+		service.WithAIModelRouter(aimodel.NewDBRouter(db, cfg.AIModelServing.RuntimeConfig(), cfg.Env)),
 		service.WithTripRecap(nil, cfg.TripRecap.Enabled, cfg.TripRecap.AIEnabled, cfg.TripRecap.FailOpenWithDeterministic, cfg.TripRecap.MaxSourceChars),
 		service.WithTripLibrary(cfg.TripLibrary.Enabled, cfg.TripLibrary.ReadyHealthScoreThreshold, cfg.TripLibrary.ReadyVerificationScoreThreshold),
 		service.WithPersonalization(personalizationSvc),
@@ -601,6 +603,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		EnableGenerationJobs(generationJobSvc).
 		EnableAIObservability(aiTraceService).
 		EnableAIDatasets(aiDatasetSvc).
+		EnableAIModelFeedback(aimodel.NewFeedbackService(db)).
+		EnableAIModelOps(aimodel.NewOpsService(db, cfg.AIModelServing.RuntimeConfig(), cfg.Env, log)).
 		EnableWorkspacePolicies(policySvc).
 		EnableFeatureFlags(featureFlagSvc)
 	readinessHandler := httpserver.NewReadinessHandler(

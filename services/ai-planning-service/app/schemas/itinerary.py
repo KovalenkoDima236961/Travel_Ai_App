@@ -19,6 +19,7 @@ from pydantic import (
 )
 
 from app.schemas.grounding import GroundingContext, GroundingSource
+from app.model_router.models import InferenceMode
 from app.schemas.observability import AIResponseMetadata
 from app.schemas.planning_constraints import PlanningConstraints
 
@@ -537,6 +538,9 @@ class GenerateItineraryRequest(APIModel):
         default=None, alias="planningConstraints"
     )
     grounding_context: GroundingContext | None = Field(default=None, alias="groundingContext")
+    deployment_key: str | None = Field(default=None, alias="deploymentKey", max_length=120)
+    request_assignment_id: UUID | None = Field(default=None, alias="requestAssignmentId")
+    inference_mode: InferenceMode | None = Field(default=None, alias="inferenceMode")
 
     @field_validator("budget_currency", mode="before")
     @classmethod
@@ -577,6 +581,21 @@ class GenerateItineraryRequest(APIModel):
     @classmethod
     def normalize_trip_styles(cls, value: object) -> object:
         return RoutePreferences.normalize_trip_styles(value)
+
+    @field_validator("deployment_key")
+    @classmethod
+    def normalize_deployment_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if "/" in normalized or "\\" in normalized or ".." in normalized:
+            raise ValueError("deploymentKey must be a registered deployment key, not a path")
+        for char in normalized:
+            if not (char.isalnum() or char in {"-", "_", ".", ":"}):
+                raise ValueError("deploymentKey contains unsupported characters")
+        return normalized
 
 
 class OpeningHoursInterval(APIModel):

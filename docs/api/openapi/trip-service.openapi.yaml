@@ -15,6 +15,7 @@ tags:
   - name: Public sharing
   - name: Planning
   - name: AI datasets
+  - name: AI model serving
 paths:
   /feature-flags/public:
     get:
@@ -143,6 +144,80 @@ paths:
           description: Operator readiness summary; ready=false blocks training/export workflows.
           content: { application/json: { schema: { $ref: '#/components/schemas/AIDatasetReadiness' } } }
         '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/model-deployments:
+    post:
+      tags: [AI model serving]
+      operationId: registerAIModelDeployment
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegisterAIModelDeploymentRequest' } } }
+      responses:
+        '201':
+          description: Registered deployment with traffic disabled unless explicitly supplied otherwise.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIModelDeployment' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/model-deployments/{deploymentId}/enable-shadow:
+    post:
+      tags: [AI model serving]
+      operationId: enableAIModelShadowRollout
+      parameters: [{ name: deploymentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/EnableAIModelShadowRequest' } } }
+      responses:
+        '200':
+          description: Deployment moved to shadow traffic mode.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIModelDeployment' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/model-deployments/{deploymentId}/pause:
+    post:
+      tags: [AI model serving]
+      operationId: pauseAIModelDeployment
+      parameters: [{ name: deploymentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AIModelDeploymentActionRequest' } } }
+      responses:
+        '200':
+          description: Deployment paused and traffic disabled.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIModelDeployment' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/model-deployments/{deploymentId}/rollback:
+    post:
+      tags: [AI model serving]
+      operationId: rollbackAIModelDeployment
+      parameters: [{ name: deploymentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AIModelDeploymentActionRequest' } } }
+      responses:
+        '200':
+          description: Deployment retired and traffic disabled.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIModelDeployment' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /ops/ai/model-deployments/{deploymentId}/online-summary:
+    get:
+      tags: [AI model serving]
+      operationId: getAIModelOnlineSummary
+      parameters: [{ name: deploymentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Last-24-hour online comparison aggregate for a candidate deployment.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIModelOnlineSummary' } } }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
         default: { $ref: '#/components/responses/ErrorResponse' }
   /ops/ai/datasets/projects:
     get:
@@ -415,6 +490,23 @@ paths:
         '403': { $ref: '#/components/responses/ErrorResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
         '409': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/ai-model-feedback:
+    post:
+      tags: [AI model serving]
+      operationId: submitAIModelFeedback
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AIModelFeedbackRequest' } } }
+      responses:
+        '201':
+          description: Stored bounded online model feedback.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AIModelFeedbackRecord' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '503': { $ref: '#/components/responses/ErrorResponse' }
         default: { $ref: '#/components/responses/ErrorResponse' }
   /trips/{tripId}/route:
     get:
@@ -1087,6 +1179,124 @@ components:
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/GenerationJob' } }
         limit: { type: integer }
+    AIModelFeedbackCategory:
+      type: string
+      enum: [better_than_standard, worse_than_standard, bad_places, bad_schedule, too_slow, wrong_language, formatting_problem, other]
+    AIModelFeedbackRequest:
+      type: object
+      required: [feedback]
+      properties:
+        generationJobId: { type: string, format: uuid, nullable: true }
+        itineraryVersionId: { type: string, format: uuid, nullable: true }
+        requestAssignmentId: { type: string, format: uuid, nullable: true }
+        deploymentId: { type: string, format: uuid, nullable: true }
+        feedback: { $ref: '#/components/schemas/AIModelFeedbackCategory' }
+        note: { type: string, maxLength: 2000, nullable: true }
+    AIModelFeedbackRecord:
+      type: object
+      required: [id, tripId, userId, feedback, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+        generationJobId: { type: string, format: uuid, nullable: true }
+        itineraryVersionId: { type: string, format: uuid, nullable: true }
+        requestAssignmentId: { type: string, format: uuid, nullable: true }
+        deploymentId: { type: string, format: uuid, nullable: true }
+        userId: { type: string, format: uuid }
+        feedback: { $ref: '#/components/schemas/AIModelFeedbackCategory' }
+        noteSanitized: { type: string, nullable: true, maxLength: 500 }
+        createdAt: { type: string, format: date-time }
+    AIModelDeploymentStatus:
+      type: string
+      enum: [registered, candidate, shadow, internal, allowlist, staged_rollout, active, paused, rejected, retired]
+    AIModelTrafficMode:
+      type: string
+      enum: [disabled, shadow, internal, allowlist, percentage, active]
+    AIModelVariant:
+      type: string
+      enum: [grounded_baseline, fine_tuned_candidate]
+    AIModelDeployment:
+      type: object
+      required: [id, environment, deploymentKey, modelId, modelVariant, status, taskType, trafficMode, shadowSamplePercent, rolloutPercent, internalOnly, assignmentSalt, promptVersion, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        environment: { type: string }
+        deploymentKey: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' }
+        modelId: { type: string, format: uuid }
+        adapterId: { type: string, format: uuid, nullable: true }
+        experimentId: { type: string, format: uuid, nullable: true }
+        modelVariant: { $ref: '#/components/schemas/AIModelVariant' }
+        status: { $ref: '#/components/schemas/AIModelDeploymentStatus' }
+        taskType: { type: string }
+        trafficMode: { $ref: '#/components/schemas/AIModelTrafficMode' }
+        shadowSamplePercent: { type: number, minimum: 0, maximum: 100 }
+        rolloutPercent: { type: number, minimum: 0, maximum: 100 }
+        allowlistedUserIds: { type: array, items: { type: string, format: uuid } }
+        allowlistedWorkspaceIds: { type: array, items: { type: string, format: uuid } }
+        internalOnly: { type: boolean }
+        featureFlagKey: { type: string, nullable: true }
+        assignmentSalt: { type: string }
+        promptVersion: { type: string }
+        groundingVersion: { type: string, nullable: true }
+        validatorVersion: { type: string, nullable: true }
+        config: { type: object, additionalProperties: true }
+        activatedAt: { type: string, format: date-time, nullable: true }
+        pausedAt: { type: string, format: date-time, nullable: true }
+        retiredAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RegisterAIModelDeploymentRequest:
+      type: object
+      required: [deploymentKey, modelId, modelVariant, promptVersion, reason]
+      properties:
+        environment: { type: string }
+        deploymentKey: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' }
+        modelId: { type: string, format: uuid }
+        adapterId: { type: string, format: uuid, nullable: true }
+        experimentId: { type: string, format: uuid, nullable: true }
+        modelVariant: { $ref: '#/components/schemas/AIModelVariant' }
+        status: { $ref: '#/components/schemas/AIModelDeploymentStatus' }
+        taskType: { type: string, default: grounded_itinerary_generation }
+        trafficMode: { $ref: '#/components/schemas/AIModelTrafficMode' }
+        shadowSamplePercent: { type: number, minimum: 0, maximum: 100, default: 0 }
+        rolloutPercent: { type: number, minimum: 0, maximum: 100, default: 0 }
+        allowlistedUserIds: { type: array, items: { type: string, format: uuid } }
+        allowlistedWorkspaceIds: { type: array, items: { type: string, format: uuid } }
+        internalOnly: { type: boolean, default: true }
+        featureFlagKey: { type: string, nullable: true }
+        assignmentSalt: { type: string, description: Generated when omitted; changing it resets deterministic assignment buckets. }
+        promptVersion: { type: string }
+        groundingVersion: { type: string, nullable: true }
+        validatorVersion: { type: string, nullable: true }
+        config: { type: object, additionalProperties: true }
+        reason: { type: string, minLength: 1 }
+    EnableAIModelShadowRequest:
+      type: object
+      required: [shadowSamplePercent, reason]
+      properties:
+        shadowSamplePercent: { type: number, minimum: 0, maximum: 100 }
+        reason: { type: string, minLength: 1 }
+    AIModelDeploymentActionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+    AIModelOnlineSummary:
+      type: object
+      required: [deployment, comparisonCount, completedCount, pendingCount, failureCount, guardrailCounts, statusCounts, baselineLatencyAvgMs, candidateLatencyAvgMs, candidateLatencyP95Ms, recentWindowHours, generatedAt]
+      properties:
+        deployment: { $ref: '#/components/schemas/AIModelDeployment' }
+        comparisonCount: { type: integer, minimum: 0 }
+        completedCount: { type: integer, minimum: 0 }
+        pendingCount: { type: integer, minimum: 0 }
+        failureCount: { type: integer, minimum: 0 }
+        guardrailCounts: { type: object, additionalProperties: { type: integer } }
+        statusCounts: { type: object, additionalProperties: { type: integer } }
+        baselineLatencyAvgMs: { type: number, minimum: 0 }
+        candidateLatencyAvgMs: { type: number, minimum: 0 }
+        candidateLatencyP95Ms: { type: number, minimum: 0 }
+        recentWindowHours: { type: integer, minimum: 1 }
+        generatedAt: { type: string, format: date-time }
     BudgetEnvelope:
       type: object
       required: [budget]

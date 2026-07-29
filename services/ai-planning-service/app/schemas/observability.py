@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -18,6 +20,9 @@ class AIResponseMetadata(ObservabilityModel):
     provider: str
     model: str | None = None
     mode: str
+    deployment_key: str | None = Field(default=None, alias="deploymentKey")
+    request_assignment_id: UUID | None = Field(default=None, alias="requestAssignmentId")
+    inference_mode: str | None = Field(default=None, alias="inferenceMode")
     model_variant: str | None = Field(default=None, alias="modelVariant")
     adapter_enabled: bool | None = Field(default=None, alias="adapterEnabled")
     adapter_loaded: bool | None = Field(default=None, alias="adapterLoaded")

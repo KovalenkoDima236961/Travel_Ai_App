@@ -41,7 +41,21 @@ review. Holdout reports are diagnostic only and must not influence training.
 
 ## Rollback
 
-Rollback is configuration-only: unset `AI_ADAPTER_ENABLED` or restore
-`AI_MODEL_VARIANT=grounded_baseline`, then restart the AI Planning Service.
-Preserve the adapter artifact and experiment records for audit until retention
-policy allows cleanup.
+Rollback is deployment-state driven whenever `ai_model_deployments` is present:
+pause the candidate, set rollout to zero, route new requests to
+`grounded_baseline`, invalidate routing cache, and record a `rollback` or
+`guardrail_paused` deployment event. This must not require application redeploy
+or mutate already-created itineraries.
+
+The legacy fallback remains configuration-only: unset `AI_ADAPTER_ENABLED` or
+restore `AI_MODEL_VARIANT=grounded_baseline`, then restart the AI Planning
+Service. Preserve adapter artifacts, deployment events, comparison rows, and
+experiment records for audit until retention policy allows cleanup.
+
+## Online Rollout Evidence
+
+Production promotion requires offline gates plus online evidence from shadow,
+internal, or allowlist rollout. Online evidence must include comparison sample
+count, candidate failures, skipped shadow requests, latency deltas, validation
+issue deltas, user feedback, guardrail status, and rollback readiness. No
+automatic production promotion is allowed.

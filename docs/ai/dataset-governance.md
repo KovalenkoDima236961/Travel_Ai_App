@@ -53,6 +53,14 @@ Local fine-tuning uses these exports through
 
 Review actions are recorded in `ai_dataset_review_events`. Dataset examples and versions are retained for auditability until a future policy defines archival/deletion. Export directories are temporary operational artifacts and should be cleaned according to `AI_DATASET_EXPORT_RETENTION_DAYS`.
 
+## Experimental AI Participation
+
+User opt-in to experimental AI routing is not consent to use trip data for
+training. Online rollout comparisons store model/deployment metadata,
+validation aggregates, latency, error codes, and bounded feedback categories;
+they must not become training examples unless the separate dataset consent,
+sanitization, review, and approval workflow accepts them.
+
 ## Incident response
 
 If private data is detected after approval or export:

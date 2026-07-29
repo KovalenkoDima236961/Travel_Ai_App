@@ -138,6 +138,18 @@ flowchart TD
 Destination context and knowledge routes are development/internal routes in v1.
 Protect them before exposing the service outside a private network.
 
+## Model Routing Metadata
+
+`POST /generate-itinerary` accepts optional backend-owned serving metadata:
+`deploymentKey`, `requestAssignmentId`, and `inferenceMode`
+(`primary`/`shadow`). AI Planning validates these fields, rejects path-like
+deployment keys, carries them into response metadata, and treats them as routing
+annotations rather than user instructions. Trip Service remains the source of
+truth for assignment, rollout state, feedback, and persistence.
+
+This metadata must not include adapter paths, raw prompts, trip-private payloads,
+provider secrets, or user-controlled rollout choices.
+
 ## Travel Assistant Copilot
 
 `POST /copilot/respond` accepts a sanitized current-trip summary, a

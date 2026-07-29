@@ -123,6 +123,42 @@ ai_observability:
   prompt_logging_redacted_only: true
   redaction_enabled: true
 
+ai_model_serving:
+  enabled: true
+  default_deployment_key: grounded-baseline
+  shadow_enabled: false
+  shadow_sample_percent: 0
+  shadow_max_concurrent: 1
+  shadow_queue_name: ai.shadow.evaluations
+  shadow_timeout_seconds: 180
+  shadow_max_queue_age_seconds: 900
+  shadow_skip_when_queue_depth_above: 100
+  shadow_fail_open: true
+  candidate_rollout_percent: 0
+  candidate_internal_only: true
+  candidate_fallback_to_baseline: true
+  deployment_assignment_salt: ""
+  comparison_retention_days: 90
+  assignment_retention_days: 90
+  shadow_input_retention_hours: 48
+  internal_rollout_enabled: false
+  allowlist_rollout_enabled: false
+  percentage_rollout_enabled: false
+  user_opt_in_enabled: false
+  automatic_guardrail_pause_enabled: false
+  guardrail_min_sample_count: 50
+  guardrail_window_minutes: 60
+  guardrail_max_failure_rate: 0.05
+  guardrail_max_parse_failure_rate: 0.01
+  guardrail_max_hallucination_regression: 0
+  guardrail_max_destination_mismatch_regression: 0
+  guardrail_max_repair_rate_increase: 0.05
+  guardrail_max_p95_latency_increase_percent: 25
+  guardrail_max_p95_latency_ms: 0
+  guardrail_min_grounded_place_rate: 0
+  guardrail_min_overall_quality_delta: 0
+  guardrail_max_language_score_drop: 0.05
+
 user_context:
   enabled: true
   user_service_url: http://localhost:8083
