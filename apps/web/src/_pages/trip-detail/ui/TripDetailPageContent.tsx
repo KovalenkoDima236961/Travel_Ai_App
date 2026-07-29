@@ -45,6 +45,7 @@ import {
 import { CostSplittingPanel } from "@/features/cost-splitting";
 import { DistanceSummary } from "@/features/route-estimation";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
+import { GenerationFeedbackPanel } from "@/components/trips/GenerationFeedbackPanel";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
 import { TripQualityChecks } from "@/components/trips/TripQualityChecks";
 import { GroupPreferencesPanel, PollsPanel } from "@/components/trip-decisions";
@@ -2667,6 +2668,10 @@ export function TripDetailPageContent() {
                 trip={trip}
                 verification={tripVerificationQuery.data ?? null}
               />
+            ) : null}
+
+            {completedFullGenerationJob && trip.itinerary ? (
+              <GenerationFeedbackPanel job={completedFullGenerationJob} trip={trip} />
             ) : null}
 
             {regenerationError ? (

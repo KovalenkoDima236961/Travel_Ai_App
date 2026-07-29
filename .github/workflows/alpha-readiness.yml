@@ -1,0 +1,327 @@
+name: Alpha Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_full_stack:
+        description: Run production-like alpha stack rehearsal
+        required: true
+        type: boolean
+        default: false
+      real_openai:
+        description: Run limited real OpenAI evaluation after protected approval
+        required: true
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*-rc*"
+      - "v*rc*"
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+  GO_VERSION: "1.26.x"
+
+jobs:
+  validate-alpha-env:
+    name: Validate alpha env and scope
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare safe alpha CI env
+        run: |
+          cp infra/.env.alpha.example "$RUNNER_TEMP/alpha.env"
+          perl -pi -e '
+            s/change_me_alpha_postgres_password_32_bytes_min/AlphaPostgresPasswordForCi1234567890/g;
+            s/change_me_alpha_rabbitmq_password_32_bytes_min/AlphaRabbitPasswordForCi1234567890/g;
+            s/change_me_alpha_jwt_access_secret_32_bytes_min/AlphaJwtAccessSecretForCi1234567890/g;
+            s/change_me_alpha_jwt_refresh_secret_32_bytes_min/AlphaJwtRefreshSecretForCi1234567890/g;
+            s/change_me_alpha_internal_service_token_32_bytes/AlphaInternalServiceTokenForCi1234567890/g;
+            s/change_me_alpha_notification_token_32_bytes/AlphaNotificationTokenForCi1234567890/g;
+            s/change_me_alpha_ops_internal_token_32_bytes_min/AlphaOpsInternalTokenForCi1234567890/g;
+            s/change_me_alpha_public_share_secret_32_bytes/AlphaPublicShareSecretForCi1234567890/g;
+            s/change_me_alpha_calendar_encryption_key_32_bytes/AlphaCalendarEncryptKeyForCi1234567890/g;
+            s/change_me_alpha_grafana_password_32_bytes_min/AlphaGrafanaPasswordForCi1234567890/g;
+            s/change_me_openai_api_key_runtime_secret/sk-alpha-ci-key-abcdefghijklmnopqrstuvwxyz/g;
+            s/change_me_openai_model_alias/alpha-ci-model/g;
+            s/change_me_alpha_model_serving_salt_32_chars/AlphaModelServingSaltForCi1234567890/g;
+          ' "$RUNNER_TEMP/alpha.env"
+          source scripts/release/version-info.sh
+          {
+            echo "TRAVEL_AI_ENV_FILE=${RUNNER_TEMP}/alpha.env"
+            echo "APP_VERSION=${VERSION}"
+            echo "GIT_SHA=${GIT_SHA}"
+            echo "BUILD_TIME=${BUILD_TIME}"
+            echo "IMAGE_TAG=${IMAGE_TAG_SHA}"
+            echo "NEXT_PUBLIC_APP_VERSION=${VERSION}"
+            echo "NEXT_PUBLIC_GIT_SHA=${GIT_SHA}"
+            echo "NEXT_PUBLIC_BUILD_TIME=${BUILD_TIME}"
+          } >> "$RUNNER_TEMP/alpha.env"
+          echo "ALPHA_ENV=$RUNNER_TEMP/alpha.env" >> "$GITHUB_ENV"
+      - name: Validate alpha environment
+        run: ./scripts/validate-env.sh alpha --env-file "$ALPHA_ENV"
+      - name: Validate alpha scope
+        run: ./scripts/release/validate-alpha-scope.sh --env-file "$ALPHA_ENV"
+      - name: Compose config
+        run: TRAVEL_AI_ENV_FILE="$ALPHA_ENV" docker compose -f infra/docker-compose.prod.yml -f infra/docker-compose.alpha.yml --env-file "$ALPHA_ENV" config --quiet
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-config-validation
+          path: |
+            config/feature-flags/alpha.json
+            infra/docker-compose.alpha.yml
+
+  migrations:
+    name: Migration check
+    runs-on: ubuntu-latest
+    needs: validate-alpha-env
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir -p reports/migrations
+      - run: ./scripts/release/check-migrations.sh ci | tee reports/migrations/alpha-check.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-migration-report
+          path: reports/migrations
+          if-no-files-found: ignore
+
+  unit-tests:
+    name: Unit and integration tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    needs: validate-alpha-env
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [go, python, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: matrix.suite == 'go'
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-python@v5
+        if: matrix.suite == 'python'
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        if: matrix.suite == 'web'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Run Go tests
+        if: matrix.suite == 'go'
+        run: ./scripts/test-go.sh
+      - name: Run Python tests
+        if: matrix.suite == 'python'
+        run: |
+          python -m pip install -r services/ai-planning-service/requirements-dev.txt
+          ./scripts/test-python.sh
+      - name: Run Web tests
+        if: matrix.suite == 'web'
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm run test:coverage
+
+  contract-check:
+    name: API contract check
+    runs-on: ubuntu-latest
+    needs: validate-alpha-env
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - run: npm ci
+        working-directory: apps/web
+      - run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
+      - run: ./scripts/contracts/export-ai-openapi.sh
+      - run: git diff --exit-code -- docs/api/openapi/ai-planning-service.openapi.yaml
+      - run: ./scripts/contracts/validate-openapi.sh
+      - run: ./scripts/contracts/check-generated.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-api-contracts
+          path: docs/api/openapi
+
+  playwright-alpha:
+    name: Playwright alpha suite
+    runs-on: ubuntu-latest
+    needs: [validate-alpha-env, unit-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      - name: Start deterministic test stack
+        env:
+          TEST_COMPOSE_PROJECT_NAME: travel-ai-alpha-e2e
+        run: ./scripts/test-stack-up.sh
+      - name: Run alpha Playwright tests
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:13000
+          E2E_AUTH_URL: http://127.0.0.1:18082
+          E2E_TRIP_URL: http://127.0.0.1:18080
+          E2E_NOTIFICATION_URL: http://127.0.0.1:18086
+          E2E_RUN_ID: ${{ github.run_id }}
+        working-directory: apps/web
+        run: npm run test:e2e:alpha
+      - name: Stop test stack
+        if: always()
+        env:
+          TEST_COMPOSE_PROJECT_NAME: travel-ai-alpha-e2e
+        run: ./scripts/test-stack-down.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+
+  security-scans:
+    name: Security scans
+    runs-on: ubuntu-latest
+    needs: validate-alpha-env
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: python -m pip install bandit pip-audit semgrep
+      - run: npm ci
+        working-directory: apps/web
+      - run: ./scripts/security/install-trivy.sh
+      - run: ./scripts/security-scan.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-security-summary
+          path: reports/security
+          if-no-files-found: ignore
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: [migrations, unit-tests, contract-check, security-scans]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build alpha candidate images
+        run: REGISTRY=travel-ai ./scripts/release/build-images.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-image-tags
+          path: dist/release-images
+
+  alpha-smoke:
+    name: Alpha smoke and rehearsal
+    runs-on: ubuntu-latest
+    needs: [docker-build, playwright-alpha]
+    if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.run_full_stack) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare safe alpha CI env
+        run: |
+          cp infra/.env.alpha.example "$RUNNER_TEMP/alpha.env"
+          perl -pi -e '
+            s/change_me_alpha_postgres_password_32_bytes_min/AlphaPostgresPasswordForCi1234567890/g;
+            s/change_me_alpha_rabbitmq_password_32_bytes_min/AlphaRabbitPasswordForCi1234567890/g;
+            s/change_me_alpha_jwt_access_secret_32_bytes_min/AlphaJwtAccessSecretForCi1234567890/g;
+            s/change_me_alpha_jwt_refresh_secret_32_bytes_min/AlphaJwtRefreshSecretForCi1234567890/g;
+            s/change_me_alpha_internal_service_token_32_bytes/AlphaInternalServiceTokenForCi1234567890/g;
+            s/change_me_alpha_notification_token_32_bytes/AlphaNotificationTokenForCi1234567890/g;
+            s/change_me_alpha_ops_internal_token_32_bytes_min/AlphaOpsInternalTokenForCi1234567890/g;
+            s/change_me_alpha_public_share_secret_32_bytes/AlphaPublicShareSecretForCi1234567890/g;
+            s/change_me_alpha_calendar_encryption_key_32_bytes/AlphaCalendarEncryptKeyForCi1234567890/g;
+            s/change_me_alpha_grafana_password_32_bytes_min/AlphaGrafanaPasswordForCi1234567890/g;
+            s/change_me_openai_api_key_runtime_secret/sk-alpha-ci-key-abcdefghijklmnopqrstuvwxyz/g;
+            s/change_me_openai_model_alias/alpha-ci-model/g;
+            s/change_me_alpha_model_serving_salt_32_chars/AlphaModelServingSaltForCi1234567890/g;
+          ' "$RUNNER_TEMP/alpha.env"
+          source scripts/release/version-info.sh
+          {
+            echo "TRAVEL_AI_ENV_FILE=${RUNNER_TEMP}/alpha.env"
+            echo "APP_VERSION=${VERSION}"
+            echo "GIT_SHA=${GIT_SHA}"
+            echo "BUILD_TIME=${BUILD_TIME}"
+            echo "IMAGE_TAG=${IMAGE_TAG_SHA}"
+            echo "NEXT_PUBLIC_APP_VERSION=${VERSION}"
+            echo "NEXT_PUBLIC_GIT_SHA=${GIT_SHA}"
+            echo "NEXT_PUBLIC_BUILD_TIME=${BUILD_TIME}"
+          } >> "$RUNNER_TEMP/alpha.env"
+          echo "ALPHA_ENV=$RUNNER_TEMP/alpha.env" >> "$GITHUB_ENV"
+      - name: Build images for local rehearsal
+        run: REGISTRY=travel-ai ./scripts/release/build-images.sh
+      - name: Run production-like alpha rehearsal
+        run: ./scripts/release/rehearse-alpha-release.sh --env-file "$ALPHA_ENV" --mock-openai --skip-build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-readiness-artifacts
+          path: |
+            dist/alpha-readiness
+            reports/security
+            apps/web/playwright-report
+          if-no-files-found: ignore
+
+  real-openai-eval:
+    name: Protected real OpenAI evaluation
+    runs-on: ubuntu-latest
+    needs: validate-alpha-env
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.real_openai }}
+    environment: alpha-real-openai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: services/ai-planning-service/requirements-dev.txt
+      - run: python -m pip install -r services/ai-planning-service/requirements-dev.txt
+      - name: Run capped real OpenAI eval
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ALPHA_REAL_OPENAI_APPROVED: "true"
+          ALPHA_REAL_OPENAI_MAX_REQUESTS: "3"
+          ALPHA_REAL_OPENAI_SPEND_CAP_UAH: "100"
+        run: ./scripts/ai/run-alpha-provider-evals.sh --openai --allow-real-openai --max-requests 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-openai-eval-report
+          path: evals
+          if-no-files-found: ignore

@@ -49,6 +49,22 @@ REGISTRY=travel-ai ./scripts/release/build-images.sh
 
 The stack runs the immutable `<version>-<shortSha>` image tag with mock providers by default, isolated named volumes, readiness checks, migrations, `GET /version`, and the existing authenticated smoke flow. It does not download Ollama models or require real provider keys.
 
+## Closed alpha release candidate
+
+Closed alpha uses the reviewed scope in [alpha-scope](alpha-scope.md), the feature profile in `config/feature-flags/alpha.json`, and `infra/.env.alpha` derived from `infra/.env.alpha.example`. The runtime environment remains `APP_ENV=staging`.
+
+Required alpha gates:
+
+```bash
+./scripts/validate-env.sh alpha --env-file infra/.env.alpha
+./scripts/release/validate-alpha-scope.sh --env-file infra/.env.alpha
+REGISTRY=travel-ai ./scripts/release/build-images.sh
+./scripts/release/rehearse-alpha-release.sh --env-file infra/.env.alpha --mock-openai
+./scripts/release/rehearse-alpha-rollback.sh --env-file infra/.env.alpha --previous-image-tag <prior-tag>
+```
+
+Use the `Alpha Readiness` workflow for release-candidate tags. Real OpenAI evaluation is protected, capped, and never part of normal CI. Complete [alpha go/no-go](alpha-go-no-go-checklist.md) and [alpha launch decision](alpha-launch-decision.md) before inviting users; CI status alone cannot approve launch.
+
 ## Production/manual deployment
 
 Production deployment is intentionally manual in v1. An operator selects the immutable `<version>-<shortSha>` tag, supplies managed secrets, verifies backup health, runs migrations once, deploys each service according to the existing Compose/hosting process, then runs `check-versions.sh` and `smoke-release.sh`. Record the deployed image digests and operator in the change record.

@@ -15,6 +15,6 @@ export const webVersionInfo = {
   version: appVersion,
   gitSha: gitSHA,
   buildTime,
-  environment: process.env.NEXT_PUBLIC_APP_ENV?.trim() || "local",
+  environment: process.env.NEXT_PUBLIC_APP_ENV?.trim() || process.env.APP_ENV?.trim() || "local",
   apiContractVersion: appVersion
 } as const;

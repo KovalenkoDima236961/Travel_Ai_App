@@ -1,0 +1,122 @@
+groups:
+  - name: alpha-openai-safeguards
+    interval: 30s
+    rules:
+      - alert: AlphaOpenAIDailySpendNearLimit
+        expr: openai_spend_daily_ratio >= 0.8
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha OpenAI daily spend is near the configured limit.
+          description: Daily spend ratio is {{ $value }}. Use the Ops kill switches and the OpenAI spend-limit runbook before inviting more users.
+
+      - alert: AlphaOpenAIMonthlySpendNearLimit
+        expr: openai_spend_monthly_ratio >= 0.8
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha OpenAI monthly spend is near the configured limit.
+          description: Monthly spend ratio is {{ $value }}. Confirm provider billing currency separately before using estimated UAH values in a launch decision.
+
+      - alert: AlphaOpenAIUnexpectedTokenSpike
+        expr: |
+          sum(increase(ai_provider_input_tokens_total{provider="openai"}[15m]))
+          +
+          sum(increase(ai_provider_output_tokens_total{provider="openai"}[15m]))
+          > 750000
+        for: 5m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha OpenAI token usage spiked.
+          description: Token usage exceeded the closed-alpha threshold over 15 minutes. Pause generation or switch to fallback if this is unexpected.
+
+      - alert: AlphaOpenAIHighFallbackRate
+        expr: |
+          (
+            sum(increase(ai_provider_fallbacks_total{provider="openai"}[15m]))
+            /
+            clamp_min(sum(increase(ai_provider_requests_total{provider="openai"}[15m])), 1)
+          ) > 0.2
+          and
+          sum(increase(ai_provider_requests_total{provider="openai"}[15m])) >= 5
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha OpenAI fallback rate is high.
+          description: More than 20% of recent OpenAI provider requests used fallback. Check provider errors and consider routing to fallback.
+
+      - alert: AlphaOpenAIHighRepairRate
+        expr: |
+          (
+            sum(increase(ai_repair_attempts_total{result="attempted"}[30m]))
+            /
+            clamp_min(sum(increase(ai_requests_total{operation=~"generate_itinerary|regenerate_day|regenerate_item"}[30m])), 1)
+          ) > 0.25
+          and
+          sum(increase(ai_requests_total{operation=~"generate_itinerary|regenerate_day|regenerate_item"}[30m])) >= 8
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha AI repair rate is high.
+          description: More than 25% of recent generation operations attempted repair. Review model aliases, validation errors, and prompt changes.
+
+      - alert: AlphaOpenAIQuotaOrRateLimitErrors
+        expr: |
+          sum(increase(ai_provider_errors_total{provider="openai",error_code=~"ai_provider_rate_limited|ai_provider_quota_exceeded|ai_provider_budget_exceeded|ai_provider_concurrency_limit"}[10m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha OpenAI quota, budget, or rate-limit error observed.
+          description: OpenAI limit errors were observed. User retries should remain bounded; consider enabling fallback-only mode.
+
+      - alert: AlphaOpenAIAuthFailure
+        expr: sum(increase(ai_provider_errors_total{provider="openai",error_code=~"ai_provider_authentication_failed|ai_provider_permission_denied"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha OpenAI authentication failed.
+          description: OpenAI auth or permission errors were observed. Rotate or fix the key without logging the old value, then verify readiness.
+
+      - alert: AlphaGenerationJobFailureSpike
+        expr: sum(increase(generation_jobs_status_total{status="failed"}[15m])) >= 3
+        for: 5m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha generation jobs are failing.
+          description: At least three generation jobs failed recently. Use Ops job retry, cancel, or mark-failed controls before direct database access.
+
+      - alert: AlphaWorkerQueueDelayHigh
+        expr: histogram_quantile(0.95, sum(rate(worker_job_queue_delay_seconds_bucket[15m])) by (le, job_type)) > 300
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Alpha generation worker queue delay is high.
+          description: p95 queue delay exceeded 5 minutes. Check Worker readiness, queue depth, and DLQ before inviting more users.
+
+      - alert: AlphaExternalProviderCircuitOpen
+        expr: max(external_provider_circuit_open) > 0
+        for: 5m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: External provider circuit is open.
+          description: A provider circuit is open. Confirm alpha real-provider flags are disabled unless this was part of an approved test.

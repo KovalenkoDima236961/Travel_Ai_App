@@ -15,6 +15,12 @@ owner's approved change process.
 - [Playwright failures](runbooks/playwright-failures.md)
 - [Security scan failures](runbooks/security-scan-failures.md)
 - [Restore database backup](runbooks/restore-database-backup.md)
+- [Alpha generation failure](runbooks/alpha-generation-failure.md)
+- [Alpha worker queue stuck](runbooks/alpha-worker-queue-stuck.md)
+- [Alpha OpenAI outage](runbooks/alpha-openai-outage.md)
+- [Alpha spend limit reached](runbooks/alpha-spend-limit-reached.md)
+- [Alpha public share incident](runbooks/alpha-public-share-incident.md)
+- [Alpha rollback](runbooks/alpha-rollback.md)
 
 ## First-response commands
 
@@ -30,6 +36,8 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env logs --tail=200
 - [Troubleshooting](../development/troubleshooting.md)
 - [Ports](../development/ports.md)
 - [Deployment checklist](../deployment/checklist.md)
+- [Closed alpha scope](../releases/alpha-scope.md)
+- [Alpha go/no-go checklist](../releases/alpha-go-no-go-checklist.md)
 
 ## Data lifecycle
 

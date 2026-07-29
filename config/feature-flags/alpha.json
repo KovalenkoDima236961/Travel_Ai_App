@@ -1,0 +1,143 @@
+{
+  "profile": "closed-alpha-v1",
+  "environment": "staging",
+  "owner": "release-engineering",
+  "description": "Reviewed feature flag profile for the closed alpha release. Values are expected deployment defaults; Ops may make audited runtime overrides only for incident response or an approved launch decision.",
+  "requiredEnabled": {
+    "ai_generation_enabled": {
+      "owner": "ai-platform",
+      "reason": "Core alpha journey requires AI itinerary generation."
+    },
+    "ai_repair_enabled": {
+      "owner": "ai-platform",
+      "reason": "Critical alpha journey includes validation and bounded repair."
+    },
+    "copilot_enabled": {
+      "owner": "product",
+      "reason": "Existing advisory Copilot remains available as a support aid."
+    },
+    "public_sharing_enabled": {
+      "owner": "product",
+      "reason": "Closed alpha includes read-only public sharing verification."
+    },
+    "data_exports_enabled": {
+      "owner": "product",
+      "reason": "Private exports remain in scope only while smoke tests pass."
+    },
+    "email_notifications_enabled": {
+      "owner": "notifications",
+      "reason": "Notification preferences and in-app/email paths are in scope."
+    },
+    "notification_digests_enabled": {
+      "owner": "notifications",
+      "reason": "Digest behavior is part of notification noise control."
+    },
+    "ops_dashboard_enabled": {
+      "owner": "sre",
+      "reason": "Alpha recovery requires allowlisted Ops controls."
+    },
+    "ai_model_serving_enabled": {
+      "owner": "ai-platform",
+      "reason": "Baseline model-serving metadata remains enabled without candidate rollout."
+    }
+  },
+  "requiredDisabled": {
+    "real_providers_enabled": {
+      "owner": "integrations",
+      "reason": "Real travel providers are disabled unless explicitly reviewed for a blocker."
+    },
+    "calendar_sync_enabled": {
+      "owner": "integrations",
+      "reason": "Calendar sync is not part of closed alpha v1."
+    },
+    "availability_search_enabled": {
+      "owner": "integrations",
+      "reason": "Booking-style availability search is excluded from alpha v1."
+    },
+    "transport_search_enabled": {
+      "owner": "integrations",
+      "reason": "Transport booking-style search is excluded from alpha v1."
+    },
+    "receipt_ocr_enabled": {
+      "owner": "product",
+      "reason": "OCR remains disabled; basic expense entry can still be used."
+    },
+    "workspace_approvals_enabled": {
+      "owner": "product",
+      "reason": "Workspace approval workflows are outside the closed alpha scope."
+    },
+    "policy_repair_enabled": {
+      "owner": "ai-platform",
+      "reason": "Experimental policy repair is excluded from normal alpha traffic."
+    },
+    "web_push_enabled": {
+      "owner": "notifications",
+      "reason": "Browser push remains disabled until credentials and UX are separately reviewed."
+    },
+    "offline_mode_enabled": {
+      "owner": "frontend",
+      "reason": "Offline mutations are excluded from alpha v1; normal online paths stay supported."
+    },
+    "template_adaptation_enabled": {
+      "owner": "ai-platform",
+      "reason": "AI template adaptation is not part of the critical alpha path."
+    },
+    "route_alternatives_enabled": {
+      "owner": "ai-platform",
+      "reason": "Route basics are in scope; alternative generation is deferred."
+    },
+    "ai_fine_tuning_experiments_enabled": {
+      "owner": "ai-platform",
+      "reason": "No fine-tuned candidate rollout in closed alpha."
+    },
+    "ai_adapter_inference_enabled": {
+      "owner": "ai-platform",
+      "reason": "Adapter inference is excluded from alpha v1."
+    },
+    "ai_adapter_staging_enabled": {
+      "owner": "ai-platform",
+      "reason": "Adapter staging is excluded from alpha v1."
+    },
+    "ai_shadow_evaluation_enabled": {
+      "owner": "ai-platform",
+      "reason": "Normal alpha users must not participate in shadow model evaluation."
+    },
+    "ai_candidate_internal_rollout_enabled": {
+      "owner": "ai-platform",
+      "reason": "Candidate model responses are disabled for alpha users."
+    },
+    "ai_candidate_allowlist_rollout_enabled": {
+      "owner": "ai-platform",
+      "reason": "Candidate model allowlist rollout is not part of alpha v1."
+    },
+    "ai_candidate_percentage_rollout_enabled": {
+      "owner": "ai-platform",
+      "reason": "Percentage rollout is explicitly blocked for alpha v1."
+    },
+    "ai_candidate_user_opt_in_enabled": {
+      "owner": "ai-platform",
+      "reason": "User opt-in candidate routing is excluded from alpha v1."
+    },
+    "ai_automatic_guardrail_pause_enabled": {
+      "owner": "ai-platform",
+      "reason": "Automatic candidate guardrail pause is irrelevant while candidate traffic is disabled."
+    }
+  },
+  "dangerousIfEnabled": [
+    "real_providers_enabled",
+    "calendar_sync_enabled",
+    "availability_search_enabled",
+    "transport_search_enabled",
+    "receipt_ocr_enabled",
+    "policy_repair_enabled",
+    "web_push_enabled",
+    "ai_fine_tuning_experiments_enabled",
+    "ai_adapter_inference_enabled",
+    "ai_adapter_staging_enabled",
+    "ai_shadow_evaluation_enabled",
+    "ai_candidate_internal_rollout_enabled",
+    "ai_candidate_allowlist_rollout_enabled",
+    "ai_candidate_percentage_rollout_enabled",
+    "ai_candidate_user_opt_in_enabled"
+  ]
+}

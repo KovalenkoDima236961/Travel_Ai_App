@@ -21,3 +21,9 @@ Release an app that can read both representations before writing only the new on
 ## Rollback limits
 
 An application image rollback never rolls back the database. Only run a down migration that is explicitly reviewed as safe and does not discard or reinterpret newer data. For most schema/data failures, stop the harmful path, restore only when approved and verified, or ship a forward-compatible fix. Record the exact database version, backup reference, and decision in the incident/change record.
+
+## Closed alpha rehearsal
+
+Before inviting alpha users, run migrations on a fresh alpha database through `scripts/release/rehearse-alpha-release.sh`. When a previous-version seed is available, repeat the migration against that restored copy and record timing and compatibility in `docs/releases/alpha-launch-decision.md`.
+
+Rollback rehearsal must not run automatic down migrations. `scripts/release/rehearse-alpha-rollback.sh` records rollback blocked when service rollback compatibility with the current schema cannot be proven.

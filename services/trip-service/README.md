@@ -23,6 +23,16 @@ enrichment metadata.
 Trip Service is the orchestration point between user-facing APIs, AI generation,
 external provider data, notifications, and background workers.
 
+## Closed alpha
+
+Trip Service owns the alpha feature flag enforcement surface. The frozen profile
+is `config/feature-flags/alpha.json` and is validated by
+`scripts/release/validate-alpha-scope.sh`. Required alpha paths are AI
+generation, repair, public read-only sharing, private exports, notifications,
+and Ops recovery; experimental provider, OCR, workspace approval, policy repair,
+offline mutation, model rollout, adapter, and shadow-evaluation flags remain
+disabled for normal alpha users.
+
 ## Trip Archive & Long-Term Library
 
 Migration `000037_add_trip_archive_fields` adds non-destructive archive state to

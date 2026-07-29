@@ -6,6 +6,14 @@ editing, collaboration, notifications, exports, calendar sync controls, maps,
 weather, budgets, route-leg transport search, and ticket/activity availability
 checks.
 
+## Closed alpha
+
+The web app shows a subtle alpha notice when `NEXT_PUBLIC_ALPHA_RELEASE_LABEL`
+is set, collects structured post-generation feedback through existing
+personalization feedback, and exposes an Alpha Overview in Ops. Run
+`npm run test:e2e:alpha` against a ready stack for the dedicated critical path,
+mobile overflow, public-share, notification, and failure-recovery suite.
+
 ## Performance query conventions
 
 Use `src/lib/query-keys.ts` for new TanStack Query keys and keep private trip data under the trip detail prefix. Queries must wait for required IDs/permissions and, for heavy modules, the visible or deep-linked section. Default freshness is 30 seconds; expensive health/readiness/confidence views use 45 seconds, weather uses 10 minutes, and only queued/running jobs poll aggressively.

@@ -21,7 +21,7 @@ kept beside the code and Compose configuration it describes.
 | Security | [Audit](security/audit.md), [tools](security/tools.md), [threat model](security/threat-model.md) |
 | Performance | [Backend](backend/performance.md), [frontend](frontend/performance.md), [audit](performance/performance-audit.md) |
 | Operations | [Runbooks](operations/runbooks.md), [deployment](deployment/production.md), [backups](deployment/backups.md) |
-| Releases | [Release process](releases/release-process.md), [hotfix process](releases/hotfix-process.md), [rollback](releases/rollback.md), [migration safety](releases/migration-safety.md), [troubleshooting](releases/troubleshooting.md) |
+| Releases | [Release process](releases/release-process.md), [closed alpha scope](releases/alpha-scope.md), [alpha go/no-go](releases/alpha-go-no-go-checklist.md), [alpha decision](releases/alpha-launch-decision.md), [hotfix process](releases/hotfix-process.md), [rollback](releases/rollback.md), [migration safety](releases/migration-safety.md), [troubleshooting](releases/troubleshooting.md) |
 | Features | [Trips](features/trips.md), [AI generation](features/ai-generation.md), [offline/PWA](features/offline-pwa.md), [receipts and expenses](features/receipts-expenses.md), [notifications](features/notifications.md), [workspaces](features/workspaces-approvals-policies.md) |
 | AI platform | [Model serving and rollout](ai/model-serving-and-rollout.md), [online model evaluation](ai/online-model-evaluation.md), [model promotion policy](ai/model-promotion-policy.md), [dataset governance](ai/dataset-governance.md) |
 | Platform | [Feature flags and runtime controls](platform/feature-flags.md) |

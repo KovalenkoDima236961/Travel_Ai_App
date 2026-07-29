@@ -36,6 +36,7 @@ import { instrumentSans, jetBrainsMono, newsreader } from "./fonts";
 import { OpsHeader } from "./OpsHeader";
 import { AIDatasetCurationPanel } from "@/components/ops/AIDatasetCurationPanel";
 import { AIExperimentsPanel } from "@/components/ops/AIExperimentsPanel";
+import { AlphaOverviewPanel } from "@/components/ops/AlphaOverviewPanel";
 import { FeatureFlagsPanel } from "@/components/ops/FeatureFlagsPanel";
 import {
   CARD,
@@ -252,6 +253,14 @@ export function OpsPageContent() {
         <p className="mt-2 text-[14.5px] text-cocoa-400">Live status of generation jobs, message queues, the DLQ, workers, and external providers.</p>
         <Link href="/ops/ai-generations" className="mt-3 inline-flex text-[13px] font-semibold text-clay hover:text-cocoa-900">View AI generation traces →</Link>
       </div>
+
+      <AlphaOverviewPanel
+        providers={providerRows}
+        queues={queueRows}
+        quotas={quotaRows}
+        summary={summary.data}
+        worker={worker.data}
+      />
 
       <FeatureFlagsPanel />
 

@@ -25,6 +25,11 @@ disable `public_sharing_enabled`, `data_exports_enabled`,
 but never replaces, revoking a specific public share or rotating a leaked
 credential.
 
+Closed alpha incidents also use the alpha runbooks for generation failure,
+OpenAI outage/spend, public share incidents, stuck worker queues, and rollback.
+Record accepted alpha risks in `docs/releases/alpha-launch-decision.md`; do not
+turn on raw prompt or payload logging to debug alpha incidents.
+
 For a leaked public link, disable it immediately and issue a new one only after
 confirming its scope/password/expiry. For a leaked internal token, deploy the
 overlap token set to receivers, move callers to the new token, verify failures,

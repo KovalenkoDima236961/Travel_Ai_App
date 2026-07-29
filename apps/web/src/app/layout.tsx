@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ReactNode } from "react";
 import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { AlphaReleaseNotice } from "@/components/layout/AlphaReleaseNotice";
 import { WebVitalsReporter } from "@/components/observability/WebVitalsReporter";
 import { Providers } from "./providers";
 
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <Providers>
           <WebVitalsReporter />
           <AppHeader />
+          <AlphaReleaseNotice />
           <main>{children}</main>
         </Providers>
       </body>

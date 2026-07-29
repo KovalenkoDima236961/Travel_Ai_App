@@ -60,8 +60,10 @@ services=(
 status=0
 for entry in "${services[@]}"; do
   service="${entry%%=*}"; url="${entry#*=}"
-  if ! body="$(curl --fail --silent --show-error --max-time 5 "${url%/}/version")"; then
-    echo "FAIL ${service}: /version unavailable at ${url}" >&2
+  version_path="/version"
+  [[ "${service}" == "web-app" ]] && version_path="/api/version"
+  if ! body="$(curl --fail --silent --show-error --max-time 5 "${url%/}${version_path}")"; then
+    echo "FAIL ${service}: ${version_path} unavailable at ${url}" >&2
     status=1
     continue
   fi
@@ -69,8 +71,14 @@ for entry in "${services[@]}"; do
   actual_version="$(jq -r '.version // empty' <<<"${body}")"
   actual_sha="$(jq -r '.gitSha // empty' <<<"${body}")"
   build_time="$(jq -r '.buildTime // empty' <<<"${body}")"
+  actual_environment="$(jq -r '.environment // .env // empty' <<<"${body}")"
   if [[ "${actual_service}" != "${service}" || "${actual_version}" != "${EXPECTED_VERSION}" || -z "${build_time}" ]]; then
     echo "FAIL ${service}: expected service=${service} version=${EXPECTED_VERSION}; got service=${actual_service} version=${actual_version}" >&2
+    status=1
+    continue
+  fi
+  if [[ "${TARGET}" != "local" && "${actual_environment}" != "${TARGET}" ]]; then
+    echo "FAIL ${service}: expected environment=${TARGET}, got ${actual_environment:-empty}" >&2
     status=1
     continue
   fi

@@ -8,11 +8,13 @@ TARGET=""
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/validate-env.sh [local|staging|production] [--env-file PATH]
+Usage: scripts/validate-env.sh [local|test|staging|production|alpha] [--env-file PATH]
        scripts/validate-env.sh PATH_TO_ENV_FILE
 
 Validates infra/.env by default and never prints secret values. Passing a
 target checks that APP_ENV agrees with the intended deployment environment.
+The alpha target intentionally requires APP_ENV=staging because service
+configuration currently recognizes local/test/staging/production.
 The legacy single environment-file argument remains supported.
 USAGE
 }
@@ -24,7 +26,7 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    local|development|test|staging|production)
+    local|development|test|staging|production|alpha)
       [[ -z "${TARGET}" ]] || { echo "Only one environment target is allowed." >&2; exit 2; }
       TARGET="$1"
       shift
@@ -70,8 +72,15 @@ case "${APP_ENV}" in
   staging|production) STRICT=true ;;
   *) echo "APP_ENV must be local, staging, or production." >&2; exit 1 ;;
 esac
+ALPHA_TARGET=false
 
-if [[ -n "${TARGET}" && "${TARGET}" != "${APP_ENV}" ]]; then
+if [[ "${TARGET}" == "alpha" ]]; then
+  ALPHA_TARGET=true
+  if [[ "${APP_ENV}" != "staging" ]]; then
+    echo "Alpha validation requires APP_ENV=staging; got ${APP_ENV}." >&2
+    exit 1
+  fi
+elif [[ -n "${TARGET}" && "${TARGET}" != "${APP_ENV}" ]]; then
   echo "APP_ENV is ${APP_ENV}, but ${TARGET} validation was requested." >&2
   exit 1
 fi
@@ -93,7 +102,7 @@ require() {
 is_placeholder() {
   local value
   value="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
-  [[ "${value}" == *change_me* || "${value}" == *change-me* || "${value}" == *example.com* || "${value}" == set_in_secret_manager_or_env || "${value}" == dev-* || "${value}" == guest || "${value}" == postgres || "${value}" == admin || "${value}" == password || "${value}" == secret ]]
+  [[ "${value}" == *change_me* || "${value}" == *change-me* || "${value}" == *replace_with* || "${value}" == *placeholder* || "${value}" == *example.com* || "${value}" == set_in_secret_manager_or_env || "${value}" == dev-* || "${value}" == guest || "${value}" == postgres || "${value}" == admin || "${value}" == password || "${value}" == secret ]]
 }
 
 require_secret() {
@@ -224,7 +233,10 @@ for flag_var in \
   FEATURE_WEB_PUSH_ENABLED FEATURE_EMAIL_NOTIFICATIONS_ENABLED FEATURE_NOTIFICATION_DIGESTS_ENABLED \
   FEATURE_OFFLINE_MODE_ENABLED FEATURE_OPS_DASHBOARD_ENABLED \
   FEATURE_AI_FINE_TUNING_EXPERIMENTS_ENABLED FEATURE_AI_ADAPTER_INFERENCE_ENABLED \
-  FEATURE_AI_ADAPTER_STAGING_ENABLED; do
+  FEATURE_AI_ADAPTER_STAGING_ENABLED FEATURE_AI_MODEL_SERVING_ENABLED \
+  FEATURE_AI_SHADOW_EVALUATION_ENABLED FEATURE_AI_CANDIDATE_INTERNAL_ROLLOUT_ENABLED \
+  FEATURE_AI_CANDIDATE_ALLOWLIST_ROLLOUT_ENABLED FEATURE_AI_CANDIDATE_PERCENTAGE_ROLLOUT_ENABLED \
+  FEATURE_AI_CANDIDATE_USER_OPT_IN_ENABLED FEATURE_AI_AUTOMATIC_GUARDRAIL_PAUSE_ENABLED; do
   validate_boolean "${flag_var}"
 done
 
@@ -255,6 +267,77 @@ if [[ "${STRICT}" == true && "${FEATURE_REAL_PROVIDERS_ENABLED:-false}" == "true
 fi
 if [[ "${STRICT}" == true && "${FEATURE_OPS_DASHBOARD_ENABLED:-false}" == "true" ]]; then
   require OPS_ADMIN_EMAILS
+fi
+
+positive_number() {
+  local name="$1" value
+  value="$(value_of "${name}")"
+  [[ -n "${value}" ]] || { issue "${name} is required in alpha"; return; }
+  [[ "${value}" =~ ^[0-9]+([.][0-9]+)?$ ]] || { issue "${name} must be a positive number"; return; }
+  awk -v n="${value}" 'BEGIN { exit !(n > 0) }' || issue "${name} must be greater than zero"
+}
+
+positive_integer() {
+  local name="$1" value
+  value="$(value_of "${name}")"
+  [[ -n "${value}" ]] || { issue "${name} is required in alpha"; return; }
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] || issue "${name} must be a positive integer"
+}
+
+if [[ "${ALPHA_TARGET}" == true ]]; then
+  [[ "${ALPHA_RELEASE_PROFILE:-}" == "closed-alpha-v1" ]] || issue "ALPHA_RELEASE_PROFILE must be closed-alpha-v1"
+  [[ "${NEXT_PUBLIC_APP_ENV:-}" == "staging" ]] || issue "NEXT_PUBLIC_APP_ENV must be staging for alpha"
+  [[ "${NEXT_PUBLIC_ALPHA_RELEASE_LABEL:-}" == "Alpha" ]] || issue "NEXT_PUBLIC_ALPHA_RELEASE_LABEL must be Alpha"
+  [[ "${AI_MODEL_PROVIDER:-}" == "openai" ]] || issue "AI_MODEL_PROVIDER must be openai in the alpha profile"
+  [[ "${AI_ITINERARY_GENERATOR_MODE:-}" == "openai" ]] || issue "AI_ITINERARY_GENERATOR_MODE must be openai in the alpha profile"
+  [[ "${AI_MODEL_PROVIDER_FALLBACK:-}" == "mock" || "${AI_MODEL_PROVIDER_FALLBACK:-}" == "ollama" ]] || issue "AI_MODEL_PROVIDER_FALLBACK must be mock or ollama in alpha"
+  [[ "${AI_MODEL_PROVIDER_FALLBACK_ENABLED:-false}" == "true" ]] || issue "AI_MODEL_PROVIDER_FALLBACK_ENABLED must be true in alpha"
+  [[ "${OPENAI_ENABLED:-false}" == "true" ]] || issue "OPENAI_ENABLED must be true in alpha"
+  [[ "${OPENAI_STORE_RESPONSES:-}" == "false" ]] || issue "OPENAI_STORE_RESPONSES must be false in alpha"
+  [[ "${OPENAI_USAGE_TRACKING_ENABLED:-false}" == "true" ]] || issue "OPENAI_USAGE_TRACKING_ENABLED must be true in alpha"
+  [[ "${OPENAI_COST_TRACKING_ENABLED:-false}" == "true" ]] || issue "OPENAI_COST_TRACKING_ENABLED must be true in alpha"
+  positive_number OPENAI_DAILY_SPEND_LIMIT_UAH
+  positive_number OPENAI_MONTHLY_SPEND_LIMIT_UAH
+  positive_integer OPENAI_PER_USER_DAILY_GENERATION_LIMIT
+  positive_integer OPENAI_PER_TRIP_DAILY_GENERATION_LIMIT
+  positive_integer OPENAI_MAX_CONCURRENT_REQUESTS
+  positive_integer OPENAI_MAX_INPUT_TOKENS
+  positive_integer OPENAI_MAX_CONTEXT_BYTES
+  positive_integer OPENAI_MAX_GROUNDING_PLACES
+  positive_integer OPENAI_MAX_GROUNDING_DOCUMENTS
+  positive_integer OPENAI_MAX_RETRIES
+  positive_integer OPENAI_TIMEOUT_SECONDS
+  positive_integer OPENAI_REPAIR_TIMEOUT_SECONDS
+  [[ "${OPENAI_REPAIR_ENABLED:-false}" == "true" ]] || issue "OPENAI_REPAIR_ENABLED must be true in alpha"
+  [[ "${OPENAI_MAX_REPAIR_ATTEMPTS:-}" == "1" ]] || issue "OPENAI_MAX_REPAIR_ATTEMPTS must be 1 in alpha"
+  [[ "${AI_PROMPT_LOGGING_ENABLED:-false}" == "false" ]] || issue "AI_PROMPT_LOGGING_ENABLED must be false in alpha"
+  [[ "${AI_OBSERVABILITY_ENABLED:-false}" == "true" ]] || issue "AI_OBSERVABILITY_ENABLED must be true in alpha"
+  [[ "${AI_OBSERVABILITY_STORE_REDACTED_PROMPTS:-false}" == "false" ]] || issue "AI_OBSERVABILITY_STORE_REDACTED_PROMPTS must be false in alpha"
+  [[ "${AI_OBSERVABILITY_STORE_REDACTED_RESPONSES:-false}" == "false" ]] || issue "AI_OBSERVABILITY_STORE_REDACTED_RESPONSES must be false in alpha"
+  [[ "${AI_OBSERVABILITY_REDACTION_ENABLED:-false}" == "true" ]] || issue "AI_OBSERVABILITY_REDACTION_ENABLED must be true in alpha"
+  [[ "${OPS_DASHBOARD_ENABLED:-false}" == "true" ]] || issue "OPS_DASHBOARD_ENABLED must be true in alpha"
+  [[ "${FEATURE_OPS_DASHBOARD_ENABLED:-false}" == "true" ]] || issue "FEATURE_OPS_DASHBOARD_ENABLED must be true in alpha"
+  [[ -n "${OPS_ADMIN_EMAILS:-}" && "${OPS_ADMIN_EMAILS}" != *"*"* ]] || issue "OPS_ADMIN_EMAILS must be an explicit allowlist in alpha"
+  [[ -n "${BACKUP_DIR:-}" ]] || issue "BACKUP_DIR is required in alpha"
+  [[ -n "${FEATURE_FLAG_PROFILE_PATH:-}" ]] || issue "FEATURE_FLAG_PROFILE_PATH is required in alpha"
+  [[ -f "${PROJECT_ROOT}/${FEATURE_FLAG_PROFILE_PATH:-}" || -f "${FEATURE_FLAG_PROFILE_PATH:-}" ]] || issue "FEATURE_FLAG_PROFILE_PATH must point to an existing profile"
+  [[ "${FEATURE_FLAGS_ENABLED:-false}" == "true" ]] || issue "FEATURE_FLAGS_ENABLED must be true in alpha"
+  [[ "${FEATURE_FLAGS_FAIL_CLOSED:-false}" == "true" ]] || issue "FEATURE_FLAGS_FAIL_CLOSED must be true in alpha"
+  [[ "${DEBUG_PROMPT_ENDPOINT_ENABLED:-false}" != "true" ]] || issue "DEBUG_PROMPT_ENDPOINT_ENABLED must not be true in alpha"
+  for blocked in \
+    FEATURE_REAL_PROVIDERS_ENABLED FEATURE_CALENDAR_SYNC_ENABLED FEATURE_AVAILABILITY_SEARCH_ENABLED \
+    FEATURE_TRANSPORT_SEARCH_ENABLED FEATURE_RECEIPT_OCR_ENABLED FEATURE_WORKSPACE_APPROVALS_ENABLED \
+    FEATURE_POLICY_REPAIR_ENABLED FEATURE_WEB_PUSH_ENABLED FEATURE_OFFLINE_MODE_ENABLED \
+    FEATURE_ROUTE_ALTERNATIVES_ENABLED FEATURE_TEMPLATE_ADAPTATION_ENABLED \
+    FEATURE_AI_FINE_TUNING_EXPERIMENTS_ENABLED FEATURE_AI_ADAPTER_INFERENCE_ENABLED \
+    FEATURE_AI_ADAPTER_STAGING_ENABLED FEATURE_AI_SHADOW_EVALUATION_ENABLED \
+    FEATURE_AI_CANDIDATE_INTERNAL_ROLLOUT_ENABLED FEATURE_AI_CANDIDATE_ALLOWLIST_ROLLOUT_ENABLED \
+    FEATURE_AI_CANDIDATE_PERCENTAGE_ROLLOUT_ENABLED FEATURE_AI_CANDIDATE_USER_OPT_IN_ENABLED \
+    AI_SHADOW_ENABLED AI_CANDIDATE_INTERNAL_ROLLOUT_ENABLED AI_CANDIDATE_ALLOWLIST_ROLLOUT_ENABLED \
+    AI_CANDIDATE_PERCENTAGE_ROLLOUT_ENABLED AI_CANDIDATE_USER_OPT_IN_ENABLED; do
+    [[ "$(value_of "${blocked}")" != "true" ]] || issue "${blocked} must be false in alpha"
+  done
+  "${PROJECT_ROOT}/scripts/release/validate-alpha-scope.sh" --profile "${PROJECT_ROOT}/config/feature-flags/alpha.json" --env-file "${ENV_FILE}" >/dev/null || issue "alpha feature flag profile validation failed"
 fi
 
 if (( ${#ISSUES[@]} > 0 )); then

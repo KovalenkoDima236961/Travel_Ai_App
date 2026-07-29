@@ -8,6 +8,15 @@ proposal, version, activity, and notification effects.
 The Web App does not call Worker Service directly. It creates and polls jobs
 through Trip Service.
 
+## Closed alpha
+
+Alpha keeps Worker concurrency intentionally small and treats RabbitMQ delivery
+as at-least-once. Operators recover through Ops retry/cancel/mark-failed and
+DLQ requeue/discard before any database access. Use
+`scripts/worker-reliability-smoke-test.sh` for deterministic mock deployments;
+optional failure instructions must not be exposed in production-like alpha
+unless explicitly reviewed.
+
 AI fine-tuning v1 is not a normal Worker Service generation job. Local
 experiment runs are explicit operator commands or the opt-in Compose
 `ai-training` profile, while Trip Service remains the owner of dataset and

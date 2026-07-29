@@ -1,0 +1,53 @@
+# Closed alpha override for production-like rehearsal. Use with
+# docker-compose.prod.yml and built images; scripts/release/rehearse-alpha-release.sh
+# starts it with --no-build and isolated volumes.
+name: travel-ai-alpha
+
+services:
+  auth-service:
+    ports:
+      - "${AUTH_SERVICE_BIND:-127.0.0.1}:${AUTH_SERVICE_PORT:-28082}:8082"
+  user-service:
+    ports:
+      - "${USER_SERVICE_BIND:-127.0.0.1}:${USER_SERVICE_PORT:-28083}:8083"
+  trip-service:
+    ports:
+      - "${TRIP_SERVICE_BIND:-127.0.0.1}:${TRIP_SERVICE_PORT:-28080}:8080"
+  notification-service:
+    ports:
+      - "${NOTIFICATION_SERVICE_BIND:-127.0.0.1}:${NOTIFICATION_SERVICE_PORT:-28086}:8086"
+  external-integrations-service:
+    ports:
+      - "${EXTERNAL_INTEGRATIONS_SERVICE_BIND:-127.0.0.1}:${EXTERNAL_INTEGRATIONS_SERVICE_PORT:-28084}:8084"
+  worker-service:
+    ports:
+      - "${WORKER_SERVICE_BIND:-127.0.0.1}:${WORKER_SERVICE_PORT:-28090}:8090"
+  ai-planning-service:
+    ports:
+      - "${AI_PLANNING_SERVICE_BIND:-127.0.0.1}:${AI_PLANNING_SERVICE_PORT:-28000}:8000"
+  web-app:
+    environment:
+      ALPHA_RELEASE_PROFILE: ${ALPHA_RELEASE_PROFILE:-closed-alpha-v1}
+      NEXT_PUBLIC_ALPHA_RELEASE_LABEL: ${NEXT_PUBLIC_ALPHA_RELEASE_LABEL:-Alpha}
+      ALPHA_SUPPORT_URL: ${ALPHA_SUPPORT_URL:-/settings}
+      ALPHA_FEEDBACK_URL: ${ALPHA_FEEDBACK_URL:-/settings}
+    ports:
+      - "${WEB_APP_BIND:-127.0.0.1}:${WEB_APP_PORT:-23000}:3000"
+
+volumes:
+  postgres-data:
+    name: travel-ai-alpha-postgres-data
+  rabbitmq-data:
+    name: travel-ai-alpha-rabbitmq-data
+  chroma-data:
+    name: travel-ai-alpha-chroma-data
+  trip-export-data:
+    name: travel-ai-alpha-trip-export-data
+  user-export-data:
+    name: travel-ai-alpha-user-export-data
+  prometheus-data:
+    name: travel-ai-alpha-prometheus-data
+  grafana-data:
+    name: travel-ai-alpha-grafana-data
+  receipt_storage:
+    name: travel-ai-alpha-receipt-storage

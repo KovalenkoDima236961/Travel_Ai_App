@@ -9,6 +9,15 @@ Trip Service is the normal caller. The AI service does not own trips, users,
 jobs, notifications, or budgets in storage; it receives context, returns a
 validated JSON proposal/itinerary, and leaves persistence to Trip Service.
 
+## Closed alpha
+
+Closed alpha uses OpenAI as the primary provider only through managed server-side
+environment variables, with deterministic mock/ollama fallback and bounded
+repair. Normal CI must not call real OpenAI; use
+`scripts/ai/run-alpha-provider-evals.sh --mock` by default and the protected
+real OpenAI path only with explicit approval. See
+[`docs/releases/openai-alpha-checklist.md`](../../docs/releases/openai-alpha-checklist.md).
+
 ## Local Fine-Tuning v1
 
 The service includes local LoRA/QLoRA scaffolding for the single task

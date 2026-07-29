@@ -85,6 +85,12 @@ templates—see [environment](docs/development/environment.md) before using them
 ./scripts/release/check-release.sh local --skip-e2e --skip-security
 REGISTRY=registry.example/travel-ai ./scripts/release/build-images.sh
 
+# Closed alpha readiness (replace placeholders in infra/.env.alpha first)
+./scripts/validate-env.sh alpha --env-file infra/.env.alpha
+./scripts/release/validate-alpha-scope.sh --env-file infra/.env.alpha
+./scripts/release/alpha-smoke-test.sh --mock-openai --env-file infra/.env.alpha
+./scripts/release/rehearse-alpha-release.sh --env-file infra/.env.alpha --mock-openai
+
 # Backup/restore local Postgres (restore is destructive and requires --yes)
 ./scripts/backup-postgres.sh --output ./backups --gzip
 ./scripts/restore-postgres.sh <backup-file-or-directory> --yes
@@ -108,7 +114,7 @@ listed in [ports](docs/development/ports.md) and
 - [Backend performance](docs/backend/performance.md) and [frontend performance](docs/frontend/performance.md)
 - [Developer playbooks](docs/development/playbooks.md)
 - [Operational runbooks](docs/operations/runbooks.md)
-- [Release process](docs/releases/release-process.md), [hotfix process](docs/releases/hotfix-process.md), and [rollback](docs/releases/rollback.md)
+- [Release process](docs/releases/release-process.md), [closed alpha scope](docs/releases/alpha-scope.md), [hotfix process](docs/releases/hotfix-process.md), and [rollback](docs/releases/rollback.md)
 
 Health is `GET /health`; readiness is `GET /ready` for backend services and
 `GET /api/ready` for the web app. Consult [deployment backups](docs/deployment/backups.md)
