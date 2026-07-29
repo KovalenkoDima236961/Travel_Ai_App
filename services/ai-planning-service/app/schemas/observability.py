@@ -20,6 +20,7 @@ class AIResponseMetadata(ObservabilityModel):
     provider: str
     model: str | None = None
     mode: str
+    provider_request_id: str | None = Field(default=None, alias="providerRequestId")
     deployment_key: str | None = Field(default=None, alias="deploymentKey")
     request_assignment_id: UUID | None = Field(default=None, alias="requestAssignmentId")
     inference_mode: str | None = Field(default=None, alias="inferenceMode")
@@ -35,8 +36,18 @@ class AIResponseMetadata(ObservabilityModel):
     experiment_key: str | None = Field(default=None, alias="experimentKey")
     dataset_version: str | None = Field(default=None, alias="datasetVersion")
     fallback_to_base: bool | None = Field(default=None, alias="fallbackToBase")
+    fallback_used: bool | None = Field(default=None, alias="fallbackUsed")
+    fallback_provider: str | None = Field(default=None, alias="fallbackProvider")
+    quality_status: str | None = Field(default=None, alias="qualityStatus")
+    needs_review: bool | None = Field(default=None, alias="needsReview")
     duration_ms: int = Field(alias="durationMs", ge=0)
     token_estimate: TokenEstimate = Field(alias="tokenEstimate")
+    input_tokens: int | None = Field(default=None, alias="inputTokens", ge=0)
+    output_tokens: int | None = Field(default=None, alias="outputTokens", ge=0)
+    total_tokens: int | None = Field(default=None, alias="totalTokens", ge=0)
+    cached_input_tokens: int | None = Field(default=None, alias="cachedInputTokens", ge=0)
+    reasoning_tokens: int | None = Field(default=None, alias="reasoningTokens", ge=0)
+    retry_count: int | None = Field(default=None, alias="retryCount", ge=0)
 
 
 class PromptBuildMetadata(ObservabilityModel):

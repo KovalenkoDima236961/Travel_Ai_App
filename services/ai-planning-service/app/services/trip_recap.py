@@ -150,9 +150,19 @@ class OllamaTripRecapGenerator:
             raise RuntimeError("Trip recap generation is unavailable") from exc
 
 
-def get_trip_recap_generator(settings: Settings) -> TripRecapGenerator:
-    if settings.trip_recap_mode.strip().lower() == "ollama":
+def get_trip_recap_generator(
+    settings: Settings,
+    openai_provider: object | None = None,
+) -> TripRecapGenerator:
+    mode = settings.trip_recap_mode.strip().lower()
+    if mode == "ollama":
         return OllamaTripRecapGenerator(settings)
+    if mode == "openai":
+        from app.providers.openai_provider import OpenAIProvider
+        from app.providers.openai_wrappers import OpenAITripRecapGenerator
+
+        provider = openai_provider or OpenAIProvider(settings=settings)
+        return OpenAITripRecapGenerator(settings=settings, provider=provider)
     return MockTripRecapGenerator()
 
 

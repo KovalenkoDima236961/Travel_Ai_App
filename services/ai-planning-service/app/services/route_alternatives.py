@@ -128,10 +128,19 @@ class OllamaRouteAlternativeGenerator:
         return result
 
 
-def get_route_alternative_generator(settings: Settings) -> RouteAlternativeGenerator:
+def get_route_alternative_generator(
+    settings: Settings,
+    openai_provider: object | None = None,
+) -> RouteAlternativeGenerator:
     mode = settings.itinerary_generator_mode.strip().lower()
     if mode == "ollama":
         return OllamaRouteAlternativeGenerator(settings)
+    if mode == "openai":
+        from app.providers.openai_provider import OpenAIProvider
+        from app.providers.openai_wrappers import OpenAIRouteAlternativeGenerator
+
+        provider = openai_provider or OpenAIProvider(settings=settings)
+        return OpenAIRouteAlternativeGenerator(settings=settings, provider=provider)
     return MockRouteAlternativeGenerator()
 
 

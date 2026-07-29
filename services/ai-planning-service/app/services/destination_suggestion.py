@@ -366,10 +366,19 @@ def _personalization_fit(
     return (reasons[:3], fit_tags[:4], tradeoffs[:2])
 
 
-def get_destination_suggestion_generator(settings: Settings) -> DestinationSuggestionGenerator:
+def get_destination_suggestion_generator(
+    settings: Settings,
+    openai_provider: object | None = None,
+) -> DestinationSuggestionGenerator:
     mode = settings.itinerary_generator_mode.strip().lower()
     if mode == "ollama":
         return OllamaDestinationSuggestionGenerator(settings)
+    if mode == "openai":
+        from app.providers.openai_provider import OpenAIProvider
+        from app.providers.openai_wrappers import OpenAIDestinationSuggestionGenerator
+
+        provider = openai_provider or OpenAIProvider(settings=settings)
+        return OpenAIDestinationSuggestionGenerator(settings=settings, provider=provider)
     return MockDestinationSuggestionGenerator()
 
 

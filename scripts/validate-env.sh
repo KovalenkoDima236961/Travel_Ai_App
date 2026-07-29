@@ -128,6 +128,13 @@ require_provider_key() {
   fi
 }
 
+is_openai_selected() {
+  [[ "${AI_MODEL_PROVIDER:-mock}" == "openai" \
+    || "${AI_ITINERARY_GENERATOR_MODE:-mock}" == "openai" \
+    || "${COPILOT_MODE:-mock}" == "openai" \
+    || "${TRIP_RECAP_AI_MODE:-mock}" == "openai" ]]
+}
+
 validate_boolean() {
   local name="$1" value
   value="$(value_of "${name}")"
@@ -178,10 +185,36 @@ if [[ "${WEB_PUSH_ENABLED:-false}" == "true" ]]; then
   require WEB_PUSH_VAPID_PRIVATE_KEY
   require WEB_PUSH_SUBJECT
 fi
+case "${AI_MODEL_PROVIDER:-mock}" in
+  mock|ollama|openai) ;;
+  *) issue "AI_MODEL_PROVIDER must be mock, ollama, or openai" ;;
+esac
+case "${AI_MODEL_PROVIDER_FALLBACK:-none}" in
+  none|mock|ollama) ;;
+  *) issue "AI_MODEL_PROVIDER_FALLBACK must be none, mock, or ollama" ;;
+esac
+case "${AI_ITINERARY_GENERATOR_MODE:-mock}" in
+  mock|ollama|openai) ;;
+  *) issue "AI_ITINERARY_GENERATOR_MODE must be mock, ollama, or openai" ;;
+esac
 if [[ "${AI_ITINERARY_GENERATOR_MODE:-mock}" == "ollama" ]]; then require_http_url OLLAMA_BASE_URL; fi
+if is_openai_selected; then
+  [[ "${OPENAI_ENABLED:-false}" == "true" ]] || issue "OPENAI_ENABLED must be true when OpenAI is selected"
+  require OPENAI_API_KEY
+  [[ -n "${OPENAI_MODEL_DEFAULT:-}${OPENAI_MODEL_ITINERARY:-}" ]] || issue "OPENAI_MODEL_DEFAULT or OPENAI_MODEL_ITINERARY is required when OpenAI is selected"
+  [[ "${OPENAI_STORE_RESPONSES+x}" == x ]] || issue "OPENAI_STORE_RESPONSES must be explicit when OpenAI is selected"
+  if [[ -n "${OPENAI_BASE_URL:-}" ]]; then require_http_url OPENAI_BASE_URL; fi
+  if [[ "${STRICT}" == true ]]; then
+    require_secret OPENAI_API_KEY 20
+    [[ "${OPENAI_STORE_RESPONSES:-false}" == "false" ]] || issue "OPENAI_STORE_RESPONSES should remain false unless explicitly reviewed"
+  fi
+fi
 if [[ "${RAG_ENABLED:-false}" == "true" ]]; then require OLLAMA_EMBEDDING_MODEL; fi
 
 for flag_var in \
+  AI_MODEL_PROVIDER_FALLBACK_ENABLED OPENAI_ENABLED OPENAI_STORE_RESPONSES \
+  OPENAI_USAGE_TRACKING_ENABLED OPENAI_COST_TRACKING_ENABLED OPENAI_REPAIR_ENABLED \
+  OPENAI_BATCH_ENABLED \
   FEATURE_FLAGS_ENABLED FEATURE_FLAGS_FAIL_CLOSED \
   FEATURE_AI_GENERATION_ENABLED FEATURE_AI_REPAIR_ENABLED FEATURE_COPILOT_ENABLED \
   FEATURE_ROUTE_ALTERNATIVES_ENABLED FEATURE_TEMPLATE_ADAPTATION_ENABLED \

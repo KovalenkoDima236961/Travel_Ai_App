@@ -2,6 +2,8 @@ import logging
 
 from app.config import Settings
 from app.core.paths import resolve_service_path
+from app.providers.openai_provider import OpenAIProvider
+from app.providers.openai_wrappers import OpenAIItineraryGenerator
 from app.services.destination_knowledge import (
     DestinationKnowledgeProvider,
     FileDestinationKnowledgeProvider,
@@ -17,6 +19,7 @@ def get_itinerary_generator(
     settings: Settings,
     destination_knowledge_provider: DestinationKnowledgeProvider | None = None,
     knowledge_search_service: KnowledgeSearchService | None = None,
+    openai_provider: OpenAIProvider | None = None,
 ) -> ItineraryGenerator:
     mode = settings.itinerary_generator_mode.strip().lower() or "mock"
 
@@ -37,9 +40,20 @@ def get_itinerary_generator(
             or get_knowledge_search_service(settings),
         )
 
+    if mode == "openai":
+        provider = openai_provider or OpenAIProvider(
+            settings=settings,
+            destination_knowledge_provider=(
+                destination_knowledge_provider or get_destination_knowledge_provider(settings)
+            ),
+            knowledge_search_service=knowledge_search_service
+            or get_knowledge_search_service(settings),
+        )
+        return OpenAIItineraryGenerator(settings=settings, provider=provider)
+
     raise ValueError(
         "Unknown ITINERARY_GENERATOR_MODE "
-        f"{settings.itinerary_generator_mode!r}; expected 'mock' or 'ollama'"
+        f"{settings.itinerary_generator_mode!r}; expected 'mock', 'ollama', or 'openai'"
     )
 
 

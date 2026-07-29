@@ -33,7 +33,9 @@ class MockCopilotResponder:
                 request,
                 _text(request.language, "unsafe"),
                 ["app_help"],
-                self._actions(request, "open_share_settings", "open_version_history", "open_command_center"),
+                self._actions(
+                    request, "open_share_settings", "open_version_history", "open_command_center"
+                ),
             )
         if request.intent == "out_of_scope":
             return self._response(request, _text(request.language, "scope"), ["app_help"], [])
@@ -52,7 +54,10 @@ class MockCopilotResponder:
             else:
                 answer = _text(request.language, "health_missing")
             return self._response(
-                request, answer, ["trip_health", "command_center"], self._actions(request, "open_trip_health")
+                request,
+                answer,
+                ["trip_health", "command_center"],
+                self._actions(request, "open_trip_health"),
             )
         if request.intent == "explain_budget":
             budget = _section(context, "budget")
@@ -67,7 +72,10 @@ class MockCopilotResponder:
             else:
                 answer = _text(request.language, "budget_missing")
             return self._response(
-                request, answer, ["budget_confidence"], self._actions(request, "open_budget_confidence", "open_budget")
+                request,
+                answer,
+                ["budget_confidence"],
+                self._actions(request, "open_budget_confidence", "open_budget"),
             )
         if request.intent == "explain_route":
             route = _section(context, "route")
@@ -120,7 +128,9 @@ class MockCopilotResponder:
             approval = _section(context, "approval")
             return self._response(
                 request,
-                _format(request.language, "approval", status=(approval or {}).get("status", "unknown")),
+                _format(
+                    request.language, "approval", status=(approval or {}).get("status", "unknown")
+                ),
                 ["approval_status", "policy_evaluation"],
                 self._actions(request, "open_approval", "open_policy"),
             )
@@ -150,16 +160,16 @@ class MockCopilotResponder:
             self._actions(request, "open_trip_health", "open_route", "open_command_center"),
         )
 
-    def _actions(
-        self, request: CopilotRespondRequest, *types: str
-    ) -> list[CopilotSuggestedAction]:
+    def _actions(self, request: CopilotRespondRequest, *types: str) -> list[CopilotSuggestedAction]:
         by_type = {action.type: action for action in request.available_actions}
         actions: list[CopilotSuggestedAction] = []
         for action_type in types:
             action = by_type.get(action_type)
             if action is None:
                 continue
-            actions.append(CopilotSuggestedAction(type=action.type, label=action.label, href=action.href))
+            actions.append(
+                CopilotSuggestedAction(type=action.type, label=action.label, href=action.href)
+            )
             if len(actions) == 2:
                 break
         return actions
@@ -237,9 +247,19 @@ class OllamaCopilotResponder:
         return result
 
 
-def get_copilot_responder(settings: Settings) -> CopilotResponder:
-    if settings.copilot_mode.strip().lower() == "ollama":
+def get_copilot_responder(
+    settings: Settings,
+    openai_provider: object | None = None,
+) -> CopilotResponder:
+    mode = settings.copilot_mode.strip().lower()
+    if mode == "ollama":
         return OllamaCopilotResponder(settings)
+    if mode == "openai":
+        from app.providers.openai_provider import OpenAIProvider
+        from app.providers.openai_wrappers import OpenAICopilotResponder
+
+        provider = openai_provider or OpenAIProvider(settings=settings)
+        return OpenAICopilotResponder(settings=settings, provider=provider)
     return MockCopilotResponder()
 
 
@@ -250,7 +270,9 @@ def _build_prompt(request: CopilotRespondRequest, message: str) -> str:
         ensure_ascii=False,
         separators=(",", ":"),
     )
-    permissions = json.dumps(request.permission_summary.model_dump(by_alias=True), ensure_ascii=False)
+    permissions = json.dumps(
+        request.permission_summary.model_dump(by_alias=True), ensure_ascii=False
+    )
     return f"""
 You are a safe, permission-aware travel planning Copilot. Return strict JSON only:
 {{"answer":"string","actions":[{{"type":"one available action type","label":"matching label","href":"matching href"}}],"sourceTypes":["known source"],"warnings":["string"]}}

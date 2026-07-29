@@ -9,6 +9,8 @@ from app.api.routes import router
 from app.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.observability import metrics_response, request_context_middleware
+from app.providers.base import AIModelProvider
+from app.providers.factory import build_openai_provider_if_needed
 from app.services.copilot import CopilotResponder, get_copilot_responder
 from app.services.destination_knowledge import DestinationKnowledgeProvider
 from app.services.destination_suggestion import (
@@ -35,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ApplicationServices:
+    ai_model_provider: AIModelProvider | None
     itinerary_generator: ItineraryGenerator
     template_adapter: TemplateAdapter
     destination_knowledge_provider: DestinationKnowledgeProvider | None
@@ -54,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     else:
         logger.info("AI prompt logging disabled")
+    _log_ai_provider_startup(resolved_settings)
     services = build_application_services(resolved_settings)
 
     app = FastAPI(
@@ -70,18 +74,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 def build_application_services(settings: Settings) -> ApplicationServices:
     destination_knowledge_provider = get_destination_knowledge_provider(settings)
     knowledge_search_service = get_knowledge_search_service(settings)
-    itinerary_generator = get_itinerary_generator(
+    ai_model_provider = build_openai_provider_if_needed(
         settings,
         destination_knowledge_provider=destination_knowledge_provider,
         knowledge_search_service=knowledge_search_service,
     )
+    itinerary_generator = get_itinerary_generator(
+        settings,
+        destination_knowledge_provider=destination_knowledge_provider,
+        knowledge_search_service=knowledge_search_service,
+        openai_provider=ai_model_provider,
+    )
     template_adapter = get_template_adapter(settings)
-    destination_suggestion_generator = get_destination_suggestion_generator(settings)
-    route_alternative_generator = get_route_alternative_generator(settings)
-    copilot_responder = get_copilot_responder(settings)
-    trip_recap_generator = get_trip_recap_generator(settings)
+    destination_suggestion_generator = get_destination_suggestion_generator(
+        settings, openai_provider=ai_model_provider
+    )
+    route_alternative_generator = get_route_alternative_generator(
+        settings, openai_provider=ai_model_provider
+    )
+    copilot_responder = get_copilot_responder(settings, openai_provider=ai_model_provider)
+    trip_recap_generator = get_trip_recap_generator(settings, openai_provider=ai_model_provider)
 
     return ApplicationServices(
+        ai_model_provider=ai_model_provider,
         itinerary_generator=itinerary_generator,
         template_adapter=template_adapter,
         destination_knowledge_provider=destination_knowledge_provider,
@@ -100,6 +115,7 @@ def _configure_state(
 ) -> None:
     app.state.settings = settings
     app.state.services = services
+    app.state.ai_model_provider = services.ai_model_provider
     app.state.itinerary_generator = services.itinerary_generator
     app.state.template_adapter = services.template_adapter
     app.state.destination_knowledge_provider = services.destination_knowledge_provider
@@ -115,8 +131,47 @@ def _configure_observability(app: FastAPI) -> None:
     app.middleware("http")(request_context_middleware)
     app.add_api_route("/metrics", metrics_response, methods=["GET"], include_in_schema=False)
 
+    @app.on_event("shutdown")
+    async def close_ai_model_provider() -> None:
+        provider = getattr(app.state, "ai_model_provider", None)
+        close = getattr(provider, "close", None)
+        if close is not None:
+            await close()
+
 
 def _configure_routes(app: FastAPI) -> None:
     app.include_router(router)
     app.include_router(destination_context_router)
     app.include_router(knowledge_router)
+
+
+def _log_ai_provider_startup(settings: Settings) -> None:
+    safe_models = {
+        "default": bool(settings.openai_model_default.strip()),
+        "itinerary": bool(settings.openai_model_itinerary.strip()),
+        "regeneration": bool(settings.openai_model_regeneration.strip()),
+        "repair": bool(settings.openai_model_repair.strip()),
+        "discovery": bool(settings.openai_model_discovery.strip()),
+        "routeAlternatives": bool(settings.openai_model_route_alternatives.strip()),
+        "budgetOptimization": bool(settings.openai_model_budget_optimization.strip()),
+        "checklist": bool(settings.openai_model_checklist.strip()),
+        "copilot": bool(settings.openai_model_copilot.strip()),
+        "recap": bool(settings.openai_model_recap.strip()),
+        "evaluation": bool(settings.openai_model_evaluation.strip()),
+    }
+    logger.info(
+        "AI provider startup configuration",
+        extra={
+            "activeProvider": settings.ai_model_provider.strip().lower(),
+            "itineraryMode": settings.itinerary_generator_mode.strip().lower(),
+            "copilotMode": settings.copilot_mode.strip().lower(),
+            "tripRecapMode": settings.trip_recap_mode.strip().lower(),
+            "fallbackProvider": settings.ai_model_provider_fallback.strip().lower(),
+            "openaiEnabled": settings.openai_enabled,
+            "openaiConfiguredModelAliases": safe_models,
+            "openaiTimeoutSeconds": settings.openai_timeout_seconds,
+            "openaiMaxRetries": settings.openai_max_retries,
+            "openaiStoreResponses": settings.openai_store_responses,
+            "openaiUsageTrackingEnabled": settings.openai_usage_tracking_enabled,
+        },
+    )

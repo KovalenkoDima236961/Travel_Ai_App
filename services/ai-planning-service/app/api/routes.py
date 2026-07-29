@@ -21,6 +21,7 @@ from app.core.errors import ItineraryGenerationError
 from app.core.readiness import check_readiness
 from app.model_router.routing import safe_request_routing_metadata
 from app.observability import record_ai_request, record_ai_validation_failure
+from app.providers.models import ProviderGenerationResult
 from app.schemas.checklist import GenerateChecklistRequest, GeneratedChecklistResponse
 from app.schemas.copilot import CopilotRespondRequest, CopilotRespondResponse
 from app.schemas.destination_suggestion import (
@@ -125,7 +126,15 @@ def suggest_destinations(
     try:
         response = generator.suggest(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at, request)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            request,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -146,7 +155,14 @@ def suggest_route_alternatives(
     try:
         response = generator.suggest(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -203,7 +219,14 @@ def generate_itinerary(
     try:
         response = generator.generate(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -224,7 +247,14 @@ def generate_checklist(
     try:
         response = generator.generate_checklist(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -250,7 +280,14 @@ async def regenerate_day(
     try:
         response = generator.regenerate_day(parsed)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -276,7 +313,14 @@ async def regenerate_item(
     try:
         response = generator.regenerate_item(parsed)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -334,7 +378,14 @@ def optimize_budget_day(
     try:
         response = generator.optimize_budget_day(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -355,7 +406,14 @@ def repair_itinerary(
     try:
         response = generator.repair_itinerary(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -376,7 +434,14 @@ def repair_generation_output(
     try:
         response = generator.repair_generation_output(request)
         record_ai_request(operation, "success", mode, time.monotonic() - started_at)
-        return _with_metadata(response, settings, operation, mode, started_at)
+        return _with_metadata(
+            response,
+            settings,
+            operation,
+            mode,
+            started_at,
+            provider_result=getattr(generator, "last_provider_result", None),
+        )
     except ItineraryGenerationError:
         record_ai_request(operation, "error", mode, time.monotonic() - started_at)
         raise
@@ -443,6 +508,7 @@ def _with_metadata(
     mode: str,
     started_at: float,
     request: object | None = None,
+    provider_result: ProviderGenerationResult | None = None,
 ):
     """Attach safe provider/timing metadata without returning prompts or input."""
     if not hasattr(response, "model_copy") or not hasattr(response, "model_dump"):
@@ -450,15 +516,34 @@ def _with_metadata(
     output = response.model_dump(by_alias=True, exclude_none=True, mode="json")
     completion_tokens = max(0, len(json.dumps(output, ensure_ascii=False)) // 4)
     normalized_mode = mode.strip().lower()
-    provider = "ollama" if normalized_mode == "ollama" else "mock"
-    model = settings.ollama_model if provider == "ollama" else "mock-v1"
+    provider = provider_result.provider if provider_result is not None else None
+    if provider is None:
+        if normalized_mode == "openai":
+            provider = "openai"
+        elif normalized_mode == "ollama":
+            provider = "ollama"
+        else:
+            provider = "mock"
+    model = provider_result.model if provider_result is not None else None
+    if model is None:
+        if provider == "openai":
+            model = settings.openai_model_for_operation(operation)
+        elif provider == "ollama":
+            model = settings.ollama_model
+        else:
+            model = "mock-v1"
     runtime = adapter_response_metadata(settings)
     routing_metadata = safe_request_routing_metadata(request) if request is not None else {}
+    token_usage = provider_result.token_usage if provider_result is not None else None
+    fallback = provider_result.fallback if provider_result is not None else None
     metadata = AIResponseMetadata(
         promptVersion=_PROMPT_VERSIONS.get(operation, "unknown_v1"),
         provider=provider,
         model=model,
         mode=normalized_mode,
+        providerRequestId=provider_result.provider_request_id
+        if provider_result is not None
+        else None,
         deploymentKey=routing_metadata.get("deploymentKey"),
         requestAssignmentId=routing_metadata.get("requestAssignmentId"),
         inferenceMode=routing_metadata.get("inferenceMode"),
@@ -471,10 +556,20 @@ def _with_metadata(
         experimentKey=runtime.get("experimentKey"),
         datasetVersion=runtime.get("datasetVersion"),
         fallbackToBase=runtime.get("fallbackToBase"),
+        fallbackUsed=fallback.fallback_used if fallback is not None else None,
+        fallbackProvider=fallback.fallback_provider if fallback is not None else None,
+        qualityStatus=fallback.quality_status if fallback is not None else None,
+        needsReview=fallback.needs_review if fallback is not None else None,
         durationMs=max(0, int((time.monotonic() - started_at) * 1000)),
         tokenEstimate=TokenEstimate(
             prompt=0, completion=completion_tokens, total=completion_tokens
         ),
+        inputTokens=token_usage.input_tokens if token_usage is not None else None,
+        outputTokens=token_usage.output_tokens if token_usage is not None else None,
+        totalTokens=token_usage.total_tokens if token_usage is not None else None,
+        cachedInputTokens=token_usage.cached_input_tokens if token_usage is not None else None,
+        reasoningTokens=token_usage.reasoning_tokens if token_usage is not None else None,
+        retryCount=provider_result.retry_count if provider_result is not None else None,
     )
     return response.model_copy(update={"metadata": metadata})
 

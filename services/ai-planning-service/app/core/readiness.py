@@ -47,6 +47,11 @@ def check_readiness(settings: Settings) -> ReadinessResult:
                 exc_info=ollama_error,
             )
 
+    if _openai_selected(settings):
+        checks["openai"] = "configured" if settings.openai_enabled else "disabled"
+        if not settings.openai_enabled:
+            is_ready = False
+
     if settings.rag_enabled:
         chroma_error = _check_chroma(settings)
         if chroma_error is None:
@@ -61,6 +66,18 @@ def check_readiness(settings: Settings) -> ReadinessResult:
             )
 
     return ReadinessResult(is_ready=is_ready, checks=checks)
+
+
+def _openai_selected(settings: Settings) -> bool:
+    return any(
+        mode.strip().lower() == "openai"
+        for mode in (
+            settings.ai_model_provider,
+            settings.itinerary_generator_mode,
+            settings.copilot_mode,
+            settings.trip_recap_mode,
+        )
+    )
 
 
 def _check_ollama(settings: Settings) -> BaseException | None:

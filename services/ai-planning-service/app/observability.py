@@ -50,6 +50,42 @@ AI_REPAIR_ATTEMPTS = Counter(
     "Total AI repair attempts.",
     ["operation", "result"],
 )
+AI_PROVIDER_REQUESTS = Counter(
+    "ai_provider_requests_total",
+    "Total AI provider requests.",
+    ["provider", "operation", "status", "error_code", "model_group"],
+)
+AI_PROVIDER_DURATION = Histogram(
+    "ai_provider_request_duration_seconds",
+    "AI provider request duration.",
+    ["provider", "operation", "status", "error_code", "model_group"],
+    buckets=(0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300),
+)
+AI_PROVIDER_INPUT_TOKENS = Counter(
+    "ai_provider_input_tokens_total",
+    "Total AI provider input tokens.",
+    ["provider", "operation", "model_group"],
+)
+AI_PROVIDER_OUTPUT_TOKENS = Counter(
+    "ai_provider_output_tokens_total",
+    "Total AI provider output tokens.",
+    ["provider", "operation", "model_group"],
+)
+AI_PROVIDER_RETRIES = Counter(
+    "ai_provider_retries_total",
+    "Total AI provider retries.",
+    ["provider", "operation", "model_group"],
+)
+AI_PROVIDER_ERRORS = Counter(
+    "ai_provider_errors_total",
+    "Total AI provider errors.",
+    ["provider", "operation", "error_code", "model_group"],
+)
+AI_PROVIDER_FALLBACKS = Counter(
+    "ai_provider_fallbacks_total",
+    "Total AI provider fallbacks.",
+    ["provider", "operation", "fallback_provider", "reason"],
+)
 
 _UUID_SEGMENT = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
@@ -118,12 +154,55 @@ def record_ai_repair_attempt(operation: str, result: str) -> None:
     AI_REPAIR_ATTEMPTS.labels(operation, result).inc()
 
 
+def record_ai_provider_request(
+    *,
+    provider: str,
+    operation: str,
+    status: str,
+    model: str | None,
+    duration_seconds: float,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    retry_count: int = 0,
+    error_code: str | None = None,
+) -> None:
+    model_group = _model_group(model)
+    safe_error = error_code or "none"
+    AI_PROVIDER_REQUESTS.labels(provider, operation, status, safe_error, model_group).inc()
+    AI_PROVIDER_DURATION.labels(provider, operation, status, safe_error, model_group).observe(
+        duration_seconds
+    )
+    if input_tokens:
+        AI_PROVIDER_INPUT_TOKENS.labels(provider, operation, model_group).inc(input_tokens)
+    if output_tokens:
+        AI_PROVIDER_OUTPUT_TOKENS.labels(provider, operation, model_group).inc(output_tokens)
+    if retry_count:
+        AI_PROVIDER_RETRIES.labels(provider, operation, model_group).inc(retry_count)
+    if error_code:
+        AI_PROVIDER_ERRORS.labels(provider, operation, error_code, model_group).inc()
+
+
+def record_ai_provider_fallback(
+    *, provider: str, operation: str, fallback_provider: str, reason: str
+) -> None:
+    AI_PROVIDER_FALLBACKS.labels(provider, operation, fallback_provider, reason).inc()
+
+
 def _route_label(request: Request) -> str:
     route = request.scope.get("route")
     path = getattr(route, "path", None)
     if isinstance(path, str) and path:
         return path
     return _sanitize_path(request.url.path)
+
+
+def _model_group(model: str | None) -> str:
+    if not model:
+        return "unknown"
+    normalized = model.strip().lower()
+    if not normalized:
+        return "unknown"
+    return normalized.split(":", 1)[0].split("/", 1)[0].split("-", 2)[0]
 
 
 def _sanitize_path(path: str) -> str:
