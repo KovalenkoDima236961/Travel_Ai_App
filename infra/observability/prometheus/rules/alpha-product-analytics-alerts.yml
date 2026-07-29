@@ -1,0 +1,77 @@
+groups:
+  - name: alpha-product-analytics
+    interval: 30s
+    rules:
+      - alert: AlphaAIFailureRateSpike
+        expr: |
+          (
+            sum(increase(alpha_ai_success_total{status="failed"}[15m]))
+            /
+            clamp_min(sum(increase(alpha_ai_success_total[15m])), 1)
+          ) > 0.2
+          and
+          sum(increase(alpha_ai_success_total[15m])) >= 5
+        for: 5m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Closed-alpha AI failure rate spiked.
+          description: More than 20% of recent alpha AI generation outcomes failed. Check Ops alpha dashboard, job failures, and provider health before inviting more testers.
+
+      - alert: AlphaFallbackRateSpike
+        expr: |
+          (
+            sum(increase(alpha_analytics_events_total{event="fallback_used"}[30m]))
+            /
+            clamp_min(sum(increase(alpha_trip_generation_total[30m])), 1)
+          ) > 0.2
+          and
+          sum(increase(alpha_trip_generation_total[30m])) >= 5
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Closed-alpha fallback usage is elevated.
+          description: Alpha fallback events exceeded 20% of recent generation activity. Review model/provider routing and fallback-specific user feedback.
+
+      - alert: AlphaBugReportsSpike
+        expr: increase(alpha_bug_reports_total[1h]) >= 5
+        for: 5m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Closed-alpha bug reports spiked.
+          description: Five or more bug reports were submitted in the last hour. Triage feedback categories and recent deploys.
+
+      - alert: AlphaOpenAICostSpike
+        expr: alpha_openai_cost_estimate >= 25
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Closed-alpha estimated OpenAI cost crossed review threshold.
+          description: Estimated OpenAI cost is above the alpha review threshold. Confirm provider billing metrics before changing invite pace.
+
+      - alert: AlphaRetentionDrop
+        expr: alpha_active_users >= 5 and alpha_retention_rate < 0.25
+        for: 30m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Closed-alpha retention is below target.
+          description: Alpha retention dropped below 25%. Check funnel drop-off stages and weekly report recommendations.
+
+      - alert: AlphaGenerationLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(alpha_generation_latency_bucket[30m])) by (le)) > 30
+        for: 10m
+        labels:
+          severity: warning
+          alpha_release: closed-alpha-v1
+        annotations:
+          summary: Closed-alpha generation latency increased.
+          description: p95 alpha generation latency exceeded 30 seconds. Check worker queue delay, provider latency, and repair/fallback rates.

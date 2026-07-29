@@ -3,6 +3,7 @@
 import { FeedbackChips } from "@/components/personalization/FeedbackChips";
 import type { GenerationJob } from "@/entities/generation-job/model";
 import type { Trip } from "@/entities/trip/model";
+import { trackAlphaEvent } from "@/lib/api/alpha";
 import type { FeedbackType } from "@/types/personalization";
 
 const alphaFeedbackChips: Array<{ type: FeedbackType; label: string }> = [
@@ -27,6 +28,31 @@ export function GenerationFeedbackPanel({
   const fallbackUsed =
     Boolean(job.resultPayload && "fallback" in job.resultPayload) ||
     qualityStatus.includes("fallback");
+  function trackGenerationFeedback(feedbackType: FeedbackType) {
+    trackAlphaEvent({
+      eventName: "ai_feedback_submitted",
+      feature: "feedback",
+      entityType: "generation_job",
+      entityId: job.id,
+      metadata: { feedbackType, qualityStatus, jobType: job.jobType, fallbackUsed }
+    });
+    trackAlphaEvent({
+      eventName: "trip_reviewed",
+      feature: "trips",
+      entityType: "trip",
+      entityId: trip.id,
+      metadata: { feedbackType, jobType: job.jobType }
+    });
+    if (feedbackType === "like") {
+      trackAlphaEvent({
+        eventName: "itinerary_accepted",
+        feature: "ai",
+        entityType: "trip",
+        entityId: trip.id,
+        metadata: { jobType: job.jobType }
+      });
+    }
+  }
 
   return (
     <section className="rounded-lg border border-sand-300 bg-white p-4" aria-labelledby="alpha-generation-feedback-title">
@@ -49,6 +75,7 @@ export function GenerationFeedbackPanel({
               style: [job.jobType, fallbackUsed ? "fallback_used" : "primary_used"]
             }
           }}
+          onSubmitted={trackGenerationFeedback}
         />
       </div>
     </section>

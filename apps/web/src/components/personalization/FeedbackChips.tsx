@@ -12,7 +12,15 @@ const defaultChips: Chip[] = [
   { type: "prefer_trains", label: "Prefer trains" }
 ];
 
-export function FeedbackChips({ input, chips = defaultChips }: { input: Omit<PersonalizationFeedbackInput, "feedbackType">; chips?: Chip[] }) {
+export function FeedbackChips({
+  input,
+  chips = defaultChips,
+  onSubmitted
+}: {
+  input: Omit<PersonalizationFeedbackInput, "feedbackType">;
+  chips?: Chip[];
+  onSubmitted?: (feedbackType: FeedbackType) => void;
+}) {
   const mutation = useSubmitPersonalizationFeedback();
   const [selected, setSelected] = useState<FeedbackType | null>(null);
   return (
@@ -23,7 +31,17 @@ export function FeedbackChips({ input, chips = defaultChips }: { input: Omit<Per
           type="button"
           disabled={mutation.isPending}
           aria-pressed={selected === chip.type}
-          onClick={() => mutation.mutate({ ...input, feedbackType: chip.type }, { onSuccess: () => setSelected(chip.type) })}
+          onClick={() =>
+            mutation.mutate(
+              { ...input, feedbackType: chip.type },
+              {
+                onSuccess: () => {
+                  setSelected(chip.type);
+                  onSubmitted?.(chip.type);
+                }
+              }
+            )
+          }
           className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition disabled:opacity-50 ${selected === chip.type ? "border-clay bg-[#FBF0EB] text-clay-deep" : "border-sand-300 bg-white text-cocoa-500 hover:border-sand-500"}`}
         >
           {selected === chip.type ? "Saved" : chip.label}

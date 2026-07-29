@@ -21,6 +21,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aimodel"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/alpha"
 	appdto "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/dto"
 	apperrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
@@ -63,9 +64,14 @@ type Handler struct {
 	aiModelOps           *aimodel.OpsService
 	workspacePolicies    *workspacepolicies.Service
 	featureFlags         *featureflags.Service
+	alpha                *alpha.Service
 	shareUnlockLimiter   *tripsecurity.RateLimiter
 	publicShareLimiter   *tripsecurity.RateLimiter
 	receiptUploadLimiter *tripsecurity.RateLimiter
+	alphaWaitlistLimiter *tripsecurity.RateLimiter
+	alphaInviteLimiter   *tripsecurity.RateLimiter
+	alphaEventLimiter    *tripsecurity.RateLimiter
+	alphaFeedbackLimiter *tripsecurity.RateLimiter
 	knowledge            *knowledge.Store
 	knowledgeIngestor    *knowledge.Ingestor
 }
@@ -79,6 +85,10 @@ func New(svc *service.Service, validator validation.Validator, log *zap.Logger) 
 		shareUnlockLimiter:   tripsecurity.NewRateLimiter(5, time.Minute),
 		publicShareLimiter:   tripsecurity.NewRateLimiter(120, time.Minute),
 		receiptUploadLimiter: tripsecurity.NewRateLimiter(20, time.Minute),
+		alphaWaitlistLimiter: tripsecurity.NewRateLimiter(5, time.Minute),
+		alphaInviteLimiter:   tripsecurity.NewRateLimiter(8, time.Minute),
+		alphaEventLimiter:    tripsecurity.NewRateLimiter(240, time.Minute),
+		alphaFeedbackLimiter: tripsecurity.NewRateLimiter(10, time.Minute),
 	}
 }
 
@@ -151,6 +161,11 @@ func (h *Handler) EnableWorkspacePolicies(svc *workspacepolicies.Service) *Handl
 
 // RegisterRoutes mounts the trip routes onto the given chi router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
+	r.Post("/alpha/activate", h.ActivateAlphaInvite)
+	r.Get("/alpha/me", h.GetAlphaParticipant)
+	r.Post("/analytics/events", h.RecordAnalyticsEvent)
+	r.Post("/feedback", h.SubmitAlphaFeedback)
+	r.Get("/feedback/{feedbackId}", h.GetMyAlphaFeedback)
 	r.Get("/collaboration/invitations", h.ListCollaborationInvitations)
 	r.Get("/reminders/assigned-to-me", h.ListAssignedReminders)
 	r.Post("/planning-constraints/preview", h.PreviewPlanningConstraints)
@@ -455,6 +470,7 @@ func (h *Handler) RemoveGoogleCalendarSync(w http.ResponseWriter, r *http.Reques
 
 // RegisterPublicRoutes mounts unauthenticated read-only public routes.
 func (h *Handler) RegisterPublicRoutes(r chi.Router) {
+	r.Post("/alpha/waitlist", h.JoinAlphaWaitlist)
 	r.Get("/feature-flags/public", h.PublicFeatureFlags)
 	r.Get("/public/trips/{shareToken}/status", h.GetPublicShareStatus)
 	r.Post("/public/trips/{shareToken}/unlock", h.UnlockPublicShare)

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { useTranslations } from "next-intl";
 import { createGenerationJob } from "@/lib/api/generation-jobs";
 import { createTrip, tripKeys } from "@/lib/api/trips";
+import { trackAlphaEvent } from "@/lib/api/alpha";
 import { getErrorMessage } from "@/lib/utils";
 import { useWorkspaces } from "@/components/workspaces/WorkspaceProvider";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -158,8 +159,39 @@ export function CreateTripForm({
         return { trip, generationJobId: null, generationStartFailed: true };
       }
     },
-    onSuccess: async ({ trip, generationJobId, generationStartFailed }) => {
+    onSuccess: async ({ trip, generationJobId, generationStartFailed }, variables) => {
       onboarding.markFirstTripCreated(trip.createdAt);
+      trackAlphaEvent({
+        eventName: "trip_created",
+        feature: "trips",
+        entityType: "trip",
+        entityId: trip.id,
+        metadata: {
+          tripType: variables.input.tripType,
+          workspaceScoped: Boolean(variables.input.workspaceId),
+          days: variables.input.days,
+          travelers: variables.input.travelers,
+          generatedImmediately: variables.generate
+        }
+      });
+      if (generationJobId) {
+        trackAlphaEvent({
+          eventName: "ai_generation_started",
+          feature: "ai",
+          entityType: "generation_job",
+          entityId: generationJobId,
+          metadata: { jobType: "full_generation", origin: "trip_creation" }
+        });
+      }
+      if (generationStartFailed) {
+        trackAlphaEvent({
+          eventName: "ai_generation_failed",
+          feature: "ai",
+          entityType: "trip",
+          entityId: trip.id,
+          metadata: { jobType: "full_generation", stage: "job_creation" }
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
       const query = new URLSearchParams();
       if (generationJobId) query.set("generationJob", generationJobId);

@@ -7,6 +7,7 @@ servers:
   - url: /api/trips
 security: [{ BearerAuth: [] }]
 tags:
+  - name: Alpha
   - name: Trips
   - name: Itinerary
   - name: Generation jobs
@@ -17,6 +18,93 @@ tags:
   - name: AI datasets
   - name: AI model serving
 paths:
+  /alpha/waitlist:
+    post:
+      tags: [Alpha]
+      operationId: joinAlphaWaitlist
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/JoinAlphaWaitlistRequest' } } }
+      responses:
+        '201':
+          description: Waitlist entry registered or refreshed.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AlphaWaitlistResponse' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /alpha/activate:
+    post:
+      tags: [Alpha]
+      operationId: activateAlphaInvite
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ActivateAlphaInviteRequest' } } }
+      responses:
+        '200':
+          description: Invite activated for the authenticated user.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AlphaParticipantResponse' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /alpha/me:
+    get:
+      tags: [Alpha]
+      operationId: getAlphaParticipant
+      responses:
+        '200':
+          description: Authenticated user's alpha participant metadata.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AlphaParticipantResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /analytics/events:
+    post:
+      tags: [Alpha]
+      operationId: recordProductAnalyticsEvent
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProductAnalyticsEventRequest' } } }
+      responses:
+        '202':
+          description: Privacy-safe analytics event accepted.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProductAnalyticsEventResponse' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /feedback:
+    post:
+      tags: [Alpha]
+      operationId: submitAlphaFeedback
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SubmitAlphaFeedbackRequest' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/SubmitAlphaFeedbackMultipartRequest' } }
+      responses:
+        '201':
+          description: Structured feedback submitted.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AlphaFeedbackDetail' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '413': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /feedback/{feedbackId}:
+    get:
+      tags: [Alpha]
+      operationId: getMyAlphaFeedback
+      parameters: [{ name: feedbackId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Feedback detail for the submitting user.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AlphaFeedbackDetail' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
   /feature-flags/public:
     get:
       tags: [Operations]
@@ -1179,6 +1267,228 @@ components:
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/GenerationJob' } }
         limit: { type: integer }
+    AlphaTesterGroup:
+      type: string
+      enum: [internal, external, qa, design_reviewer]
+    AlphaWaitlistStatus:
+      type: string
+      enum: [registered, invited, accepted, declined, removed]
+    JoinAlphaWaitlistRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        source: { type: string, maxLength: 80 }
+    AlphaWaitlistEntry:
+      type: object
+      required: [id, email, emailDomain, status, source, notes, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        emailDomain: { type: string }
+        status: { $ref: '#/components/schemas/AlphaWaitlistStatus' }
+        invitedInviteId: { type: string, format: uuid, nullable: true }
+        source: { type: string }
+        notes: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        invitedAt: { type: string, format: date-time, nullable: true }
+        acceptedAt: { type: string, format: date-time, nullable: true }
+        declinedAt: { type: string, format: date-time, nullable: true }
+        removedAt: { type: string, format: date-time, nullable: true }
+    AlphaWaitlistResponse:
+      type: object
+      required: [waitlist]
+      properties: { waitlist: { $ref: '#/components/schemas/AlphaWaitlistEntry' } }
+    ActivateAlphaInviteRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 80 }
+    AlphaParticipant:
+      type: object
+      required: [userId, alphaParticipant, testerGroup, active]
+      properties:
+        userId: { type: string, format: uuid }
+        inviteId: { type: string, format: uuid, nullable: true }
+        alphaParticipant: { type: boolean }
+        testerGroup: { $ref: '#/components/schemas/AlphaTesterGroup' }
+        invitationDate: { type: string, format: date-time, nullable: true }
+        firstLoginAt: { type: string, format: date-time, nullable: true }
+        firstTripAt: { type: string, format: date-time, nullable: true }
+        firstAiGenerationAt: { type: string, format: date-time, nullable: true }
+        lastActivityAt: { type: string, format: date-time, nullable: true }
+        active: { type: boolean }
+    AlphaParticipantResponse:
+      type: object
+      required: [participant]
+      properties: { participant: { $ref: '#/components/schemas/AlphaParticipant' } }
+    ProductAnalyticsEventName:
+      type: string
+      enum:
+        - signup_completed
+        - login
+        - logout
+        - profile_completed
+        - preferences_updated
+        - trip_created
+        - itinerary_generated
+        - itinerary_regenerated
+        - itinerary_edited
+        - itinerary_archived
+        - ai_generation_started
+        - ai_generation_completed
+        - ai_generation_failed
+        - repair_triggered
+        - fallback_used
+        - itinerary_accepted
+        - place_removed
+        - place_replaced
+        - budget_created
+        - budget_edited
+        - route_recalculated
+        - share_created
+        - share_opened
+        - notification_opened
+        - feedback_submitted
+        - ai_feedback_submitted
+        - bug_report_submitted
+        - feature_request_submitted
+        - experimental_setting_changed
+        - trip_reviewed
+        - user_returned
+        - second_trip_created
+        - error_occurred
+    ProductAnalyticsEventRequest:
+      type: object
+      required: [eventName]
+      properties:
+        eventName: { $ref: '#/components/schemas/ProductAnalyticsEventName' }
+        feature: { type: string, maxLength: 60 }
+        entityType: { type: string, maxLength: 60 }
+        entityId: { type: string, maxLength: 160, description: Raw value is accepted and stored only as a hash. }
+        metadata: { type: object, additionalProperties: true }
+        sessionId: { type: string, maxLength: 160, description: Raw value is accepted and stored only as a hash. }
+        appVersion: { type: string, maxLength: 80 }
+        browserFamily: { type: string, maxLength: 40 }
+        osFamily: { type: string, maxLength: 40 }
+        deviceType: { type: string, maxLength: 40 }
+        requestId: { type: string, maxLength: 160 }
+        correlationId: { type: string, maxLength: 160 }
+        source: { type: string, maxLength: 40 }
+    ProductAnalyticsEvent:
+      type: object
+      required: [id, eventName, feature, metadata, occurredAt, source]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid, nullable: true }
+        eventName: { $ref: '#/components/schemas/ProductAnalyticsEventName' }
+        feature: { type: string }
+        entityType: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        occurredAt: { type: string, format: date-time }
+        requestId: { type: string, nullable: true }
+        correlationId: { type: string, nullable: true }
+        appVersion: { type: string, nullable: true }
+        browserFamily: { type: string, nullable: true }
+        osFamily: { type: string, nullable: true }
+        deviceType: { type: string, nullable: true }
+        source: { type: string }
+    ProductAnalyticsEventResponse:
+      type: object
+      required: [event]
+      properties: { event: { $ref: '#/components/schemas/ProductAnalyticsEvent' } }
+    AlphaFeedbackCategory:
+      type: string
+      enum: [ai, ui, performance, bug, security, accessibility, feature_request, other]
+    AlphaFeedbackStatus:
+      type: string
+      enum: [open, triaged, in_progress, resolved, closed, duplicate]
+    AlphaFeedbackPriority:
+      type: string
+      enum: [low, normal, high, urgent]
+    FeedbackAttachmentInput:
+      type: object
+      required: [fileName, mimeType, sizeBytes]
+      properties:
+        fileName: { type: string, maxLength: 120 }
+        mimeType: { type: string, enum: [image/png, image/jpeg, image/webp] }
+        sizeBytes: { type: integer, minimum: 1, maximum: 5242880 }
+        contentSha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+    SubmitAlphaFeedbackRequest:
+      type: object
+      required: [category, title, description]
+      properties:
+        category: { $ref: '#/components/schemas/AlphaFeedbackCategory' }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, minLength: 1, maxLength: 4000 }
+        metadata: { type: object, additionalProperties: true }
+        appVersion: { type: string, maxLength: 80 }
+        browserFamily: { type: string, maxLength: 40 }
+        osFamily: { type: string, maxLength: 40 }
+        deviceType: { type: string, maxLength: 40 }
+        requestId: { type: string, maxLength: 160 }
+        correlationId: { type: string, maxLength: 160 }
+        provider: { type: string, maxLength: 80 }
+        modelAlias: { type: string, maxLength: 120 }
+        promptVersion: { type: string, maxLength: 120 }
+        featureFlags: { type: object, additionalProperties: true }
+        attachments: { type: array, maxItems: 3, items: { $ref: '#/components/schemas/FeedbackAttachmentInput' } }
+    SubmitAlphaFeedbackMultipartRequest:
+      type: object
+      required: [category, title, description]
+      properties:
+        category: { $ref: '#/components/schemas/AlphaFeedbackCategory' }
+        title: { type: string, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        metadata: { type: string, description: JSON object encoded as a string. }
+        screenshot: { type: string, format: binary, description: Optional PNG/JPEG/WebP screenshot. }
+    AlphaFeedback:
+      type: object
+      required: [id, userId, category, title, descriptionSanitized, status, priority, metadata, featureFlags, attachmentCount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        category: { $ref: '#/components/schemas/AlphaFeedbackCategory' }
+        title: { type: string }
+        descriptionSanitized: { type: string }
+        status: { $ref: '#/components/schemas/AlphaFeedbackStatus' }
+        priority: { $ref: '#/components/schemas/AlphaFeedbackPriority' }
+        ownerUserId: { type: string, format: uuid, nullable: true }
+        internalNotes: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        appVersion: { type: string, nullable: true }
+        browserFamily: { type: string, nullable: true }
+        osFamily: { type: string, nullable: true }
+        deviceType: { type: string, nullable: true }
+        requestId: { type: string, nullable: true }
+        correlationId: { type: string, nullable: true }
+        provider: { type: string, nullable: true }
+        modelAlias: { type: string, nullable: true }
+        promptVersion: { type: string, nullable: true }
+        featureFlags: { type: object, additionalProperties: true }
+        attachmentCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    FeedbackAttachment:
+      type: object
+      required: [id, feedbackId, fileName, mimeType, sizeBytes, contentSha256, scanStatus, storageStatus, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        feedbackId: { type: string, format: uuid }
+        fileName: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer }
+        contentSha256: { type: string }
+        scanStatus: { type: string, enum: [clean, rejected, not_configured] }
+        storageStatus: { type: string }
+        createdAt: { type: string, format: date-time }
+    AlphaFeedbackDetail:
+      type: object
+      required: [feedback, attachments]
+      properties:
+        feedback: { $ref: '#/components/schemas/AlphaFeedback' }
+        attachments: { type: array, items: { $ref: '#/components/schemas/FeedbackAttachment' } }
     AIModelFeedbackCategory:
       type: string
       enum: [better_than_standard, worse_than_standard, bad_places, bad_schedule, too_slow, wrong_language, formatting_problem, other]

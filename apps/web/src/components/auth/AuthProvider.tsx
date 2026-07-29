@@ -25,6 +25,7 @@ import {
 } from "@/shared/api/auth";
 import { clearCommandPaletteRecentItems } from "@/lib/command-palette/recent-items";
 import { clearOfflineData, purgeStaleOfflineData } from "@/lib/offline/trip-cache";
+import { recordAnalyticsEvent } from "@/lib/api/alpha";
 import type { AuthUser, TokenResponse } from "@/shared/api/auth";
 
 type AuthContextValue = {
@@ -127,6 +128,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await loginRequest(credentials);
     saveTokens(response.accessToken, response.refreshToken);
     setUser(response.user);
+    void recordAnalyticsEvent({ eventName: "login", feature: "authentication" }).catch(() => undefined);
     await purgeStaleOfflineData(response.user.id);
   }, []);
 
@@ -134,6 +136,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await registerRequest(credentials);
     saveTokens(response.accessToken, response.refreshToken);
     setUser(response.user);
+    void recordAnalyticsEvent({ eventName: "signup_completed", feature: "authentication" }).catch(() => undefined);
     await purgeStaleOfflineData(response.user.id);
   }, []);
 
@@ -144,6 +147,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (refreshToken) {
         await logoutRequest(refreshToken);
       }
+      void recordAnalyticsEvent({ eventName: "logout", feature: "authentication" }).catch(() => undefined);
     } catch {
       // Local logout should still complete if Auth Service is unreachable.
     } finally {

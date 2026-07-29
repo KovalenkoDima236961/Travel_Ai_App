@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
 import { GlobalCommandPalette } from "@/components/command-palette/GlobalCommandPalette";
+import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
 import { AppUpdateBanner } from "@/components/pwa/AppUpdateBanner";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
@@ -41,6 +42,7 @@ export function Providers({ children }: ProvidersProps) {
               <OfflineSyncController />
               <GlobalCommandPalette />
               <AppUpdateBanner />
+              <FeedbackDialog />
               <FeatureGate flag="offline_mode_enabled">
                 <PwaInstallPrompt />
               </FeatureGate>

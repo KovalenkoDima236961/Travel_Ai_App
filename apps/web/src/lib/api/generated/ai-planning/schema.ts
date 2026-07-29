@@ -347,6 +347,8 @@ export interface components {
             datasetVersion?: string | null;
             /** Durationms */
             durationMs: number;
+            /** Deploymentkey */
+            deploymentKey?: string | null;
             /** Experimentkey */
             experimentKey?: string | null;
             /** Fallbacktobase */
@@ -357,6 +359,10 @@ export interface components {
             model?: string | null;
             /** Modelvariant */
             modelVariant?: string | null;
+            /** Requestassignmentid */
+            requestAssignmentId?: string | null;
+            /** Inferencemode */
+            inferenceMode?: ("primary" | "shadow") | null;
             /** Promptversion */
             promptVersion: string;
             /** Provider */
@@ -1393,9 +1399,13 @@ export interface components {
             days: number;
             /** Destination */
             destination: string;
+            /** Deploymentkey */
+            deploymentKey?: string | null;
             groundingContext?: components["schemas"]["GroundingContext"] | null;
             /** Instruction */
             instruction?: string | null;
+            /** Inferencemode */
+            inferenceMode?: ("primary" | "shadow") | null;
             /** Interests */
             interests?: string[];
             /**
@@ -2527,6 +2537,8 @@ export interface components {
             planningConstraints?: {
                 [key: string]: unknown;
             } | null;
+            /** Requestassignmentid */
+            requestAssignmentId?: string | null;
             /** Route */
             route?: {
                 [key: string]: unknown;

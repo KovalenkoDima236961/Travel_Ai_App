@@ -76,6 +76,7 @@ import {
   tripRepairKeys
 } from "@/lib/api/trip-repair";
 import { commentKeys, listTripCommentCounts } from "@/lib/api/comments";
+import { trackAlphaEvent } from "@/lib/api/alpha";
 import { isItineraryConflictError } from "@/shared/api/client";
 import {
   cancelGenerationJob,
@@ -181,7 +182,7 @@ import type {
   SyncResult
 } from "@/lib/offline/types";
 import { isPendingItineraryMutation } from "@/lib/offline/types";
-import type { Itinerary, Trip } from "@/entities/trip/model";
+import type { Itinerary, ItineraryItem, Trip } from "@/entities/trip/model";
 import { BudgetOptimizationProposalsPanel } from "./BudgetOptimizationProposalsPanel";
 import { TripDetailHeader } from "./TripDetailHeader";
 import { TripDetailSidebar } from "./TripDetailSidebar";
@@ -1446,7 +1447,9 @@ export function TripDetailPageContent() {
         itinerary: normalized,
         expectedRevision: baseItineraryRevision ?? trip.itineraryRevision
       });
+      const previousItinerary = baseItinerary;
       await completeItinerarySave(updated, "Itinerary saved.");
+      trackItineraryPlaceChanges(previousItinerary, normalized, updated.id);
     } catch (error) {
       if (isItineraryConflictError(error)) {
         await prepareMergeRecovery(normalized, error.currentItineraryRevision);
@@ -1872,6 +1875,17 @@ export function TripDetailPageContent() {
     clearEditSession();
     void setPresenceState("viewing");
     setSuccessMessage(message);
+    trackAlphaEvent({
+      eventName: "itinerary_edited",
+      feature: "trips",
+      entityType: "trip",
+      entityId: updated.id,
+      metadata: {
+        itineraryRevision: updated.itineraryRevision,
+        dayCount: updated.itinerary?.days.length ?? 0,
+        saveContext: message
+      }
+    });
   }
 
   async function invalidateCostSplitDependents(updatedTrip: Trip) {
@@ -2084,6 +2098,13 @@ export function TripDetailPageContent() {
       setSuccessMessage(null);
       const result = await applyBudgetOptimizationMutation.mutateAsync(proposal);
       queryClient.setQueryData(tripKeys.detail(tripId), result.trip);
+      trackAlphaEvent({
+        eventName: "budget_edited",
+        feature: "budget",
+        entityType: "trip",
+        entityId: tripId,
+        metadata: { source: "budget_optimization", dayNumber: proposal.dayNumber ?? proposal.proposal.dayNumber }
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) }),
         queryClient.invalidateQueries({ queryKey: tripKeys.itineraryVersions(tripId) }),
@@ -2144,6 +2165,13 @@ export function TripDetailPageContent() {
       setSuccessMessage(null);
       const job = await createTripRepairMutation.mutateAsync(input);
       handleGenerationJobCreated(job);
+      trackAlphaEvent({
+        eventName: "repair_triggered",
+        feature: "ai",
+        entityType: "generation_job",
+        entityId: job.id,
+        metadata: { repairMode: input.repairMode ?? "policy_compliance" }
+      });
       setTripRepairDialogOpen(false);
       setSuccessMessage("AI repair queued.");
       await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
@@ -2306,6 +2334,15 @@ export function TripDetailPageContent() {
         expectedRevision: trip.itineraryRevision
       });
       await completeItinerarySave(updated, "Budget price updated from availability.");
+      if (result.fallbackUsed) {
+        trackAlphaEvent({
+          eventName: "fallback_used",
+          feature: "ai",
+          entityType: "trip",
+          entityId: tripId,
+          metadata: { provider: result.provider, fallbackType: "availability_price" }
+        });
+      }
     } catch (error) {
       if (isItineraryConflictError(error)) {
         setAvailabilityApplyError("This itinerary changed. Reload latest version before updating the price.");
@@ -2316,14 +2353,181 @@ export function TripDetailPageContent() {
     }
   }
 
+  function generationJobMetadata(job: GenerationJob) {
+    return {
+      jobType: job.jobType,
+      status: job.status,
+      dayNumber: job.dayNumber ?? null,
+      itemIndex: job.itemIndex ?? null,
+      dayScoped: job.dayNumber != null,
+      itemScoped: job.itemIndex != null,
+      latencyMs: generationJobLatencyMs(job),
+      resultRevision: job.resultItineraryRevision ?? null
+    };
+  }
+
+  function generationJobLatencyMs(job: GenerationJob) {
+    const startedAt = job.startedAt ? new Date(job.startedAt).getTime() : new Date(job.createdAt).getTime();
+    const finishedAt = job.completedAt
+      ? new Date(job.completedAt).getTime()
+      : job.cancelledAt
+        ? new Date(job.cancelledAt).getTime()
+        : new Date(job.updatedAt).getTime();
+    if (Number.isNaN(startedAt) || Number.isNaN(finishedAt) || finishedAt < startedAt) {
+      return null;
+    }
+    return finishedAt - startedAt;
+  }
+
+  function itineraryEventForGenerationJob(job: GenerationJob) {
+    if (job.jobType === "full_generation" || job.jobType === "template_adaptation") {
+      return "itinerary_generated";
+    }
+    if (
+      job.jobType === "day_regeneration" ||
+      job.jobType === "item_regeneration" ||
+      job.jobType === "quality_improvement_day" ||
+      job.jobType === "quality_improvement_item"
+    ) {
+      return "itinerary_regenerated";
+    }
+    return null;
+  }
+
+  function generationJobUsedFallback(job: GenerationJob) {
+    const resultPayload = job.resultPayload;
+    if (!isPlainRecord(resultPayload)) {
+      return false;
+    }
+    if (resultPayload.fallbackUsed === true) {
+      return true;
+    }
+    const generationSummary = resultPayload.generationSummary;
+    return isPlainRecord(generationSummary) && generationSummary.fallbackUsed === true;
+  }
+
+  function isPlainRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  function trackItineraryPlaceChanges(
+    before: Itinerary | null | undefined,
+    after: Itinerary,
+    tripIdForEvent: string
+  ) {
+    if (!before) {
+      return;
+    }
+
+    const beforeCounts = countPlaceNames(before);
+    const afterCounts = countPlaceNames(after);
+    for (const [placeName, beforeCount] of beforeCounts) {
+      const removedCount = beforeCount - (afterCounts.get(placeName) ?? 0);
+      if (removedCount > 0) {
+        trackAlphaEvent({
+          eventName: "place_removed",
+          feature: "ai",
+          entityType: "trip",
+          entityId: tripIdForEvent,
+          metadata: { placeName, removedCount }
+        });
+      }
+    }
+
+    const dayCount = Math.min(before.days.length, after.days.length);
+    for (let dayIndex = 0; dayIndex < dayCount; dayIndex += 1) {
+      const beforeItems = before.days[dayIndex]?.items ?? [];
+      const afterItems = after.days[dayIndex]?.items ?? [];
+      const itemCount = Math.min(beforeItems.length, afterItems.length);
+      for (let itemIndex = 0; itemIndex < itemCount; itemIndex += 1) {
+        const beforeName = placeNameForAnalytics(beforeItems[itemIndex]);
+        const afterName = placeNameForAnalytics(afterItems[itemIndex]);
+        if (beforeName && afterName && beforeName !== afterName) {
+          trackAlphaEvent({
+            eventName: "place_replaced",
+            feature: "ai",
+            entityType: "trip",
+            entityId: tripIdForEvent,
+            metadata: {
+              placeName: beforeName,
+              dayNumber: before.days[dayIndex]?.day ?? dayIndex + 1,
+              itemType: afterItems[itemIndex]?.type ?? "unknown"
+            }
+          });
+        }
+      }
+    }
+  }
+
+  function countPlaceNames(itinerary: Itinerary) {
+    const counts = new Map<string, number>();
+    for (const day of itinerary.days) {
+      for (const item of day.items) {
+        const placeName = placeNameForAnalytics(item);
+        if (placeName) {
+          counts.set(placeName, (counts.get(placeName) ?? 0) + 1);
+        }
+      }
+    }
+    return counts;
+  }
+
+  function placeNameForAnalytics(item: ItineraryItem | undefined) {
+    if (!item) {
+      return null;
+    }
+    if (!item.place && ["transport", "transfer", "rest"].includes(item.type)) {
+      return null;
+    }
+    const value = item?.place?.name || item?.name || "";
+    const normalized = value.trim();
+    if (!normalized) {
+      return null;
+    }
+    return normalized.length > 120 ? normalized.slice(0, 120) : normalized;
+  }
+
   function handleGenerationJobCreated(job: GenerationJob) {
     setActiveGenerationJobId(job.id);
     setSuccessMessage(null);
     setRegenerationError(null);
     queryClient.setQueryData(generationJobKeys.detail(tripId, job.id), job);
+    trackAlphaEvent({
+      eventName: "ai_generation_started",
+      feature: "ai",
+      entityType: "generation_job",
+      entityId: job.id,
+      metadata: generationJobMetadata(job)
+    });
   }
 
   async function handleGenerationJobCompleted(job: GenerationJob) {
+    trackAlphaEvent({
+      eventName: "ai_generation_completed",
+      feature: "ai",
+      entityType: "generation_job",
+      entityId: job.id,
+      metadata: generationJobMetadata(job)
+    });
+    const itineraryEventName = itineraryEventForGenerationJob(job);
+    if (itineraryEventName) {
+      trackAlphaEvent({
+        eventName: itineraryEventName,
+        feature: "trips",
+        entityType: "trip",
+        entityId: job.tripId,
+        metadata: generationJobMetadata(job)
+      });
+    }
+    if (generationJobUsedFallback(job)) {
+      trackAlphaEvent({
+        eventName: "fallback_used",
+        feature: "ai",
+        entityType: "generation_job",
+        entityId: job.id,
+        metadata: generationJobMetadata(job)
+      });
+    }
     if (job.jobType === "budget_optimization_day") {
       await refreshAfterBudgetOptimizationJob();
       setRegenerationError(null);
@@ -2342,6 +2546,13 @@ export function TripDetailPageContent() {
   }
 
   async function handleGenerationJobFailed(job: GenerationJob) {
+    trackAlphaEvent({
+      eventName: "ai_generation_failed",
+      feature: "ai",
+      entityType: "generation_job",
+      entityId: job.id,
+      metadata: { ...generationJobMetadata(job), errorCode: job.errorCode ?? "unknown" }
+    });
     await queryClient.invalidateQueries({ queryKey: generationJobKeys.list(tripId) });
     if (job.jobType === "budget_optimization_day") {
       await queryClient.invalidateQueries({ queryKey: budgetOptimizationKeys.all(tripId) });

@@ -6,7 +6,7 @@
 | --- | --- |
 | Auth Service | `users`, `refresh_tokens` |
 | User Service | `user_profiles`, `user_preferences`, `workspaces`, `workspace_members`, `workspace_invitations`, account cleanup/export jobs |
-| Trip Service | `trips`, itinerary versions, shares, collaborators, comments/activity, generation jobs/traces, routes, budgets, templates, polls, checklists/reminders, expenses/receipts/settlements, approvals/policies, recaps, exports and personalization feedback |
+| Trip Service | `trips`, itinerary versions, shares, collaborators, comments/activity, generation jobs/traces, routes, budgets, templates, polls, checklists/reminders, expenses/receipts/settlements, approvals/policies, recaps, exports, personalization feedback, alpha invites/waitlist/participants, product analytics events, alpha feedback, weekly alpha reports |
 | Notification Service | notifications, preferences/settings/mutes, push subscriptions, digest batches/items and dedupe records |
 | External Integrations | calendar connections/OAuth states, provider daily usage/totals |
 | Worker / AI / Web | No independent application tables in v1. AI returns data and Web uses browser storage. Worker has an intentional v1 legacy direct-write integration for Trip Service job state; do not extend it—new cross-service work uses authenticated APIs. |

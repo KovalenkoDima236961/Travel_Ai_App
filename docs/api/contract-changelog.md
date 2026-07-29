@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Trip service alpha:** Added closed-alpha waitlist, invite activation,
+  participant metadata, product analytics event, and structured feedback
+  contracts. Additive.
 - **Trip service:** Added safe public feature-flag projection, ops flag
   management/audit routes, and the `feature_disabled` error code. Additive.
 - **AI model serving:** Added Trip Service user feedback submission for online

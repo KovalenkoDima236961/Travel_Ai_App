@@ -37,6 +37,7 @@ import { OpsHeader } from "./OpsHeader";
 import { AIDatasetCurationPanel } from "@/components/ops/AIDatasetCurationPanel";
 import { AIExperimentsPanel } from "@/components/ops/AIExperimentsPanel";
 import { AlphaOverviewPanel } from "@/components/ops/AlphaOverviewPanel";
+import { AlphaProgramPanel } from "@/components/ops/alpha/AlphaProgramPanel";
 import { FeatureFlagsPanel } from "@/components/ops/FeatureFlagsPanel";
 import {
   CARD,
@@ -261,6 +262,8 @@ export function OpsPageContent() {
         summary={summary.data}
         worker={worker.data}
       />
+
+      <AlphaProgramPanel />
 
       <FeatureFlagsPanel />
 

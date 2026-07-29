@@ -54,6 +54,17 @@ a client. Private routes require bearer JWT unless stated otherwise.
 | `GET/POST/PATCH/DELETE /trips/{id}/share`; `/public/trips/{shareToken}*` | Trip | Owner for private; public for share | Share controls/status/unlock/sanitized view | expired/password/rate limit |
 | Workspace policy, approval, budget, analytics routes | Trip | Workspace owner/admin/member by action | Governance and shared financial views | forbidden, conflict |
 
+## Alpha program, analytics, and feedback
+
+| Method/path | Service | Auth / permission | Request and response | Important errors |
+| --- | --- | --- | --- | --- |
+| `POST /alpha/waitlist` | Trip | Public, rate limited | Email/source → waitlist entry | validation, rate limit |
+| `POST /alpha/activate`, `GET /alpha/me` | Trip | Bearer | Invite code activation and participant metadata | invalid invite, expired/disabled invite, unauthorized |
+| `POST /analytics/events` | Trip | Bearer, rate limited | Allowlisted privacy-safe event + sanitized metadata | validation, unsupported event |
+| `POST /feedback`, `GET /feedback/{feedbackId}` | Trip | Bearer, rate limited for submit | Structured feedback and optional attachment metadata | validation, attachment rejected |
+| `/ops/alpha/invites*`, `/ops/alpha/waitlist*`, `/ops/alpha/invite-from-waitlist` | Trip | Ops authorization | Invite and waitlist management | forbidden, validation |
+| `/ops/alpha/dashboard`, `/ops/alpha/feedback*`, `/ops/alpha/reports/weekly*` | Trip | Ops authorization | Alpha health, feedback triage, weekly report generation/listing | forbidden, validation |
+
 ## Notifications, providers, AI, and operations
 
 | Method/path | Service | Auth / permission | Request and response | Important errors |

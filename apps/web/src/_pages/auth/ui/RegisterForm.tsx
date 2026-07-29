@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { activateAlphaInvite } from "@/lib/api/alpha";
 import { registerSchema, type RegisterValues } from "../model/authModel";
 import { AuthErrorBanner, AuthField, AuthSubmitButton } from "./formControls";
 
@@ -21,13 +22,17 @@ export function RegisterForm() {
     register
   } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: "", password: "", confirmPassword: "" }
+    defaultValues: { email: "", password: "", confirmPassword: "", inviteCode: "" }
   });
 
   async function onSubmit(values: RegisterValues) {
     setApiError(null);
     try {
       await registerAccount({ email: values.email.trim().toLowerCase(), password: values.password });
+      const inviteCode = values.inviteCode?.trim();
+      if (inviteCode) {
+        await activateAlphaInvite(inviteCode);
+      }
       router.push("/trips");
     } catch {
       setApiError(translate("registerFailed"));
@@ -62,6 +67,15 @@ export function RegisterForm() {
         autoComplete="new-password"
         error={errors.confirmPassword?.message}
         {...register("confirmPassword")}
+      />
+      <AuthField
+        label="Invite code"
+        id="inviteCode"
+        type="text"
+        placeholder="Optional"
+        autoComplete="off"
+        error={errors.inviteCode?.message}
+        {...register("inviteCode")}
       />
       {apiError ? <AuthErrorBanner message={apiError} /> : null}
       <AuthSubmitButton pending={isSubmitting}>

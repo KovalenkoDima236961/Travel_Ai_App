@@ -4,6 +4,102 @@
  */
 
 export interface paths {
+    "/alpha/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["joinAlphaWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alpha/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["activateAlphaInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alpha/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAlphaParticipant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recordProductAnalyticsEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitAlphaFeedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedback/{feedbackId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMyAlphaFeedback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/feature-flags/public": {
         parameters: {
             query?: never;
@@ -142,6 +238,86 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getFineTuningReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/model-deployments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["registerAIModelDeployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/model-deployments/{deploymentId}/enable-shadow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enableAIModelShadowRollout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/model-deployments/{deploymentId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pauseAIModelDeployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/model-deployments/{deploymentId}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rollbackAIModelDeployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/ai/model-deployments/{deploymentId}/online-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAIModelOnlineSummary"];
         put?: never;
         post?: never;
         delete?: never;
@@ -448,6 +624,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["cancelGenerationJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/ai-model-feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitAIModelFeedback"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1075,6 +1267,349 @@ export interface components {
             items: components["schemas"]["GenerationJob"][];
             limit: number;
         };
+        /** @enum {string} */
+        AlphaTesterGroup: "internal" | "external" | "qa" | "design_reviewer";
+        /** @enum {string} */
+        AlphaWaitlistStatus: "registered" | "invited" | "accepted" | "declined" | "removed";
+        JoinAlphaWaitlistRequest: {
+            /** Format: email */
+            email: string;
+            source?: string;
+        };
+        AlphaWaitlistEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            emailDomain: string;
+            status: components["schemas"]["AlphaWaitlistStatus"];
+            /** Format: uuid */
+            invitedInviteId?: string | null;
+            source: string;
+            notes: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            invitedAt?: string | null;
+            /** Format: date-time */
+            acceptedAt?: string | null;
+            /** Format: date-time */
+            declinedAt?: string | null;
+            /** Format: date-time */
+            removedAt?: string | null;
+        };
+        AlphaWaitlistResponse: {
+            waitlist: components["schemas"]["AlphaWaitlistEntry"];
+        };
+        ActivateAlphaInviteRequest: {
+            code: string;
+        };
+        AlphaParticipant: {
+            /** Format: uuid */
+            userId: string;
+            /** Format: uuid */
+            inviteId?: string | null;
+            alphaParticipant: boolean;
+            testerGroup: components["schemas"]["AlphaTesterGroup"];
+            /** Format: date-time */
+            invitationDate?: string | null;
+            /** Format: date-time */
+            firstLoginAt?: string | null;
+            /** Format: date-time */
+            firstTripAt?: string | null;
+            /** Format: date-time */
+            firstAiGenerationAt?: string | null;
+            /** Format: date-time */
+            lastActivityAt?: string | null;
+            active: boolean;
+        };
+        AlphaParticipantResponse: {
+            participant: components["schemas"]["AlphaParticipant"];
+        };
+        /** @enum {string} */
+        ProductAnalyticsEventName: "signup_completed" | "login" | "logout" | "profile_completed" | "preferences_updated" | "trip_created" | "itinerary_generated" | "itinerary_regenerated" | "itinerary_edited" | "itinerary_archived" | "ai_generation_started" | "ai_generation_completed" | "ai_generation_failed" | "repair_triggered" | "fallback_used" | "itinerary_accepted" | "place_removed" | "place_replaced" | "budget_created" | "budget_edited" | "route_recalculated" | "share_created" | "share_opened" | "notification_opened" | "feedback_submitted" | "ai_feedback_submitted" | "bug_report_submitted" | "feature_request_submitted" | "experimental_setting_changed" | "trip_reviewed" | "user_returned" | "second_trip_created" | "error_occurred";
+        ProductAnalyticsEventRequest: {
+            eventName: components["schemas"]["ProductAnalyticsEventName"];
+            feature?: string;
+            entityType?: string;
+            /** @description Raw value is accepted and stored only as a hash. */
+            entityId?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** @description Raw value is accepted and stored only as a hash. */
+            sessionId?: string;
+            appVersion?: string;
+            browserFamily?: string;
+            osFamily?: string;
+            deviceType?: string;
+            requestId?: string;
+            correlationId?: string;
+            source?: string;
+        };
+        ProductAnalyticsEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            userId?: string | null;
+            eventName: components["schemas"]["ProductAnalyticsEventName"];
+            feature: string;
+            entityType?: string;
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            occurredAt: string;
+            requestId?: string | null;
+            correlationId?: string | null;
+            appVersion?: string | null;
+            browserFamily?: string | null;
+            osFamily?: string | null;
+            deviceType?: string | null;
+            source: string;
+        };
+        ProductAnalyticsEventResponse: {
+            event: components["schemas"]["ProductAnalyticsEvent"];
+        };
+        /** @enum {string} */
+        AlphaFeedbackCategory: "ai" | "ui" | "performance" | "bug" | "security" | "accessibility" | "feature_request" | "other";
+        /** @enum {string} */
+        AlphaFeedbackStatus: "open" | "triaged" | "in_progress" | "resolved" | "closed" | "duplicate";
+        /** @enum {string} */
+        AlphaFeedbackPriority: "low" | "normal" | "high" | "urgent";
+        FeedbackAttachmentInput: {
+            fileName: string;
+            /** @enum {string} */
+            mimeType: "image/png" | "image/jpeg" | "image/webp";
+            sizeBytes: number;
+            contentSha256?: string;
+        };
+        SubmitAlphaFeedbackRequest: {
+            category: components["schemas"]["AlphaFeedbackCategory"];
+            title: string;
+            description: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            appVersion?: string;
+            browserFamily?: string;
+            osFamily?: string;
+            deviceType?: string;
+            requestId?: string;
+            correlationId?: string;
+            provider?: string;
+            modelAlias?: string;
+            promptVersion?: string;
+            featureFlags?: {
+                [key: string]: unknown;
+            };
+            attachments?: components["schemas"]["FeedbackAttachmentInput"][];
+        };
+        SubmitAlphaFeedbackMultipartRequest: {
+            category: components["schemas"]["AlphaFeedbackCategory"];
+            title: string;
+            description: string;
+            /** @description JSON object encoded as a string. */
+            metadata?: string;
+            /**
+             * Format: binary
+             * @description Optional PNG/JPEG/WebP screenshot.
+             */
+            screenshot?: string;
+        };
+        AlphaFeedback: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            userId: string;
+            category: components["schemas"]["AlphaFeedbackCategory"];
+            title: string;
+            descriptionSanitized: string;
+            status: components["schemas"]["AlphaFeedbackStatus"];
+            priority: components["schemas"]["AlphaFeedbackPriority"];
+            /** Format: uuid */
+            ownerUserId?: string | null;
+            internalNotes?: string;
+            metadata: {
+                [key: string]: unknown;
+            };
+            appVersion?: string | null;
+            browserFamily?: string | null;
+            osFamily?: string | null;
+            deviceType?: string | null;
+            requestId?: string | null;
+            correlationId?: string | null;
+            provider?: string | null;
+            modelAlias?: string | null;
+            promptVersion?: string | null;
+            featureFlags: {
+                [key: string]: unknown;
+            };
+            attachmentCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        FeedbackAttachment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            feedbackId: string;
+            fileName: string;
+            mimeType: string;
+            sizeBytes: number;
+            contentSha256: string;
+            /** @enum {string} */
+            scanStatus: "clean" | "rejected" | "not_configured";
+            storageStatus: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AlphaFeedbackDetail: {
+            feedback: components["schemas"]["AlphaFeedback"];
+            attachments: components["schemas"]["FeedbackAttachment"][];
+        };
+        /** @enum {string} */
+        AIModelFeedbackCategory: "better_than_standard" | "worse_than_standard" | "bad_places" | "bad_schedule" | "too_slow" | "wrong_language" | "formatting_problem" | "other";
+        AIModelFeedbackRequest: {
+            /** Format: uuid */
+            generationJobId?: string | null;
+            /** Format: uuid */
+            itineraryVersionId?: string | null;
+            /** Format: uuid */
+            requestAssignmentId?: string | null;
+            /** Format: uuid */
+            deploymentId?: string | null;
+            feedback: components["schemas"]["AIModelFeedbackCategory"];
+            note?: string | null;
+        };
+        AIModelFeedbackRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tripId: string;
+            /** Format: uuid */
+            generationJobId?: string | null;
+            /** Format: uuid */
+            itineraryVersionId?: string | null;
+            /** Format: uuid */
+            requestAssignmentId?: string | null;
+            /** Format: uuid */
+            deploymentId?: string | null;
+            /** Format: uuid */
+            userId: string;
+            feedback: components["schemas"]["AIModelFeedbackCategory"];
+            noteSanitized?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @enum {string} */
+        AIModelDeploymentStatus: "registered" | "candidate" | "shadow" | "internal" | "allowlist" | "staged_rollout" | "active" | "paused" | "rejected" | "retired";
+        /** @enum {string} */
+        AIModelTrafficMode: "disabled" | "shadow" | "internal" | "allowlist" | "percentage" | "active";
+        /** @enum {string} */
+        AIModelVariant: "grounded_baseline" | "fine_tuned_candidate";
+        AIModelDeployment: {
+            /** Format: uuid */
+            id: string;
+            environment: string;
+            deploymentKey: string;
+            /** Format: uuid */
+            modelId: string;
+            /** Format: uuid */
+            adapterId?: string | null;
+            /** Format: uuid */
+            experimentId?: string | null;
+            modelVariant: components["schemas"]["AIModelVariant"];
+            status: components["schemas"]["AIModelDeploymentStatus"];
+            taskType: string;
+            trafficMode: components["schemas"]["AIModelTrafficMode"];
+            shadowSamplePercent: number;
+            rolloutPercent: number;
+            allowlistedUserIds?: string[];
+            allowlistedWorkspaceIds?: string[];
+            internalOnly: boolean;
+            featureFlagKey?: string | null;
+            assignmentSalt: string;
+            promptVersion: string;
+            groundingVersion?: string | null;
+            validatorVersion?: string | null;
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            activatedAt?: string | null;
+            /** Format: date-time */
+            pausedAt?: string | null;
+            /** Format: date-time */
+            retiredAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RegisterAIModelDeploymentRequest: {
+            environment?: string;
+            deploymentKey: string;
+            /** Format: uuid */
+            modelId: string;
+            /** Format: uuid */
+            adapterId?: string | null;
+            /** Format: uuid */
+            experimentId?: string | null;
+            modelVariant: components["schemas"]["AIModelVariant"];
+            status?: components["schemas"]["AIModelDeploymentStatus"];
+            /** @default grounded_itinerary_generation */
+            taskType: string;
+            trafficMode?: components["schemas"]["AIModelTrafficMode"];
+            /** @default 0 */
+            shadowSamplePercent: number;
+            /** @default 0 */
+            rolloutPercent: number;
+            allowlistedUserIds?: string[];
+            allowlistedWorkspaceIds?: string[];
+            /** @default true */
+            internalOnly: boolean;
+            featureFlagKey?: string | null;
+            /** @description Generated when omitted; changing it resets deterministic assignment buckets. */
+            assignmentSalt?: string;
+            promptVersion: string;
+            groundingVersion?: string | null;
+            validatorVersion?: string | null;
+            config?: {
+                [key: string]: unknown;
+            };
+            reason: string;
+        };
+        EnableAIModelShadowRequest: {
+            shadowSamplePercent: number;
+            reason: string;
+        };
+        AIModelDeploymentActionRequest: {
+            reason: string;
+        };
+        AIModelOnlineSummary: {
+            deployment: components["schemas"]["AIModelDeployment"];
+            comparisonCount: number;
+            completedCount: number;
+            pendingCount: number;
+            failureCount: number;
+            guardrailCounts: {
+                [key: string]: number;
+            };
+            statusCounts: {
+                [key: string]: number;
+            };
+            baselineLatencyAvgMs: number;
+            candidateLatencyAvgMs: number;
+            candidateLatencyP95Ms: number;
+            recentWindowHours: number;
+            /** Format: date-time */
+            generatedAt: string;
+        };
         BudgetEnvelope: {
             budget: {
                 [key: string]: unknown;
@@ -1302,6 +1837,168 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    joinAlphaWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinAlphaWaitlistRequest"];
+            };
+        };
+        responses: {
+            /** @description Waitlist entry registered or refreshed. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlphaWaitlistResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    activateAlphaInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateAlphaInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Invite activated for the authenticated user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlphaParticipantResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAlphaParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authenticated user's alpha participant metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlphaParticipantResponse"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    recordProductAnalyticsEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductAnalyticsEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Privacy-safe analytics event accepted. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductAnalyticsEventResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    submitAlphaFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitAlphaFeedbackRequest"];
+                "multipart/form-data": components["schemas"]["SubmitAlphaFeedbackMultipartRequest"];
+            };
+        };
+        responses: {
+            /** @description Structured feedback submitted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlphaFeedbackDetail"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            413: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getMyAlphaFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                feedbackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feedback detail for the submitting user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlphaFeedbackDetail"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
     getPublicFeatureFlags: {
         parameters: {
             query?: never;
@@ -1590,6 +2287,148 @@ export interface operations {
                 };
             };
             403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    registerAIModelDeployment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterAIModelDeploymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Registered deployment with traffic disabled unless explicitly supplied otherwise. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIModelDeployment"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    enableAIModelShadowRollout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deploymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnableAIModelShadowRequest"];
+            };
+        };
+        responses: {
+            /** @description Deployment moved to shadow traffic mode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIModelDeployment"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    pauseAIModelDeployment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deploymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIModelDeploymentActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Deployment paused and traffic disabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIModelDeployment"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    rollbackAIModelDeployment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deploymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIModelDeploymentActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Deployment retired and traffic disabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIModelDeployment"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAIModelOnlineSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deploymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Last-24-hour online comparison aggregate for a candidate deployment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIModelOnlineSummary"];
+                };
+            };
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
             default: components["responses"]["ErrorResponse"];
         };
     };
@@ -2152,6 +2991,37 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    submitAIModelFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIModelFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Stored bounded online model feedback. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIModelFeedbackRecord"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
             default: components["responses"]["ErrorResponse"];
         };
     };

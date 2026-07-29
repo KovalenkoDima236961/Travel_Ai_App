@@ -16,7 +16,8 @@ export const registerSchema = z
       .regex(/[a-z]/, "Password must include a lowercase letter")
       .regex(/[A-Z]/, "Password must include an uppercase letter")
       .regex(/[0-9]/, "Password must include a digit"),
-    confirmPassword: z.string().min(1, "Confirm your password")
+    confirmPassword: z.string().min(1, "Confirm your password"),
+    inviteCode: z.string().trim().max(64, "Invite code is too long").optional()
   })
   .refine((values) => values.password === values.confirmPassword, {
     path: ["confirmPassword"],

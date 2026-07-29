@@ -16,6 +16,7 @@ import {
   tripKeys,
   updateTripShare
 } from "@/lib/api/trips";
+import { trackAlphaEvent } from "@/lib/api/alpha";
 import { activityKeys } from "@/lib/api/activity";
 import { formatDate, getErrorMessage } from "@/lib/utils";
 import type { TripShareInfo, UpdateTripShareRequest } from "@/entities/share/model";
@@ -52,6 +53,16 @@ export function ShareTripPanel({ tripId }: ShareTripPanelProps) {
     onSuccess: async (share) => {
       queryClient.setQueryData(tripKeys.share(tripId), share);
       await queryClient.invalidateQueries({ queryKey: activityKeys.all(tripId) });
+      trackAlphaEvent({
+        eventName: "share_created",
+        feature: "sharing",
+        entityType: "trip",
+        entityId: tripId,
+        metadata: {
+          passwordProtected: Boolean(share.passwordRequired),
+          expires: Boolean(share.expiresAt)
+        }
+      });
       resetPasswordInputs();
       setMessage("Share link is ready.");
       setError(null);

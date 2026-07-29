@@ -16,6 +16,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aimodel"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aiobservability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/aivalidation"
+	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/alpha"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/application/service"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/budgetconfidence"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/calendarclient"
@@ -509,6 +510,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		ManualExamplesDir:       cfg.AIDatasets.ManualExamplesDir,
 		TrainingInstructionText: cfg.AIDatasets.TrainingInstructionText,
 	}, log)
+	alphaSvc := alpha.New(db, log)
 	copilotHandler, err := copilot.NewHandler(
 		svc,
 		copilot.Config{
@@ -606,7 +608,8 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		EnableAIModelFeedback(aimodel.NewFeedbackService(db)).
 		EnableAIModelOps(aimodel.NewOpsService(db, cfg.AIModelServing.RuntimeConfig(), cfg.Env, log)).
 		EnableWorkspacePolicies(policySvc).
-		EnableFeatureFlags(featureFlagSvc)
+		EnableFeatureFlags(featureFlagSvc).
+		EnableAlpha(alphaSvc)
 	readinessHandler := httpserver.NewReadinessHandler(
 		db,
 		cfg.ItineraryGenerator.Mode,
