@@ -48,11 +48,15 @@ type ItineraryDay struct {
 // ItineraryItem is a single planned activity within a day.
 type ItineraryItem struct {
 	Time                      string                 `json:"time"`
+	StartTime                 string                 `json:"startTime,omitempty"`
 	EndTime                   string                 `json:"endTime,omitempty"`
 	Type                      string                 `json:"type"`
 	Category                  string                 `json:"category,omitempty"`
 	TransportMode             string                 `json:"transportMode,omitempty"`
 	DurationMinutes           *int                   `json:"durationMinutes,omitempty"`
+	AllDay                    bool                   `json:"allDay,omitempty"`
+	Timezone                  string                 `json:"timezone,omitempty"`
+	SchedulingStatus          string                 `json:"schedulingStatus,omitempty"`
 	WalkingDistanceKm         *float64               `json:"walkingDistanceKm,omitempty"`
 	Name                      string                 `json:"name"`
 	Note                      string                 `json:"note,omitempty"`

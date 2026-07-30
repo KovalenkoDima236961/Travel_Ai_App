@@ -15,6 +15,14 @@ import {
   moveItemWithinDay
 } from "@/entities/itinerary/model/editor-utils";
 import {
+  adjustItemDuration,
+  adjustItemStart,
+  applyItemSchedule,
+  getItemStartTime,
+  normalizeSchedulingStatus,
+  unscheduleItem
+} from "@/features/timeline-planning/model/schedule";
+import {
   formatOpeningHoursForDay,
   getDayOfWeekMondayBased,
   getTripItemDate
@@ -40,7 +48,12 @@ type ItineraryEditorProps = {
 
 const defaultItem: ItineraryItem = {
   time: "09:00",
+  startTime: "09:00",
+  endTime: "10:00",
   type: "activity",
+  durationMinutes: 60,
+  allDay: false,
+  schedulingStatus: "Scheduled",
   name: "",
   note: "",
   estimatedCost: null,
@@ -109,6 +122,31 @@ export function ItineraryEditor({
       ...itinerary,
       days: days.map((day, index) =>
         index === dayIndex ? { ...day, items: [...day.items, { ...defaultItem }] } : day
+      )
+    });
+  }
+
+  function addUnscheduledItem(dayIndex: number) {
+    resetMoveTargets();
+    setReorderMessage(null);
+    onChange({
+      ...itinerary,
+      days: days.map((day, index) =>
+        index === dayIndex
+          ? {
+              ...day,
+              items: [
+                ...day.items,
+                {
+                  ...defaultItem,
+                  time: "",
+                  startTime: null,
+                  endTime: null,
+                  schedulingStatus: "Unscheduled"
+                }
+              ]
+            }
+          : day
       )
     });
   }
@@ -214,6 +252,18 @@ export function ItineraryEditor({
     });
   }
 
+  function updateItemSchedule(
+    dayIndex: number,
+    itemIndex: number,
+    updates: Parameters<typeof applyItemSchedule>[1]
+  ) {
+    const item = days[dayIndex]?.items[itemIndex];
+    if (!item) {
+      return;
+    }
+    updateItem(dayIndex, itemIndex, applyItemSchedule(item, updates));
+  }
+
   return (
     <div className="space-y-5">
       <AttachPlaceDialog
@@ -290,22 +340,64 @@ export function ItineraryEditor({
                 key={`${dayIndex}-${itemIndex}`}
                 className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0"
               >
-                <div className="grid gap-4 lg:grid-cols-[7rem_9rem_minmax(0,1fr)_8rem_auto]">
+                <div className="grid gap-4 lg:grid-cols-[7rem_7rem_7rem_9rem_minmax(0,1fr)_8rem_auto]">
                   <div className="grid gap-2">
                     <label
                       className="text-sm font-medium text-slate-700"
                       htmlFor={`item-time-${dayIndex}-${itemIndex}`}
                     >
-                      Time
+                      Start
                     </label>
                     <Input
-                      disabled={disabled}
+                      disabled={disabled || item.allDay}
                       id={`item-time-${dayIndex}-${itemIndex}`}
                       onChange={(event) =>
-                        updateItem(dayIndex, itemIndex, { time: event.target.value })
+                        updateItemSchedule(dayIndex, itemIndex, {
+                          startTime: event.target.value,
+                          schedulingStatus: event.target.value ? "Scheduled" : "Unscheduled"
+                        })
                       }
                       placeholder="09:00"
-                      value={item.time}
+                      value={getItemStartTime(item)}
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label
+                      className="text-sm font-medium text-slate-700"
+                      htmlFor={`item-end-time-${dayIndex}-${itemIndex}`}
+                    >
+                      End
+                    </label>
+                    <Input
+                      disabled={disabled || item.allDay}
+                      id={`item-end-time-${dayIndex}-${itemIndex}`}
+                      onChange={(event) =>
+                        updateItemSchedule(dayIndex, itemIndex, { endTime: event.target.value })
+                      }
+                      placeholder="10:00"
+                      value={item.endTime ?? ""}
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label
+                      className="text-sm font-medium text-slate-700"
+                      htmlFor={`item-duration-${dayIndex}-${itemIndex}`}
+                    >
+                      Minutes
+                    </label>
+                    <Input
+                      disabled={disabled || item.allDay}
+                      id={`item-duration-${dayIndex}-${itemIndex}`}
+                      min={5}
+                      onChange={(event) =>
+                        updateItemSchedule(dayIndex, itemIndex, {
+                          durationMinutes: event.target.value ? Number(event.target.value) : null
+                        })
+                      }
+                      type="number"
+                      value={item.durationMinutes ?? ""}
                     />
                   </div>
 
@@ -354,6 +446,71 @@ export function ItineraryEditor({
                       Remove
                     </Button>
                   </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 rounded-md border border-slate-200 bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+                  <div className="grid gap-2">
+                    <label
+                      className="text-sm font-medium text-slate-700"
+                      htmlFor={`item-schedule-status-${dayIndex}-${itemIndex}`}
+                    >
+                      Schedule status
+                    </label>
+                    <Select
+                      disabled={disabled}
+                      id={`item-schedule-status-${dayIndex}-${itemIndex}`}
+                      onChange={(event) => {
+                        const status = normalizeSchedulingStatus(event.target.value);
+                        if (status === "Unscheduled") {
+                          updateItem(dayIndex, itemIndex, unscheduleItem(item));
+                          return;
+                        }
+                        updateItemSchedule(dayIndex, itemIndex, {
+                          startTime: getItemStartTime(item) || "09:00",
+                          schedulingStatus: status
+                        });
+                      }}
+                      value={normalizeSchedulingStatus(item.schedulingStatus, item)}
+                    >
+                      <option value="Scheduled">Scheduled</option>
+                      <option value="Unscheduled">Unscheduled</option>
+                      <option value="Conflict">Conflict</option>
+                      <option value="NeedsReview">Needs review</option>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <label
+                      className="text-sm font-medium text-slate-700"
+                      htmlFor={`item-timezone-${dayIndex}-${itemIndex}`}
+                    >
+                      Timezone
+                    </label>
+                    <Input
+                      disabled={disabled}
+                      id={`item-timezone-${dayIndex}-${itemIndex}`}
+                      onChange={(event) =>
+                        updateItemSchedule(dayIndex, itemIndex, { timezone: event.target.value })
+                      }
+                      placeholder="Europe/Bratislava"
+                      value={item.timezone ?? ""}
+                    />
+                  </div>
+                  <label className="inline-flex min-h-10 items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                      checked={Boolean(item.allDay)}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        updateItemSchedule(dayIndex, itemIndex, {
+                          allDay: event.target.checked,
+                          schedulingStatus: event.target.checked
+                            ? "Scheduled"
+                            : normalizeSchedulingStatus(item.schedulingStatus, item)
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    All day
+                  </label>
                 </div>
 
                 <div className="mt-4 rounded-md border border-slate-200 bg-white p-3">
@@ -450,6 +607,50 @@ export function ItineraryEditor({
                   <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <div className="flex flex-wrap gap-2">
                       <Button
+                        aria-label="Move item earlier by 15 minutes"
+                        disabled={disabled || item.allDay}
+                        onClick={() => updateItem(dayIndex, itemIndex, adjustItemStart(item, -15))}
+                        size="sm"
+                        title="Move item earlier by 15 minutes"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Earlier
+                      </Button>
+                      <Button
+                        aria-label="Move item later by 15 minutes"
+                        disabled={disabled || item.allDay}
+                        onClick={() => updateItem(dayIndex, itemIndex, adjustItemStart(item, 15))}
+                        size="sm"
+                        title="Move item later by 15 minutes"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Later
+                      </Button>
+                      <Button
+                        aria-label="Shorten item by 15 minutes"
+                        disabled={disabled || item.allDay}
+                        onClick={() => updateItem(dayIndex, itemIndex, adjustItemDuration(item, -15))}
+                        size="sm"
+                        title="Shorten item by 15 minutes"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Shorter
+                      </Button>
+                      <Button
+                        aria-label="Extend item by 15 minutes"
+                        disabled={disabled || item.allDay}
+                        onClick={() => updateItem(dayIndex, itemIndex, adjustItemDuration(item, 15))}
+                        size="sm"
+                        title="Extend item by 15 minutes"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Longer
+                      </Button>
+                      <Button
                         aria-label="Move item up"
                         disabled={disabled || !canMoveItemUp(day, itemIndex)}
                         onClick={() => moveItem(dayIndex, itemIndex, "up")}
@@ -544,6 +745,15 @@ export function ItineraryEditor({
             variant="secondary"
           >
             Add item
+          </Button>
+          <Button
+            className="ml-2 mt-5"
+            disabled={disabled}
+            onClick={() => addUnscheduledItem(dayIndex)}
+            type="button"
+            variant="secondary"
+          >
+            Add unscheduled
           </Button>
         </section>
       ))}

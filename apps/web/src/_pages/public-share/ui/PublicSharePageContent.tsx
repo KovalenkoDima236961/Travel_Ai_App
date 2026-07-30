@@ -233,7 +233,11 @@ export function PublicSharePageContent() {
               />
             ) : null}
             {itinerary ? (
-              <PublicShareItinerary itinerary={itinerary} />
+              <PublicShareItinerary
+                itinerary={itinerary}
+                startDate={trip.startDate}
+                weatherForecast={publicWeatherForecastQuery.data ?? null}
+              />
             ) : (
               <EmptyState
                 className="rounded-[18px] border-sand-300 bg-white"

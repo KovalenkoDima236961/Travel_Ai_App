@@ -17,6 +17,11 @@ export type FeatureFlagKey =
   | "email_notifications_enabled"
   | "notification_digests_enabled"
   | "offline_mode_enabled"
+  | "agenda_view_enabled"
+  | "timeline_view_enabled"
+  | "calendar_view_enabled"
+  | "timeline_drag_drop_enabled"
+  | "schedule_conflict_detection_enabled"
   | "ops_dashboard_enabled";
 
 export type PublicFeatureFlagsResponse = {
@@ -45,5 +50,10 @@ export function fallbackFeatureFlags(): Record<FeatureFlagKey, boolean> {
   flags.email_notifications_enabled = !production;
   flags.notification_digests_enabled = !production;
   flags.offline_mode_enabled = true;
+  flags.agenda_view_enabled = true;
+  flags.timeline_view_enabled = true;
+  flags.calendar_view_enabled = true;
+  flags.timeline_drag_drop_enabled = true;
+  flags.schedule_conflict_detection_enabled = true;
   return flags;
 }

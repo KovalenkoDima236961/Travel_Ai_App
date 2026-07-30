@@ -70,6 +70,7 @@ const (
 	// Itinerary.
 	EventItineraryGenerated          = "itinerary_generated"
 	EventItineraryUpdated            = "itinerary_updated"
+	EventItineraryScheduleUpdated    = "itinerary_schedule_updated"
 	EventDayRegenerated              = "day_regenerated"
 	EventItemRegenerated             = "item_regenerated"
 	EventVersionRestored             = "version_restored"
@@ -226,6 +227,7 @@ var knownEventTypes = map[string]struct{}{
 	EventAccommodationRemoved:                {},
 	EventItineraryGenerated:                  {},
 	EventItineraryUpdated:                    {},
+	EventItineraryScheduleUpdated:            {},
 	EventDayRegenerated:                      {},
 	EventItemRegenerated:                     {},
 	EventVersionRestored:                     {},

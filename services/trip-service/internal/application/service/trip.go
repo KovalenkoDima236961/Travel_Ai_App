@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	tripmetrics "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/personalization"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/placeenrichment"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/planningconstraints"
@@ -59,6 +61,7 @@ const (
 	maxPlaceEnrichmentReason   = 200
 	maxPriceEnrichmentProvider = 50
 	maxPriceEnrichmentReason   = 200
+	maxScheduleTimezoneLength  = 80
 	maxAccommodationNameLength = 200
 	maxAccommodationAddress    = 500
 	maxAccommodationNotes      = 1000
@@ -1089,6 +1092,7 @@ func modelGenerationMetadata(metadata map[string]any, decision *aimodel.RoutingD
 // UpdateItinerary validates and replaces the full itinerary JSON for a trip
 // owned by the authenticated user. It does not call the itinerary generator.
 func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.UpdateItineraryInput) (*entity.Trip, error) {
+	started := time.Now()
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -1117,6 +1121,8 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 
 	normalized, err := validateAndNormalizeItinerary(in.Itinerary)
 	if err != nil {
+		tripmetrics.RecordScheduleValidationFailure("manual")
+		tripmetrics.RecordTimelineSave("manual", "validation_failed", time.Since(started))
 		s.log.Warn("itinerary update failed",
 			append(fields,
 				zap.Bool("success", false),
@@ -1124,6 +1130,12 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 			)...,
 		)
 		return nil, err
+	}
+	scheduleSummary := summarizeScheduleChanges(current.Itinerary, normalized)
+	versionMetadata := map[string]any{}
+	if scheduleSummary.Count > 0 {
+		versionMetadata["scheduleChangeCount"] = scheduleSummary.Count
+		versionMetadata["scheduleChangeTypes"] = scheduleSummary.Types
 	}
 
 	updated, err := s.saveItineraryWithVersion(
@@ -1134,9 +1146,12 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 		normalized,
 		expectedRevision,
 		entity.ItineraryVersionSourceManualEdit,
-		map[string]any{},
+		versionMetadata,
 	)
 	if err != nil {
+		if scheduleSummary.Count > 0 {
+			tripmetrics.RecordTimelineSave("manual", "failed", time.Since(started))
+		}
 		s.log.Warn("itinerary update failed",
 			append(fields,
 				zap.Bool("success", false),
@@ -1144,6 +1159,10 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 			)...,
 		)
 		return nil, err
+	}
+	if scheduleSummary.Count > 0 {
+		tripmetrics.RecordScheduleEdit("manual")
+		tripmetrics.RecordTimelineSave("manual", "saved", time.Since(started))
 	}
 
 	s.log.Info("itinerary updated",
@@ -1158,8 +1177,21 @@ func (s *Service) UpdateItinerary(ctx context.Context, id uuid.UUID, in appdto.U
 		EventType:   activity.EventItineraryUpdated,
 		EntityType:  activityEntityType(activity.EntityItinerary),
 		EntityID:    activityEntityID(id),
-		Metadata:    map[string]any{"source": "MANUAL_EDIT"},
+		Metadata:    map[string]any{"source": "MANUAL_EDIT", "scheduleChangeCount": scheduleSummary.Count},
 	})
+	if scheduleSummary.Count > 0 {
+		s.recordActivity(ctx, activity.RecordActivityInput{
+			TripID:      id,
+			ActorUserID: &user.ID,
+			EventType:   activity.EventItineraryScheduleUpdated,
+			EntityType:  activityEntityType(activity.EntityItinerary),
+			EntityID:    activityEntityID(id),
+			Metadata: map[string]any{
+				"scheduleChangeCount": scheduleSummary.Count,
+				"scheduleChangeTypes": scheduleSummary.Types,
+			},
+		})
+	}
 
 	destination := tripDestination(current)
 	s.notifyTripBroadcast(ctx, current, user.ID,
@@ -1590,11 +1622,50 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 		for itemIndex := range day.Items {
 			item := &day.Items[itemIndex]
 			item.Time = strings.TrimSpace(item.Time)
-			if item.Time == "" {
-				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].time is required", dayIndex, itemIndex)
+			item.StartTime = strings.TrimSpace(item.StartTime)
+			if item.Time == "" && item.StartTime != "" {
+				item.Time = item.StartTime
+			}
+			if item.StartTime == "" && item.Time != "" {
+				item.StartTime = item.Time
 			}
 			item.EndTime = strings.TrimSpace(item.EndTime)
-			if item.EndTime != "" && !validHHMM(item.EndTime) {
+			item.Timezone = strings.TrimSpace(item.Timezone)
+			if len(item.Timezone) > maxScheduleTimezoneLength {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].timezone must be at most %d characters", dayIndex, itemIndex, maxScheduleTimezoneLength)
+			}
+			status, err := normalizeSchedulingStatus(item.SchedulingStatus, item.Time, item.AllDay)
+			if err != nil {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].schedulingStatus must be one of Scheduled, Unscheduled, Conflict, NeedsReview", dayIndex, itemIndex)
+			}
+			item.SchedulingStatus = status
+			if item.SchedulingStatus == "Unscheduled" {
+				item.Time = ""
+				item.StartTime = ""
+				item.EndTime = ""
+				item.DurationMinutes = nil
+			}
+			if item.DurationMinutes != nil && (*item.DurationMinutes <= 0 || *item.DurationMinutes > 24*60) {
+				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].durationMinutes must be between 1 and 1440", dayIndex, itemIndex)
+			}
+			if item.SchedulingStatus != "Unscheduled" && !item.AllDay {
+				if item.Time == "" {
+					return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].time is required unless schedulingStatus is Unscheduled", dayIndex, itemIndex)
+				}
+				startMinutes, ok := parseHHMM(item.Time)
+				if !ok {
+					return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].time must be in HH:mm format", dayIndex, itemIndex)
+				}
+				if item.EndTime != "" {
+					endMinutes, ok := parseHHMM(item.EndTime)
+					if !ok {
+						return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].endTime must be in HH:mm format", dayIndex, itemIndex)
+					}
+					if endMinutes <= startMinutes {
+						return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].endTime must be after time", dayIndex, itemIndex)
+					}
+				}
+			} else if item.EndTime != "" && !validHHMM(item.EndTime) {
 				return nil, apperrs.NewInvalidInput("itinerary.days[%d].items[%d].endTime must be in HH:mm format", dayIndex, itemIndex)
 			}
 			item.Type = strings.TrimSpace(item.Type)
@@ -1631,6 +1702,9 @@ func validateAndNormalizeItinerary(raw json.RawMessage) (json.RawMessage, error)
 			if err := validateAndNormalizeAvailabilityCheck(item.AvailabilityCheck, "itinerary.days[%d].items[%d].availabilityCheck", dayIndex, itemIndex); err != nil {
 				return nil, err
 			}
+		}
+		if err := validateDayScheduleConflicts(day, dayIndex); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1693,9 +1767,18 @@ func validateCurrentItinerary(itinerary aggregate.Itinerary) error {
 			return currentItineraryInvalidError()
 		}
 		for _, item := range day.Items {
-			if strings.TrimSpace(item.Time) == "" ||
-				strings.TrimSpace(item.Type) == "" ||
+			status, err := normalizeSchedulingStatus(item.SchedulingStatus, item.Time, item.AllDay)
+			if err != nil {
+				return currentItineraryInvalidError()
+			}
+			if status != "Unscheduled" && !item.AllDay && !validHHMM(strings.TrimSpace(item.Time)) {
+				return currentItineraryInvalidError()
+			}
+			if strings.TrimSpace(item.Type) == "" ||
 				strings.TrimSpace(item.Name) == "" {
+				return currentItineraryInvalidError()
+			}
+			if item.DurationMinutes != nil && (*item.DurationMinutes <= 0 || *item.DurationMinutes > 24*60) {
 				return currentItineraryInvalidError()
 			}
 			if item.Transfer != nil {
@@ -1715,6 +1798,10 @@ func validateCurrentItinerary(itinerary aggregate.Itinerary) error {
 			if err := validateAndNormalizePriceEnrichment(item.PriceEnrichment, "priceEnrichment"); err != nil {
 				return currentItineraryInvalidError()
 			}
+		}
+		dayCopy := day
+		if err := validateDayScheduleConflicts(&dayCopy, 0); err != nil {
+			return currentItineraryInvalidError()
 		}
 	}
 
@@ -1753,12 +1840,33 @@ func normalizeReplacementItem(item *aggregate.ItineraryItem) (aggregate.Itinerar
 
 	normalized := *item
 	normalized.Time = strings.TrimSpace(normalized.Time)
+	normalized.StartTime = strings.TrimSpace(normalized.StartTime)
+	if normalized.Time == "" && normalized.StartTime != "" {
+		normalized.Time = normalized.StartTime
+	}
+	if normalized.StartTime == "" && normalized.Time != "" {
+		normalized.StartTime = normalized.Time
+	}
+	normalized.EndTime = strings.TrimSpace(normalized.EndTime)
 	normalized.Type = strings.TrimSpace(normalized.Type)
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Note = strings.TrimSpace(normalized.Note)
+	normalized.Timezone = strings.TrimSpace(normalized.Timezone)
+	if normalized.SchedulingStatus == "" {
+		normalized.SchedulingStatus = "Scheduled"
+	}
 	normalized.TransportMode = aggregate.NormalizeRouteToken(normalized.TransportMode)
 	if normalized.Time == "" {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item time is required")
+	}
+	if !validHHMM(normalized.Time) {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item time must be HH:mm")
+	}
+	if normalized.EndTime != "" && !validHHMM(normalized.EndTime) {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item endTime must be HH:mm")
+	}
+	if normalized.DurationMinutes != nil && (*normalized.DurationMinutes <= 0 || *normalized.DurationMinutes > 24*60) {
+		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item durationMinutes is invalid")
 	}
 	if normalized.Type == "" {
 		return aggregate.ItineraryItem{}, apperrs.NewDependencyError("replacement item type is required")
@@ -2052,6 +2160,210 @@ func parseHHMM(value string) (int, bool) {
 func validHHMM(value string) bool {
 	_, ok := parseHHMM(value)
 	return ok
+}
+
+type itineraryScheduleSpan struct {
+	itemIndex int
+	start     int
+	end       int
+	item      aggregate.ItineraryItem
+}
+
+func normalizeSchedulingStatus(raw, startTime string, allDay bool) (string, error) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "", "scheduled":
+		if strings.TrimSpace(startTime) == "" && !allDay {
+			return "Unscheduled", nil
+		}
+		return "Scheduled", nil
+	case "unscheduled":
+		return "Unscheduled", nil
+	case "conflict":
+		return "Conflict", nil
+	case "needsreview", "needs_review", "needs-review", "needs review":
+		return "NeedsReview", nil
+	default:
+		return "", fmt.Errorf("unsupported scheduling status")
+	}
+}
+
+func validateDayScheduleConflicts(day *aggregate.ItineraryDay, dayIndex int) error {
+	if day == nil {
+		return nil
+	}
+	spans := make([]itineraryScheduleSpan, 0, len(day.Items))
+	seen := make(map[string]int, len(day.Items))
+	for itemIndex, item := range day.Items {
+		if item.AllDay || item.SchedulingStatus == "Unscheduled" || strings.TrimSpace(item.Time) == "" {
+			continue
+		}
+		start, ok := parseHHMM(item.Time)
+		if !ok {
+			continue
+		}
+		end := scheduleEndMinute(item, start)
+		if end <= start {
+			return apperrs.NewInvalidInput("itinerary.days[%d].items[%d].endTime must be after time", dayIndex, itemIndex)
+		}
+		if end > 24*60 {
+			return apperrs.NewInvalidInput("itinerary.days[%d].items[%d] must end before the next day", dayIndex, itemIndex)
+		}
+		key := fmt.Sprintf("%s:%s", item.Time, strings.ToLower(strings.Join(strings.Fields(item.Name), " ")))
+		if previous, ok := seen[key]; ok {
+			return apperrs.NewInvalidInput("itinerary.days[%d].items[%d] duplicates the schedule for item %d", dayIndex, itemIndex, previous)
+		}
+		seen[key] = itemIndex
+		spans = append(spans, itineraryScheduleSpan{itemIndex: itemIndex, start: start, end: end, item: item})
+	}
+	sort.SliceStable(spans, func(i, j int) bool {
+		if spans[i].start == spans[j].start {
+			return spans[i].end < spans[j].end
+		}
+		return spans[i].start < spans[j].start
+	})
+	for index := 1; index < len(spans); index++ {
+		previous := spans[index-1]
+		current := spans[index]
+		if current.start >= previous.end || scheduleOverlapAllowed(previous.item, current.item) {
+			continue
+		}
+		return apperrs.NewInvalidInput("itinerary.days[%d].items[%d] overlaps item %d", dayIndex, current.itemIndex, previous.itemIndex)
+	}
+	return nil
+}
+
+func scheduleEndMinute(item aggregate.ItineraryItem, start int) int {
+	if end, ok := parseHHMM(item.EndTime); ok {
+		return end
+	}
+	if item.DurationMinutes != nil && *item.DurationMinutes > 0 {
+		return start + *item.DurationMinutes
+	}
+	token := strings.ToLower(item.Type + " " + item.Category + " " + item.TransportMode)
+	if item.Transfer != nil || strings.Contains(token, "transport") || strings.Contains(token, "transfer") {
+		return start + 90
+	}
+	return start + 60
+}
+
+func scheduleOverlapAllowed(left, right aggregate.ItineraryItem) bool {
+	leftType := strings.ToLower(strings.TrimSpace(left.Type))
+	rightType := strings.ToLower(strings.TrimSpace(right.Type))
+	if leftType == "note" || rightType == "note" {
+		return true
+	}
+	return strings.Contains(leftType, "meal") && strings.Contains(rightType, "meal")
+}
+
+type scheduleChangeSummary struct {
+	Count int
+	Types []string
+}
+
+type scheduleItemState struct {
+	DayIndex        int
+	ItemIndex       int
+	Time            string
+	StartTime       string
+	EndTime         string
+	DurationMinutes int
+	AllDay          bool
+	Timezone        string
+	Status          string
+}
+
+func summarizeScheduleChanges(previousRaw, nextRaw json.RawMessage) scheduleChangeSummary {
+	var previous, next aggregate.Itinerary
+	if len(previousRaw) == 0 || len(nextRaw) == 0 {
+		return scheduleChangeSummary{}
+	}
+	if err := json.Unmarshal(previousRaw, &previous); err != nil {
+		return scheduleChangeSummary{}
+	}
+	if err := json.Unmarshal(nextRaw, &next); err != nil {
+		return scheduleChangeSummary{}
+	}
+	previousItems := scheduleStateByItem(previous)
+	nextItems := scheduleStateByItem(next)
+	changeTypes := map[string]struct{}{}
+	count := 0
+	for key, nextState := range nextItems {
+		previousState, ok := previousItems[key]
+		if !ok {
+			continue
+		}
+		changed := false
+		if previousState.DayIndex != nextState.DayIndex {
+			changeTypes["activity_moved"] = struct{}{}
+			changed = true
+		}
+		if previousState.DayIndex == nextState.DayIndex && previousState.ItemIndex != nextState.ItemIndex {
+			changeTypes["activity_reordered"] = struct{}{}
+			changed = true
+		}
+		if previousState.DurationMinutes != nextState.DurationMinutes || previousState.EndTime != nextState.EndTime {
+			changeTypes["duration_changed"] = struct{}{}
+			changed = true
+		}
+		if previousState.Time != nextState.Time || previousState.StartTime != nextState.StartTime || previousState.AllDay != nextState.AllDay || previousState.Timezone != nextState.Timezone {
+			changeTypes["activity_moved"] = struct{}{}
+			changed = true
+		}
+		if previousState.Status == "Unscheduled" && nextState.Status != "Unscheduled" {
+			changeTypes["activity_scheduled"] = struct{}{}
+			changed = true
+		}
+		if previousState.Status != "Unscheduled" && nextState.Status == "Unscheduled" {
+			changeTypes["activity_unscheduled"] = struct{}{}
+			changed = true
+		}
+		if previousState.Status == "Conflict" && nextState.Status != "Conflict" {
+			changeTypes["conflict_resolved"] = struct{}{}
+			changed = true
+		}
+		if changed {
+			count++
+		}
+	}
+	types := make([]string, 0, len(changeTypes))
+	for changeType := range changeTypes {
+		types = append(types, changeType)
+	}
+	sort.Strings(types)
+	return scheduleChangeSummary{Count: count, Types: types}
+}
+
+func scheduleStateByItem(itinerary aggregate.Itinerary) map[string]scheduleItemState {
+	out := make(map[string]scheduleItemState)
+	occurrences := make(map[string]int)
+	for dayIndex, day := range itinerary.Days {
+		for itemIndex, item := range day.Items {
+			baseKey := strings.ToLower(strings.Join(strings.Fields(item.Name+" "+item.Type), " "))
+			occurrences[baseKey]++
+			key := fmt.Sprintf("%s#%d", baseKey, occurrences[baseKey])
+			status, err := normalizeSchedulingStatus(item.SchedulingStatus, item.Time, item.AllDay)
+			if err != nil {
+				status = strings.TrimSpace(item.SchedulingStatus)
+			}
+			duration := 0
+			if item.DurationMinutes != nil {
+				duration = *item.DurationMinutes
+			}
+			out[key] = scheduleItemState{
+				DayIndex:        dayIndex,
+				ItemIndex:       itemIndex,
+				Time:            strings.TrimSpace(item.Time),
+				StartTime:       strings.TrimSpace(item.StartTime),
+				EndTime:         strings.TrimSpace(item.EndTime),
+				DurationMinutes: duration,
+				AllDay:          item.AllDay,
+				Timezone:        strings.TrimSpace(item.Timezone),
+				Status:          status,
+			}
+		}
+	}
+	return out
 }
 
 func asciiDigit(value byte) bool {

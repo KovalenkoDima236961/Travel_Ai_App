@@ -53,6 +53,11 @@ const (
 	EmailNotificationsEnabled           = "email_notifications_enabled"
 	NotificationDigestsEnabled          = "notification_digests_enabled"
 	OfflineModeEnabled                  = "offline_mode_enabled"
+	AgendaViewEnabled                   = "agenda_view_enabled"
+	TimelineViewEnabled                 = "timeline_view_enabled"
+	CalendarViewEnabled                 = "calendar_view_enabled"
+	TimelineDragDropEnabled             = "timeline_drag_drop_enabled"
+	ScheduleConflictDetectionEnabled    = "schedule_conflict_detection_enabled"
 	OpsDashboardEnabled                 = "ops_dashboard_enabled"
 	AIFineTuningExperimentsEnabled      = "ai_fine_tuning_experiments_enabled"
 	AIAdapterInferenceEnabled           = "ai_adapter_inference_enabled"
@@ -85,6 +90,11 @@ var registry = map[string]Definition{
 	EmailNotificationsEnabled:           boolean(EmailNotificationsEnabled, true, true, "notifications", "Send email notifications."),
 	NotificationDigestsEnabled:          boolean(NotificationDigestsEnabled, true, true, "notifications", "Manage or process notification digests."),
 	OfflineModeEnabled:                  boolean(OfflineModeEnabled, true, false, "pwa", "Expose optional offline UI."),
+	AgendaViewEnabled:                   boolean(AgendaViewEnabled, true, true, "planning", "Expose agenda itinerary planning mode."),
+	TimelineViewEnabled:                 boolean(TimelineViewEnabled, true, true, "planning", "Expose visual timeline itinerary planning mode."),
+	CalendarViewEnabled:                 boolean(CalendarViewEnabled, true, true, "planning", "Expose calendar itinerary planning mode."),
+	TimelineDragDropEnabled:             boolean(TimelineDragDropEnabled, true, true, "planning", "Allow drag-and-drop schedule edits in timeline planning mode."),
+	ScheduleConflictDetectionEnabled:    boolean(ScheduleConflictDetectionEnabled, true, true, "planning", "Run itinerary schedule conflict detection."),
 	OpsDashboardEnabled:                 boolean(OpsDashboardEnabled, false, true, "ops", "Expose allowlisted operations controls."),
 	AIFineTuningExperimentsEnabled:      backendOnlyBoolean(AIFineTuningExperimentsEnabled, false, false, "ai", "Allow Ops-only local fine-tuning experiment controls."),
 	AIAdapterInferenceEnabled:           backendOnlyBoolean(AIAdapterInferenceEnabled, false, false, "ai", "Allow adapter-backed AI inference in explicitly allowed environments."),

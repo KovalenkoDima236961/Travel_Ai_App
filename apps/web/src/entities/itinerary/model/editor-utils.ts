@@ -1,5 +1,10 @@
 import { getCostAmount } from "@/entities/budget/model";
 import type { Itinerary, ItineraryDay, ItineraryItem } from "@/entities/trip/model";
+import {
+  getItemStartTime,
+  normalizeSchedulingStatus,
+  parseTimeToMinutes
+} from "@/features/timeline-planning/model/schedule";
 
 export type ItemMoveDirection = "up" | "down";
 
@@ -113,9 +118,14 @@ export function prepareItineraryForEdit(itinerary: Itinerary): Itinerary {
       items: (day.items ?? []).map((item) => ({
         ...item,
         time: item.time ?? "",
+        startTime: item.startTime ?? item.time ?? null,
+        endTime: item.endTime ?? null,
         type: item.type ?? "",
         name: item.name ?? "",
         note: item.note ?? "",
+        allDay: item.allDay ?? false,
+        timezone: item.timezone ?? null,
+        schedulingStatus: normalizeSchedulingStatus(item.schedulingStatus, item),
         estimatedCost: item.estimatedCost ?? null,
         place: item.place ?? null,
         placeEnrichment: item.placeEnrichment ?? null
@@ -155,8 +165,27 @@ export function validateEditableItinerary(itinerary: Itinerary): string[] {
 
     day.items.forEach((item, itemIndex) => {
       const itemLabel = `${dayLabel}, item ${itemIndex + 1}`;
-      if (!item.time.trim()) {
-        errors.push(`${itemLabel} needs a time.`);
+      const startTime = getItemStartTime(item);
+      const schedulingStatus = normalizeSchedulingStatus(item.schedulingStatus, item);
+      if (!item.allDay && schedulingStatus !== "Unscheduled" && !startTime) {
+        errors.push(`${itemLabel} needs a start time or must be marked unscheduled.`);
+      }
+      if (startTime && parseTimeToMinutes(startTime) == null) {
+        errors.push(`${itemLabel} start time must use HH:mm.`);
+      }
+      if (item.endTime && parseTimeToMinutes(item.endTime) == null) {
+        errors.push(`${itemLabel} end time must use HH:mm.`);
+      }
+      const startMinutes = parseTimeToMinutes(startTime);
+      const endMinutes = parseTimeToMinutes(item.endTime);
+      if (startMinutes != null && endMinutes != null && endMinutes <= startMinutes) {
+        errors.push(`${itemLabel} end time must be after start time.`);
+      }
+      if (
+        item.durationMinutes != null &&
+        (!Number.isFinite(item.durationMinutes) || item.durationMinutes <= 0)
+      ) {
+        errors.push(`${itemLabel} duration must be positive.`);
       }
       if (!item.type.trim()) {
         errors.push(`${itemLabel} needs a type.`);
@@ -189,9 +218,23 @@ export function validateEditableItinerary(itinerary: Itinerary): string[] {
 }
 
 function normalizeItemForSave(item: ItineraryItem): ItineraryItem {
+  const startTime = item.allDay ? "" : getItemStartTime(item).trim();
+  const schedulingStatus = normalizeSchedulingStatus(item.schedulingStatus, {
+    ...item,
+    time: startTime,
+    startTime
+  });
+
   return {
     ...item,
-    time: item.time.trim(),
+    time: startTime,
+    startTime: startTime || null,
+    endTime: item.endTime?.trim() || null,
+    durationMinutes:
+      item.durationMinutes != null ? Math.max(1, Math.round(item.durationMinutes)) : null,
+    allDay: item.allDay ?? false,
+    timezone: item.timezone?.trim() || null,
+    schedulingStatus,
     type: item.type.trim(),
     name: item.name.trim(),
     note: typeof item.note === "string" ? item.note.trim() : item.note ?? "",

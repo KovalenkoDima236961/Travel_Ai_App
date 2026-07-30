@@ -56,6 +56,13 @@ function titleFor(
       return { title: `${actor} generated the itinerary` };
     case "itinerary_updated":
       return { title: `${actor} updated the itinerary` };
+    case "itinerary_schedule_updated": {
+      const count = asNumber(metadata.scheduleChangeCount);
+      return {
+        title: `${actor} updated the schedule`,
+        description: count != null ? `${count} schedule change${count === 1 ? "" : "s"}` : undefined
+      };
+    }
     case "day_regenerated":
       return { title: `${actor} regenerated ${dayLabel(metadata)}` };
     case "item_regenerated": {

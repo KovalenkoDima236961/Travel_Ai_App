@@ -4,6 +4,7 @@ import { ItineraryItemReactions } from "@/components/trip-decisions";
 import { formatMoney, getCostAmount } from "@/entities/budget/model";
 import { transportModeLabel } from "@/components/routes/route-options";
 import { getOpeningStatus } from "@/entities/itinerary/model/opening-hours-utils";
+import { getItemStartTime } from "@/features/timeline-planning/model/schedule";
 import type {
   AvailabilityOption,
   AvailabilitySearchResponse
@@ -232,7 +233,9 @@ function TimelineItem({
   return (
     <div id={`day-${dayNumber}-item-${itemIndex}`} className="grid scroll-mt-24 grid-cols-[52px_minmax(0,1fr)] gap-4 sm:grid-cols-[64px_minmax(0,1fr)]">
       <div className="pt-5 text-right">
-        <span className="text-[13px] font-bold text-cocoa-900">{item.time}</span>
+        <span className="text-[13px] font-bold text-cocoa-900">
+          {item.allDay ? "All day" : getItemStartTime(item) || "Any"}
+        </span>
       </div>
       <div className="rounded-[18px] border border-sand-300 bg-white px-[22px] py-[18px] shadow-[0_1px_2px_rgba(34,26,20,0.03)] transition hover:border-sand-400 hover:shadow-[0_8px_24px_rgba(34,26,20,0.08)]">
         <div className="flex items-start justify-between gap-4">

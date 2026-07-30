@@ -1,8 +1,13 @@
 import { formatMoney, getCostAmount, getCostCurrency } from "@/entities/budget/model";
 import type { Itinerary, ItineraryItem } from "@/entities/trip/model";
+import type { WeatherForecast } from "@/entities/weather/model";
+import { SchedulePlanningWorkspace } from "@/features/timeline-planning";
+import { getItemStartTime } from "@/features/timeline-planning/model/schedule";
 
 type PublicShareItineraryProps = {
   itinerary: Itinerary;
+  startDate?: string | null;
+  weatherForecast?: WeatherForecast | null;
 };
 
 /**
@@ -11,7 +16,11 @@ type PublicShareItineraryProps = {
  * of trip-detail's ItineraryTimeline — no regenerate/split/comment controls and
  * no availability search — since a shared link has no editing affordances.
  */
-export function PublicShareItinerary({ itinerary }: PublicShareItineraryProps) {
+export function PublicShareItinerary({
+  itinerary,
+  startDate,
+  weatherForecast
+}: PublicShareItineraryProps) {
   if (!itinerary.days || itinerary.days.length === 0) {
     return (
       <div className="rounded-[18px] border border-sand-300 bg-white p-6 text-[14px] text-cocoa-500">
@@ -22,6 +31,19 @@ export function PublicShareItinerary({ itinerary }: PublicShareItineraryProps) {
 
   const currency = itinerary.currency ?? "EUR";
 
+  return (
+    <SchedulePlanningWorkspace
+      agendaSlot={<PublicShareAgenda currency={currency} itinerary={itinerary} />}
+      currency={currency}
+      itinerary={itinerary}
+      startDate={startDate}
+      storageKey="public-share:schedule-view"
+      weatherForecast={weatherForecast}
+    />
+  );
+}
+
+function PublicShareAgenda({ itinerary, currency }: { itinerary: Itinerary; currency: string }) {
   return (
     <div className="flex flex-col gap-5">
       {itinerary.days.map((day, dayIndex) => {
@@ -54,7 +76,9 @@ function TimelineItem({ item, currency }: { item: ItineraryItem; currency: strin
 
   return (
     <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-3.5 sm:grid-cols-[56px_minmax(0,1fr)]">
-      <span className="pt-[18px] text-right text-[13px] font-bold text-cocoa-900">{item.time}</span>
+      <span className="pt-[18px] text-right text-[13px] font-bold text-cocoa-900">
+        {item.allDay ? "All day" : getItemStartTime(item) || "Any"}
+      </span>
       <div className="rounded-[16px] border border-sand-300 bg-white px-5 py-4">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-[15.5px] font-semibold text-cocoa-900">{item.name}</p>

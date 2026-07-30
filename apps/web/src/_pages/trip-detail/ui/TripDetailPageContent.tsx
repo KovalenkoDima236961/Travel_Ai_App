@@ -48,6 +48,7 @@ import {
 } from "@/components/trips/ItineraryEditor";
 import { CostSplittingPanel } from "@/features/cost-splitting";
 import { DistanceSummary } from "@/features/route-estimation";
+import { SchedulePlanningWorkspace } from "@/features/timeline-planning";
 import { OpeningHoursWarnings } from "@/components/trips/OpeningHoursWarnings";
 import { GenerationFeedbackPanel } from "@/components/trips/GenerationFeedbackPanel";
 import { PlaceEnrichmentReviewPanel } from "@/features/itinerary-optimization";
@@ -152,6 +153,7 @@ import {
 } from "@/lib/offline/sync-queue";
 import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
 import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
+import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
 import { cn, getErrorMessage } from "@/lib/utils";
 import type {
   BudgetOptimizationJobRequest,
@@ -310,6 +312,11 @@ export function TripDetailPageContent() {
   const { workspaces } = useWorkspaces();
   const currentUserId = user?.id;
   const networkStatus = useNetworkStatus();
+  const agendaViewEnabled = useFeatureFlag("agenda_view_enabled");
+  const timelineViewEnabled = useFeatureFlag("timeline_view_enabled");
+  const calendarViewEnabled = useFeatureFlag("calendar_view_enabled");
+  const timelineDragDropEnabled = useFeatureFlag("timeline_drag_drop_enabled");
+  const scheduleConflictDetectionEnabled = useFeatureFlag("schedule_conflict_detection_enabled");
   const invalidateBudgetConfidence = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) }),
@@ -3214,6 +3221,24 @@ export function TripDetailPageContent() {
                       {updateMutation.isPending ? "Saving..." : "Save"}
                     </Button>
                   </div>
+                  <SchedulePlanningWorkspace
+                    accommodation={trip.accommodation ?? null}
+                    analyticsEntityId={trip.id}
+                    conflictDetectionEnabled={scheduleConflictDetectionEnabled}
+                    currency={trip.budgetCurrency}
+                    dragDropEnabled={timelineDragDropEnabled}
+                    editable
+                    featureAvailability={{
+                      agenda: agendaViewEnabled,
+                      timeline: timelineViewEnabled,
+                      calendar: calendarViewEnabled
+                    }}
+                    itinerary={draftItinerary}
+                    onChange={setDraftItinerary}
+                    startDate={trip.startDate}
+                    storageKey={`trip:${trip.id}:schedule-view`}
+                    weatherForecast={weatherForecastQuery.data ?? null}
+                  />
                   <ItineraryEditor
                     destination={trip.destination}
                     disabled={updateMutation.isPending}
@@ -3236,35 +3261,53 @@ export function TripDetailPageContent() {
                   />
                   <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
                   {canComment ? <TripCommentsSummary counts={commentCounts} /> : null}
-                  <ItineraryTimeline
-                    comments={
-                      canComment
-                        ? {
-                            countByKey: commentCountMap,
-                            disabled: createGenerationJobMutation.isPending || hasActiveGenerationJob,
-                            onOpenItem: openCommentsForItem
-                          }
-                        : undefined
+                  <SchedulePlanningWorkspace
+                    accommodation={trip.accommodation ?? null}
+                    analyticsEntityId={trip.id}
+                    agendaSlot={
+                      <ItineraryTimeline
+                        comments={
+                          canComment
+                            ? {
+                                countByKey: commentCountMap,
+                                disabled: createGenerationJobMutation.isPending || hasActiveGenerationJob,
+                                onOpenItem: openCommentsForItem
+                              }
+                            : undefined
+                        }
+                        currency={trip.budgetCurrency}
+                        disabled={createGenerationJobMutation.isPending || hasActiveGenerationJob}
+                        itinerary={trip.itinerary}
+                        onApplyAvailabilityPrice={
+                          canMutateTrip ? applyAvailabilityPrice : undefined
+                        }
+                        onAvailabilityResult={handleAvailabilityResult}
+                        onOpenCostSplit={
+                          canMutateTrip
+                            ? (dayNumber, itemIndex) =>
+                                setCostSplitTarget({ type: "item", dayNumber, itemIndex })
+                            : undefined
+                        }
+                        onRegenerateDay={canMutateTrip ? regenerateDay : undefined}
+                        onRegenerateItem={canMutateTrip ? regenerateItem : undefined}
+                        reactionSummaries={reactionSummaryMap}
+                        regeneratingTarget={activeRegeneratingTarget}
+                        startDate={trip.startDate}
+                        trip={trip}
+                      />
                     }
+                    conflictDetectionEnabled={scheduleConflictDetectionEnabled}
                     currency={trip.budgetCurrency}
-                    disabled={createGenerationJobMutation.isPending || hasActiveGenerationJob}
+                    dragDropEnabled={timelineDragDropEnabled}
+                    featureAvailability={{
+                      agenda: agendaViewEnabled,
+                      timeline: timelineViewEnabled,
+                      calendar: calendarViewEnabled
+                    }}
                     itinerary={trip.itinerary}
-                    onApplyAvailabilityPrice={
-                      canMutateTrip ? applyAvailabilityPrice : undefined
-                    }
-                    onAvailabilityResult={handleAvailabilityResult}
-                    onOpenCostSplit={
-                      canMutateTrip
-                        ? (dayNumber, itemIndex) =>
-                            setCostSplitTarget({ type: "item", dayNumber, itemIndex })
-                        : undefined
-                    }
-                    onRegenerateDay={canMutateTrip ? regenerateDay : undefined}
-                    onRegenerateItem={canMutateTrip ? regenerateItem : undefined}
-                    reactionSummaries={reactionSummaryMap}
-                    regeneratingTarget={activeRegeneratingTarget}
                     startDate={trip.startDate}
-                    trip={trip}
+                    storageKey={`trip:${trip.id}:schedule-view`}
+                    weatherForecast={weatherForecastQuery.data ?? null}
                   />
                   <DistanceSummary
                     accommodation={trip.accommodation ?? null}

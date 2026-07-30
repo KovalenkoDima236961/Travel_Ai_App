@@ -62,13 +62,19 @@ export type ItineraryTravelStatus = {
   note?: string;
 };
 
+export type SchedulingStatus = "Scheduled" | "Unscheduled" | "Conflict" | "NeedsReview";
+
 export type ItineraryItem = {
   time: string;
+  startTime?: string | null;
   endTime?: string | null;
   type: "place" | "food" | "activity" | "transport" | "transfer" | "rest" | string;
   category?: string | null;
   transportMode?: TransportMode | string | null;
   durationMinutes?: number | null;
+  allDay?: boolean;
+  timezone?: string | null;
+  schedulingStatus?: SchedulingStatus | string | null;
   walkingDistanceKm?: number | null;
   name: string;
   description?: string | null;

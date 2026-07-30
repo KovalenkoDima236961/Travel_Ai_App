@@ -14,6 +14,7 @@ import { costBadgeLabel, getCostAmount, isManualCost, isProviderCost } from "@/e
 import { Button } from "@/shared/ui/button";
 import { CommentButton } from "@/features/trip-comments";
 import { makeCommentItemKey } from "@/entities/comment/model";
+import { getItemStartTime } from "@/features/timeline-planning/model/schedule";
 
 export type RegeneratingTarget =
   | { type: "day"; dayNumber: number }
@@ -167,7 +168,9 @@ export function ItineraryView({
                   key={`${dayNumber}-${item.time}-${item.name}-${index}`}
                   className="grid scroll-mt-24 gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[6.5rem_minmax(0,1fr)_9rem]"
                 >
-                  <div className="text-sm font-semibold text-slate-900">{item.time}</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {item.allDay ? "All day" : getItemStartTime(item) || "Any"}
+                  </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700">

@@ -115,6 +115,22 @@ var (
 		prometheus.CounterOpts{Name: "trip_library_insights_requests_total", Help: "Total private trip library insights requests."},
 		[]string{"workspace_scope"},
 	)
+	scheduleEdits = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "schedule_edits_total", Help: "Total revision-aware itinerary schedule edits."},
+		[]string{"source"},
+	)
+	scheduleValidationFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "schedule_validation_failures_total", Help: "Total schedule validation failures."},
+		[]string{"source"},
+	)
+	timelineSaveLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "timeline_save_latency_seconds",
+			Help:    "Duration of revision-aware itinerary schedule saves.",
+			Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"source", "status"},
+	)
 )
 
 func init() {
@@ -145,6 +161,9 @@ func init() {
 		tripLibraryDuration,
 		tripLibraryResults,
 		tripLibraryInsightsRequests,
+		scheduleEdits,
+		scheduleValidationFailures,
+		timelineSaveLatency,
 	)
 }
 
@@ -227,6 +246,18 @@ func RecordTripLibraryRead(status string, duration time.Duration, resultCount in
 
 func RecordTripLibraryInsights(workspaceScope string) {
 	tripLibraryInsightsRequests.WithLabelValues(workspaceScope).Inc()
+}
+
+func RecordScheduleEdit(source string) {
+	scheduleEdits.WithLabelValues(source).Inc()
+}
+
+func RecordScheduleValidationFailure(source string) {
+	scheduleValidationFailures.WithLabelValues(source).Inc()
+}
+
+func RecordTimelineSave(source, status string, duration time.Duration) {
+	timelineSaveLatency.WithLabelValues(source, status).Observe(duration.Seconds())
 }
 
 // RecordVerificationComputed intentionally records only aggregate, private
