@@ -14,7 +14,16 @@ import type {
   CollaborationInvitation,
   CollaboratorRole,
   SharedTripSummary,
-  TripCollaborator
+  TripCollaborator,
+  TripInvitation,
+  TripMember,
+  TripSuggestion,
+  TripSuggestionStatus,
+  TripSuggestionTargetType,
+  TripSuggestionType,
+  TripVoteSummary,
+  TripVoteTargetType,
+  TripVoteType
 } from "@/entities/collaboration/model";
 import type { TripRoute } from "@/entities/route/model";
 import type { CreateTripInput, Itinerary, Trip, TripScope, TripsListResponse } from "@/entities/trip/model";
@@ -41,10 +50,16 @@ export const tripKeys = {
   list: (params: ListTripsParams) => [...tripKeys.lists(), params] as const,
   shared: () => [...tripKeys.all, "shared-with-me"] as const,
   invitations: () => ["collaboration", "invitations"] as const,
+  tripInvitations: (id: string) => [...tripKeys.detail(id), "invitations"] as const,
   details: () => [...tripKeys.all, "detail"] as const,
   detail: (id: string) => [...tripKeys.details(), id] as const,
   route: (id: string) => [...tripKeys.detail(id), "route"] as const,
   collaborators: (id: string) => [...tripKeys.detail(id), "collaborators"] as const,
+  members: (id: string) => [...tripKeys.detail(id), "members"] as const,
+  suggestions: (id: string, status?: TripSuggestionStatus) =>
+    [...tripKeys.detail(id), "suggestions", status ?? "all"] as const,
+  votes: (id: string, targetType?: TripVoteTargetType, targetId?: string) =>
+    [...tripKeys.detail(id), "votes", targetType ?? "all", targetId ?? "all"] as const,
   share: (id: string) => [...tripKeys.detail(id), "share"] as const,
   publicShare: (shareToken: string) => ["public-trip-share", shareToken] as const,
   publicShareStatus: (shareToken: string) =>
@@ -212,14 +227,74 @@ export function listTripCollaborators(tripId: string) {
 
 export function inviteTripCollaborator(
   tripId: string,
-  input: { email: string; role: CollaboratorRole }
+  input: { email: string; role: CollaboratorRole; message?: string; expiresAt?: string | null }
 ) {
   return apiFetch<TripCollaborator>(`/trips/${tripId}/collaborators`, {
     method: "POST",
     body: JSON.stringify({
       email: input.email.trim(),
-      role: input.role
+      role: input.role,
+      ...(input.message?.trim() ? { message: input.message.trim() } : {}),
+      ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
     })
+  });
+}
+
+export async function listTripInvitations(tripId: string): Promise<TripInvitation[]> {
+  const response = await apiFetch<{ items: TripInvitation[] }>(`/trips/${tripId}/invitations`);
+  return response?.items ?? [];
+}
+
+export function createTripInvitation(
+  tripId: string,
+  input: { email: string; role: CollaboratorRole; message?: string; expiresAt?: string | null }
+) {
+  return apiFetch<TripInvitation>(`/trips/${tripId}/invitations`, {
+    method: "POST",
+    body: JSON.stringify({
+      email: input.email.trim(),
+      role: input.role,
+      ...(input.message?.trim() ? { message: input.message.trim() } : {}),
+      ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+    })
+  });
+}
+
+export function resendTripInvitation(
+  tripId: string,
+  invitationId: string,
+  input: { message?: string; expiresAt?: string | null } = {}
+) {
+  return apiFetch<TripInvitation>(`/trips/${tripId}/invitations/${invitationId}/resend`, {
+    method: "POST",
+    body: JSON.stringify({
+      ...(input.message?.trim() ? { message: input.message.trim() } : {}),
+      ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
+    })
+  });
+}
+
+export function revokeTripInvitation(tripId: string, invitationId: string) {
+  return apiFetch<{ success: boolean }>(`/trips/${tripId}/invitations/${invitationId}/revoke`, {
+    method: "POST"
+  });
+}
+
+export async function listTripMembers(tripId: string): Promise<TripMember[]> {
+  const response = await apiFetch<{ items: TripMember[] }>(`/trips/${tripId}/members`);
+  return response?.items ?? [];
+}
+
+export function transferTripOwnership(tripId: string, newOwnerUserId: string) {
+  return apiFetch<ContractTrip>(`/trips/${tripId}/members/transfer-ownership`, {
+    method: "POST",
+    body: JSON.stringify({ newOwnerUserId })
+  });
+}
+
+export function leaveTrip(tripId: string) {
+  return apiFetch<{ success: boolean }>(`/trips/${tripId}/members/leave`, {
+    method: "POST"
   });
 }
 
@@ -244,19 +319,139 @@ export function listCollaborationInvitations() {
   return apiFetch<CollaborationInvitation[]>("/collaboration/invitations");
 }
 
-export function acceptCollaborationInvitation(tripId: string, collaboratorId: string) {
-  return apiFetch<TripCollaborator>(`/trips/${tripId}/collaborators/${collaboratorId}/accept`, {
+export function acceptCollaborationInvitation(
+  tripId: string,
+  collaboratorId: string,
+  invitationId?: string | null
+) {
+  const path = invitationId
+    ? `/trips/${tripId}/invitations/${invitationId}/accept`
+    : `/trips/${tripId}/collaborators/${collaboratorId}/accept`;
+  return apiFetch<TripCollaborator | TripInvitation>(path, {
     method: "POST"
   });
 }
 
-export function declineCollaborationInvitation(tripId: string, collaboratorId: string) {
+export function declineCollaborationInvitation(
+  tripId: string,
+  collaboratorId: string,
+  invitationId?: string | null
+) {
+  const path = invitationId
+    ? `/trips/${tripId}/invitations/${invitationId}/decline`
+    : `/trips/${tripId}/collaborators/${collaboratorId}/decline`;
   return apiFetch<{ success: boolean }>(
-    `/trips/${tripId}/collaborators/${collaboratorId}/decline`,
+    path,
     {
       method: "POST"
     }
   );
+}
+
+export async function listTripSuggestions(
+  tripId: string,
+  status?: TripSuggestionStatus
+): Promise<TripSuggestion[]> {
+  const query = status ? `?${new URLSearchParams({ status }).toString()}` : "";
+  const response = await apiFetch<{ items: TripSuggestion[] }>(
+    `/trips/${tripId}/suggestions${query}`
+  );
+  return response?.items ?? [];
+}
+
+export function createTripSuggestion(
+  tripId: string,
+  input: {
+    suggestionType: TripSuggestionType;
+    targetType: TripSuggestionTargetType;
+    targetId?: string;
+    before?: unknown;
+    after?: unknown;
+    comment?: string;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  return apiFetch<TripSuggestion>(`/trips/${tripId}/suggestions`, {
+    method: "POST",
+    body: JSON.stringify({
+      suggestionType: input.suggestionType,
+      targetType: input.targetType,
+      ...(input.targetId?.trim() ? { targetId: input.targetId.trim() } : {}),
+      ...(input.before !== undefined ? { before: input.before } : {}),
+      ...(input.after !== undefined ? { after: input.after } : {}),
+      ...(input.comment?.trim() ? { comment: input.comment.trim() } : {}),
+      ...(input.metadata ? { metadata: input.metadata } : {})
+    })
+  });
+}
+
+export function acceptTripSuggestion(
+  tripId: string,
+  suggestionId: string,
+  expectedItineraryRevision?: number
+) {
+  return apiFetch<TripSuggestion>(`/trips/${tripId}/suggestions/${suggestionId}/accept`, {
+    method: "POST",
+    body: JSON.stringify(
+      expectedItineraryRevision != null ? { expectedItineraryRevision } : {}
+    )
+  });
+}
+
+export function rejectTripSuggestion(tripId: string, suggestionId: string) {
+  return apiFetch<TripSuggestion>(`/trips/${tripId}/suggestions/${suggestionId}/reject`, {
+    method: "POST"
+  });
+}
+
+export function resolveTripSuggestion(tripId: string, suggestionId: string) {
+  return apiFetch<TripSuggestion>(`/trips/${tripId}/suggestions/${suggestionId}/resolve`, {
+    method: "POST"
+  });
+}
+
+export async function listTripVotes(
+  tripId: string,
+  input: { targetType?: TripVoteTargetType; targetId?: string } = {}
+): Promise<TripVoteSummary[]> {
+  const query = new URLSearchParams();
+  if (input.targetType) {
+    query.set("targetType", input.targetType);
+  }
+  if (input.targetId) {
+    query.set("targetId", input.targetId);
+  }
+  const suffix = query.toString();
+  const response = await apiFetch<{ items: TripVoteSummary[] }>(
+    `/trips/${tripId}/votes${suffix ? `?${suffix}` : ""}`
+  );
+  return response?.items ?? [];
+}
+
+export function setTripVote(
+  tripId: string,
+  input: {
+    targetType: TripVoteTargetType;
+    targetId: string;
+    voteType: TripVoteType;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  return apiFetch<TripVoteSummary>(`/trips/${tripId}/votes`, {
+    method: "POST",
+    body: JSON.stringify({
+      targetType: input.targetType,
+      targetId: input.targetId.trim(),
+      voteType: input.voteType,
+      ...(input.metadata ? { metadata: input.metadata } : {})
+    })
+  });
+}
+
+export function deleteTripVote(tripId: string, voteId: string) {
+  return apiFetch<{ success: boolean }>(`/trips/${tripId}/votes/${voteId}`, {
+    method: "DELETE"
+  });
 }
 
 export function getPublicShareStatus(shareToken: string) {

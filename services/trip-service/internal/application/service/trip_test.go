@@ -1111,6 +1111,36 @@ func (m *mockRepo) SoftDeleteItineraryComment(_ context.Context, tripID, comment
 	return nil, domainerrs.ErrNotFound
 }
 
+func (m *mockRepo) ResolveItineraryComment(_ context.Context, tripID, commentID, actorUserID uuid.UUID) (*entity.ItineraryComment, error) {
+	for i := range m.comments {
+		if m.comments[i].ID == commentID && m.comments[i].TripID == tripID &&
+			m.comments[i].Status == entity.CommentStatusActive {
+			now := time.Now()
+			m.comments[i].ResolvedAt = &now
+			m.comments[i].ResolvedBy = &actorUserID
+			m.comments[i].UpdatedAt = now
+			out := m.comments[i]
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
+func (m *mockRepo) ReopenItineraryComment(_ context.Context, tripID, commentID uuid.UUID) (*entity.ItineraryComment, error) {
+	for i := range m.comments {
+		if m.comments[i].ID == commentID && m.comments[i].TripID == tripID &&
+			m.comments[i].Status == entity.CommentStatusActive {
+			now := time.Now()
+			m.comments[i].ResolvedAt = nil
+			m.comments[i].ResolvedBy = nil
+			m.comments[i].UpdatedAt = now
+			out := m.comments[i]
+			return &out, nil
+		}
+	}
+	return nil, domainerrs.ErrNotFound
+}
+
 func (m *mockRepo) CountItineraryCommentsByTripGrouped(_ context.Context, tripID uuid.UUID) ([]entity.ItineraryCommentCount, error) {
 	type key struct{ day, item int }
 	counts := make(map[key]int)

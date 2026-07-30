@@ -914,7 +914,7 @@ paths:
       parameters: [{ $ref: '#/components/parameters/TripId' }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [editor, viewer] } } } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTripInvitationRequest' } } }
       responses:
         '201':
           description: Invited collaborator.
@@ -924,6 +924,108 @@ paths:
         '403': { $ref: '#/components/responses/ErrorResponse' }
         '409': { $ref: '#/components/responses/ErrorResponse' }
         default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/invitations:
+    get:
+      tags: [Collaboration]
+      operationId: listTripInvitations
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Owner-visible invitation list.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ListTripInvitationsResponse' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Collaboration]
+      operationId: createTripInvitation
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTripInvitationRequest' } } }
+      responses:
+        '201':
+          description: Created invitation.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripInvitation' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '403': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/invitations/{invitationId}/accept:
+    post:
+      tags: [Collaboration]
+      operationId: acceptTripInvitation
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: invitationId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Accepted invitation.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripInvitation' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/invitations/{invitationId}/decline:
+    post:
+      tags: [Collaboration]
+      operationId: declineTripInvitation
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: invitationId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Declined invitation.
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/invitations/{invitationId}/resend:
+    post:
+      tags: [Collaboration]
+      operationId: resendTripInvitation
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: invitationId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/ResendTripInvitationRequest' } } }
+      responses:
+        '200':
+          description: Resent invitation.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripInvitation' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/invitations/{invitationId}/revoke:
+    post:
+      tags: [Collaboration]
+      operationId: revokeTripInvitation
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: invitationId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Revoked invitation.
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/members:
+    get:
+      tags: [Collaboration]
+      operationId: listTripMembers
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Trip member roster.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ListTripMembersResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/members/transfer-ownership:
+    post:
+      tags: [Collaboration]
+      operationId: transferTripOwnership
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [newOwnerUserId], properties: { newOwnerUserId: { type: string, format: uuid } } } } }
+      responses:
+        '200': { $ref: '#/components/responses/TripResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/members/leave:
+    post:
+      tags: [Collaboration]
+      operationId: leaveTrip
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      responses:
+        '200':
+          description: Left trip.
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
   /trips/{tripId}/comments:
     get:
       tags: [Collaboration]
@@ -932,7 +1034,7 @@ paths:
       responses:
         '200':
           description: Private comment page; cursor migration is in progress.
-          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ListItineraryCommentsResponse' } } }
         '401': { $ref: '#/components/responses/ErrorResponse' }
         '403': { $ref: '#/components/responses/ErrorResponse' }
         default: { $ref: '#/components/responses/ErrorResponse' }
@@ -942,14 +1044,121 @@ paths:
       parameters: [{ $ref: '#/components/parameters/TripId' }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [body], properties: { body: { type: string, minLength: 1 } } } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateItineraryCommentRequest' } } }
       responses:
         '201':
           description: Created comment.
-          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ItineraryComment' } } }
         '400': { $ref: '#/components/responses/ErrorResponse' }
         '401': { $ref: '#/components/responses/ErrorResponse' }
         '403': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/comments/{commentId}/resolve:
+    post:
+      tags: [Collaboration]
+      operationId: resolveTripComment
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Resolved comment thread.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ItineraryComment' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/comments/{commentId}/reopen:
+    post:
+      tags: [Collaboration]
+      operationId: reopenTripComment
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Reopened comment thread.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ItineraryComment' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/suggestions:
+    get:
+      tags: [Collaboration]
+      operationId: listTripSuggestions
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: status, in: query, schema: { $ref: '#/components/schemas/TripSuggestionStatus' } }]
+      responses:
+        '200':
+          description: Trip suggestions.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ListTripSuggestionsResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Collaboration]
+      operationId: createTripSuggestion
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTripSuggestionRequest' } } }
+      responses:
+        '201':
+          description: Created suggestion.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripSuggestion' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/suggestions/{suggestionId}/accept:
+    post:
+      tags: [Collaboration]
+      operationId: acceptTripSuggestion
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: suggestionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, properties: { expectedItineraryRevision: { type: integer } } } } }
+      responses:
+        '200':
+          description: Accepted suggestion.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripSuggestion' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/suggestions/{suggestionId}/reject:
+    post:
+      tags: [Collaboration]
+      operationId: rejectTripSuggestion
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: suggestionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Rejected suggestion.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripSuggestion' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/suggestions/{suggestionId}/resolve:
+    post:
+      tags: [Collaboration]
+      operationId: resolveTripSuggestion
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: suggestionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Resolved suggestion.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripSuggestion' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/votes:
+    get:
+      tags: [Collaboration]
+      operationId: listTripVotes
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: targetType, in: query, schema: { $ref: '#/components/schemas/TripVoteTargetType' } }, { name: targetId, in: query, schema: { type: string } }]
+      responses:
+        '200':
+          description: Vote summaries.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ListTripVoteSummariesResponse' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+    post:
+      tags: [Collaboration]
+      operationId: setTripVote
+      parameters: [{ $ref: '#/components/parameters/TripId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SetTripVoteRequest' } } }
+      responses:
+        '200':
+          description: Updated vote summary.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TripVoteSummary' } } }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /trips/{tripId}/votes/{voteId}:
+    delete:
+      tags: [Collaboration]
+      operationId: deleteTripVote
+      parameters: [{ $ref: '#/components/parameters/TripId' }, { name: voteId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Deleted vote.
+          content: { application/json: { schema: { $ref: '#/components/schemas/SuccessResponse' } } }
         default: { $ref: '#/components/responses/ErrorResponse' }
   /trips/{tripId}/activity:
     get:
@@ -1720,11 +1929,195 @@ components:
         userId: { type: string, format: uuid }
         email: { type: string, format: email, nullable: true }
         displayName: { type: string, nullable: true }
-        role: { type: string, enum: [owner, editor, viewer] }
-        status: { type: string }
+        role: { $ref: '#/components/schemas/CollaboratorRole' }
+        status: { type: string, enum: [pending, accepted, declined, expired, revoked, removed] }
         invitedByUserId: { type: string, format: uuid }
+        message: { type: string }
         invitedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, nullable: true }
         acceptedAt: { type: string, format: date-time, nullable: true }
+        declinedAt: { type: string, format: date-time, nullable: true }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        removedAt: { type: string, format: date-time, nullable: true }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        permissions: { type: object, additionalProperties: true }
+    CollaboratorRole:
+      type: string
+      enum: [viewer, editor]
+    TripInvitationStatus:
+      type: string
+      enum: [pending, accepted, declined, expired, revoked]
+    CreateTripInvitationRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/CollaboratorRole' }
+        message: { type: string, maxLength: 500 }
+        expiresAt: { type: string, format: date-time, nullable: true }
+    ResendTripInvitationRequest:
+      type: object
+      properties:
+        message: { type: string, maxLength: 500 }
+        expiresAt: { type: string, format: date-time, nullable: true }
+    TripInvitation:
+      type: object
+      required: [id, tripId, inviterUserId, email, role, status, expiresAt, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+        inviterUserId: { type: string, format: uuid }
+        invitedUserId: { type: string, format: uuid, nullable: true }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/CollaboratorRole' }
+        status: { $ref: '#/components/schemas/TripInvitationStatus' }
+        message: { type: string }
+        expiresAt: { type: string, format: date-time }
+        acceptedAt: { type: string, format: date-time, nullable: true }
+        declinedAt: { type: string, format: date-time, nullable: true }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ListTripInvitationsResponse:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TripInvitation' } }
+    TripMember:
+      type: object
+      required: [userId, role, status, permissions, isSelf]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email, nullable: true }
+        displayName: { type: string, nullable: true }
+        role: { type: string }
+        status: { type: string, enum: [active, invited, removed] }
+        joinedAt: { type: string, format: date-time, nullable: true }
+        invitedBy: { type: string, format: uuid, nullable: true }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        permissions: { type: object, additionalProperties: { type: boolean } }
+        isSelf: { type: boolean }
+    ListTripMembersResponse:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TripMember' } }
+    CommentTargetType:
+      type: string
+      enum: [trip, day, itinerary_item, budget_item, route, attachment]
+    CreateItineraryCommentRequest:
+      type: object
+      required: [body]
+      properties:
+        dayNumber: { type: integer, minimum: 0 }
+        itemIndex: { type: integer, minimum: 0 }
+        targetType: { $ref: '#/components/schemas/CommentTargetType' }
+        targetId: { type: string }
+        parentCommentId: { type: string, format: uuid, nullable: true }
+        mentionUserIds: { type: array, items: { type: string, format: uuid } }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+    ItineraryComment:
+      type: object
+      required: [id, tripId, dayNumber, itemIndex, targetType, authorUserId, body, mentionUserIds, attachments, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+        dayNumber: { type: integer }
+        itemIndex: { type: integer }
+        targetType: { $ref: '#/components/schemas/CommentTargetType' }
+        targetId: { type: string }
+        parentCommentId: { type: string, format: uuid, nullable: true }
+        authorUserId: { type: string, format: uuid }
+        body: { type: string }
+        mentionUserIds: { type: array, items: { type: string, format: uuid } }
+        attachments: { type: array, items: { type: string } }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        resolvedByUserId: { type: string, format: uuid, nullable: true }
+        editedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        isAuthor: { type: boolean }
+        canEdit: { type: boolean }
+        canDelete: { type: boolean }
+    ListItineraryCommentsResponse:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ItineraryComment' } }
+    TripSuggestionType:
+      type: string
+      enum: [activity_replacement, time_change, budget_adjustment, route_change, note]
+    TripSuggestionTargetType:
+      type: string
+      enum: [trip, day, itinerary_item, budget_item, route, attachment]
+    TripSuggestionStatus:
+      type: string
+      enum: [open, accepted, rejected, resolved]
+    CreateTripSuggestionRequest:
+      type: object
+      required: [suggestionType, targetType]
+      properties:
+        suggestionType: { $ref: '#/components/schemas/TripSuggestionType' }
+        targetType: { $ref: '#/components/schemas/TripSuggestionTargetType' }
+        targetId: { type: string, maxLength: 200 }
+        before: {}
+        after: {}
+        comment: { type: string, maxLength: 2000 }
+        metadata: { type: object, additionalProperties: true }
+    TripSuggestion:
+      type: object
+      required: [id, tripId, authorUserId, suggestionType, targetType, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        tripId: { type: string, format: uuid }
+        authorUserId: { type: string, format: uuid }
+        suggestionType: { $ref: '#/components/schemas/TripSuggestionType' }
+        targetType: { $ref: '#/components/schemas/TripSuggestionTargetType' }
+        targetId: { type: string }
+        status: { $ref: '#/components/schemas/TripSuggestionStatus' }
+        before: {}
+        after: {}
+        comment: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        appliedItineraryRevision: { type: integer, nullable: true }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        resolvedByUserId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        isAuthor: { type: boolean }
+        canResolve: { type: boolean }
+    ListTripSuggestionsResponse:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TripSuggestion' } }
+    TripVoteTargetType:
+      type: string
+      enum: [activity, restaurant, hotel, destination, suggestion]
+    TripVoteType:
+      type: string
+      enum: [thumbs_up, thumbs_down, heart, star]
+    SetTripVoteRequest:
+      type: object
+      required: [targetType, targetId, voteType]
+      properties:
+        targetType: { $ref: '#/components/schemas/TripVoteTargetType' }
+        targetId: { type: string, minLength: 1, maxLength: 200 }
+        voteType: { $ref: '#/components/schemas/TripVoteType' }
+        metadata: { type: object, additionalProperties: true }
+    TripVoteSummary:
+      type: object
+      required: [targetType, targetId, counts]
+      properties:
+        targetType: { $ref: '#/components/schemas/TripVoteTargetType' }
+        targetId: { type: string }
+        counts: { type: object, additionalProperties: { type: integer } }
+        currentVote: { $ref: '#/components/schemas/TripVoteType' }
+    ListTripVoteSummariesResponse:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TripVoteSummary' } }
     SuccessResponse:
       type: object
       required: [success]

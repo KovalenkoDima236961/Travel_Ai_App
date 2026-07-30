@@ -80,9 +80,15 @@ type TripCollaborator struct {
 	Role            entity.CollaboratorRole   `json:"role"`
 	Status          entity.CollaboratorStatus `json:"status"`
 	InvitedByUserID uuid.UUID                 `json:"invitedByUserId"`
+	Message         string                    `json:"message,omitempty"`
 	InvitedAt       time.Time                 `json:"invitedAt"`
+	ExpiresAt       *time.Time                `json:"expiresAt,omitempty"`
 	AcceptedAt      *time.Time                `json:"acceptedAt,omitempty"`
+	DeclinedAt      *time.Time                `json:"declinedAt,omitempty"`
+	RevokedAt       *time.Time                `json:"revokedAt,omitempty"`
 	RemovedAt       *time.Time                `json:"removedAt,omitempty"`
+	LastSeenAt      *time.Time                `json:"lastSeenAt,omitempty"`
+	Permissions     map[string]any            `json:"permissions,omitempty"`
 }
 
 type TripTraveler struct {
@@ -103,11 +109,15 @@ type TripTravelersEnvelope struct {
 
 type CollaborationInvitation struct {
 	CollaboratorID  uuid.UUID               `json:"collaboratorId"`
+	InvitationID    uuid.UUID               `json:"invitationId,omitempty"`
 	TripID          uuid.UUID               `json:"tripId"`
 	Destination     string                  `json:"destination"`
 	Role            entity.CollaboratorRole `json:"role"`
 	InvitedByUserID uuid.UUID               `json:"invitedByUserId"`
+	Email           string                  `json:"email,omitempty"`
+	Message         string                  `json:"message,omitempty"`
 	InvitedAt       time.Time               `json:"invitedAt"`
+	ExpiresAt       *time.Time              `json:"expiresAt,omitempty"`
 }
 
 // ItineraryVersionSummary is returned by the version-history list endpoint.
@@ -242,9 +252,15 @@ func NewTripCollaborator(info appdto.TripCollaboratorInfo) TripCollaborator {
 		Role:            c.Role,
 		Status:          c.Status,
 		InvitedByUserID: c.InvitedByUserID,
+		Message:         c.Message,
 		InvitedAt:       c.InvitedAt,
+		ExpiresAt:       c.ExpiresAt,
 		AcceptedAt:      c.AcceptedAt,
+		DeclinedAt:      c.DeclinedAt,
+		RevokedAt:       c.RevokedAt,
 		RemovedAt:       c.RemovedAt,
+		LastSeenAt:      c.LastSeenAt,
+		Permissions:     c.Permissions,
 	}
 }
 
@@ -283,11 +299,15 @@ func NewCollaborationInvitations(invitations []appdto.CollaborationInvitation) [
 	for _, invitation := range invitations {
 		items = append(items, CollaborationInvitation{
 			CollaboratorID:  invitation.CollaboratorID,
+			InvitationID:    invitation.InvitationID,
 			TripID:          invitation.TripID,
 			Destination:     invitation.Destination,
 			Role:            invitation.Role,
 			InvitedByUserID: invitation.InvitedByUserID,
+			Email:           invitation.Email,
+			Message:         invitation.Message,
 			InvitedAt:       invitation.InvitedAt,
+			ExpiresAt:       invitation.ExpiresAt,
 		})
 	}
 	return items

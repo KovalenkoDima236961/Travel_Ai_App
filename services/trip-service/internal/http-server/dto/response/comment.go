@@ -13,17 +13,25 @@ import (
 // authorDisplayName/authorEmail are intentionally omitted in v1 (no batch user
 // lookup); clients render "You" for the author and "Collaborator" otherwise.
 type ItineraryComment struct {
-	ID           uuid.UUID `json:"id"`
-	TripID       uuid.UUID `json:"tripId"`
-	DayNumber    int       `json:"dayNumber"`
-	ItemIndex    int       `json:"itemIndex"`
-	AuthorUserID uuid.UUID `json:"authorUserId"`
-	Body         string    `json:"body"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-	IsAuthor     bool      `json:"isAuthor"`
-	CanEdit      bool      `json:"canEdit"`
-	CanDelete    bool      `json:"canDelete"`
+	ID               uuid.UUID                `json:"id"`
+	TripID           uuid.UUID                `json:"tripId"`
+	DayNumber        int                      `json:"dayNumber"`
+	ItemIndex        int                      `json:"itemIndex"`
+	TargetType       entity.CommentTargetType `json:"targetType"`
+	TargetID         string                   `json:"targetId,omitempty"`
+	ParentCommentID  *uuid.UUID               `json:"parentCommentId,omitempty"`
+	AuthorUserID     uuid.UUID                `json:"authorUserId"`
+	Body             string                   `json:"body"`
+	MentionUserIDs   []uuid.UUID              `json:"mentionUserIds"`
+	Attachments      []string                 `json:"attachments"`
+	ResolvedAt       *time.Time               `json:"resolvedAt,omitempty"`
+	ResolvedByUserID *uuid.UUID               `json:"resolvedByUserId,omitempty"`
+	EditedAt         *time.Time               `json:"editedAt,omitempty"`
+	CreatedAt        time.Time                `json:"createdAt"`
+	UpdatedAt        time.Time                `json:"updatedAt"`
+	IsAuthor         bool                     `json:"isAuthor"`
+	CanEdit          bool                     `json:"canEdit"`
+	CanDelete        bool                     `json:"canDelete"`
 }
 
 // ListComments is the envelope returned by the comment list endpoints.
@@ -47,17 +55,25 @@ type CommentCounts struct {
 func NewItineraryComment(info appdto.ItineraryCommentInfo) ItineraryComment {
 	c := info.Comment
 	return ItineraryComment{
-		ID:           c.ID,
-		TripID:       c.TripID,
-		DayNumber:    c.DayNumber,
-		ItemIndex:    c.ItemIndex,
-		AuthorUserID: c.AuthorUserID,
-		Body:         c.Body,
-		CreatedAt:    c.CreatedAt,
-		UpdatedAt:    c.UpdatedAt,
-		IsAuthor:     info.IsAuthor,
-		CanEdit:      info.CanEdit,
-		CanDelete:    info.CanDelete,
+		ID:               c.ID,
+		TripID:           c.TripID,
+		DayNumber:        c.DayNumber,
+		ItemIndex:        c.ItemIndex,
+		TargetType:       c.TargetType,
+		TargetID:         c.TargetID,
+		ParentCommentID:  c.ParentID,
+		AuthorUserID:     c.AuthorUserID,
+		Body:             c.Body,
+		MentionUserIDs:   append([]uuid.UUID(nil), c.Mentions...),
+		Attachments:      append([]string(nil), c.Attachments...),
+		ResolvedAt:       c.ResolvedAt,
+		ResolvedByUserID: c.ResolvedBy,
+		EditedAt:         c.EditedAt,
+		CreatedAt:        c.CreatedAt,
+		UpdatedAt:        c.UpdatedAt,
+		IsAuthor:         info.IsAuthor,
+		CanEdit:          info.CanEdit,
+		CanDelete:        info.CanDelete,
 	}
 }
 

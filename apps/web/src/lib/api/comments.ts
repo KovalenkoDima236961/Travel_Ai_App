@@ -21,7 +21,9 @@ export const commentKeys = {
   all: (tripId: string) => ["trips", "detail", tripId, "comments"] as const,
   counts: (tripId: string) => [...commentKeys.all(tripId), "counts"] as const,
   item: (tripId: string, dayNumber: number, itemIndex: number) =>
-    [...commentKeys.all(tripId), "item", dayNumber, itemIndex] as const
+    [...commentKeys.all(tripId), "item", dayNumber, itemIndex] as const,
+  target: (tripId: string, targetType: string, targetId: string) =>
+    [...commentKeys.all(tripId), "target", targetType, targetId] as const
 };
 
 export async function listTripComments(tripId: string): Promise<ItineraryComment[]> {
@@ -55,11 +57,7 @@ export function createItineraryComment(
 ): Promise<ItineraryComment> {
   return apiFetch<ItineraryComment>(`/trips/${tripId}/comments`, {
     method: "POST",
-    body: JSON.stringify({
-      dayNumber: input.dayNumber,
-      itemIndex: input.itemIndex,
-      body: input.body.trim()
-    })
+    body: JSON.stringify(cleanCreateCommentPayload(input))
   });
 }
 
@@ -81,4 +79,34 @@ export function deleteItineraryComment(
   return apiFetch<{ success: boolean }>(`/trips/${tripId}/comments/${commentId}`, {
     method: "DELETE"
   });
+}
+
+export function resolveItineraryComment(
+  tripId: string,
+  commentId: string
+): Promise<ItineraryComment> {
+  return apiFetch<ItineraryComment>(`/trips/${tripId}/comments/${commentId}/resolve`, {
+    method: "POST"
+  });
+}
+
+export function reopenItineraryComment(
+  tripId: string,
+  commentId: string
+): Promise<ItineraryComment> {
+  return apiFetch<ItineraryComment>(`/trips/${tripId}/comments/${commentId}/reopen`, {
+    method: "POST"
+  });
+}
+
+function cleanCreateCommentPayload(input: CreateCommentRequest) {
+  return {
+    ...(input.dayNumber != null ? { dayNumber: input.dayNumber } : {}),
+    ...(input.itemIndex != null ? { itemIndex: input.itemIndex } : {}),
+    ...(input.targetType ? { targetType: input.targetType } : {}),
+    ...(input.targetId ? { targetId: input.targetId.trim() } : {}),
+    ...(input.parentCommentId ? { parentCommentId: input.parentCommentId } : {}),
+    ...(input.mentionUserIds?.length ? { mentionUserIds: input.mentionUserIds } : {}),
+    body: input.body.trim()
+  };
 }

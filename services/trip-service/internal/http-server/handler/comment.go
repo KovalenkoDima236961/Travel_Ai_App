@@ -141,3 +141,41 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
+
+// ResolveComment handles POST /trips/{id}/comments/{commentId}/resolve.
+func (h *Handler) ResolveComment(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	commentID, ok := parseUUIDParam(w, r, "commentId", "invalid comment id")
+	if !ok {
+		return
+	}
+
+	info, err := h.svc.ResolveComment(r.Context(), id, commentID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewItineraryComment(info))
+}
+
+// ReopenComment handles POST /trips/{id}/comments/{commentId}/reopen.
+func (h *Handler) ReopenComment(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.parseID(w, r)
+	if !ok {
+		return
+	}
+	commentID, ok := parseUUIDParam(w, r, "commentId", "invalid comment id")
+	if !ok {
+		return
+	}
+
+	info, err := h.svc.ReopenComment(r.Context(), id, commentID)
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response.NewItineraryComment(info))
+}

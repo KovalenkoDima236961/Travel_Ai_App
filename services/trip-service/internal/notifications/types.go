@@ -16,8 +16,13 @@ const (
 	TypeCollaboratorRoleChange   = "collaborator_role_changed"
 	TypeCollaboratorRemoved      = "collaborator_removed"
 	TypeCommentCreated           = "comment_created"
+	TypeCommentMentioned         = "comment_mentioned"
+	TypeCommentReplied           = "comment_replied"
 	TypeTripPollCreated          = "trip_poll_created"
 	TypeTripPollClosed           = "trip_poll_closed"
+	TypeTripSuggestionCreated    = "trip_suggestion_created"
+	TypeTripSuggestionAccepted   = "trip_suggestion_accepted"
+	TypeOwnershipTransferred     = "ownership_transferred"
 	TypeItineraryUpdated         = "itinerary_updated"
 	TypeItineraryGenerated       = "itinerary_generated"
 	TypeDayRegenerated           = "day_regenerated"
@@ -69,7 +74,7 @@ func defaultPriority(notificationType string) string {
 	case TypeGenerationJobFailed, TypeBudgetOptimizationFailed, TypeSettlementOverdue,
 		TypeOfflineSyncConflict, TypeCalendarSyncFailed, TypeShareSecurityChanged:
 		return PriorityUrgent
-	case TypeCollaborationInvited, TypeTripSubmittedForApproval, TypeTripChangesRequested,
+	case TypeCollaborationInvited, TypeOwnershipTransferred, TypeTripSubmittedForApproval, TypeTripChangesRequested,
 		TypePreTripReminderDue, TypeChecklistItemOverdue, TypeSettlementPending, TypeRouteChanged:
 		return PriorityHigh
 	case TypeChecklistItemCompleted:
@@ -81,11 +86,11 @@ func defaultPriority(notificationType string) string {
 
 func defaultCategory(notificationType string) string {
 	switch notificationType {
-	case TypeCollaborationInvited, TypeCollaborationAccepted, TypeAvailabilityRequested, TypeGroupReadinessNudge, TypeAvailabilityNudge, TypePollVoteNudge:
+	case TypeCollaborationInvited, TypeCollaborationAccepted, TypeOwnershipTransferred, TypeAvailabilityRequested, TypeGroupReadinessNudge, TypeAvailabilityNudge, TypePollVoteNudge, TypeTripSuggestionCreated, TypeTripSuggestionAccepted:
 		return "collaboration"
 	case TypeCollaboratorRoleChange, TypeCollaboratorRemoved:
 		return "role_changes"
-	case TypeCommentCreated:
+	case TypeCommentCreated, TypeCommentMentioned, TypeCommentReplied:
 		return "comments"
 	case TypeChecklistItemAssigned, TypeChecklistItemCompleted, TypeChecklistItemOverdue,
 		TypeChecklistGenerated, TypeChecklistAssignmentNudge, TypeReminderTaskNudge, TypeReminderAssigned:
@@ -122,6 +127,8 @@ const (
 	EntityTrip             = "trip"
 	EntityComment          = "comment"
 	EntityTripPoll         = "trip_poll"
+	EntityTripSuggestion   = "trip_suggestion"
+	EntityTripVote         = "trip_vote"
 	EntityCollaborator     = "collaborator"
 	EntityItinerary        = "itinerary"
 	EntityItineraryDay     = "itinerary_day"

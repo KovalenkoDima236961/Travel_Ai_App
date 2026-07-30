@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
@@ -13,17 +14,38 @@ import (
 
 // CreateItineraryComment inserts a new active comment and returns the stored row.
 func (r *Repository) CreateItineraryComment(ctx context.Context, comment *entity.ItineraryComment) (*entity.ItineraryComment, error) {
+	mentions, err := json.Marshal(comment.Mentions)
+	if err != nil {
+		return nil, fmt.Errorf("marshal comment mentions: %w", err)
+	}
+	attachments, err := json.Marshal(comment.Attachments)
+	if err != nil {
+		return nil, fmt.Errorf("marshal comment attachments: %w", err)
+	}
+	targetType := comment.TargetType
+	if targetType == "" {
+		targetType = entity.CommentTargetItineraryItem
+	}
+
 	query, args, err := r.db.Builder.
 		Insert("itinerary_comments").
-		Columns("id", "trip_id", "day_number", "item_index", "author_user_id", "body", "status").
+		Columns(
+			"id", "trip_id", "day_number", "item_index", "target_type", "target_id",
+			"parent_comment_id", "author_user_id", "body", "status", "mentions", "attachments",
+		).
 		Values(
 			dto.IDArg(comment.ID),
 			dto.IDArg(comment.TripID),
 			comment.DayNumber,
 			comment.ItemIndex,
+			string(targetType),
+			dto.TextArg(comment.TargetID),
+			dto.IDArgPtr(comment.ParentID),
 			dto.IDArg(comment.AuthorUserID),
 			comment.Body,
 			string(entity.CommentStatusActive),
+			mentions,
+			attachments,
 		).
 		Suffix("RETURNING " + dto.ItineraryCommentColumns).
 		ToSql()
@@ -66,10 +88,11 @@ func (r *Repository) ListItineraryCommentsByItem(ctx context.Context, tripID uui
 		Select(dto.ItineraryCommentColumns).
 		From("itinerary_comments").
 		Where(sq.Eq{
-			"trip_id":    dto.IDArg(tripID),
-			"day_number": dayNumber,
-			"item_index": itemIndex,
-			"status":     string(entity.CommentStatusActive),
+			"trip_id":     dto.IDArg(tripID),
+			"day_number":  dayNumber,
+			"item_index":  itemIndex,
+			"target_type": string(entity.CommentTargetItineraryItem),
+			"status":      string(entity.CommentStatusActive),
 		}).
 		OrderBy("created_at ASC").
 		ToSql()
@@ -110,6 +133,7 @@ func (r *Repository) UpdateItineraryCommentBody(ctx context.Context, tripID, com
 	query, args, err := r.db.Builder.
 		Update("itinerary_comments").
 		Set("body", body).
+		Set("edited_at", sq.Expr("NOW()")).
 		Set("updated_at", sq.Expr("NOW()")).
 		Where(sq.Eq{
 			"id":      dto.IDArg(commentID),
@@ -120,6 +144,46 @@ func (r *Repository) UpdateItineraryCommentBody(ctx context.Context, tripID, com
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build update itinerary comment body: %w", err)
+	}
+
+	return dto.ScanItineraryComment(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ResolveItineraryComment(ctx context.Context, tripID, commentID, actorUserID uuid.UUID) (*entity.ItineraryComment, error) {
+	query, args, err := r.db.Builder.
+		Update("itinerary_comments").
+		Set("resolved_at", sq.Expr("NOW()")).
+		Set("resolved_by_user_id", dto.IDArg(actorUserID)).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":      dto.IDArg(commentID),
+			"trip_id": dto.IDArg(tripID),
+			"status":  string(entity.CommentStatusActive),
+		}).
+		Suffix("RETURNING " + dto.ItineraryCommentColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build resolve itinerary comment: %w", err)
+	}
+
+	return dto.ScanItineraryComment(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *Repository) ReopenItineraryComment(ctx context.Context, tripID, commentID uuid.UUID) (*entity.ItineraryComment, error) {
+	query, args, err := r.db.Builder.
+		Update("itinerary_comments").
+		Set("resolved_at", nil).
+		Set("resolved_by_user_id", nil).
+		Set("updated_at", sq.Expr("NOW()")).
+		Where(sq.Eq{
+			"id":      dto.IDArg(commentID),
+			"trip_id": dto.IDArg(tripID),
+			"status":  string(entity.CommentStatusActive),
+		}).
+		Suffix("RETURNING " + dto.ItineraryCommentColumns).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build reopen itinerary comment: %w", err)
 	}
 
 	return dto.ScanItineraryComment(r.db.QueryRow(ctx, query, args...))
@@ -155,8 +219,9 @@ func (r *Repository) CountItineraryCommentsByTripGrouped(ctx context.Context, tr
 		Select("day_number", "item_index", "COUNT(*)").
 		From("itinerary_comments").
 		Where(sq.Eq{
-			"trip_id": dto.IDArg(tripID),
-			"status":  string(entity.CommentStatusActive),
+			"trip_id":     dto.IDArg(tripID),
+			"target_type": string(entity.CommentTargetItineraryItem),
+			"status":      string(entity.CommentStatusActive),
 		}).
 		GroupBy("day_number", "item_index").
 		OrderBy("day_number ASC", "item_index ASC").

@@ -17,6 +17,10 @@ var (
 		prometheus.CounterOpts{Name: "notifications_requested_total", Help: "Total notification requests sent by Trip Service."},
 		[]string{"type", "result"},
 	)
+	collaborationEvents = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "trip_collaboration_events_total", Help: "Total private trip collaboration events by action and result."},
+		[]string{"action", "result"},
+	)
 	calendarSyncTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "calendar_sync_total", Help: "Total calendar sync operations."},
 		[]string{"provider", "result"},
@@ -117,6 +121,7 @@ func init() {
 	prometheus.MustRegister(
 		activityEventsCreated,
 		notificationsRequested,
+		collaborationEvents,
 		calendarSyncTotal,
 		budgetOptimizationJobsCreated,
 		budgetOptimizationProposalsCreated,
@@ -168,6 +173,10 @@ func RecordNotificationsRequested(notificationType, result string, count int) {
 		return
 	}
 	notificationsRequested.WithLabelValues(notificationType, result).Add(float64(count))
+}
+
+func RecordCollaborationEvent(action, result string) {
+	collaborationEvents.WithLabelValues(action, result).Inc()
 }
 
 func RecordCalendarSync(provider, result string) {

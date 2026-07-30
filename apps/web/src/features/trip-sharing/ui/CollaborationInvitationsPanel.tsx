@@ -20,7 +20,11 @@ export function CollaborationInvitationsPanel() {
 
   const acceptMutation = useMutation({
     mutationFn: (invitation: CollaborationInvitation) =>
-      acceptCollaborationInvitation(invitation.tripId, invitation.collaboratorId),
+      acceptCollaborationInvitation(
+        invitation.tripId,
+        invitation.collaboratorId,
+        invitation.invitationId
+      ),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: tripKeys.invitations() }),
@@ -31,7 +35,11 @@ export function CollaborationInvitationsPanel() {
 
   const declineMutation = useMutation({
     mutationFn: (invitation: CollaborationInvitation) =>
-      declineCollaborationInvitation(invitation.tripId, invitation.collaboratorId),
+      declineCollaborationInvitation(
+        invitation.tripId,
+        invitation.collaboratorId,
+        invitation.invitationId
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: tripKeys.invitations() });
     }
@@ -63,7 +71,7 @@ export function CollaborationInvitationsPanel() {
         {invitations.map((invitation) => (
           <div
             className="rounded-lg border border-primary-100 bg-white p-4"
-            key={invitation.collaboratorId}
+            key={invitation.invitationId ?? invitation.collaboratorId}
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -71,7 +79,13 @@ export function CollaborationInvitationsPanel() {
                 <p className="mt-1 text-sm text-slate-600">
                   Invited as {invitation.role} on{" "}
                   {formatDate(invitation.invitedAt, { dateStyle: "medium" })}
+                  {invitation.expiresAt
+                    ? ` · expires ${formatDate(invitation.expiresAt, { dateStyle: "medium" })}`
+                    : ""}
                 </p>
+                {invitation.message ? (
+                  <p className="mt-2 text-sm text-slate-600">{invitation.message}</p>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <Button

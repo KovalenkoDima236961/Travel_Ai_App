@@ -16,19 +16,39 @@ const (
 	CommentStatusDeleted CommentStatus = "deleted"
 )
 
-// ItineraryComment is a comment attached to a specific itinerary item, linked by
-// trip_id + day_number + item_index. Comments are stored in their own table and
-// are never embedded in the itinerary JSON.
+type CommentTargetType string
+
+const (
+	CommentTargetTrip          CommentTargetType = "trip"
+	CommentTargetDay           CommentTargetType = "day"
+	CommentTargetItineraryItem CommentTargetType = "itinerary_item"
+	CommentTargetBudgetItem    CommentTargetType = "budget_item"
+	CommentTargetRoute         CommentTargetType = "route"
+	CommentTargetAttachment    CommentTargetType = "attachment"
+)
+
+// ItineraryComment is a private collaboration comment. Existing itinerary-item
+// comments are linked by trip_id + day_number + item_index; newer targets use
+// target_type/target_id so the same table can support trip, route, budget and
+// attachment discussions without embedding comments in itinerary JSON.
 type ItineraryComment struct {
 	ID           uuid.UUID
 	TripID       uuid.UUID
 	DayNumber    int
 	ItemIndex    int
+	TargetType   CommentTargetType
+	TargetID     string
+	ParentID     *uuid.UUID
 	AuthorUserID uuid.UUID
 	Body         string
 	Status       CommentStatus
+	Mentions     []uuid.UUID
+	Attachments  []string
+	ResolvedAt   *time.Time
+	ResolvedBy   *uuid.UUID
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	EditedAt     *time.Time
 	DeletedAt    *time.Time
 }
 

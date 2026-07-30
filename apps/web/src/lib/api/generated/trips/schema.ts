@@ -886,6 +886,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{tripId}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTripInvitations"];
+        put?: never;
+        post: operations["createTripInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/invitations/{invitationId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["acceptTripInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/invitations/{invitationId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["declineTripInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/invitations/{invitationId}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resendTripInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/invitations/{invitationId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeTripInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTripMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/members/transfer-ownership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["transferTripOwnership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/members/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["leaveTrip"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{tripId}/comments": {
         parameters: {
             query?: never;
@@ -897,6 +1025,134 @@ export interface paths {
         put?: never;
         post: operations["createTripComment"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/comments/{commentId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resolveTripComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/comments/{commentId}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reopenTripComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTripSuggestions"];
+        put?: never;
+        post: operations["createTripSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/suggestions/{suggestionId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["acceptTripSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/suggestions/{suggestionId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rejectTripSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/suggestions/{suggestionId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resolveTripSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/votes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTripVotes"];
+        put?: never;
+        post: operations["setTripVote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripId}/votes/{voteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteTripVote"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1719,15 +1975,216 @@ export interface components {
             /** Format: email */
             email?: string | null;
             displayName?: string | null;
+            role: components["schemas"]["CollaboratorRole"];
             /** @enum {string} */
-            role: "owner" | "editor" | "viewer";
-            status: string;
+            status: "pending" | "accepted" | "declined" | "expired" | "revoked" | "removed";
             /** Format: uuid */
             invitedByUserId: string;
+            message?: string;
             /** Format: date-time */
             invitedAt: string;
             /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
             acceptedAt?: string | null;
+            /** Format: date-time */
+            declinedAt?: string | null;
+            /** Format: date-time */
+            revokedAt?: string | null;
+            /** Format: date-time */
+            removedAt?: string | null;
+            /** Format: date-time */
+            lastSeenAt?: string | null;
+            permissions?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @enum {string} */
+        CollaboratorRole: "viewer" | "editor";
+        /** @enum {string} */
+        TripInvitationStatus: "pending" | "accepted" | "declined" | "expired" | "revoked";
+        CreateTripInvitationRequest: {
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["CollaboratorRole"];
+            message?: string;
+            /** Format: date-time */
+            expiresAt?: string | null;
+        };
+        ResendTripInvitationRequest: {
+            message?: string;
+            /** Format: date-time */
+            expiresAt?: string | null;
+        };
+        TripInvitation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tripId: string;
+            /** Format: uuid */
+            inviterUserId: string;
+            /** Format: uuid */
+            invitedUserId?: string | null;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["CollaboratorRole"];
+            status: components["schemas"]["TripInvitationStatus"];
+            message?: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            acceptedAt?: string | null;
+            /** Format: date-time */
+            declinedAt?: string | null;
+            /** Format: date-time */
+            revokedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ListTripInvitationsResponse: {
+            items: components["schemas"]["TripInvitation"][];
+        };
+        TripMember: {
+            /** Format: uuid */
+            userId: string;
+            /** Format: email */
+            email?: string | null;
+            displayName?: string | null;
+            role: string;
+            /** @enum {string} */
+            status: "active" | "invited" | "removed";
+            /** Format: date-time */
+            joinedAt?: string | null;
+            /** Format: uuid */
+            invitedBy?: string | null;
+            /** Format: date-time */
+            lastSeenAt?: string | null;
+            permissions: {
+                [key: string]: boolean;
+            };
+            isSelf: boolean;
+        };
+        ListTripMembersResponse: {
+            items: components["schemas"]["TripMember"][];
+        };
+        /** @enum {string} */
+        CommentTargetType: "trip" | "day" | "itinerary_item" | "budget_item" | "route" | "attachment";
+        CreateItineraryCommentRequest: {
+            dayNumber?: number;
+            itemIndex?: number;
+            targetType?: components["schemas"]["CommentTargetType"];
+            targetId?: string;
+            /** Format: uuid */
+            parentCommentId?: string | null;
+            mentionUserIds?: string[];
+            body: string;
+        };
+        ItineraryComment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tripId: string;
+            dayNumber: number;
+            itemIndex: number;
+            targetType: components["schemas"]["CommentTargetType"];
+            targetId?: string;
+            /** Format: uuid */
+            parentCommentId?: string | null;
+            /** Format: uuid */
+            authorUserId: string;
+            body: string;
+            mentionUserIds: string[];
+            attachments: string[];
+            /** Format: date-time */
+            resolvedAt?: string | null;
+            /** Format: uuid */
+            resolvedByUserId?: string | null;
+            /** Format: date-time */
+            editedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            isAuthor?: boolean;
+            canEdit?: boolean;
+            canDelete?: boolean;
+        };
+        ListItineraryCommentsResponse: {
+            items: components["schemas"]["ItineraryComment"][];
+        };
+        /** @enum {string} */
+        TripSuggestionType: "activity_replacement" | "time_change" | "budget_adjustment" | "route_change" | "note";
+        /** @enum {string} */
+        TripSuggestionTargetType: "trip" | "day" | "itinerary_item" | "budget_item" | "route" | "attachment";
+        /** @enum {string} */
+        TripSuggestionStatus: "open" | "accepted" | "rejected" | "resolved";
+        CreateTripSuggestionRequest: {
+            suggestionType: components["schemas"]["TripSuggestionType"];
+            targetType: components["schemas"]["TripSuggestionTargetType"];
+            targetId?: string;
+            before?: unknown;
+            after?: unknown;
+            comment?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        TripSuggestion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tripId: string;
+            /** Format: uuid */
+            authorUserId: string;
+            suggestionType: components["schemas"]["TripSuggestionType"];
+            targetType: components["schemas"]["TripSuggestionTargetType"];
+            targetId?: string;
+            status: components["schemas"]["TripSuggestionStatus"];
+            before?: unknown;
+            after?: unknown;
+            comment?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            appliedItineraryRevision?: number | null;
+            /** Format: date-time */
+            resolvedAt?: string | null;
+            /** Format: uuid */
+            resolvedByUserId?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            isAuthor?: boolean;
+            canResolve?: boolean;
+        };
+        ListTripSuggestionsResponse: {
+            items: components["schemas"]["TripSuggestion"][];
+        };
+        /** @enum {string} */
+        TripVoteTargetType: "activity" | "restaurant" | "hotel" | "destination" | "suggestion";
+        /** @enum {string} */
+        TripVoteType: "thumbs_up" | "thumbs_down" | "heart" | "star";
+        SetTripVoteRequest: {
+            targetType: components["schemas"]["TripVoteTargetType"];
+            targetId: string;
+            voteType: components["schemas"]["TripVoteType"];
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        TripVoteSummary: {
+            targetType: components["schemas"]["TripVoteTargetType"];
+            targetId: string;
+            counts: {
+                [key: string]: number;
+            };
+            currentVote?: components["schemas"]["TripVoteType"];
+        };
+        ListTripVoteSummariesResponse: {
+            items: components["schemas"]["TripVoteSummary"][];
         };
         SuccessResponse: {
             success: boolean;
@@ -3671,12 +4128,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    /** Format: email */
-                    email: string;
-                    /** @enum {string} */
-                    role: "editor" | "viewer";
-                };
+                "application/json": components["schemas"]["CreateTripInvitationRequest"];
             };
         };
         responses: {
@@ -3693,6 +4145,230 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listTripInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-visible invitation list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListTripInvitationsResponse"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    createTripInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTripInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created invitation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripInvitation"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    acceptTripInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted invitation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripInvitation"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    declineTripInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined invitation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    resendTripInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ResendTripInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Resent invitation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripInvitation"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeTripInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked invitation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listTripMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trip member roster. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListTripMembersResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    transferTripOwnership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    newOwnerUserId: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["TripResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    leaveTrip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Left trip. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
             default: components["responses"]["ErrorResponse"];
         };
     };
@@ -3716,9 +4392,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ListItineraryCommentsResponse"];
                 };
             };
             401: components["responses"]["ErrorResponse"];
@@ -3737,9 +4411,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    body: string;
-                };
+                "application/json": components["schemas"]["CreateItineraryCommentRequest"];
             };
         };
         responses: {
@@ -3749,14 +4421,267 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ItineraryComment"];
                 };
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    resolveTripComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved comment thread. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItineraryComment"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    reopenTripComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reopened comment thread. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItineraryComment"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listTripSuggestions: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["TripSuggestionStatus"];
+            };
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trip suggestions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListTripSuggestionsResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    createTripSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTripSuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created suggestion. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripSuggestion"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    acceptTripSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                suggestionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    expectedItineraryRevision?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted suggestion. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripSuggestion"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    rejectTripSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                suggestionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rejected suggestion. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripSuggestion"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    resolveTripSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                suggestionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved suggestion. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripSuggestion"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    listTripVotes: {
+        parameters: {
+            query?: {
+                targetType?: components["schemas"]["TripVoteTargetType"];
+                targetId?: string;
+            };
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vote summaries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListTripVoteSummariesResponse"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    setTripVote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetTripVoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated vote summary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripVoteSummary"];
+                };
+            };
+            default: components["responses"]["ErrorResponse"];
+        };
+    };
+    deleteTripVote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+                voteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted vote. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
             default: components["responses"]["ErrorResponse"];
         };
     };

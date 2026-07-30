@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 var ErrRegisteredUserNotFound = errors.New("registered user not found")
@@ -42,6 +44,14 @@ func (s *Service) InviteTripCollaborator(ctx context.Context, tripID uuid.UUID, 
 	if err != nil {
 		return appdto.TripCollaboratorInfo{}, err
 	}
+	message, err := normalizeInviteMessage(in.Message)
+	if err != nil {
+		return appdto.TripCollaboratorInfo{}, err
+	}
+	expiresAt, err := normalizeInvitationExpiration(in.ExpiresAt)
+	if err != nil {
+		return appdto.TripCollaboratorInfo{}, err
+	}
 	if s.userLookupProvider == nil {
 		return appdto.TripCollaboratorInfo{}, apperrs.NewDependencyError("user lookup is not configured")
 	}
@@ -64,9 +74,13 @@ func (s *Service) InviteTripCollaborator(ctx context.Context, tripID uuid.UUID, 
 		ID:              uuid.New(),
 		TripID:          tripID,
 		UserID:          found.UserID,
+		Email:           email,
 		Role:            role,
 		Status:          entity.CollaboratorStatusPending,
 		InvitedByUserID: user.ID,
+		Message:         message,
+		ExpiresAt:       &expiresAt,
+		Permissions:     map[string]any{},
 	})
 	if err != nil {
 		return appdto.TripCollaboratorInfo{}, err
@@ -110,6 +124,7 @@ func (s *Service) InviteTripCollaborator(ctx context.Context, tripID uuid.UUID, 
 			"collaboratorId": collaborator.ID.String(),
 		})
 
+	tripobs.RecordCollaborationEvent("invite_created", "success")
 	return info, nil
 }
 
@@ -310,15 +325,58 @@ func (s *Service) ListCollaborationInvitations(ctx context.Context) ([]appdto.Co
 		return nil, err
 	}
 	out := make([]appdto.CollaborationInvitation, 0, len(sharedTrips))
+	seenTrips := map[uuid.UUID]struct{}{}
 	for _, shared := range sharedTrips {
+		seenTrips[shared.Trip.ID] = struct{}{}
 		out = append(out, appdto.CollaborationInvitation{
 			CollaboratorID:  shared.Collaborator.ID,
 			TripID:          shared.Trip.ID,
 			Destination:     shared.Trip.Destination,
 			Role:            shared.Collaborator.Role,
 			InvitedByUserID: shared.Collaborator.InvitedByUserID,
+			Email:           shared.Collaborator.Email,
+			Message:         shared.Collaborator.Message,
 			InvitedAt:       shared.Collaborator.InvitedAt,
+			ExpiresAt:       shared.Collaborator.ExpiresAt,
 		})
+	}
+	if inviteRepo, ok := s.repo.(tripInvitationRepository); ok {
+		invitations, err := inviteRepo.ListPendingTripInvitationsForUser(ctx, user.ID, user.Email)
+		if err != nil {
+			return nil, err
+		}
+		now := time.Now().UTC()
+		for i := range invitations {
+			invitation := invitations[i]
+			if !invitation.ExpiresAt.IsZero() && !invitation.ExpiresAt.After(now) {
+				_, _ = inviteRepo.UpdateTripInvitationStatus(ctx, invitation.TripID, invitation.ID, entity.TripInvitationStatusExpired, &user.ID, now)
+				continue
+			}
+			if invitation.InvitedUserID == nil && user.Email != "" && strings.EqualFold(invitation.Email, user.Email) {
+				if linked, linkErr := inviteRepo.LinkTripInvitationToUser(ctx, invitation.ID, user.ID, user.Email); linkErr == nil {
+					invitation = *linked
+				}
+			}
+			if _, seen := seenTrips[invitation.TripID]; seen {
+				continue
+			}
+			trip, tripErr := s.repo.GetByID(ctx, invitation.TripID)
+			if tripErr != nil {
+				continue
+			}
+			expiresAt := invitation.ExpiresAt
+			out = append(out, appdto.CollaborationInvitation{
+				InvitationID:    invitation.ID,
+				TripID:          invitation.TripID,
+				Destination:     trip.Destination,
+				Role:            invitation.Role,
+				InvitedByUserID: invitation.InviterUserID,
+				Email:           invitation.Email,
+				Message:         invitation.Message,
+				InvitedAt:       invitation.CreatedAt,
+				ExpiresAt:       &expiresAt,
+			})
+		}
 	}
 	return out, nil
 }

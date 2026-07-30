@@ -18,7 +18,11 @@ import { CommandCenterSkeleton, TripCommandCenter } from "@/components/trip-comm
 import { TripCopilot } from "@/components/copilot";
 import { VerificationPanel } from "@/components/verification";
 import { BudgetPanel } from "@/features/trip-budget";
-import { CollaboratorsPanel, ShareTripPanel } from "@/features/trip-sharing";
+import {
+  CollaboratorsPanel,
+  ShareTripPanel,
+  TripPlanningCollaborationPanel
+} from "@/features/trip-sharing";
 import { TripPresenceIndicator } from "@/components/presence/TripPresenceIndicator";
 import { RepairProposalsPanel } from "@/features/trip-repair";
 import { EditLockStatus } from "@/features/trip-edit-lock";
@@ -3292,6 +3296,7 @@ export function TripDetailPageContent() {
                   {commentTarget ? (
                     <ItemCommentsPanel
                       canComment={canComment}
+                      canResolve={canMutateTrip}
                       currentUserId={currentUserId}
                       dayNumber={commentTarget.dayNumber}
                       itemIndex={commentTarget.itemIndex}
@@ -3483,6 +3488,12 @@ export function TripDetailPageContent() {
                     ) : null}
                     <CollaboratorsPanel
                       canManageCollaborators={canManageCollaborators}
+                      tripId={trip.id}
+                    />
+                    <TripPlanningCollaborationPanel
+                      canResolve={canMutateTrip}
+                      canSuggest={canUsePrivateCollaboration}
+                      expectedItineraryRevision={trip.itineraryRevision}
                       tripId={trip.id}
                     />
                   </>

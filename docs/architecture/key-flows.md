@@ -92,6 +92,13 @@ to an existing identity lookup, and accepted/declined through authenticated
 trip routes. Permissions are checked on every subsequent request; a UI role
 badge never grants access.
 
+Trip collaboration v1 keeps discussions and decisions as private Trip Service
+records: comments target trip/day/item/budget/route/attachment resources,
+suggestions are resolved through the existing itinerary revision flow when they
+apply JSON changes, and votes are de-duplicated per user and target. See
+[`docs/collaboration.md`](../collaboration.md) and
+[`docs/api/collaboration.md`](../api/collaboration.md).
+
 ## Related docs
 
 - [Trips feature guide](../features/trips.md)

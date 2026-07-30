@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -13,16 +14,17 @@ import (
 )
 
 // ItineraryCommentColumns is the canonical column projection for comment rows.
-const ItineraryCommentColumns = "id, trip_id, day_number, item_index, author_user_id, body, status, created_at, updated_at, deleted_at"
+const ItineraryCommentColumns = "id, trip_id, day_number, item_index, target_type, target_id, parent_comment_id, author_user_id, body, status, mentions, attachments, resolved_at, resolved_by_user_id, created_at, updated_at, edited_at, deleted_at"
 
 // ScanItineraryComment maps a single comment row to its domain entity.
 func ScanItineraryComment(row pgx.Row) (*entity.ItineraryComment, error) {
 	var (
-		id, tripID, authorUserID pgtype.UUID
-		dayNumber, itemIndex     int32
-		body, status             string
-		createdAt, updatedAt     pgtype.Timestamp
-		deletedAt                pgtype.Timestamp
+		id, tripID, parentCommentID, authorUserID, resolvedByUserID pgtype.UUID
+		dayNumber, itemIndex                                        int32
+		targetID                                                    pgtype.Text
+		targetType, body, status                                    string
+		mentionsRaw, attachmentsRaw                                 []byte
+		resolvedAt, createdAt, updatedAt, editedAt, deletedAt       pgtype.Timestamp
 	)
 
 	err := row.Scan(
@@ -30,11 +32,19 @@ func ScanItineraryComment(row pgx.Row) (*entity.ItineraryComment, error) {
 		&tripID,
 		&dayNumber,
 		&itemIndex,
+		&targetType,
+		&targetID,
+		&parentCommentID,
 		&authorUserID,
 		&body,
 		&status,
+		&mentionsRaw,
+		&attachmentsRaw,
+		&resolvedAt,
+		&resolvedByUserID,
 		&createdAt,
 		&updatedAt,
+		&editedAt,
 		&deletedAt,
 	)
 	if err != nil {
@@ -44,16 +54,33 @@ func ScanItineraryComment(row pgx.Row) (*entity.ItineraryComment, error) {
 		return nil, fmt.Errorf("scan itinerary comment: %w", err)
 	}
 
+	mentions, err := unmarshalUUIDSlice(mentionsRaw, "itinerary comment mentions")
+	if err != nil {
+		return nil, err
+	}
+	attachments, err := unmarshalStringSlice(attachmentsRaw, "itinerary comment attachments")
+	if err != nil {
+		return nil, err
+	}
+
 	return &entity.ItineraryComment{
 		ID:           uuid.UUID(id.Bytes),
 		TripID:       uuid.UUID(tripID.Bytes),
 		DayNumber:    int(dayNumber),
 		ItemIndex:    int(itemIndex),
+		TargetType:   entity.CommentTargetType(targetType),
+		TargetID:     commentTextValue(targetID),
+		ParentID:     fromPgUUID(parentCommentID),
 		AuthorUserID: uuid.UUID(authorUserID.Bytes),
 		Body:         body,
 		Status:       entity.CommentStatus(status),
+		Mentions:     mentions,
+		Attachments:  attachments,
+		ResolvedAt:   timestampPtr(resolvedAt),
+		ResolvedBy:   fromPgUUID(resolvedByUserID),
 		CreatedAt:    createdAt.Time,
 		UpdatedAt:    updatedAt.Time,
+		EditedAt:     timestampPtr(editedAt),
 		DeletedAt:    timestampPtr(deletedAt),
 	}, nil
 }
@@ -72,6 +99,27 @@ func ScanItineraryCommentRows(rows pgx.Rows) ([]entity.ItineraryComment, error) 
 		return nil, fmt.Errorf("iterate itinerary comments: %w", err)
 	}
 	return comments, nil
+}
+
+func unmarshalUUIDSlice(raw []byte, label string) ([]uuid.UUID, error) {
+	if len(raw) == 0 {
+		return []uuid.UUID{}, nil
+	}
+	var out []uuid.UUID
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("unmarshal %s: %w", label, err)
+	}
+	if out == nil {
+		out = []uuid.UUID{}
+	}
+	return out, nil
+}
+
+func commentTextValue(value pgtype.Text) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
 }
 
 // ScanItineraryCommentCounts maps grouped (day_number, item_index, count) rows.

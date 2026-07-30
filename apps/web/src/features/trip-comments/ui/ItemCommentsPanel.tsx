@@ -10,6 +10,8 @@ import {
   createItineraryComment,
   deleteItineraryComment,
   listItemComments,
+  reopenItineraryComment,
+  resolveItineraryComment,
   updateItineraryComment
 } from "@/lib/api/comments";
 import { activityKeys } from "@/lib/api/activity";
@@ -28,6 +30,7 @@ type ItemCommentsPanelProps = {
   onOpenChange: (open: boolean) => void;
   currentUserId?: string;
   canComment: boolean;
+  canResolve?: boolean;
 };
 
 export function ItemCommentsPanel({
@@ -39,10 +42,12 @@ export function ItemCommentsPanel({
   open,
   onOpenChange,
   currentUserId,
-  canComment
+  canComment,
+  canResolve = false
 }: ItemCommentsPanelProps) {
   const queryClient = useQueryClient();
   const [body, setBody] = useState("");
+  const [replyTo, setReplyTo] = useState<ItineraryComment | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const commentsQuery = useQuery({
@@ -63,9 +68,17 @@ export function ItemCommentsPanel({
 
   const createMutation = useMutation({
     mutationFn: (value: string) =>
-      createItineraryComment(tripId, { dayNumber, itemIndex, body: value }),
+      createItineraryComment(tripId, {
+        dayNumber,
+        itemIndex,
+        targetType: "itinerary_item",
+        targetId: `${dayNumber}:${itemIndex}`,
+        parentCommentId: replyTo?.id,
+        body: value
+      }),
     onSuccess: async () => {
       setBody("");
+      setReplyTo(null);
       setError(null);
       await refreshComments();
     },
@@ -136,7 +149,10 @@ export function ItemCommentsPanel({
               itemIndex={itemIndex}
               key={comment.id}
               onChanged={refreshComments}
+              onReply={setReplyTo}
               tripId={tripId}
+              canReply={canComment}
+              canResolve={canResolve && !comment.parentCommentId}
             />
           ))}
         </div>
@@ -149,9 +165,25 @@ export function ItemCommentsPanel({
 
         {canComment ? (
           <form className="mt-5 space-y-2" onSubmit={submit}>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="new-comment">
-              Add a comment
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label className="block text-sm font-medium text-slate-700" htmlFor="new-comment">
+                {replyTo ? "Add a reply" : "Add a comment"}
+              </label>
+              {replyTo ? (
+                <button
+                  className="text-xs font-medium text-slate-500 hover:text-slate-700"
+                  onClick={() => setReplyTo(null)}
+                  type="button"
+                >
+                  Cancel reply
+                </button>
+              ) : null}
+            </div>
+            {replyTo ? (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+                Replying to {replyTo.isAuthor ? "you" : "a collaborator"}
+              </p>
+            ) : null}
             <Textarea
               disabled={createMutation.isPending}
               id="new-comment"
@@ -184,6 +216,9 @@ type CommentRowProps = {
   comment: ItineraryComment;
   currentUserId?: string;
   onChanged: () => Promise<void>;
+  onReply: (comment: ItineraryComment) => void;
+  canReply: boolean;
+  canResolve: boolean;
 };
 
 function CommentRow({
@@ -192,7 +227,10 @@ function CommentRow({
   itemIndex,
   comment,
   currentUserId,
-  onChanged
+  onChanged,
+  onReply,
+  canReply,
+  canResolve
 }: CommentRowProps) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -201,7 +239,7 @@ function CommentRow({
 
   const isAuthor = comment.isAuthor ?? (currentUserId ? comment.authorUserId === currentUserId : false);
   const authorLabel = isAuthor ? "You" : comment.authorDisplayName || "Collaborator";
-  const edited = comment.updatedAt > comment.createdAt;
+  const edited = Boolean(comment.editedAt) || comment.updatedAt > comment.createdAt;
 
   const updateMutation = useMutation({
     mutationFn: (value: string) =>
@@ -223,7 +261,19 @@ function CommentRow({
     onError: (err) => setError(getErrorMessage(err, "Could not delete comment."))
   });
 
-  const busy = updateMutation.isPending || deleteMutation.isPending;
+  const resolveMutation = useMutation({
+    mutationFn: () =>
+      comment.resolvedAt
+        ? reopenItineraryComment(tripId, comment.id)
+        : resolveItineraryComment(tripId, comment.id),
+    onSuccess: async () => {
+      setError(null);
+      await onChanged();
+    },
+    onError: (err) => setError(getErrorMessage(err, "Could not update thread status."))
+  });
+
+  const busy = updateMutation.isPending || deleteMutation.isPending || resolveMutation.isPending;
 
   function startEdit() {
     setDraft(comment.body);
@@ -259,12 +309,19 @@ function CommentRow({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div
+      className={
+        comment.parentCommentId
+          ? "ml-5 rounded-lg border border-slate-200 bg-slate-50 p-3"
+          : "rounded-lg border border-slate-200 bg-white p-3"
+      }
+    >
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">{authorLabel}</p>
         <p className="text-xs text-slate-500">
           {formatDate(comment.createdAt, { dateStyle: "medium", timeStyle: "short" })}
           {edited ? " · edited" : ""}
+          {comment.resolvedAt ? " · resolved" : ""}
         </p>
       </div>
 
@@ -296,8 +353,18 @@ function CommentRow({
 
       {error ? <p className="mt-2 text-xs text-red-600">{error}</p> : null}
 
-      {!isEditing && (comment.canEdit || comment.canDelete) ? (
+      {!isEditing && (canReply || comment.canEdit || comment.canDelete || canResolve) ? (
         <div className="mt-2 flex gap-3">
+          {canReply ? (
+            <button
+              className="text-xs font-medium text-primary-700 hover:text-primary-600 disabled:opacity-60"
+              disabled={busy}
+              onClick={() => onReply(comment)}
+              type="button"
+            >
+              Reply
+            </button>
+          ) : null}
           {comment.canEdit ? (
             <button
               className="text-xs font-medium text-primary-700 hover:text-primary-600 disabled:opacity-60"
@@ -316,6 +383,16 @@ function CommentRow({
               type="button"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </button>
+          ) : null}
+          {canResolve ? (
+            <button
+              className="text-xs font-medium text-slate-600 hover:text-slate-800 disabled:opacity-60"
+              disabled={busy}
+              onClick={() => resolveMutation.mutate()}
+              type="button"
+            >
+              {comment.resolvedAt ? "Reopen" : "Resolve"}
             </button>
           ) : null}
         </div>

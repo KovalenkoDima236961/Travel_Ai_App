@@ -174,8 +174,10 @@ type PublicShareUnlockResponse struct {
 }
 
 type InviteTripCollaboratorInput struct {
-	Email string
-	Role  entity.CollaboratorRole
+	Email     string
+	Role      entity.CollaboratorRole
+	Message   string
+	ExpiresAt *time.Time
 }
 
 type UpdateTripCollaboratorInput struct {
@@ -196,9 +198,13 @@ type TripCollaboratorInfo struct {
 
 type CollaborationInvitation struct {
 	CollaboratorID  uuid.UUID
+	InvitationID    uuid.UUID
 	TripID          uuid.UUID
 	Destination     string
 	Role            entity.CollaboratorRole
 	InvitedByUserID uuid.UUID
+	Email           string
+	Message         string
 	InvitedAt       time.Time
+	ExpiresAt       *time.Time
 }

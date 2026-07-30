@@ -16,6 +16,7 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 	domainerrs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/errs"
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/notifications"
+	tripobs "github.com/KovalenkoDima236961/Travel_Ai_App/internal/observability"
 )
 
 const (
@@ -83,28 +84,32 @@ func (s *Service) CreateComment(ctx context.Context, tripID uuid.UUID, in appdto
 		return appdto.ItineraryCommentInfo{}, err
 	}
 
-	if in.DayNumber < 1 {
-		return appdto.ItineraryCommentInfo{}, apperrs.NewInvalidInput("dayNumber must be >= 1")
-	}
-	if in.ItemIndex < 0 {
-		return appdto.ItineraryCommentInfo{}, apperrs.NewInvalidInput("itemIndex must be >= 0")
-	}
 	body, err := normalizeCommentBody(in.Body)
 	if err != nil {
 		return appdto.ItineraryCommentInfo{}, err
 	}
-	if err := assertItineraryItemExists(trip, in.DayNumber, in.ItemIndex); err != nil {
+	target, err := s.normalizeCommentTarget(ctx, trip, in)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	mentions, err := s.validateMentionUserIDs(ctx, trip, user.ID, in.MentionUserIDs)
+	if err != nil {
 		return appdto.ItineraryCommentInfo{}, err
 	}
 
 	created, err := s.repo.CreateItineraryComment(ctx, &entity.ItineraryComment{
 		ID:           uuid.New(),
 		TripID:       tripID,
-		DayNumber:    in.DayNumber,
-		ItemIndex:    in.ItemIndex,
+		DayNumber:    target.DayNumber,
+		ItemIndex:    target.ItemIndex,
+		TargetType:   target.TargetType,
+		TargetID:     target.TargetID,
+		ParentID:     in.ParentCommentID,
 		AuthorUserID: user.ID,
 		Body:         body,
 		Status:       entity.CommentStatusActive,
+		Mentions:     mentions,
+		Attachments:  []string{},
 	})
 	if err != nil {
 		return appdto.ItineraryCommentInfo{}, err
@@ -116,7 +121,7 @@ func (s *Service) CreateComment(ctx context.Context, tripID uuid.UUID, in appdto
 		EventType:   activity.EventCommentCreated,
 		EntityType:  activityEntityType(activity.EntityComment),
 		EntityID:    activityEntityID(created.ID),
-		Metadata:    commentActivityMetadata(trip, created.DayNumber, created.ItemIndex),
+		Metadata:    commentActivityMetadata(trip, *created),
 	})
 
 	// Notify the owner and accepted collaborators (except the comment author).
@@ -127,10 +132,12 @@ func (s *Service) CreateComment(ctx context.Context, tripID uuid.UUID, in appdto
 		location = fmt.Sprintf("Day %d · %s", created.DayNumber, itemName)
 	}
 	commentMetadata := map[string]any{
-		"tripId":    tripID.String(),
-		"dayNumber": created.DayNumber,
-		"itemIndex": created.ItemIndex,
-		"commentId": created.ID.String(),
+		"tripId":     tripID.String(),
+		"dayNumber":  created.DayNumber,
+		"itemIndex":  created.ItemIndex,
+		"commentId":  created.ID.String(),
+		"targetType": string(created.TargetType),
+		"targetId":   created.TargetID,
 	}
 	if itemName != "" {
 		commentMetadata["itemName"] = itemName
@@ -141,7 +148,10 @@ func (s *Service) CreateComment(ctx context.Context, tripID uuid.UUID, in appdto
 		fmt.Sprintf("A collaborator commented on %s.", location),
 		notifications.EntityComment, activityEntityID(created.ID),
 		commentMetadata)
+	s.notifyMentionedUsers(ctx, trip, user.ID, created)
+	s.notifyCommentReply(ctx, trip, user.ID, created)
 
+	tripobs.RecordCollaborationEvent("comment_created", "success")
 	return s.toCommentInfo(*created, user.ID, access), nil
 }
 
@@ -183,7 +193,7 @@ func (s *Service) UpdateComment(ctx context.Context, tripID, commentID uuid.UUID
 		EventType:   activity.EventCommentUpdated,
 		EntityType:  activityEntityType(activity.EntityComment),
 		EntityID:    activityEntityID(updated.ID),
-		Metadata:    commentActivityMetadata(trip, updated.DayNumber, updated.ItemIndex),
+		Metadata:    commentActivityMetadata(trip, *updated),
 	})
 
 	return s.toCommentInfo(*updated, user.ID, access), nil
@@ -224,10 +234,88 @@ func (s *Service) DeleteComment(ctx context.Context, tripID, commentID uuid.UUID
 		EventType:   activity.EventCommentDeleted,
 		EntityType:  activityEntityType(activity.EntityComment),
 		EntityID:    activityEntityID(existing.ID),
-		Metadata:    commentActivityMetadata(trip, existing.DayNumber, existing.ItemIndex),
+		Metadata:    commentActivityMetadata(trip, *existing),
 	})
 
 	return nil
+}
+
+func (s *Service) ResolveComment(ctx context.Context, tripID, commentID uuid.UUID) (appdto.ItineraryCommentInfo, error) {
+	repo, ok := s.repo.(commentThreadRepository)
+	if !ok {
+		return appdto.ItineraryCommentInfo{}, apperrs.NewDependencyError("comment thread repository is not configured")
+	}
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	trip, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	existing, err := s.repo.GetItineraryCommentByID(ctx, tripID, commentID)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	if existing.Status != entity.CommentStatusActive {
+		return appdto.ItineraryCommentInfo{}, domainerrs.ErrNotFound
+	}
+	if existing.AuthorUserID != user.ID && !access.CanEdit() {
+		return appdto.ItineraryCommentInfo{}, apperrs.ErrForbidden
+	}
+	updated, err := repo.ResolveItineraryComment(ctx, tripID, commentID, user.ID)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCommentResolved,
+		EntityType:  activityEntityType(activity.EntityComment),
+		EntityID:    activityEntityID(updated.ID),
+		Metadata:    commentActivityMetadata(trip, *updated),
+	})
+	tripobs.RecordCollaborationEvent("comment_resolved", "success")
+	return s.toCommentInfo(*updated, user.ID, access), nil
+}
+
+func (s *Service) ReopenComment(ctx context.Context, tripID, commentID uuid.UUID) (appdto.ItineraryCommentInfo, error) {
+	repo, ok := s.repo.(commentThreadRepository)
+	if !ok {
+		return appdto.ItineraryCommentInfo{}, apperrs.NewDependencyError("comment thread repository is not configured")
+	}
+	user, err := auth.MustUserFromContext(ctx)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	trip, access, err := s.requireViewerEditorOrOwner(ctx, tripID, user.ID)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	existing, err := s.repo.GetItineraryCommentByID(ctx, tripID, commentID)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	if existing.Status != entity.CommentStatusActive {
+		return appdto.ItineraryCommentInfo{}, domainerrs.ErrNotFound
+	}
+	if existing.AuthorUserID != user.ID && !access.CanEdit() {
+		return appdto.ItineraryCommentInfo{}, apperrs.ErrForbidden
+	}
+	updated, err := repo.ReopenItineraryComment(ctx, tripID, commentID)
+	if err != nil {
+		return appdto.ItineraryCommentInfo{}, err
+	}
+	s.recordActivity(ctx, activity.RecordActivityInput{
+		TripID:      tripID,
+		ActorUserID: &user.ID,
+		EventType:   activity.EventCommentReopened,
+		EntityType:  activityEntityType(activity.EntityComment),
+		EntityID:    activityEntityID(updated.ID),
+		Metadata:    commentActivityMetadata(trip, *updated),
+	})
+	tripobs.RecordCollaborationEvent("comment_reopened", "success")
+	return s.toCommentInfo(*updated, user.ID, access), nil
 }
 
 func (s *Service) toCommentInfos(comments []entity.ItineraryComment, userID uuid.UUID, access TripAccess) []appdto.ItineraryCommentInfo {
@@ -260,6 +348,138 @@ func normalizeCommentBody(raw string) (string, error) {
 	return body, nil
 }
 
+type normalizedCommentTarget struct {
+	DayNumber  int
+	ItemIndex  int
+	TargetType entity.CommentTargetType
+	TargetID   string
+}
+
+func (s *Service) normalizeCommentTarget(ctx context.Context, trip *entity.Trip, in appdto.CreateCommentInput) (normalizedCommentTarget, error) {
+	targetType := in.TargetType
+	if targetType == "" {
+		targetType = entity.CommentTargetItineraryItem
+	}
+	target := normalizedCommentTarget{
+		DayNumber:  in.DayNumber,
+		ItemIndex:  in.ItemIndex,
+		TargetType: targetType,
+		TargetID:   strings.TrimSpace(in.TargetID),
+	}
+
+	if in.ParentCommentID != nil {
+		parent, err := s.repo.GetItineraryCommentByID(ctx, trip.ID, *in.ParentCommentID)
+		if err != nil {
+			return normalizedCommentTarget{}, err
+		}
+		if parent.Status != entity.CommentStatusActive {
+			return normalizedCommentTarget{}, domainerrs.ErrNotFound
+		}
+		target.DayNumber = parent.DayNumber
+		target.ItemIndex = parent.ItemIndex
+		target.TargetType = parent.TargetType
+		target.TargetID = parent.TargetID
+		return target, nil
+	}
+
+	switch target.TargetType {
+	case entity.CommentTargetItineraryItem:
+		if target.DayNumber < 1 {
+			return normalizedCommentTarget{}, apperrs.NewInvalidInput("dayNumber must be >= 1")
+		}
+		if target.ItemIndex < 0 {
+			return normalizedCommentTarget{}, apperrs.NewInvalidInput("itemIndex must be >= 0")
+		}
+		if err := assertItineraryItemExists(trip, target.DayNumber, target.ItemIndex); err != nil {
+			return normalizedCommentTarget{}, err
+		}
+	case entity.CommentTargetDay:
+		if target.DayNumber < 1 {
+			return normalizedCommentTarget{}, apperrs.NewInvalidInput("dayNumber must be >= 1")
+		}
+		target.ItemIndex = 0
+	case entity.CommentTargetTrip, entity.CommentTargetRoute, entity.CommentTargetBudgetItem, entity.CommentTargetAttachment:
+		target.DayNumber = 0
+		target.ItemIndex = 0
+	default:
+		return normalizedCommentTarget{}, apperrs.NewInvalidInput("targetType is invalid")
+	}
+	if len(target.TargetID) > maxTargetIDLength {
+		return normalizedCommentTarget{}, apperrs.NewInvalidInput("targetId must be at most %d characters", maxTargetIDLength)
+	}
+	if target.TargetID == "" && target.TargetType == entity.CommentTargetItineraryItem {
+		target.TargetID = fmt.Sprintf("%d:%d", target.DayNumber, target.ItemIndex)
+	}
+	return target, nil
+}
+
+func (s *Service) validateMentionUserIDs(ctx context.Context, trip *entity.Trip, actorID uuid.UUID, raw []uuid.UUID) ([]uuid.UUID, error) {
+	if len(raw) == 0 {
+		return []uuid.UUID{}, nil
+	}
+	members := map[uuid.UUID]struct{}{}
+	if trip.UserID != nil {
+		members[*trip.UserID] = struct{}{}
+	}
+	collaborators, err := s.repo.ListTripCollaborators(ctx, trip.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, collaborator := range collaborators {
+		if collaborator.Status == entity.CollaboratorStatusAccepted {
+			members[collaborator.UserID] = struct{}{}
+		}
+	}
+	seen := map[uuid.UUID]struct{}{actorID: {}}
+	out := make([]uuid.UUID, 0, len(raw))
+	for _, mentionID := range raw {
+		if mentionID == uuid.Nil {
+			continue
+		}
+		if _, duplicate := seen[mentionID]; duplicate {
+			continue
+		}
+		if _, ok := members[mentionID]; !ok {
+			return nil, apperrs.NewInvalidInput("mention user must be a trip member")
+		}
+		seen[mentionID] = struct{}{}
+		out = append(out, mentionID)
+	}
+	return out, nil
+}
+
+func (s *Service) notifyMentionedUsers(ctx context.Context, trip *entity.Trip, actorID uuid.UUID, comment *entity.ItineraryComment) {
+	if comment == nil || len(comment.Mentions) == 0 {
+		return
+	}
+	for _, mentioned := range comment.Mentions {
+		s.notifyDirect(ctx, mentioned, comment.TripID, actorID,
+			notifications.TypeCommentMentioned,
+			"You were mentioned",
+			fmt.Sprintf("You were mentioned in a comment on %s.", tripDestination(trip)),
+			notifications.EntityComment,
+			activityEntityID(comment.ID),
+			map[string]any{"tripId": comment.TripID.String(), "commentId": comment.ID.String(), "targetType": string(comment.TargetType)})
+	}
+}
+
+func (s *Service) notifyCommentReply(ctx context.Context, trip *entity.Trip, actorID uuid.UUID, comment *entity.ItineraryComment) {
+	if comment == nil || comment.ParentID == nil {
+		return
+	}
+	parent, err := s.repo.GetItineraryCommentByID(ctx, comment.TripID, *comment.ParentID)
+	if err != nil || parent.AuthorUserID == actorID {
+		return
+	}
+	s.notifyDirect(ctx, parent.AuthorUserID, comment.TripID, actorID,
+		notifications.TypeCommentReplied,
+		"New reply",
+		fmt.Sprintf("A collaborator replied to your comment on %s.", tripDestination(trip)),
+		notifications.EntityComment,
+		activityEntityID(comment.ID),
+		map[string]any{"tripId": comment.TripID.String(), "commentId": comment.ID.String(), "parentCommentId": parent.ID.String()})
+}
+
 // itineraryItemName returns the name of the itinerary item at the given
 // day/item position, or "" when the trip has no itinerary or the position does
 // not resolve. It is best-effort: it never errors so activity metadata can omit
@@ -285,12 +505,20 @@ func itineraryItemName(t *entity.Trip, dayNumber, itemIndex int) string {
 
 // commentActivityMetadata builds the small, body-free metadata payload shared by
 // the comment_created/updated/deleted events.
-func commentActivityMetadata(trip *entity.Trip, dayNumber, itemIndex int) map[string]any {
+func commentActivityMetadata(trip *entity.Trip, comment entity.ItineraryComment) map[string]any {
 	metadata := map[string]any{
-		"dayNumber": dayNumber,
-		"itemIndex": itemIndex,
+		"dayNumber":  comment.DayNumber,
+		"itemIndex":  comment.ItemIndex,
+		"targetType": string(comment.TargetType),
+		"targetId":   comment.TargetID,
 	}
-	if name := itineraryItemName(trip, dayNumber, itemIndex); name != "" {
+	if comment.ParentID != nil {
+		metadata["parentCommentId"] = comment.ParentID.String()
+	}
+	if comment.ResolvedAt != nil {
+		metadata["resolved"] = true
+	}
+	if name := itineraryItemName(trip, comment.DayNumber, comment.ItemIndex); name != "" {
 		metadata["itemName"] = name
 	}
 	return metadata

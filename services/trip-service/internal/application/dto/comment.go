@@ -1,15 +1,21 @@
 package dto
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/domain/entity"
 )
 
 // CreateCommentInput is the validated, application-level payload for creating a
 // comment on an itinerary item.
 type CreateCommentInput struct {
-	DayNumber int
-	ItemIndex int
-	Body      string
+	DayNumber       int
+	ItemIndex       int
+	TargetType      entity.CommentTargetType
+	TargetID        string
+	ParentCommentID *uuid.UUID
+	MentionUserIDs  []uuid.UUID
+	Body            string
 }
 
 // UpdateCommentInput is the application-level payload for editing a comment body.

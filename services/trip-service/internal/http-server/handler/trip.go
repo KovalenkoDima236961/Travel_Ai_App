@@ -68,6 +68,7 @@ type Handler struct {
 	shareUnlockLimiter   *tripsecurity.RateLimiter
 	publicShareLimiter   *tripsecurity.RateLimiter
 	receiptUploadLimiter *tripsecurity.RateLimiter
+	collabInviteLimiter  *tripsecurity.RateLimiter
 	alphaWaitlistLimiter *tripsecurity.RateLimiter
 	alphaInviteLimiter   *tripsecurity.RateLimiter
 	alphaEventLimiter    *tripsecurity.RateLimiter
@@ -85,6 +86,7 @@ func New(svc *service.Service, validator validation.Validator, log *zap.Logger) 
 		shareUnlockLimiter:   tripsecurity.NewRateLimiter(5, time.Minute),
 		publicShareLimiter:   tripsecurity.NewRateLimiter(120, time.Minute),
 		receiptUploadLimiter: tripsecurity.NewRateLimiter(20, time.Minute),
+		collabInviteLimiter:  tripsecurity.NewRateLimiter(20, time.Minute),
 		alphaWaitlistLimiter: tripsecurity.NewRateLimiter(5, time.Minute),
 		alphaInviteLimiter:   tripsecurity.NewRateLimiter(8, time.Minute),
 		alphaEventLimiter:    tripsecurity.NewRateLimiter(240, time.Minute),
@@ -308,6 +310,15 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}/collaborators", h.ListTripCollaborators)
 		r.Patch("/{id}/collaborators/{collaboratorId}", h.UpdateTripCollaborator)
 		r.Delete("/{id}/collaborators/{collaboratorId}", h.RemoveTripCollaborator)
+		r.Get("/{id}/invitations", h.ListTripInvitations)
+		r.Post("/{id}/invitations", h.CreateTripInvitation)
+		r.Post("/{id}/invitations/{invitationId}/accept", h.AcceptTripInvitation)
+		r.Post("/{id}/invitations/{invitationId}/decline", h.DeclineTripInvitation)
+		r.Post("/{id}/invitations/{invitationId}/resend", h.ResendTripInvitation)
+		r.Post("/{id}/invitations/{invitationId}/revoke", h.RevokeTripInvitation)
+		r.Get("/{id}/members", h.ListTripMembers)
+		r.Post("/{id}/members/transfer-ownership", h.TransferTripOwnership)
+		r.Post("/{id}/members/leave", h.LeaveTrip)
 		r.Get("/{id}/travelers", h.ListTripTravelers)
 		r.Post("/{id}/travelers", h.CreateTripTraveler)
 		r.Patch("/{id}/travelers/{travelerId}", h.UpdateTripTraveler)
@@ -347,7 +358,17 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/comments", h.CreateComment)
 		r.Get("/{id}/comments/counts", h.ListCommentCounts)
 		r.Patch("/{id}/comments/{commentId}", h.UpdateComment)
+		r.Post("/{id}/comments/{commentId}/resolve", h.ResolveComment)
+		r.Post("/{id}/comments/{commentId}/reopen", h.ReopenComment)
 		r.Delete("/{id}/comments/{commentId}", h.DeleteComment)
+		r.Get("/{id}/suggestions", h.ListTripSuggestions)
+		r.Post("/{id}/suggestions", h.CreateTripSuggestion)
+		r.Post("/{id}/suggestions/{suggestionId}/accept", h.AcceptTripSuggestion)
+		r.Post("/{id}/suggestions/{suggestionId}/reject", h.RejectTripSuggestion)
+		r.Post("/{id}/suggestions/{suggestionId}/resolve", h.ResolveTripSuggestion)
+		r.Get("/{id}/votes", h.ListTripVotes)
+		r.Post("/{id}/votes", h.SetTripVote)
+		r.Delete("/{id}/votes/{voteId}", h.DeleteTripVote)
 		r.Get("/{id}/activity", h.ListActivity)
 		r.Get("/{id}/activity/stream", h.StreamActivity)
 		r.Get("/{id}/approval", h.GetApproval)
@@ -1029,6 +1050,9 @@ func (h *Handler) InviteTripCollaborator(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if !h.allowCollaborationInvite(w, r, id.String()) {
+		return
+	}
 	var req request.InviteTripCollaborator
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -1307,6 +1331,15 @@ func requestClientKey(r *http.Request) string {
 		return value
 	}
 	return "unknown"
+}
+
+func (h *Handler) allowCollaborationInvite(w http.ResponseWriter, r *http.Request, tripID string) bool {
+	if h.collabInviteLimiter == nil || h.collabInviteLimiter.Allow(tripID+":"+requestClientKey(r)) {
+		return true
+	}
+	h.auditSecurity("collaboration_invite", "trip", safeShareRef(tripID), "rate_limited")
+	writeRateLimited(w)
+	return false
 }
 
 func (h *Handler) auditSecurity(action, resourceType, resourceID, outcome string) {

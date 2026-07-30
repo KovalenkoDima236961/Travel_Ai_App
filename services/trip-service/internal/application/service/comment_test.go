@@ -202,6 +202,84 @@ func TestCreateComment_NonExistentItemRejected(t *testing.T) {
 	}
 }
 
+func TestCreateComment_TripTarget(t *testing.T) {
+	repo, tripID := commentRepo(t)
+	svc := newTestService(repo, &mockGenerator{})
+
+	info, err := svc.CreateComment(ctxWithUserID(testUserID()), tripID, appdto.CreateCommentInput{
+		TargetType: entity.CommentTargetTrip,
+		Body:       "This whole trip needs another rest day.",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.Comment.TargetType != entity.CommentTargetTrip {
+		t.Fatalf("target type = %s, want trip", info.Comment.TargetType)
+	}
+	if info.Comment.DayNumber != 0 || info.Comment.ItemIndex != 0 {
+		t.Fatalf("trip target should clear day/item, got day=%d item=%d", info.Comment.DayNumber, info.Comment.ItemIndex)
+	}
+}
+
+func TestCreateComment_ReplyInheritsParentTarget(t *testing.T) {
+	repo, tripID := commentRepo(t)
+	svc := newTestService(repo, &mockGenerator{})
+
+	parentID := uuid.New()
+	repo.comments = []entity.ItineraryComment{
+		{
+			ID:           parentID,
+			TripID:       tripID,
+			TargetType:   entity.CommentTargetRoute,
+			TargetID:     "main-route",
+			AuthorUserID: testUserID(),
+			Body:         "Route thread",
+			Status:       entity.CommentStatusActive,
+		},
+	}
+
+	info, err := svc.CreateComment(ctxWithUserID(testUserID()), tripID, appdto.CreateCommentInput{
+		TargetType:      entity.CommentTargetTrip,
+		ParentCommentID: &parentID,
+		Body:            "Reply stays in the route thread.",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.Comment.ParentID == nil || *info.Comment.ParentID != parentID {
+		t.Fatalf("reply parent id = %v, want %s", info.Comment.ParentID, parentID)
+	}
+	if info.Comment.TargetType != entity.CommentTargetRoute || info.Comment.TargetID != "main-route" {
+		t.Fatalf("reply target = %s/%q, want route/main-route", info.Comment.TargetType, info.Comment.TargetID)
+	}
+}
+
+func TestResolveAndReopenComment(t *testing.T) {
+	repo, tripID := commentRepo(t)
+	svc := newTestService(repo, &mockGenerator{})
+
+	commentID := uuid.New()
+	repo.comments = []entity.ItineraryComment{
+		{ID: commentID, TripID: tripID, DayNumber: 1, ItemIndex: 0, TargetType: entity.CommentTargetItineraryItem, AuthorUserID: uuid.New(), Body: "open", Status: entity.CommentStatusActive},
+	}
+
+	resolved, err := svc.ResolveComment(ctxWithUserID(testUserID()), tripID, commentID)
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+	if resolved.Comment.ResolvedAt == nil || resolved.Comment.ResolvedBy == nil || *resolved.Comment.ResolvedBy != testUserID() {
+		t.Fatalf("resolve metadata not set: %+v", resolved.Comment)
+	}
+
+	reopened, err := svc.ReopenComment(ctxWithUserID(testUserID()), tripID, commentID)
+	if err != nil {
+		t.Fatalf("reopen failed: %v", err)
+	}
+	if reopened.Comment.ResolvedAt != nil || reopened.Comment.ResolvedBy != nil {
+		t.Fatalf("resolve metadata should be cleared: %+v", reopened.Comment)
+	}
+}
+
 func TestListComments_ExcludesDeleted(t *testing.T) {
 	repo, tripID := commentRepo(t)
 	svc := newTestService(repo, &mockGenerator{})

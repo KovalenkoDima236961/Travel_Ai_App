@@ -89,21 +89,31 @@ const (
 	EventTripRepairProposalExpired   = "trip_repair_proposal_expired"
 
 	// Comments.
-	EventCommentCreated = "comment_created"
-	EventCommentUpdated = "comment_updated"
-	EventCommentDeleted = "comment_deleted"
+	EventCommentCreated  = "comment_created"
+	EventCommentUpdated  = "comment_updated"
+	EventCommentDeleted  = "comment_deleted"
+	EventCommentResolved = "comment_resolved"
+	EventCommentReopened = "comment_reopened"
 
 	// Decisions.
-	EventTripPollCreated  = "trip_poll_created"
-	EventTripPollClosed   = "trip_poll_closed"
-	EventTripPollArchived = "trip_poll_archived"
+	EventTripPollCreated    = "trip_poll_created"
+	EventTripPollClosed     = "trip_poll_closed"
+	EventTripPollArchived   = "trip_poll_archived"
+	EventTripVoteAdded      = "trip_vote_added"
+	EventTripVoteRemoved    = "trip_vote_removed"
+	EventSuggestionCreated  = "suggestion_created"
+	EventSuggestionAccepted = "suggestion_accepted"
+	EventSuggestionRejected = "suggestion_rejected"
+	EventSuggestionResolved = "suggestion_resolved"
 
 	// Collaboration.
 	EventCollaboratorInvited     = "collaborator_invited"
 	EventCollaboratorAccepted    = "collaborator_accepted"
 	EventCollaboratorDeclined    = "collaborator_declined"
+	EventCollaboratorRevoked     = "collaborator_revoked"
 	EventCollaboratorRoleChanged = "collaborator_role_changed"
 	EventCollaboratorRemoved     = "collaborator_removed"
+	EventOwnershipTransferred    = "ownership_transferred"
 
 	// Sharing.
 	EventShareCreated           = "share_created"
@@ -137,6 +147,8 @@ const (
 	EntityItineraryVersion   = "itinerary_version"
 	EntityComment            = "comment"
 	EntityTripPoll           = "trip_poll"
+	EntityTripVote           = "trip_vote"
+	EntityTripSuggestion     = "trip_suggestion"
 	EntityCollaborator       = "collaborator"
 	EntityShare              = "share"
 	EntityCalendarSync       = "calendar_sync"
@@ -234,14 +246,24 @@ var knownEventTypes = map[string]struct{}{
 	EventCommentCreated:                      {},
 	EventCommentUpdated:                      {},
 	EventCommentDeleted:                      {},
+	EventCommentResolved:                     {},
+	EventCommentReopened:                     {},
 	EventTripPollCreated:                     {},
 	EventTripPollClosed:                      {},
 	EventTripPollArchived:                    {},
+	EventTripVoteAdded:                       {},
+	EventTripVoteRemoved:                     {},
+	EventSuggestionCreated:                   {},
+	EventSuggestionAccepted:                  {},
+	EventSuggestionRejected:                  {},
+	EventSuggestionResolved:                  {},
 	EventCollaboratorInvited:                 {},
 	EventCollaboratorAccepted:                {},
 	EventCollaboratorDeclined:                {},
+	EventCollaboratorRevoked:                 {},
 	EventCollaboratorRoleChanged:             {},
 	EventCollaboratorRemoved:                 {},
+	EventOwnershipTransferred:                {},
 	EventShareCreated:                        {},
 	EventShareUpdated:                        {},
 	EventShareDisabled:                       {},

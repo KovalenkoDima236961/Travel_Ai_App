@@ -14,32 +14,42 @@ import (
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/platform/storage/postgres"
 )
 
-const TripCollaboratorColumns = "id, trip_id, user_id, role, status, invited_by_user_id, invited_at, accepted_at, removed_at, updated_at"
+const TripCollaboratorColumns = "id, trip_id, user_id, email, role, status, invited_by_user_id, message, invited_at, expires_at, accepted_at, declined_at, revoked_at, removed_at, last_seen_at, permissions, updated_at"
 
 const TripColumnsWithAlias = "t.id, t.user_id, t.destination, t.start_date, t.days, t.budget_amount, " +
 	"t.budget_currency, t.travelers, t.interests, t.pace, t.status, t.itinerary, t.itinerary_revision, t.accommodation, t.workspace_id, t.created_at, t.updated_at"
 
-const TripCollaboratorColumnsWithAlias = "c.id, c.trip_id, c.user_id, c.role, c.status, c.invited_by_user_id, " +
-	"c.invited_at, c.accepted_at, c.removed_at, c.updated_at"
+const TripCollaboratorColumnsWithAlias = "c.id, c.trip_id, c.user_id, c.email, c.role, c.status, c.invited_by_user_id, " +
+	"c.message, c.invited_at, c.expires_at, c.accepted_at, c.declined_at, c.revoked_at, c.removed_at, c.last_seen_at, c.permissions, c.updated_at"
 
 func ScanTripCollaborator(row pgx.Row) (*entity.TripCollaborator, error) {
 	var (
 		id, tripID, userID, invitedByUserID pgtype.UUID
+		email, message                      pgtype.Text
 		role, status                        string
-		invitedAt, acceptedAt               pgtype.Timestamp
-		removedAt, updatedAt                pgtype.Timestamp
+		invitedAt, expiresAt, acceptedAt    pgtype.Timestamp
+		declinedAt, revokedAt               pgtype.Timestamp
+		removedAt, lastSeenAt, updatedAt    pgtype.Timestamp
+		permissionsRaw                      []byte
 	)
 
 	err := row.Scan(
 		&id,
 		&tripID,
 		&userID,
+		&email,
 		&role,
 		&status,
 		&invitedByUserID,
+		&message,
 		&invitedAt,
+		&expiresAt,
 		&acceptedAt,
+		&declinedAt,
+		&revokedAt,
 		&removedAt,
+		&lastSeenAt,
+		&permissionsRaw,
 		&updatedAt,
 	)
 	if err != nil {
@@ -53,12 +63,19 @@ func ScanTripCollaborator(row pgx.Row) (*entity.TripCollaborator, error) {
 		id,
 		tripID,
 		userID,
+		email,
 		role,
 		status,
 		invitedByUserID,
+		message,
 		invitedAt.Time,
+		timestampPtr(expiresAt),
 		timestampPtr(acceptedAt),
+		timestampPtr(declinedAt),
+		timestampPtr(revokedAt),
 		timestampPtr(removedAt),
+		timestampPtr(lastSeenAt),
+		metadataMap(permissionsRaw),
 		updatedAt.Time,
 	), nil
 }
@@ -80,24 +97,27 @@ func ScanTripCollaboratorRows(rows pgx.Rows) ([]entity.TripCollaborator, error) 
 
 func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 	var (
-		tripID, tripUserID, workspaceID pgtype.UUID
-		destination                     string
-		startDate                       pgtype.Date
-		days                            int32
-		budgetAmount                    pgtype.Numeric
-		budgetCurrency                  pgtype.Text
-		travelers                       pgtype.Int4
-		interestsRaw                    []byte
-		pace, tripStatus                string
-		itineraryRaw                    []byte
-		accommodationRaw                []byte
-		itineraryRevision               int32
-		tripCreatedAt, tripUpdatedAt    pgtype.Timestamp
-		id, collaboratorTripID, userID  pgtype.UUID
-		role, status                    string
-		invitedByUserID                 pgtype.UUID
-		invitedAt, acceptedAt           pgtype.Timestamp
-		removedAt, updatedAt            pgtype.Timestamp
+		tripID, tripUserID, workspaceID  pgtype.UUID
+		destination                      string
+		startDate                        pgtype.Date
+		days                             int32
+		budgetAmount                     pgtype.Numeric
+		budgetCurrency                   pgtype.Text
+		travelers                        pgtype.Int4
+		interestsRaw                     []byte
+		pace, tripStatus                 string
+		itineraryRaw                     []byte
+		accommodationRaw                 []byte
+		itineraryRevision                int32
+		tripCreatedAt, tripUpdatedAt     pgtype.Timestamp
+		id, collaboratorTripID, userID   pgtype.UUID
+		collaboratorEmail, message       pgtype.Text
+		role, status                     string
+		invitedByUserID                  pgtype.UUID
+		invitedAt, expiresAt, acceptedAt pgtype.Timestamp
+		declinedAt, revokedAt            pgtype.Timestamp
+		removedAt, lastSeenAt, updatedAt pgtype.Timestamp
+		permissionsRaw                   []byte
 	)
 
 	err := row.Scan(
@@ -121,12 +141,19 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 		&id,
 		&collaboratorTripID,
 		&userID,
+		&collaboratorEmail,
 		&role,
 		&status,
 		&invitedByUserID,
+		&message,
 		&invitedAt,
+		&expiresAt,
 		&acceptedAt,
+		&declinedAt,
+		&revokedAt,
 		&removedAt,
+		&lastSeenAt,
+		&permissionsRaw,
 		&updatedAt,
 	)
 	if err != nil {
@@ -173,12 +200,19 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 		id,
 		collaboratorTripID,
 		userID,
+		collaboratorEmail,
 		role,
 		status,
 		invitedByUserID,
+		message,
 		invitedAt.Time,
+		timestampPtr(expiresAt),
 		timestampPtr(acceptedAt),
+		timestampPtr(declinedAt),
+		timestampPtr(revokedAt),
 		timestampPtr(removedAt),
+		timestampPtr(lastSeenAt),
+		metadataMap(permissionsRaw),
 		updatedAt.Time,
 	)
 
@@ -187,25 +221,46 @@ func ScanSharedTrip(row pgx.Row) (*entity.SharedTrip, error) {
 
 func tripCollaboratorFromScannedValues(
 	id, tripID, userID pgtype.UUID,
+	email pgtype.Text,
 	role, status string,
 	invitedByUserID pgtype.UUID,
+	message pgtype.Text,
 	invitedAt time.Time,
+	expiresAt *time.Time,
 	acceptedAt *time.Time,
+	declinedAt *time.Time,
+	revokedAt *time.Time,
 	removedAt *time.Time,
+	lastSeenAt *time.Time,
+	permissions map[string]any,
 	updatedAt time.Time,
 ) *entity.TripCollaborator {
 	return &entity.TripCollaborator{
 		ID:              uuid.UUID(id.Bytes),
 		TripID:          uuid.UUID(tripID.Bytes),
 		UserID:          uuid.UUID(userID.Bytes),
+		Email:           pgTextString(email),
 		Role:            entity.CollaboratorRole(role),
 		Status:          entity.CollaboratorStatus(status),
 		InvitedByUserID: uuid.UUID(invitedByUserID.Bytes),
+		Message:         pgTextString(message),
 		InvitedAt:       invitedAt,
+		ExpiresAt:       expiresAt,
 		AcceptedAt:      acceptedAt,
+		DeclinedAt:      declinedAt,
+		RevokedAt:       revokedAt,
 		RemovedAt:       removedAt,
+		LastSeenAt:      lastSeenAt,
+		Permissions:     permissions,
 		UpdatedAt:       updatedAt,
 	}
+}
+
+func pgTextString(value pgtype.Text) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
 }
 
 func timestampPtr(ts pgtype.Timestamp) *time.Time {

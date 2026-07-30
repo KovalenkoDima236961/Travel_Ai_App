@@ -328,14 +328,18 @@ func (r UpdateTripShareSettings) ToInput() appdto.UpdateTripShareInput {
 }
 
 type InviteTripCollaborator struct {
-	Email string                  `json:"email"`
-	Role  entity.CollaboratorRole `json:"role"`
+	Email     string                  `json:"email"`
+	Role      entity.CollaboratorRole `json:"role"`
+	Message   string                  `json:"message"`
+	ExpiresAt *time.Time              `json:"expiresAt"`
 }
 
 func (r InviteTripCollaborator) ToInput() appdto.InviteTripCollaboratorInput {
 	return appdto.InviteTripCollaboratorInput{
-		Email: r.Email,
-		Role:  r.Role,
+		Email:     r.Email,
+		Role:      r.Role,
+		Message:   r.Message,
+		ExpiresAt: r.ExpiresAt,
 	}
 }
 

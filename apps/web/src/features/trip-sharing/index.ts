@@ -2,3 +2,4 @@ export { CollaborationInvitationsPanel } from "./ui/CollaborationInvitationsPane
 export { CollaboratorsPanel } from "./ui/CollaboratorsPanel";
 export { PublicShareUnlockForm } from "./ui/PublicShareUnlockForm";
 export { ShareTripPanel } from "./ui/ShareTripPanel";
+export { TripPlanningCollaborationPanel } from "./ui/TripPlanningCollaborationPanel";

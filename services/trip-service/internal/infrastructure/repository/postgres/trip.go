@@ -549,25 +549,40 @@ func (r *Repository) UpsertTripCollaborator(
 ) (*entity.TripCollaborator, error) {
 	query, args, err := r.db.Builder.
 		Insert("trip_collaborators").
-		Columns("id", "trip_id", "user_id", "role", "status", "invited_by_user_id", "accepted_at", "removed_at").
+		Columns(
+			"id", "trip_id", "user_id", "email", "role", "status", "invited_by_user_id",
+			"message", "expires_at", "accepted_at", "declined_at", "revoked_at", "removed_at", "permissions",
+		).
 		Values(
 			dto.IDArg(collaborator.ID),
 			dto.IDArg(collaborator.TripID),
 			dto.IDArg(collaborator.UserID),
+			dto.TextArg(collaborator.Email),
 			string(collaborator.Role),
 			string(entity.CollaboratorStatusPending),
 			dto.IDArg(collaborator.InvitedByUserID),
+			dto.TextArg(collaborator.Message),
+			timePtrArg(collaborator.ExpiresAt),
 			nil,
 			nil,
+			nil,
+			nil,
+			dto.JSONArg(collaborator.Permissions),
 		).
 		Suffix(
 			"ON CONFLICT (trip_id, user_id) DO UPDATE SET " +
+				"email = EXCLUDED.email, " +
 				"role = EXCLUDED.role, " +
 				"status = CASE WHEN trip_collaborators.status = 'accepted' THEN 'accepted' ELSE 'pending' END, " +
 				"invited_by_user_id = EXCLUDED.invited_by_user_id, " +
+				"message = EXCLUDED.message, " +
+				"expires_at = EXCLUDED.expires_at, " +
 				"invited_at = CASE WHEN trip_collaborators.status = 'removed' THEN NOW() ELSE trip_collaborators.invited_at END, " +
 				"accepted_at = CASE WHEN trip_collaborators.status = 'accepted' THEN trip_collaborators.accepted_at ELSE NULL END, " +
+				"declined_at = NULL, " +
+				"revoked_at = NULL, " +
 				"removed_at = NULL, " +
+				"permissions = EXCLUDED.permissions, " +
 				"updated_at = NOW() " +
 				"RETURNING " + dto.TripCollaboratorColumns,
 		).
@@ -654,8 +669,8 @@ func (r *Repository) UpdateTripCollaboratorRole(ctx context.Context, tripID, col
 func (r *Repository) RemoveTripCollaborator(ctx context.Context, tripID, collaboratorID uuid.UUID) (*entity.TripCollaborator, error) {
 	query, args, err := r.db.Builder.
 		Update("trip_collaborators").
-		Set("status", string(entity.CollaboratorStatusRemoved)).
-		Set("removed_at", sq.Expr("NOW()")).
+		Set("status", string(entity.CollaboratorStatusDeclined)).
+		Set("declined_at", sq.Expr("NOW()")).
 		Set("updated_at", sq.Expr("NOW()")).
 		Where(sq.Eq{
 			"trip_id": dto.IDArg(tripID),
