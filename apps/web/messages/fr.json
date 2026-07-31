@@ -121,6 +121,44 @@
     "viewAllIssues": "Voir tous les problèmes", "plan": "Plan", "prepare": "Préparer", "money": "Argent",
     "team": "Équipe", "control": "Contrôle"
   },
+  "tripWorkspace": {
+    "navigationLabel": "Espace de travail du voyage", "mobileNavigationLabel": "Sections principales du voyage",
+    "subviewLabel": "Vues de la section", "skipToContent": "Aller au contenu du voyage", "currentSection": "Section actuelle",
+    "chooseSection": "Section actuelle : {section}. Choisir une autre section", "openSearch": "Ouvrir la recherche globale",
+    "openSection": "Ouvrir cette section", "returnToOverview": "Revenir à la vue d’ensemble",
+    "unsavedChangesWarning": "Des modifications de l’itinéraire ne sont pas enregistrées. Quitter et les abandonner ?",
+    "sections": { "overview": "Vue d’ensemble", "plan": "Plan", "money": "Budget", "group": "Groupe", "prepare": "Préparer", "more": "Plus" },
+    "views": {
+      "summary": "Résumé", "attention": "À traiter", "readiness": "Préparation", "activity": "Activité", "itinerary": "Itinéraire",
+      "agenda": "Agenda", "timeline": "Chronologie", "calendar": "Calendrier", "route": "Trajet", "stay": "Hébergement", "map": "Carte",
+      "verification": "Vérification", "overview": "Vue d’ensemble", "budget": "Budget", "expenses": "Dépenses", "receipts": "Reçus",
+      "settlements": "Remboursements", "splits": "Répartition", "people": "Personnes", "discussion": "Discussion", "decisions": "Décisions",
+      "availability": "Disponibilités", "approvals": "Approbations", "checklist": "Checklist", "reminders": "Rappels", "offline": "Hors ligne",
+      "documents": "Documents", "tools": "Outils", "sharing": "Partage", "exports": "Exports", "versions": "Versions", "health": "État",
+      "policy": "Politique", "settings": "Paramètres", "recap": "Récapitulatif"
+    },
+    "sectionHeadings": { "overview": "Vue d’ensemble du voyage", "plan": "Plan", "money": "Budget", "group": "Groupe", "prepare": "Préparer", "more": "Autres outils" },
+    "sectionDescriptions": { "prepare": "Terminez les tâches de départ, les rappels et la préparation hors ligne." },
+    "status": {
+      "label": "État de l’espace de travail", "archivedTitle": "Archivé.", "archivedDescription": "Ce voyage est en lecture seule jusqu’à sa restauration par un propriétaire.",
+      "readOnlyTitle": "Lecture seule.", "readOnlyDescription": "Votre rôle ne permet pas de modifier le voyage.", "offlineTitle": "Hors ligne.",
+      "offlineDescription": "Les données enregistrées sur cet appareil sont affichées.", "offlineCachedDescription": "Données enregistrées sur cet appareil à {cachedAt}."
+    },
+    "actions": {
+      "title": "Actions du voyage", "groups": { "primary": "Ouvrir", "share_export": "Partager et exporter", "history": "Historique", "reuse": "Réutiliser", "settings": "Paramètres" },
+      "labels": {
+        "open_today": "Ouvrir la vue du jour", "edit_itinerary": "Modifier l’itinéraire", "invite_people": "Inviter des personnes", "share_trip": "Partager le voyage",
+        "export_trip": "Exporter le voyage", "download_offline": "Télécharger pour le mode hors ligne", "save_template": "Enregistrer comme modèle",
+        "view_versions": "Voir l’historique des versions", "view_recap": "Voir le récapitulatif", "view_analytics": "Voir l’analyse des coûts",
+        "open_search": "Ouvrir la recherche globale", "archive_trip": "Archiver le voyage", "restore_trip": "Restaurer le voyage"
+      },
+      "disabled": { "offline": "Cette action nécessite une connexion Internet.", "read_only": "Votre rôle ne permet pas cette action.", "archived": "Restaurez le voyage avant de le modifier." },
+      "confirm": {
+        "archive_trip": { "title": "Archiver ce voyage ?", "description": "Le voyage passera en lecture seule et restera dans votre bibliothèque.", "confirm": "Archiver" },
+        "restore_trip": { "title": "Restaurer ce voyage ?", "description": "Le voyage retrouvera son état précédent.", "confirm": "Restaurer" }
+      }
+    }
+  },
   "auth": {
     "email": "E-mail", "password": "Mot de passe", "login": "Se connecter",
     "register": "Créer un compte", "tagline": "Chaque grand voyage commence par une seule idée.",
@@ -708,6 +746,7 @@
     "permissionTitle": "Vous n’avez pas accès à cette action", "permissionDescription": "Votre rôle actuel n’autorise pas cette modification.",
     "calendarTitle": "Échec de la connexion au calendrier", "calendarDescription": "Vérifiez les autorisations et réessayez.",
     "deepLinkMissing": "L’élément lié est introuvable. Il a peut-être été supprimé ou modifié.",
+    "deepLinkOfflineUnavailable": "Cet élément lié ne figure pas dans la copie hors ligne. Reconnectez-vous pour l’ouvrir.",
     "checklistLoadTitle": "Impossible de charger la liste", "checklistLoadDescription": "Le voyage reste accessible. Essayez de charger à nouveau la liste.",
     "offlineTripsTitle": "Impossible de charger les voyages hors ligne", "offlineTripsDescription": "Les données enregistrées sont toujours sur cet appareil. Essayez de les charger à nouveau.",
     "unauthorized": "Connectez-vous pour continuer.",

@@ -225,6 +225,79 @@
     "team": "Team",
     "control": "Control"
   },
+  "tripWorkspace": {
+    "navigationLabel": "Trip workspace",
+    "mobileNavigationLabel": "Primary trip sections",
+    "subviewLabel": "Trip section views",
+    "skipToContent": "Skip to trip content",
+    "currentSection": "Current section",
+    "chooseSection": "Current section: {section}. Choose another trip section",
+    "openSearch": "Open Global Search",
+    "openSection": "Open this section",
+    "returnToOverview": "Return to overview",
+    "unsavedChangesWarning": "You have unsaved itinerary changes. Leave this section and discard them?",
+    "sections": {
+      "overview": "Overview",
+      "plan": "Plan",
+      "money": "Money",
+      "group": "Group",
+      "prepare": "Prepare",
+      "more": "More"
+    },
+    "views": {
+      "summary": "Summary", "attention": "Attention", "readiness": "Readiness", "activity": "Activity",
+      "itinerary": "Itinerary", "agenda": "Agenda", "timeline": "Timeline", "calendar": "Calendar",
+      "route": "Route", "stay": "Stay", "map": "Map", "verification": "Verification",
+      "overview": "Overview", "budget": "Budget", "expenses": "Expenses", "receipts": "Receipts",
+      "settlements": "Settlements", "splits": "Splits", "people": "People", "discussion": "Discussion",
+      "decisions": "Decisions", "availability": "Availability", "approvals": "Approvals", "checklist": "Checklist",
+      "reminders": "Reminders", "offline": "Offline", "documents": "Documents", "tools": "Tools",
+      "sharing": "Sharing", "exports": "Exports", "versions": "Versions", "health": "Health",
+      "policy": "Policy", "settings": "Settings", "recap": "Recap"
+    },
+    "sectionHeadings": {
+      "overview": "Trip overview", "plan": "Plan", "money": "Money", "group": "Group",
+      "prepare": "Prepare", "more": "More trip tools"
+    },
+    "sectionDescriptions": {
+      "prepare": "Complete departure tasks, reminders, and offline preparation."
+    },
+    "status": {
+      "label": "Trip workspace status",
+      "archivedTitle": "Archived.", "archivedDescription": "This trip is read-only until an owner restores it.",
+      "readOnlyTitle": "View only.", "readOnlyDescription": "Your role does not allow trip editing.",
+      "offlineTitle": "Offline.", "offlineDescription": "Showing data saved on this device.",
+      "offlineCachedDescription": "Showing data saved on this device at {cachedAt}."
+    },
+    "actions": {
+      "title": "Trip actions",
+      "groups": {
+        "primary": "Open", "share_export": "Share and export", "history": "History",
+        "reuse": "Reuse", "settings": "Settings"
+      },
+      "labels": {
+        "open_today": "Open travel-day view", "edit_itinerary": "Edit itinerary", "invite_people": "Invite people",
+        "share_trip": "Share trip", "export_trip": "Export trip", "download_offline": "Download for offline use",
+        "save_template": "Save as template", "view_versions": "View version history", "view_recap": "View trip recap",
+        "view_analytics": "View cost analytics", "open_search": "Open Global Search", "archive_trip": "Archive trip",
+        "restore_trip": "Restore trip"
+      },
+      "disabled": {
+        "offline": "This action requires an internet connection.", "read_only": "Your role cannot perform this action.",
+        "archived": "Restore this trip before making changes."
+      },
+      "confirm": {
+        "archive_trip": {
+          "title": "Archive this trip?", "description": "The trip will become read-only and remain available in your library.",
+          "confirm": "Archive trip"
+        },
+        "restore_trip": {
+          "title": "Restore this trip?", "description": "The trip will return to its previous lifecycle state.",
+          "confirm": "Restore trip"
+        }
+      }
+    }
+  },
   "auth": {
     "email": "Email",
     "password": "Password",
@@ -1125,6 +1198,7 @@
     "calendarTitle": "Calendar connection failed",
     "calendarDescription": "We could not connect your calendar. Check permissions and try again.",
     "deepLinkMissing": "The linked item could not be found. It may have been removed or changed.",
+    "deepLinkOfflineUnavailable": "This linked item is not in the offline copy. Reconnect to open it.",
     "checklistLoadTitle": "We could not load the checklist",
     "checklistLoadDescription": "Your trip is still available. Try loading the checklist again.",
     "offlineTripsTitle": "We could not load offline trips",

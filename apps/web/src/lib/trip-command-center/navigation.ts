@@ -1,4 +1,8 @@
 import type { NavigationGroup } from "@/types/trip-command-center";
+import {
+  getDeepLinkDomTarget,
+  type DeepLinkDomTarget
+} from "@/lib/trip-workspace/deep-link";
 
 export const TAB_TO_ANCHOR: Record<string, string> = {
   overview: "overview",
@@ -104,6 +108,9 @@ export function scrollToTabAnchor(tab: string | null | undefined) {
   const target = getDeepLinkTarget(tab, params);
   const targetId = target?.targetId ?? anchor;
   const sectionId = target?.sectionId ?? anchor;
+  const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
   const delays = [0, 250, 750, 1500];
   const timers: number[] = [];
   let resolved = false;
@@ -116,14 +123,19 @@ export function scrollToTabAnchor(tab: string | null | undefined) {
       const element = document.getElementById(targetId);
       if (element) {
         resolved = true;
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.scrollIntoView({ behavior, block: "center" });
         if (target?.targetId) {
           highlightDeepLinkTarget(element);
         }
+        window.dispatchEvent(
+          new CustomEvent("travel-ai:deep-link-resolved", {
+            detail: { tab, targetId: target?.targetId ?? null }
+          })
+        );
         return;
       }
       if (index === delays.length - 1) {
-        document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById(sectionId)?.scrollIntoView({ behavior, block: "start" });
         window.dispatchEvent(
           new CustomEvent("travel-ai:deep-link-missing", { detail: { tab, targetId } })
         );
@@ -143,64 +155,29 @@ export function getDeepLinkTarget(
   tab: string,
   params: Pick<URLSearchParams, "get">
 ): DeepLinkTarget | null {
-  const sectionId = TAB_TO_ANCHOR[tab];
-  if (!sectionId) {
-    return null;
-  }
-  if (tab === "route" || tab === "transport") {
-    const legId = params.get("legId");
-    const stopId = params.get("stopId");
-    return {
-      sectionId,
-      targetId: legId
-        ? `route-leg-${legId}`
-        : stopId
-          ? `route-stop-${stopId}`
-        : undefined
-    };
-  }
-  if (tab === "itinerary") {
-    const itemId = params.get("itemId");
-    const day = params.get("day");
-    const itemIndex = params.get("itemIndex");
-    return {
-      sectionId,
-      targetId: itemId
-        ? `itinerary-item-${itemId}`
-        : day && itemIndex
-          ? `day-${day}-item-${itemIndex}`
-          : undefined
-    };
-  }
-  const targetByTab: Record<string, [string, string]> = {
-    budget: ["category", "budget-category-"],
-    health: ["issueId", "trip-health-issue-"],
-    expenses: ["expenseId", "expense-"],
-    receipts: ["receiptId", "receipt-"],
-    checklist: ["itemId", "checklist-item-"],
-    reminders: ["reminderId", "reminder-"],
-    polls: ["pollId", "poll-"],
-    decisions: ["pollId", "poll-"],
-    activity: ["eventId", "activity-event-"],
-    comments: ["commentId", "comment-"]
-  };
-  const targetConfig = targetByTab[tab];
-  if (!targetConfig) {
-    return { sectionId };
-  }
-  const value = params.get(targetConfig[0]);
-  return { sectionId, targetId: value ? `${targetConfig[1]}${value}` : undefined };
+  return getDeepLinkDomTarget(tab, params);
 }
 
 function highlightDeepLinkTarget(element: HTMLElement) {
+  const hadTabIndex = element.hasAttribute("tabindex");
   element.dataset.deepLinkHighlighted = "true";
   element.classList.add("ring-2", "ring-primary-600", "ring-offset-2");
-  if (!element.hasAttribute("tabindex")) {
+  if (!hadTabIndex) {
     element.setAttribute("tabindex", "-1");
   }
   element.focus({ preventScroll: true });
-  window.setTimeout(() => {
+  const clear = () => {
     element.classList.remove("ring-2", "ring-primary-600", "ring-offset-2");
     delete element.dataset.deepLinkHighlighted;
-  }, 2400);
+    if (!hadTabIndex) {
+      element.removeAttribute("tabindex");
+    }
+    window.removeEventListener("pointerdown", clear);
+    window.removeEventListener("keydown", clear);
+  };
+  window.addEventListener("pointerdown", clear, { once: true });
+  window.addEventListener("keydown", clear, { once: true });
+  window.setTimeout(clear, 2400);
 }
+
+export type { DeepLinkDomTarget };

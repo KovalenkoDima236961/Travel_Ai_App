@@ -35,6 +35,7 @@ type TripCommandCenterProps = {
   workspaceName?: string | null;
   onSyncNow?: () => void;
   syncing?: boolean;
+  showNextBestAction?: boolean;
   setupChecklist?: {
     checklistExists?: boolean;
     collaboratorCount?: number;
@@ -53,6 +54,7 @@ export function TripCommandCenter({
   workspaceName,
   onSyncNow,
   syncing = false,
+  showNextBestAction = true,
   setupChecklist
 }: TripCommandCenterProps) {
   const cardsById = Object.fromEntries(data.cards.map((card) => [card.id, card])) as Partial<
@@ -70,7 +72,7 @@ export function TripCommandCenter({
       />
       <TripSetupChecklist trip={trip} {...setupChecklist} />
       <TripRecapStatusCard tripId={trip.id} />
-      <NextBestActionCard action={data.nextBestAction} />
+      {showNextBestAction ? <NextBestActionCard action={data.nextBestAction} /> : null}
       <TripReadinessSummary cards={data.cards} />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <TopFixesPanel fixes={data.topFixes} />

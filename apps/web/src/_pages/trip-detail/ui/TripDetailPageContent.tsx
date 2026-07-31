@@ -3,10 +3,16 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { EmptyState, ErrorState, PageLoadingState } from "@/components/ui";
+import {
+  TripWorkspaceActionsPanel,
+  TripWorkspaceNavigation,
+  TripWorkspaceStatusBar,
+  TripWorkspaceSubviewNavigation
+} from "@/components/trip-workspace";
 import { AiAdaptedTripBanner } from "@/components/trips/AiAdaptedTripBanner";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { AccommodationPanel } from "@/features/trip-accommodation";
@@ -154,6 +160,13 @@ import {
 import { useTripPresenceState } from "@/lib/presence/use-trip-presence-state";
 import { useTripPresenceStream } from "@/lib/presence/use-trip-presence-stream";
 import { useFeatureFlag } from "@/lib/feature-flags/useFeatureFlags";
+import { resolveTripWorkspaceDeepLink } from "@/lib/trip-workspace/deep-link";
+import {
+  buildTripWorkspaceHref,
+  legacyTabForWorkspaceLocation,
+  resolveTripWorkspaceLocation,
+  workspaceLoadSections
+} from "@/lib/trip-workspace/navigation";
 import { cn, getErrorMessage } from "@/lib/utils";
 import type {
   BudgetOptimizationJobRequest,
@@ -302,7 +315,10 @@ export function TripDetailPageContent() {
   const errorsT = useTranslations("errors");
   const navigationT = useTranslations("navigation");
   const emptyItineraryT = useTranslations("emptyStates.itinerary");
+  const workspaceT = useTranslations("tripWorkspace");
   const params = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tripId = params.id;
   const requestedGenerationJobId = searchParams.get("generationJob");
@@ -317,6 +333,47 @@ export function TripDetailPageContent() {
   const calendarViewEnabled = useFeatureFlag("calendar_view_enabled");
   const timelineDragDropEnabled = useFeatureFlag("timeline_drag_drop_enabled");
   const scheduleConflictDetectionEnabled = useFeatureFlag("schedule_conflict_detection_enabled");
+  const tripWorkspaceEnabled = useFeatureFlag("trip_workspace_consolidation_enabled");
+  const tripWorkspaceOverviewEnabled = useFeatureFlag("trip_workspace_overview_v2_enabled");
+  const tripWorkspaceNextBestActionEnabled = useFeatureFlag(
+    "trip_workspace_next_best_action_enabled"
+  );
+  const tripWorkspaceMobileNavigationEnabled = useFeatureFlag(
+    "trip_workspace_mobile_navigation_enabled"
+  );
+  const tripWorkspaceDeepLinkEnabled = useFeatureFlag("trip_workspace_deep_link_v2_enabled");
+  const tripWorkspaceSharedActionsEnabled = useFeatureFlag(
+    "trip_workspace_shared_actions_enabled"
+  );
+  const workspaceLocation = useMemo(
+    () => resolveTripWorkspaceLocation(pathname, searchParams),
+    [pathname, searchParams]
+  );
+  const workspaceLegacyTab = legacyTabForWorkspaceLocation(
+    workspaceLocation.section,
+    workspaceLocation.view
+  );
+  const showWorkspaceSection = (...sections: Array<typeof workspaceLocation.section>) =>
+    !tripWorkspaceEnabled || sections.includes(workspaceLocation.section);
+  const showWorkspaceView = (...views: string[]) =>
+    !tripWorkspaceEnabled || views.includes(workspaceLocation.view);
+  const requestedScheduleView =
+    workspaceLocation.section === "plan" &&
+    ["agenda", "timeline", "calendar"].includes(workspaceLocation.view)
+      ? workspaceLocation.view as "agenda" | "timeline" | "calendar"
+      : workspaceLocation.section === "plan" && workspaceLocation.view === "itinerary"
+        ? "agenda"
+        : null;
+  const requestedDayNumber = parsePositiveInteger(searchParams.get("day"));
+
+  function updateScheduleView(view: "agenda" | "timeline" | "calendar") {
+    if (!tripWorkspaceEnabled) {
+      return;
+    }
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("view", view);
+    router.replace(buildTripWorkspaceHref(tripId, "plan", nextParams), { scroll: false });
+  }
   const invalidateBudgetConfidence = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: budgetConfidenceKeys.all(tripId) }),
@@ -371,6 +428,39 @@ export function TripDetailPageContent() {
   const sectionEnabled = (...sections: string[]) =>
     sections.some((section) => loadedSections.has(section));
   const generationReviewRequested = Boolean(activeGenerationJobId || requestedGenerationJobId);
+
+  useEffect(() => {
+    const sections = workspaceLoadSections(workspaceLocation.section, workspaceLocation.view);
+    setLoadedSections((current) => new Set([...current, ...sections]));
+  }, [workspaceLocation.section, workspaceLocation.view]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      return;
+    }
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (!tripWorkspaceEnabled || !workspaceLocation.isLegacy) {
+      return;
+    }
+    trackAlphaEvent({
+      eventName: "trip_workspace_legacy_route_redirected",
+      feature: "trip_workspace",
+      entityType: "trip",
+      entityId: tripId,
+      metadata: {
+        routeType: workspaceLocation.legacyTab ?? "section_query",
+        handledBy: "compatibility_layer"
+      }
+    });
+  }, [tripId, tripWorkspaceEnabled, workspaceLocation.isLegacy, workspaceLocation.legacyTab]);
 
   useEffect(() => {
     if (requestedGenerationJobId) {
@@ -515,15 +605,15 @@ export function TripDetailPageContent() {
       (mutation): mutation is PendingItineraryMutation =>
         mutation.tripId === tripId && isPendingItineraryMutation(mutation)
     ) ?? null;
-  const tripOfflineMutations = offlineSync.mutations.filter(
-    (mutation) => mutation.tripId === tripId
+  const tripOfflineMutations = useMemo(
+    () => offlineSync.mutations.filter((mutation) => mutation.tripId === tripId),
+    [offlineSync.mutations, tripId]
   );
   const sourceTrip = tripQuery.data ?? cachedTripRecord?.trip ?? null;
   const displayedTrip = sourceTrip
     ? withPendingOfflineItinerary(sourceTrip, pendingOfflineMutation)
     : null;
   const isUsingCachedTrip = Boolean(cachedTripRecord) && (!tripQuery.data || !networkStatus.online);
-  const hasPendingOfflineChanges = tripOfflineMutations.length > 0;
   const hasPendingItineraryDraft = Boolean(pendingOfflineMutation);
   const offlineDataMode = isUsingCachedTrip || !networkStatus.online || hasPendingItineraryDraft;
   const onlineActionsEnabled =
@@ -533,7 +623,12 @@ export function TripDetailPageContent() {
   const commandCenterSummaryQuery = useQuery({
     queryKey: queryKeys.trip.commandCenter(tripId),
     queryFn: () => getCommandCenterSummary(tripId),
-    enabled: onlineActionsEnabled && Boolean(tripId) && Boolean(displayedTrip),
+    enabled:
+      onlineActionsEnabled &&
+      Boolean(tripId) &&
+      Boolean(displayedTrip) &&
+      showWorkspaceSection("overview") &&
+      (!tripWorkspaceEnabled || tripWorkspaceOverviewEnabled),
     staleTime: 30 * 1000,
     retry: 1
   });
@@ -546,7 +641,7 @@ export function TripDetailPageContent() {
   );
 
   useEffect(() => {
-    if (!displayedTrip || typeof window === "undefined") {
+    if (!displayedTrip?.id || typeof window === "undefined") {
       return;
     }
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -742,9 +837,13 @@ export function TripDetailPageContent() {
     tripAccess.role === "owner" ||
     tripAccess.role === "editor" ||
     tripAccess.role === "viewer";
-  const canComment = onlineActionsEnabled && canUsePrivateCollaboration;
+  const canComment =
+    onlineActionsEnabled && canUsePrivateCollaboration && !Boolean(displayedTrip?.archivedAt);
   const decisionsEnabled = Boolean(tripId) && canUsePrivateCollaboration && onlineActionsEnabled;
-  const canCreatePoll = Boolean(tripAccess?.canEdit ?? true) && onlineActionsEnabled;
+  const canCreatePoll =
+    Boolean(tripAccess?.canEdit ?? true) &&
+    onlineActionsEnabled &&
+    !Boolean(displayedTrip?.archivedAt);
   const budgetConfidenceQuery = useBudgetConfidence({
     tripId,
     currency: budgetSummaryQuery.data?.currency ?? displayedTrip?.budgetCurrency ?? "EUR",
@@ -981,10 +1080,9 @@ export function TripDetailPageContent() {
     setAvailabilityResultsByItem({});
   }, [tripId, displayedTrip?.itineraryRevision]);
 
-  const commentCounts = commentCountsQuery.data ?? [];
   const commentCountMap = useMemo(
-    () => buildCommentCountMap(commentCounts),
-    [commentCounts]
+    () => buildCommentCountMap(commentCountsQuery.data ?? []),
+    [commentCountsQuery.data]
   );
   const reactionSummaryMap = useMemo(() => {
     const entries = reactionSummariesQuery.data ?? [];
@@ -1101,21 +1199,81 @@ export function TripDetailPageContent() {
   );
 
   useEffect(() => {
-    if (!displayedTrip || typeof window === "undefined") {
+    if (!displayedTrip?.id || typeof window === "undefined") {
       return;
     }
     setDeepLinkMessage(null);
-    const tab = searchParams?.get("tab");
+    const deepLinkParams = new URLSearchParams(searchParams.toString());
+    const resolution = resolveTripWorkspaceDeepLink({
+      pathname,
+      searchParams: deepLinkParams,
+      featureEnabled: tripWorkspaceDeepLinkEnabled,
+      offline: !networkStatus.online,
+      targetAvailableOffline:
+        !hasDeepLinkEntityTarget(deepLinkParams) || workspaceLocation.section === "plan"
+    });
+    if (resolution.state === "offline_unavailable") {
+      setDeepLinkMessage(errorsT("deepLinkOfflineUnavailable"));
+      trackAlphaEvent({
+        eventName: "trip_workspace_deep_link_failed",
+        feature: "trip_workspace",
+        entityType: "trip",
+        entityId: tripId,
+        metadata: { targetType: resolution.legacyTab, reason: resolution.state }
+      });
+      return;
+    }
+    const tab = tripWorkspaceDeepLinkEnabled
+      ? resolution.legacyTab
+      : searchParams.get("tab") ?? workspaceLegacyTab;
     return scrollToTabAnchor(tab);
-  }, [displayedTrip?.id, searchParams]);
+  }, [
+    displayedTrip?.id,
+    errorsT,
+    networkStatus.online,
+    pathname,
+    searchParams,
+    tripId,
+    tripWorkspaceDeepLinkEnabled,
+    workspaceLegacyTab,
+    workspaceLocation.legacyTab,
+    workspaceLocation.section
+  ]);
 
   useEffect(() => {
-    function handleMissingDeepLink() {
+    function handleMissingDeepLink(event: Event) {
       setDeepLinkMessage(errorsT("deepLinkMissing"));
+      const detail = event instanceof CustomEvent ? event.detail as { tab?: string } : {};
+      trackAlphaEvent({
+        eventName: "trip_workspace_deep_link_failed",
+        feature: "trip_workspace",
+        entityType: "trip",
+        entityId: tripId,
+        metadata: { targetType: detail.tab ?? "unknown", reason: "not_found" }
+      });
+    }
+    function handleResolvedDeepLink(event: Event) {
+      const detail = event instanceof CustomEvent
+        ? event.detail as { tab?: string; targetId?: string | null }
+        : {};
+      trackAlphaEvent({
+        eventName: "trip_workspace_deep_link_resolved",
+        feature: "trip_workspace",
+        entityType: "trip",
+        entityId: tripId,
+        metadata: {
+          targetType: detail.tab ?? "section",
+          hasEntityTarget: Boolean(detail.targetId)
+        }
+      });
     }
     window.addEventListener("travel-ai:deep-link-missing", handleMissingDeepLink);
-    return () => window.removeEventListener("travel-ai:deep-link-missing", handleMissingDeepLink);
-  }, [errorsT]);
+    window.addEventListener("travel-ai:deep-link-resolved", handleResolvedDeepLink);
+    return () => {
+      window.removeEventListener("travel-ai:deep-link-missing", handleMissingDeepLink);
+      window.removeEventListener("travel-ai:deep-link-resolved", handleResolvedDeepLink);
+    };
+  }, [errorsT, tripId]);
 
   useEffect(() => {
     const shouldLoadCachedTrip =
@@ -1194,7 +1352,7 @@ export function TripDetailPageContent() {
   ]);
 
   useEffect(() => {
-    if (displayedTrip) {
+    if (displayedTrip?.id) {
       recordPwaEngagement();
     }
   }, [displayedTrip?.id]);
@@ -1285,15 +1443,19 @@ export function TripDetailPageContent() {
       ? workspaces.find((workspace) => workspace.id === trip.workspaceId)?.name ?? null
       : null;
   const canEditTripAccess = access?.canEdit ?? true;
-  const canMutateTrip = canEditTripAccess && onlineActionsEnabled;
-  const canManageShare = (access?.canManageShare ?? true) && onlineActionsEnabled;
+  const tripIsArchived = Boolean(trip.archivedAt) || trip.lifecycle === "archived";
+  const canMutateTrip = canEditTripAccess && onlineActionsEnabled && !tripIsArchived;
+  const canManageShare =
+    (access?.canManageShare ?? true) && onlineActionsEnabled && !tripIsArchived;
   const canManageCollaborators =
-    (access?.canManageCollaborators ?? true) && onlineActionsEnabled;
-  const canRestoreVersion = (access?.canRestoreVersion ?? canEditTripAccess) && onlineActionsEnabled;
+    (access?.canManageCollaborators ?? true) && onlineActionsEnabled && !tripIsArchived;
+  const canRestoreVersion =
+    (access?.canRestoreVersion ?? canEditTripAccess) && onlineActionsEnabled && !tripIsArchived;
   const canGenerate = canMutateTrip && (trip.status === "DRAFT" || trip.status === "FAILED");
   const canEditItinerary =
-    canEditTripAccess && trip.status === "COMPLETED" && Boolean(trip.itinerary);
-  const canSaveTemplate = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
+    canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
+  const canSaveTemplate =
+    canEditTripAccess && onlineActionsEnabled && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const canSyncCalendar = canMutateTrip && trip.status === "COMPLETED" && Boolean(trip.itinerary);
   const editingRevisionChanged =
     isEditing &&
@@ -2714,7 +2876,7 @@ export function TripDetailPageContent() {
       >
         Today
       </Link>
-      {canManageShare ? (
+      {canManageShare && (!tripWorkspaceEnabled || !tripWorkspaceSharedActionsEnabled) ? (
         <a
           href="#sharing"
           className="inline-flex h-[42px] items-center gap-2 rounded-full border border-sand-400 bg-white px-[18px] text-[14px] font-medium text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900"
@@ -2723,7 +2885,9 @@ export function TripDetailPageContent() {
           Share
         </a>
       ) : null}
-      {exportTrip ? <ExportTripMenu exportTrip={exportTrip} /> : null}
+      {exportTrip && (!tripWorkspaceEnabled || !tripWorkspaceSharedActionsEnabled) ? (
+        <ExportTripMenu exportTrip={exportTrip} />
+      ) : null}
       {canGenerate ? (
         <GenerateItineraryButton
           disabled={hasActiveGenerationJob}
@@ -2786,9 +2950,41 @@ export function TripDetailPageContent() {
           workspaceName={workspaceName}
         />
 
-        <TripMuteSettings tripId={trip.id} className="mt-5" />
+        {tripWorkspaceEnabled ? (
+          <>
+            <TripWorkspaceNavigation
+              activeSection={workspaceLocation.section}
+              hasUnsavedChanges={isEditing}
+              lifecycle={trip.lifecycle ?? trip.status.toLowerCase()}
+              mobileNavigation={tripWorkspaceMobileNavigationEnabled}
+              role={access?.role ?? "owner"}
+              tripId={trip.id}
+            />
+            <TripWorkspaceStatusBar
+              archived={tripIsArchived}
+              cachedAt={cachedTripRecord?.cachedAt}
+              offline={!networkStatus.online || isUsingCachedTrip}
+              readOnly={!canEditTripAccess}
+            />
+            <TripWorkspaceSubviewNavigation
+              hasUnsavedChanges={isEditing}
+              role={access?.role ?? "owner"}
+              section={workspaceLocation.section}
+              tripId={trip.id}
+              view={workspaceLocation.view}
+            />
+          </>
+        ) : null}
 
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:mt-8 xl:grid-cols-[224px_minmax(0,1fr)_372px] xl:gap-8">
+        {!tripWorkspaceEnabled ||
+        (showWorkspaceSection("more") && showWorkspaceView("tools", "settings")) ? (
+          <TripMuteSettings tripId={trip.id} className="mt-5" />
+        ) : null}
+
+        <div
+          className="mt-6 grid grid-cols-1 gap-6 xl:mt-8 xl:grid-cols-[224px_minmax(0,1fr)_372px] xl:gap-8"
+          data-trip-workspace-section={tripWorkspaceEnabled ? workspaceLocation.section : undefined}
+        >
           <TripDetailSidebar
             budgetCurrency={trip.budgetCurrency}
             budgetLoading={onlineActionsEnabled && budgetSummaryQuery.isLoading}
@@ -2803,9 +2999,10 @@ export function TripDetailPageContent() {
             travelers={activeTripTravelers}
             trip={trip}
             tripId={trip.id}
+            showNavigation={!tripWorkspaceEnabled}
           />
 
-          <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4" id="trip-workspace-content" tabIndex={-1}>
             {pendingOfflineMutation ? (
               <PendingOfflineChangesPanel
                 mutation={pendingOfflineMutation}
@@ -2841,7 +3038,23 @@ export function TripDetailPageContent() {
 
             {deepLinkMessage ? (
               <div className="rounded-[14px] border border-[#EAD9B8] bg-[#FDF7E8] p-4 text-[14px] text-[#7A5727]" role="status">
-                {deepLinkMessage}
+                <p>{deepLinkMessage}</p>
+                {tripWorkspaceEnabled ? (
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <Link
+                      className="font-semibold underline underline-offset-2"
+                      href={buildTripWorkspaceHref(trip.id, workspaceLocation.section)}
+                    >
+                      {workspaceT("openSection")}
+                    </Link>
+                    <Link
+                      className="font-semibold underline underline-offset-2"
+                      href={buildTripWorkspaceHref(trip.id, "overview")}
+                    >
+                      {workspaceT("returnToOverview")}
+                    </Link>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -2908,16 +3121,21 @@ export function TripDetailPageContent() {
               </div>
             ) : null}
 
-            {commandCenterSummaryQuery.isLoading && onlineActionsEnabled ? (
-              <CommandCenterSkeleton />
-            ) : commandCenterData ? (
-              <TripCommandCenter
+            {showWorkspaceSection("overview") &&
+            (!tripWorkspaceEnabled || tripWorkspaceOverviewEnabled) ? (
+              commandCenterSummaryQuery.isLoading && onlineActionsEnabled ? (
+                <CommandCenterSkeleton />
+              ) : commandCenterData ? (
+                <TripCommandCenter
                 approval={tripApprovalQuery.data ?? null}
                 data={commandCenterData}
                 health={tripHealthQuery.data ?? summaryHealth}
                 offlineStatus={commandCenterOfflineStatus}
                 onSyncNow={offlineSync.syncNow}
                 syncing={offlineSync.syncing}
+                showNextBestAction={
+                  !tripWorkspaceEnabled || tripWorkspaceNextBestActionEnabled
+                }
                 trip={trip}
                 verification={tripVerificationQuery.data ?? null}
                 workspaceName={workspaceName}
@@ -2939,10 +3157,14 @@ export function TripDetailPageContent() {
                     )
                   )
                 }}
-              />
+                />
+              ) : null
             ) : null}
 
-            {canUsePrivateCollaboration && onlineActionsEnabled ? (
+            {canUsePrivateCollaboration &&
+            onlineActionsEnabled &&
+            showWorkspaceSection("overview", "more") &&
+            (showWorkspaceSection("overview") || showWorkspaceView("health")) ? (
               <DeferredSection active={sectionEnabled("health")} section="health">
                 <TripHealthPanel
                   error={tripHealthQuery.error instanceof Error ? tripHealthQuery.error : null}
@@ -2954,13 +3176,19 @@ export function TripDetailPageContent() {
               </DeferredSection>
             ) : null}
 
-            {canUsePrivateCollaboration && onlineActionsEnabled ? (
+            {canUsePrivateCollaboration &&
+            onlineActionsEnabled &&
+            showWorkspaceSection("overview", "plan") &&
+            (showWorkspaceSection("overview") || showWorkspaceView("verification")) ? (
               <DeferredSection active={sectionEnabled("verification", "health", "route")} section="verification">
                 <VerificationPanel readiness={tripVerificationQuery.data ?? null} />
               </DeferredSection>
             ) : null}
 
-            {canUsePrivateCollaboration && onlineActionsEnabled ? (
+            {canUsePrivateCollaboration &&
+            onlineActionsEnabled &&
+            showWorkspaceSection("group") &&
+            showWorkspaceView("people", "activity") ? (
               <DeferredSection
                 active={sectionEnabled("group-readiness")}
                 section="group-readiness"
@@ -2977,38 +3205,42 @@ export function TripDetailPageContent() {
               </DeferredSection>
             ) : null}
 
-            {canUsePrivateCollaboration ? (
+            {canUsePrivateCollaboration && showWorkspaceSection("group") ? (
               <>
-                <DeferredSection active={sectionEnabled("dates")} section="dates">
-                  <AvailabilityPanel
-                    canEdit={canMutateTrip}
-                    currentUserId={currentUserId}
-                    online={onlineActionsEnabled}
-                    onGenerationJobCreated={handleGenerationJobCreated}
-                    trip={trip}
-                  />
-                </DeferredSection>
-                <DeferredSection active={sectionEnabled("decisions")} section="decisions">
-                  <PollsPanel
-                    canCreate={canCreatePoll}
-                    online={onlineActionsEnabled}
-                    tripId={trip.id}
-                  />
-                  <GroupPreferencesPanel
-                    enabled={decisionsEnabled}
-                    tripId={trip.id}
-                  />
-                </DeferredSection>
+                {showWorkspaceView("availability") ? (
+                  <DeferredSection active={sectionEnabled("dates")} section="dates">
+                    <AvailabilityPanel
+                      canEdit={canMutateTrip}
+                      currentUserId={currentUserId}
+                      online={onlineActionsEnabled}
+                      onGenerationJobCreated={handleGenerationJobCreated}
+                      trip={trip}
+                    />
+                  </DeferredSection>
+                ) : null}
+                {showWorkspaceView("decisions") ? (
+                  <DeferredSection active={sectionEnabled("decisions")} section="decisions">
+                    <PollsPanel
+                      canCreate={canCreatePoll}
+                      online={onlineActionsEnabled}
+                      tripId={trip.id}
+                    />
+                    <GroupPreferencesPanel
+                      enabled={decisionsEnabled}
+                      tripId={trip.id}
+                    />
+                  </DeferredSection>
+                ) : null}
               </>
             ) : null}
 
-            {trip.status === "PROCESSING" ? (
+            {showWorkspaceSection("plan") && trip.status === "PROCESSING" ? (
               <div className="rounded-[14px] border border-[#EAD9B8] bg-[#FDF0E3] p-6 text-[14px] text-[#96682A]">
                 The itinerary is being generated. This page will refresh while processing.
               </div>
             ) : null}
 
-            {trip.status === "COMPLETED" && trip.itinerary ? (
+            {showWorkspaceSection("plan") && trip.status === "COMPLETED" && trip.itinerary ? (
               <div id="itinerary" className="flex flex-col gap-4" data-load-section="itinerary">
                 {incompleteItineraryDayCount > 0 ? (
                   <PartialItineraryWarning
@@ -3018,6 +3250,7 @@ export function TripDetailPageContent() {
                     onRegenerate={() => void regenerateIncompleteItinerary()}
                   />
                 ) : null}
+                {showWorkspaceView("route") ? (
                 <section
                   id="route"
                   className="scroll-mt-24 space-y-4"
@@ -3025,7 +3258,7 @@ export function TripDetailPageContent() {
                 >
                   <div className="space-y-3">
                     <RouteBuilderPanel
-                      canEdit={canEditTripAccess}
+                      canEdit={canMutateTrip}
                       health={tripHealthQuery.data ?? null}
                       online={onlineActionsEnabled}
                       trip={trip}
@@ -3061,6 +3294,8 @@ export function TripDetailPageContent() {
                     />
                   ) : null}
                 </section>
+                ) : null}
+                {showWorkspaceView("itinerary", "agenda", "timeline", "calendar", "verification") ? (
                 <TripQualityChecks
                 availabilityResultsByItem={availabilityResultsByItem}
                 budgetSummary={budgetSummaryQuery.data ?? cachedBudgetSummary ?? null}
@@ -3078,30 +3313,35 @@ export function TripDetailPageContent() {
                 trip={trip}
                 weatherForecast={weatherForecastQuery.data ?? null}
               />
+                ) : null}
 
-              <DeferredSection active={sectionEnabled("checklist")} section="checklist">
-                <TripChecklistPanel
-                  canCheck={canUsePrivateCollaboration}
-                  canEdit={canEditTripAccess}
-                  currentUserId={currentUserId}
-                  enabled={canUsePrivateCollaboration}
-                  offline={offlineDataMode}
-                  tripId={trip.id}
-                  userId={currentUserId}
-                />
-              </DeferredSection>
+              {!tripWorkspaceEnabled ? (
+                <>
+                  <DeferredSection active={sectionEnabled("checklist")} section="checklist">
+                    <TripChecklistPanel
+                      canCheck={canUsePrivateCollaboration && !tripIsArchived}
+                      canEdit={canMutateTrip}
+                      currentUserId={currentUserId}
+                      enabled={canUsePrivateCollaboration}
+                      offline={offlineDataMode}
+                      tripId={trip.id}
+                      userId={currentUserId}
+                    />
+                  </DeferredSection>
+                  <DeferredSection active={sectionEnabled("reminders")} section="reminders">
+                    <TripRemindersPanel
+                      canEdit={canMutateTrip}
+                      currentUserId={currentUserId}
+                      enabled={canUsePrivateCollaboration}
+                      offline={offlineDataMode}
+                      tripId={trip.id}
+                      userId={currentUserId}
+                    />
+                  </DeferredSection>
+                </>
+              ) : null}
 
-              <DeferredSection active={sectionEnabled("reminders")} section="reminders">
-                <TripRemindersPanel
-                  canEdit={canEditTripAccess}
-                  currentUserId={currentUserId}
-                  enabled={canUsePrivateCollaboration}
-                  offline={offlineDataMode}
-                  tripId={trip.id}
-                  userId={currentUserId}
-                />
-              </DeferredSection>
-
+              {showWorkspaceView("itinerary", "agenda", "timeline", "calendar") ? (
               <BudgetOptimizationProposalsPanel
                 canMutate={canMutateTrip}
                 currentItinerary={trip.itinerary}
@@ -3113,8 +3353,10 @@ export function TripDetailPageContent() {
                 onDiscard={discardBudgetOptimization}
                 proposals={budgetOptimizationProposalsQuery.data ?? []}
               />
+              ) : null}
 
-              {trip.workspaceId ? (
+              {trip.workspaceId &&
+              showWorkspaceView("itinerary", "agenda", "timeline", "calendar") ? (
                 <RepairProposalsPanel
                   activeJob={activeTripRepairJob}
                   canMutate={canMutateTrip}
@@ -3133,8 +3375,9 @@ export function TripDetailPageContent() {
                 />
               ) : null}
 
-              <div id="cost-split" className="scroll-mt-24">
-                <CostSplittingPanel
+              {!tripWorkspaceEnabled ? (
+                <div id="cost-split" className="scroll-mt-24">
+                  <CostSplittingPanel
                   canEdit={canMutateTrip}
                   offline={offlineDataMode}
                   onEditAccommodationSplit={
@@ -3150,9 +3393,12 @@ export function TripDetailPageContent() {
                   travelers={tripTravelersQuery.data?.travelers ?? []}
                   travelersLoading={tripTravelersQuery.isLoading}
                   trip={trip}
-                />
-              </div>
+                  />
+                </div>
+              ) : null}
 
+              {showWorkspaceView("itinerary", "agenda", "timeline", "calendar") ? (
+              <>
               <PresenceEditingWarning
                 currentUserId={currentUserId}
                 snapshot={presenceStream.snapshot}
@@ -3234,7 +3480,10 @@ export function TripDetailPageContent() {
                       calendar: calendarViewEnabled
                     }}
                     itinerary={draftItinerary}
+                    initialDayNumber={requestedDayNumber}
+                    initialView={requestedScheduleView}
                     onChange={setDraftItinerary}
+                    onViewChange={updateScheduleView}
                     startDate={trip.startDate}
                     storageKey={`trip:${trip.id}:schedule-view`}
                     weatherForecast={weatherForecastQuery.data ?? null}
@@ -3260,7 +3509,7 @@ export function TripDetailPageContent() {
                     trip={trip}
                   />
                   <OpeningHoursWarnings itinerary={trip.itinerary} startDate={trip.startDate} />
-                  {canComment ? <TripCommentsSummary counts={commentCounts} /> : null}
+                  {canComment ? <TripCommentsSummary counts={commentCountsQuery.data ?? []} /> : null}
                   <SchedulePlanningWorkspace
                     accommodation={trip.accommodation ?? null}
                     analyticsEntityId={trip.id}
@@ -3305,6 +3554,9 @@ export function TripDetailPageContent() {
                       calendar: calendarViewEnabled
                     }}
                     itinerary={trip.itinerary}
+                    initialDayNumber={requestedDayNumber}
+                    initialView={requestedScheduleView}
+                    onViewChange={updateScheduleView}
                     startDate={trip.startDate}
                     storageKey={`trip:${trip.id}:schedule-view`}
                     weatherForecast={weatherForecastQuery.data ?? null}
@@ -3315,7 +3567,7 @@ export function TripDetailPageContent() {
                     maxWalkingKmPerDay={maxWalkingKmPerDay}
                     onOptimizeDay={canMutateTrip ? setOptimizingDayNumber : undefined}
                   />
-                  {onlineActionsEnabled ? (
+                  {onlineActionsEnabled && !tripWorkspaceEnabled ? (
                     <ItineraryVersionHistory
                       canRestore={canRestoreVersion}
                       currency={trip.budgetCurrency}
@@ -3356,10 +3608,12 @@ export function TripDetailPageContent() {
                   ) : null}
                 </>
               )}
+              </>
+              ) : null}
             </div>
           ) : null}
 
-            {trip.status === "COMPLETED" && !trip.itinerary ? (
+            {showWorkspaceSection("plan") && trip.status === "COMPLETED" && !trip.itinerary ? (
               <ErrorState
                 className="rounded-[18px]"
                 description={errorsT("itineraryGenerationDescription")}
@@ -3367,8 +3621,11 @@ export function TripDetailPageContent() {
               />
             ) : null}
 
-            {(trip.status === "DRAFT" || trip.status === "FAILED") && !trip.itinerary ? (
+            {showWorkspaceSection("plan") &&
+            (trip.status === "DRAFT" || trip.status === "FAILED") &&
+            !trip.itinerary ? (
               <div className="flex flex-col gap-4">
+                {showWorkspaceView("route") ? (
                 <section
                   id="route"
                   className="scroll-mt-24 space-y-4"
@@ -3376,7 +3633,7 @@ export function TripDetailPageContent() {
                 >
                   <div className="space-y-3">
                     <RouteBuilderPanel
-                      canEdit={canEditTripAccess}
+                      canEdit={canMutateTrip}
                       health={tripHealthQuery.data ?? null}
                       online={onlineActionsEnabled}
                       trip={trip}
@@ -3412,6 +3669,8 @@ export function TripDetailPageContent() {
                     />
                   ) : null}
                 </section>
+                ) : null}
+                {showWorkspaceView("itinerary", "agenda", "timeline", "calendar") ? (
                 <EmptyState
                   className="rounded-[18px] border-sand-300 bg-white"
                   description={emptyItineraryT("description")}
@@ -3428,10 +3687,14 @@ export function TripDetailPageContent() {
                   }
                   title={emptyItineraryT("title")}
                 />
+                ) : null}
               </div>
             ) : null}
 
-            {(trip.status === "DRAFT" || trip.status === "FAILED") && trip.itinerary ? (
+            {showWorkspaceSection("plan") &&
+            (trip.status === "DRAFT" || trip.status === "FAILED") &&
+            trip.itinerary &&
+            showWorkspaceView("itinerary", "agenda", "timeline", "calendar") ? (
               <ItineraryTimeline
                 currency={trip.budgetCurrency}
                 itinerary={trip.itinerary}
@@ -3439,13 +3702,54 @@ export function TripDetailPageContent() {
               />
             ) : null}
 
+            {tripWorkspaceEnabled && showWorkspaceSection("prepare") ? (
+              <section aria-labelledby="trip-workspace-prepare-title" className="space-y-4">
+                <div>
+                  <h2
+                    className="font-newsreader text-[28px] font-semibold text-cocoa-900"
+                    id="trip-workspace-prepare-title"
+                  >
+                    {workspaceT("sectionHeadings.prepare")}
+                  </h2>
+                  <p className="mt-1 text-sm text-cocoa-500">
+                    {workspaceT("sectionDescriptions.prepare")}
+                  </p>
+                </div>
+                {showWorkspaceView("checklist") ? (
+                <TripChecklistPanel
+                  canCheck={canUsePrivateCollaboration && !tripIsArchived}
+                  canEdit={canMutateTrip}
+                  currentUserId={currentUserId}
+                  enabled={canUsePrivateCollaboration}
+                  offline={offlineDataMode}
+                  tripId={trip.id}
+                  userId={currentUserId}
+                />
+                ) : null}
+                {showWorkspaceView("reminders") ? (
+                <TripRemindersPanel
+                  canEdit={canMutateTrip}
+                  currentUserId={currentUserId}
+                  enabled={canUsePrivateCollaboration}
+                  offline={offlineDataMode}
+                  tripId={trip.id}
+                  userId={currentUserId}
+                />
+                ) : null}
+              </section>
+            ) : null}
+
             {/* Trip tools: interactive panels relocated from the old sidebar. They
                 retain their existing styling and full logic; the warm summary cards
                 in the left rail and hero deep-link here. */}
+            {showWorkspaceSection("plan", "money", "group", "more") ? (
             <section id="trip-tools" className="mt-2 flex flex-col gap-4 border-t border-sand-300 pt-6">
               <h2 className="font-newsreader text-[22px] font-semibold tracking-[-0.01em] text-cocoa-900">
-                Trip tools
+                {tripWorkspaceEnabled
+                  ? workspaceT(`sectionHeadings.${workspaceLocation.section}`)
+                  : "Trip tools"}
               </h2>
+              {showWorkspaceSection("money") && showWorkspaceView("overview", "budget") ? (
               <DeferredSection active={sectionEnabled("budget")} section="budget">
                 <div id="budget" className="scroll-mt-24">
                   <BudgetPanel
@@ -3461,15 +3765,43 @@ export function TripDetailPageContent() {
                   />
                 </div>
               </DeferredSection>
+              ) : null}
+              {showWorkspaceSection("money") &&
+              showWorkspaceView("overview", "expenses", "receipts", "settlements") ? (
               <DeferredSection active={sectionEnabled("expenses")} section="expenses">
                 <ExpensesPanel
-                  canEdit={canEditTripAccess}
+                  canEdit={canMutateTrip}
                   currentUserId={currentUserId}
                   offline={offlineDataMode}
                   travelers={tripTravelersQuery.data?.travelers ?? []}
                   trip={trip}
                 />
               </DeferredSection>
+              ) : null}
+              {tripWorkspaceEnabled &&
+              showWorkspaceSection("money") &&
+              showWorkspaceView("overview", "splits") ? (
+                <div id="cost-split" className="scroll-mt-24">
+                  <CostSplittingPanel
+                    canEdit={canMutateTrip}
+                    offline={offlineDataMode}
+                    onEditAccommodationSplit={
+                      trip.accommodation?.estimatedCost?.amount != null
+                        ? () => setCostSplitTarget({ type: "accommodation" })
+                        : undefined
+                    }
+                    onEditItemSplit={(dayNumber, itemIndex) =>
+                      setCostSplitTarget({ type: "item", dayNumber, itemIndex })
+                    }
+                    summary={costSplittingSummary}
+                    summaryLoading={costSplittingSummaryQuery.isLoading}
+                    travelers={tripTravelersQuery.data?.travelers ?? []}
+                    travelersLoading={tripTravelersQuery.isLoading}
+                    trip={trip}
+                  />
+                </div>
+              ) : null}
+              {showWorkspaceSection("plan") && showWorkspaceView("stay") ? (
               <div id="accommodation" className="scroll-mt-24">
                 <AccommodationPanel
                   canEdit={canMutateTrip}
@@ -3481,7 +3813,28 @@ export function TripDetailPageContent() {
                   trip={trip}
                 />
               </div>
-              {canSaveTemplate ? (
+              ) : null}
+              {tripWorkspaceEnabled &&
+              tripWorkspaceSharedActionsEnabled &&
+              showWorkspaceSection("more") &&
+              showWorkspaceView("tools", "exports", "settings") ? (
+                <TripWorkspaceActionsPanel
+                  exportControl={exportTrip ? <ExportTripMenu exportTrip={exportTrip} /> : undefined}
+                  onEditItinerary={
+                    canEditItinerary && !isEditing
+                      ? () => {
+                          startEditing();
+                          router.push(buildTripWorkspaceHref(trip.id, "plan"));
+                        }
+                      : undefined
+                  }
+                  onSaveTemplate={canSaveTemplate ? () => setSaveTemplateOpen(true) : undefined}
+                  online={onlineActionsEnabled}
+                  trip={trip}
+                />
+              ) : null}
+              {canSaveTemplate &&
+              (!tripWorkspaceEnabled || !tripWorkspaceSharedActionsEnabled) ? (
                 <div>
                   <button
                     type="button"
@@ -3492,29 +3845,64 @@ export function TripDetailPageContent() {
                   </button>
                 </div>
               ) : null}
-              {presenceEnabled ? (
+              {presenceEnabled &&
+              showWorkspaceSection("group") &&
+              showWorkspaceView("people", "activity") ? (
                 <TripPresenceIndicator
                   currentUserId={currentUserId}
                   isConnected={presenceStream.isConnected}
                   snapshot={presenceStream.snapshot}
                 />
               ) : null}
-              {trip.workspaceId ? (
+              {tripWorkspaceEnabled &&
+              showWorkspaceSection("group") &&
+              showWorkspaceView("discussion") &&
+              canComment &&
+              trip.itinerary ? (
+                <TripCommentsSummary counts={commentCountsQuery.data ?? []} />
+              ) : null}
+              {trip.workspaceId &&
+              showWorkspaceSection("more") &&
+              showWorkspaceView("policy") ? (
                 <>
                   <p className="rounded-[14px] border border-sand-300 bg-sand-50 p-4 text-[13.5px] text-cocoa-500">
                     Workspace policy is used as AI guidance for generation, regeneration, and
                     adaptation. Review the authoritative policy check below.
                   </p>
                   <TripPolicyPanel tripId={trip.id} />
-                  <TripApprovalPanel
-                    onOpenTripRepair={canMutateTrip ? openTripRepair : undefined}
-                    tripId={trip.id}
-                  />
                 </>
               ) : null}
-              {onlineActionsEnabled && trip.status === "COMPLETED" && trip.itinerary ? (
+              {trip.workspaceId &&
+              showWorkspaceSection("group") &&
+              showWorkspaceView("approvals") ? (
+                <TripApprovalPanel
+                  onOpenTripRepair={canMutateTrip ? openTripRepair : undefined}
+                  tripId={trip.id}
+                />
+              ) : null}
+              {onlineActionsEnabled &&
+              trip.status === "COMPLETED" &&
+              trip.itinerary &&
+              showWorkspaceSection("more") &&
+              showWorkspaceView("tools", "settings") ? (
                 <CalendarSyncPanel canSync={canSyncCalendar} trip={trip} />
               ) : null}
+              {tripWorkspaceEnabled &&
+              showWorkspaceSection("more") &&
+              showWorkspaceView("versions") &&
+              trip.itinerary &&
+              onlineActionsEnabled ? (
+                <ItineraryVersionHistory
+                  canRestore={canRestoreVersion}
+                  currency={trip.budgetCurrency}
+                  itineraryRevision={trip.itineraryRevision}
+                  onRestored={handleVersionRestored}
+                  restoreDisabled={isEditing || !canRestoreVersion}
+                  tripId={trip.id}
+                />
+              ) : null}
+              {(showWorkspaceSection("group") && showWorkspaceView("people")) ||
+              (showWorkspaceSection("more") && workspaceLocation.view === "sharing") ? (
               <div
                 id="sharing"
                 className="flex scroll-mt-24 flex-col gap-4"
@@ -3540,13 +3928,19 @@ export function TripDetailPageContent() {
                       tripId={trip.id}
                     />
                   </>
-                ) : null}
+                  ) : null}
               </div>
+              ) : null}
             </section>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-5 xl:sticky xl:top-[84px] xl:self-start">
-            {trip.status === "COMPLETED" && trip.itinerary && !isEditing ? (
+            {showWorkspaceSection("plan") &&
+            showWorkspaceView("itinerary", "agenda", "timeline", "calendar", "map") &&
+            trip.status === "COMPLETED" &&
+            trip.itinerary &&
+            !isEditing ? (
               <DeferredSection active={sectionEnabled("map")} section="map">
                 <RightRailMap
                   accommodation={trip.accommodation ?? null}
@@ -3556,19 +3950,24 @@ export function TripDetailPageContent() {
                 />
               </DeferredSection>
             ) : null}
-            <RightRailWeather
-              days={trip.days}
-              destination={trip.destination}
-              offline={!networkStatus.online || isUsingCachedTrip}
-              startDate={trip.startDate}
-            />
-            <DeferredSection active={sectionEnabled("activity")} section="activity">
-              <RightRailActivity
-                canViewActivity={canComment}
-                currentUserId={currentUserId}
-                tripId={trip.id}
+            {showWorkspaceSection("overview", "plan") ? (
+              <RightRailWeather
+                days={trip.days}
+                destination={trip.destination}
+                offline={!networkStatus.online || isUsingCachedTrip}
+                startDate={trip.startDate}
               />
-            </DeferredSection>
+            ) : null}
+            {showWorkspaceSection("overview", "group") &&
+            (showWorkspaceSection("overview") || showWorkspaceView("activity")) ? (
+              <DeferredSection active={sectionEnabled("activity")} section="activity">
+                <RightRailActivity
+                  canViewActivity={canComment}
+                  currentUserId={currentUserId}
+                  tripId={trip.id}
+                />
+              </DeferredSection>
+            ) : null}
           </div>
         </div>
       {canUsePrivateCollaboration && onlineActionsEnabled ? (
@@ -3711,7 +4110,6 @@ function DeferredSection({
         children
       ) : (
         <div
-          id={section}
           aria-label={`Loading ${section.replaceAll("-", " ")}`}
           className="min-h-36 animate-pulse scroll-mt-24 rounded-[18px] border border-sand-300 bg-white p-5"
         >
@@ -3732,4 +4130,42 @@ function PanelLoading() {
       <div className="mt-3 h-4 w-full rounded-full bg-sand-100" />
     </div>
   );
+}
+
+function parsePositiveInteger(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function hasDeepLinkEntityTarget(params: URLSearchParams) {
+  return [
+    "item",
+    "itemId",
+    "leg",
+    "legId",
+    "stop",
+    "stopId",
+    "expense",
+    "expenseId",
+    "receipt",
+    "receiptId",
+    "comment",
+    "commentId",
+    "member",
+    "memberId",
+    "collaboratorId",
+    "reminder",
+    "reminderId",
+    "decision",
+    "pollId",
+    "version",
+    "versionId",
+    "event",
+    "eventId",
+    "issue",
+    "issueId"
+  ].some((key) => params.has(key));
 }

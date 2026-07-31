@@ -5,6 +5,13 @@ private trip data. The browser mounts `GlobalCommandPalette` only for
 authenticated, non-public-share routes. Mobile users also get a visible floating
 search action from the same component.
 
+Trip results are normalized before navigation into canonical Trip Workspace
+section/view routes. The compatibility resolver still accepts historical
+`?tab=` hrefs from old recent items, notifications, and server results; entity
+parameters are rewritten to canonical names without dropping day/filter
+context. Add new targets through the centralized deep-link playbook rather than
+parsing parameters inside a result component.
+
 ## Backend Contract
 
 Trip Service owns the frontend-facing endpoint:

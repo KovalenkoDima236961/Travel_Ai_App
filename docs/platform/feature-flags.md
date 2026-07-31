@@ -96,6 +96,17 @@ value, reason, environment, scope, request ID, action, and timestamp. Reasons
 are required in staging and production. The Web Ops panel uses these endpoints
 and confirms changes to public sharing, exports, providers, and calendar sync.
 
+## Trip Workspace rollout
+
+Trip Workspace uses one master flag plus independently reversible overview,
+next-action, mobile-navigation, deep-link, and shared-action flags. All six
+`trip_workspace_*` flags are frontend-safe UX controls, default enabled in
+local/test and disabled in production. They do not grant access: TripAccess and
+backend object/action authorization remain authoritative. Roll out in the order
+internal, selected alpha, all alpha, then general availability. The rollback
+action is disabling `trip_workspace_consolidation_enabled`; legacy `?tab=`
+compatibility and the additive command-center summary remain available.
+
 ## Adding a flag
 
 1. Add a typed, documented registry definition with conservative production

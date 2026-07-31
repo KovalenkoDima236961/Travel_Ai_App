@@ -26,6 +26,7 @@ import {
 } from "@/lib/command-palette/recent-items";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import type { SearchResult } from "@/types/search";
+import { normalizeTripWorkspaceHref } from "@/lib/trip-workspace/navigation";
 
 const MIN_QUERY_LENGTH = 2;
 type CommandPaletteT = (key: string) => string;
@@ -181,10 +182,11 @@ export function CommandPaletteController({
 
   function selectItem(item: SearchResult, newTab = false) {
     recordRecentCommandPaletteItem(user?.id, item);
+    const href = normalizeTripWorkspaceHref(item.href);
     if (newTab) {
-      window.open(item.href, "_blank", "noopener,noreferrer");
+      window.open(href, "_blank", "noopener,noreferrer");
     } else {
-      router.push(item.href);
+      router.push(href);
     }
     closePalette();
   }

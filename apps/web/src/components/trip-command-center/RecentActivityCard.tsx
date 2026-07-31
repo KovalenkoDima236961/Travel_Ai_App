@@ -1,6 +1,7 @@
 import { ReadinessCard } from "./ReadinessCard";
 import { formatActivityEvent, formatShortDate } from "@/lib/trip-command-center/format";
 import type { TripActivityEvent } from "@/entities/activity/model";
+import { normalizeTripWorkspaceHref } from "@/lib/trip-workspace/navigation";
 import type { ReadinessCard as ReadinessCardModel } from "@/types/trip-command-center";
 
 export function RecentActivityCard({
@@ -17,7 +18,7 @@ export function RecentActivityCard({
           Recent activity
         </h3>
         {card.primaryAction ? (
-          <a href={card.primaryAction.href} className="text-[13px] font-semibold text-clay">
+          <a href={normalizeTripWorkspaceHref(card.primaryAction.href)} className="text-[13px] font-semibold text-clay">
             {card.primaryAction.label}
           </a>
         ) : null}

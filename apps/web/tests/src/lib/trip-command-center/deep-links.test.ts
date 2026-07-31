@@ -11,6 +11,10 @@ describe("trip detail deep links", () => {
       sectionId: "route",
       targetId: "route-stop-stop-2"
     });
+    expect(getDeepLinkTarget("route", new URLSearchParams("leg=leg-9"))).toEqual({
+      sectionId: "route",
+      targetId: "route-leg-leg-9"
+    });
   });
 
   it("maps budget, health, expense, and activity targets", () => {
@@ -25,6 +29,9 @@ describe("trip detail deep links", () => {
     );
     expect(getDeepLinkTarget("activity", new URLSearchParams("eventId=event-1"))?.targetId).toBe(
       "activity-event-event-1"
+    );
+    expect(getDeepLinkTarget("expenses", new URLSearchParams("expense=expense-2"))?.targetId).toBe(
+      "expense-expense-2"
     );
   });
 

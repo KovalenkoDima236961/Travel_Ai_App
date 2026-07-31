@@ -1,4 +1,8 @@
+"use client";
+
 import { severityClasses } from "./status-ui";
+import { trackAlphaEvent } from "@/lib/api/alpha";
+import { normalizeTripWorkspaceHref } from "@/lib/trip-workspace/navigation";
 import type { NextBestAction } from "@/types/trip-command-center";
 
 export function TopFixesPanel({ fixes }: { fixes: NextBestAction[] }) {
@@ -27,7 +31,14 @@ export function TopFixesPanel({ fixes }: { fixes: NextBestAction[] }) {
         {fixes.map((fix, index) => (
           <a
             key={fix.id}
-            href={fix.href}
+            href={normalizeTripWorkspaceHref(fix.href)}
+            onClick={() =>
+              trackAlphaEvent({
+                eventName: "trip_workspace_attention_opened",
+                feature: "trip_workspace",
+                metadata: { actionId: fix.id, severity: fix.severity, category: fix.category }
+              })
+            }
             className="flex items-center justify-between gap-4 rounded-[14px] border border-sand-200 bg-sand-50 p-4 transition hover:border-sand-400 hover:bg-white"
           >
             <span className="flex min-w-0 items-center gap-3">

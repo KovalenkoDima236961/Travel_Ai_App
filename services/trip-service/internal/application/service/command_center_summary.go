@@ -145,8 +145,21 @@ type CommandCenterSectionError struct {
 	Message string `json:"message"`
 }
 
-func (s *Service) GetCommandCenterSummary(ctx context.Context, tripID uuid.UUID) (CommandCenterSummary, error) {
+func (s *Service) GetCommandCenterSummary(ctx context.Context, tripID uuid.UUID) (result CommandCenterSummary, err error) {
 	started := time.Now()
+	defer func() {
+		status := "success"
+		if err != nil {
+			status = "error"
+		} else if len(result.SectionErrors) > 0 {
+			status = "partial"
+		}
+		partialSources := make([]string, 0, len(result.SectionErrors))
+		for _, sectionError := range result.SectionErrors {
+			partialSources = append(partialSources, sectionError.Section)
+		}
+		tripobs.RecordTripWorkspaceSummary(status, time.Since(started), partialSources)
+	}()
 	user, err := auth.MustUserFromContext(ctx)
 	if err != nil {
 		return CommandCenterSummary{}, err

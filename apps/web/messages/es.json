@@ -121,6 +121,45 @@
     "viewAllIssues": "Ver todos los problemas", "plan": "Plan", "prepare": "Preparar", "money": "Dinero",
     "team": "Equipo", "control": "Control"
   },
+  "tripWorkspace": {
+    "navigationLabel": "Espacio de trabajo del viaje", "mobileNavigationLabel": "Secciones principales del viaje",
+    "subviewLabel": "Vistas de la sección", "skipToContent": "Ir al contenido del viaje", "currentSection": "Sección actual",
+    "chooseSection": "Sección actual: {section}. Elige otra sección", "openSearch": "Abrir búsqueda global",
+    "openSection": "Abrir esta sección", "returnToOverview": "Volver al resumen",
+    "unsavedChangesWarning": "Tienes cambios del itinerario sin guardar. ¿Salir y descartarlos?",
+    "sections": { "overview": "Resumen", "plan": "Plan", "money": "Dinero", "group": "Grupo", "prepare": "Preparar", "more": "Más" },
+    "views": {
+      "summary": "Resumen", "attention": "Atención", "readiness": "Preparación", "activity": "Actividad",
+      "itinerary": "Itinerario", "agenda": "Agenda", "timeline": "Cronología", "calendar": "Calendario", "route": "Ruta",
+      "stay": "Alojamiento", "map": "Mapa", "verification": "Verificación", "overview": "Resumen", "budget": "Presupuesto",
+      "expenses": "Gastos", "receipts": "Recibos", "settlements": "Liquidaciones", "splits": "Repartos", "people": "Personas",
+      "discussion": "Conversación", "decisions": "Decisiones", "availability": "Disponibilidad", "approvals": "Aprobaciones",
+      "checklist": "Lista", "reminders": "Recordatorios", "offline": "Sin conexión", "documents": "Documentos", "tools": "Herramientas",
+      "sharing": "Compartir", "exports": "Exportaciones", "versions": "Versiones", "health": "Estado", "policy": "Política",
+      "settings": "Ajustes", "recap": "Resumen final"
+    },
+    "sectionHeadings": { "overview": "Resumen del viaje", "plan": "Plan", "money": "Dinero", "group": "Grupo", "prepare": "Preparar", "more": "Más herramientas" },
+    "sectionDescriptions": { "prepare": "Completa las tareas de salida, los recordatorios y la preparación sin conexión." },
+    "status": {
+      "label": "Estado del espacio de trabajo", "archivedTitle": "Archivado.", "archivedDescription": "Este viaje es de solo lectura hasta que lo restaure un propietario.",
+      "readOnlyTitle": "Solo lectura.", "readOnlyDescription": "Tu rol no permite editar el viaje.", "offlineTitle": "Sin conexión.",
+      "offlineDescription": "Se muestran los datos guardados en este dispositivo.", "offlineCachedDescription": "Se muestran los datos guardados en este dispositivo a las {cachedAt}."
+    },
+    "actions": {
+      "title": "Acciones del viaje", "groups": { "primary": "Abrir", "share_export": "Compartir y exportar", "history": "Historial", "reuse": "Reutilizar", "settings": "Ajustes" },
+      "labels": {
+        "open_today": "Abrir vista del día", "edit_itinerary": "Editar itinerario", "invite_people": "Invitar personas", "share_trip": "Compartir viaje",
+        "export_trip": "Exportar viaje", "download_offline": "Descargar para usar sin conexión", "save_template": "Guardar como plantilla",
+        "view_versions": "Ver historial de versiones", "view_recap": "Ver resumen final", "view_analytics": "Ver análisis de costes",
+        "open_search": "Abrir búsqueda global", "archive_trip": "Archivar viaje", "restore_trip": "Restaurar viaje"
+      },
+      "disabled": { "offline": "Esta acción requiere conexión a internet.", "read_only": "Tu rol no permite esta acción.", "archived": "Restaura el viaje antes de hacer cambios." },
+      "confirm": {
+        "archive_trip": { "title": "¿Archivar este viaje?", "description": "El viaje será de solo lectura y seguirá disponible en tu biblioteca.", "confirm": "Archivar viaje" },
+        "restore_trip": { "title": "¿Restaurar este viaje?", "description": "El viaje volverá a su estado anterior.", "confirm": "Restaurar viaje" }
+      }
+    }
+  },
   "auth": {
     "email": "Correo electrónico", "password": "Contraseña", "login": "Iniciar sesión",
     "register": "Crear cuenta", "tagline": "Todo gran viaje empieza con una sola idea.",
@@ -709,6 +748,7 @@
     "permissionTitle": "No tienes acceso a esta acción", "permissionDescription": "Tu rol actual no permite este cambio.",
     "calendarTitle": "Error de conexión con el calendario", "calendarDescription": "No pudimos conectar el calendario. Revisa los permisos e inténtalo de nuevo.",
     "deepLinkMissing": "No se encontró el elemento enlazado. Puede que se haya eliminado o cambiado.",
+    "deepLinkOfflineUnavailable": "Este elemento enlazado no está en la copia sin conexión. Vuelve a conectarte para abrirlo.",
     "checklistLoadTitle": "No pudimos cargar la lista", "checklistLoadDescription": "El viaje sigue disponible. Intenta cargar la lista de nuevo.",
     "offlineTripsTitle": "No pudimos cargar los viajes sin conexión", "offlineTripsDescription": "Los datos guardados siguen en este dispositivo. Intenta cargarlos de nuevo.",
     "unauthorized": "Inicia sesión para continuar.",

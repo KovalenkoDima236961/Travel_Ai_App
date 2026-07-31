@@ -1,5 +1,15 @@
 # Notifications
 
+## Trip Workspace navigation
+
+Trip-scoped notification clicks are resolved by category into Plan, Money,
+Group, Prepare, or More and include a canonical entity parameter when the event
+contains a safe entity ID. Historical app-relative `metadata.url` values are
+canonicalized at click time. Workspace invitations and workspace-level events
+retain their existing non-trip destinations. Inaccessible entities never leak
+metadata and fall back to an inline missing-target state inside the accessible
+trip shell.
+
 Notification Service owns in-app records, unread state, preferences, trip
 mutes, grouping/deduplication, digests, optional email/push delivery, and SSE.
 Trip/Worker and other trusted services submit batch events through the protected

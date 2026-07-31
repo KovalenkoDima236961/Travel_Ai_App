@@ -78,6 +78,30 @@
       "owner": "frontend",
       "reason": "Offline mutations are excluded from alpha v1; normal online paths stay supported."
     },
+    "trip_workspace_consolidation_enabled": {
+      "owner": "frontend",
+      "reason": "Trip Workspace begins with internal and selected-alpha rollout after the frozen alpha v1 profile."
+    },
+    "trip_workspace_overview_v2_enabled": {
+      "owner": "frontend",
+      "reason": "The operational overview follows the Trip Workspace staged rollout."
+    },
+    "trip_workspace_next_best_action_enabled": {
+      "owner": "frontend",
+      "reason": "The next-action presentation follows the Trip Workspace staged rollout."
+    },
+    "trip_workspace_mobile_navigation_enabled": {
+      "owner": "frontend",
+      "reason": "Mobile workspace navigation follows the Trip Workspace staged rollout."
+    },
+    "trip_workspace_deep_link_v2_enabled": {
+      "owner": "frontend",
+      "reason": "Canonical deep-link emission follows the Trip Workspace staged rollout; legacy resolution remains available."
+    },
+    "trip_workspace_shared_actions_enabled": {
+      "owner": "frontend",
+      "reason": "The shared action presentation follows the Trip Workspace staged rollout."
+    },
     "template_adaptation_enabled": {
       "owner": "ai-platform",
       "reason": "AI template adaptation is not part of the critical alpha path."

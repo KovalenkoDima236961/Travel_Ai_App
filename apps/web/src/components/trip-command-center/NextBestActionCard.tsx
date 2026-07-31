@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect } from "react";
+import { trackAlphaEvent } from "@/lib/api/alpha";
+import { normalizeTripWorkspaceHref } from "@/lib/trip-workspace/navigation";
 import { severityClasses } from "./status-ui";
 import type { NextBestAction } from "@/types/trip-command-center";
 
@@ -6,6 +11,14 @@ type NextBestActionCardProps = {
 };
 
 export function NextBestActionCard({ action }: NextBestActionCardProps) {
+  const href = normalizeTripWorkspaceHref(action.href);
+  useEffect(() => {
+    trackAlphaEvent({
+      eventName: "trip_workspace_next_action_shown",
+      feature: "trip_workspace",
+      metadata: { actionId: action.id, severity: action.severity, source: action.source }
+    });
+  }, [action.id, action.severity, action.source]);
   return (
     <section className="rounded-[20px] border border-sand-300 bg-white p-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -39,7 +52,14 @@ export function NextBestActionCard({ action }: NextBestActionCardProps) {
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <a
-            href={action.href}
+            href={href}
+            onClick={() =>
+              trackAlphaEvent({
+                eventName: "trip_workspace_next_action_opened",
+                feature: "trip_workspace",
+                metadata: { actionId: action.id, severity: action.severity, source: action.source }
+              })
+            }
             className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-5 text-[14px] font-semibold text-sand-100 shadow-[0_8px_20px_rgba(192,91,59,0.18)] transition hover:bg-clay-dark"
           >
             {action.actionLabel}

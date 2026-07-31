@@ -20,6 +20,12 @@ Use `src/lib/query-keys.ts` for new TanStack Query keys and keep private trip da
 
 Mutations invalidate the smallest dependency set. For example, an expense write refreshes that trip’s expense subtree, budget summary/confidence, health, activity, and Command Center—not all trips. The trip page loads its compact summary first, uses card-level degraded states, activates detailed sections with `IntersectionObserver`, and dynamically imports maps and heavy panels without changing layout. Set `NEXT_PUBLIC_WEB_VITALS_ENDPOINT` to report normalized LCP/CLS/INP; use `scripts/performance-smoke-test.sh` and the Performance & Reliability steps in `scripts/web-smoke-test.md` before release.
 
+Trip Detail is organized by the route-backed Trip Workspace sections at
+`/trips/{id}/{overview|plan|money|group|prepare|more}`. Central route,
+legacy-tab, entity-target, and action definitions live in
+`src/lib/trip-workspace`; do not parse trip deep links in individual panels.
+See [`docs/features/trip-workspace.md`](../../docs/features/trip-workspace.md).
+
 Run `npm run analyze` from this directory for the optional Next bundle report. The normal `npm run build` remains analyzer-free. Heavy interaction-only code (maps, Copilot, dialogs, and browser PDF generation) should stay behind dynamic imports; use the query, offline-cache, and list conventions in [`docs/frontend/performance.md`](../../docs/frontend/performance.md). `../../scripts/frontend-perf-smoke.sh` runs type checking and a production build, and accepts `FRONTEND_ANALYZE=1` when bundle output is required.
 
 ## Internationalization
@@ -114,9 +120,10 @@ pages disable the private palette.
 
 Command definitions live in `src/lib/command-palette/commands.ts`; recent item
 storage lives in `src/lib/command-palette/recent-items.ts`; the API client is
-`src/lib/api/search.ts`. Result hrefs use existing trip query deep links, so new
-searchable UI targets must add stable IDs and mapping entries in
-`src/lib/trip-command-center/navigation.ts`. Commands are UI shortcuts only:
+`src/lib/api/search.ts`. Historical result hrefs are canonicalized into Trip
+Workspace routes before navigation. New searchable targets must add stable IDs
+and centralized mapping entries in `src/lib/trip-workspace/deep-link.ts`.
+Commands are UI shortcuts only:
 backend permissions still authorize every destination action.
 
 ## Frontend Boundary

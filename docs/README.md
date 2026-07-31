@@ -14,7 +14,7 @@ kept beside the code and Compose configuration it describes.
 
 | Area | Documents |
 | --- | --- |
-| Architecture | [Overview](architecture/overview.md), [service boundaries](architecture/service-boundaries.md), [data ownership](architecture/data-ownership.md), [key flows](architecture/key-flows.md) |
+| Architecture | [Overview](architecture/overview.md), [service boundaries](architecture/service-boundaries.md), [data ownership](architecture/data-ownership.md), [key flows](architecture/key-flows.md), [Trip Workspace navigation](architecture/trip-workspace-navigation.md), [Trip Workspace summary](architecture/trip-workspace-summary.md) |
 | Development | [Getting started](development/getting-started.md), [environment](development/environment.md), [ports](development/ports.md), [migrations](development/migrations.md), [playbooks](development/playbooks.md) |
 | API | [Overview](api/overview.md), [endpoint inventory](api/endpoint-inventory.md), [errors](api/errors.md) |
 | Testing | [Strategy](testing/strategy.md), [running tests](testing/running-tests.md), [CI](testing/ci.md) |
@@ -22,7 +22,7 @@ kept beside the code and Compose configuration it describes.
 | Performance | [Backend](backend/performance.md), [frontend](frontend/performance.md), [audit](performance/performance-audit.md) |
 | Operations | [Runbooks](operations/runbooks.md), [deployment](deployment/production.md), [backups](deployment/backups.md) |
 | Releases | [Release process](releases/release-process.md), [closed alpha scope](releases/alpha-scope.md), [alpha go/no-go](releases/alpha-go-no-go-checklist.md), [alpha decision](releases/alpha-launch-decision.md), [hotfix process](releases/hotfix-process.md), [rollback](releases/rollback.md), [migration safety](releases/migration-safety.md), [troubleshooting](releases/troubleshooting.md) |
-| Features | [Trips](features/trips.md), [AI generation](features/ai-generation.md), [offline/PWA](features/offline-pwa.md), [receipts and expenses](features/receipts-expenses.md), [notifications](features/notifications.md), [workspaces](features/workspaces-approvals-policies.md) |
+| Features | [Trips](features/trips.md), [Trip Workspace](features/trip-workspace.md), [AI generation](features/ai-generation.md), [offline/PWA](features/offline-pwa.md), [receipts and expenses](features/receipts-expenses.md), [notifications](features/notifications.md), [workspaces](features/workspaces-approvals-policies.md) |
 | AI platform | [Model serving and rollout](ai/model-serving-and-rollout.md), [online model evaluation](ai/online-model-evaluation.md), [model promotion policy](ai/model-promotion-policy.md), [dataset governance](ai/dataset-governance.md) |
 | Platform | [Feature flags and runtime controls](platform/feature-flags.md) |
 

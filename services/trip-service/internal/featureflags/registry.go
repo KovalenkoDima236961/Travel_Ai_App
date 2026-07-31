@@ -35,77 +35,89 @@ type Definition struct {
 }
 
 const (
-	AIGenerationEnabled                 = "ai_generation_enabled"
-	AIRepairEnabled                     = "ai_repair_enabled"
-	CopilotEnabled                      = "copilot_enabled"
-	RouteAlternativesEnabled            = "route_alternatives_enabled"
-	TemplateAdaptationEnabled           = "template_adaptation_enabled"
-	PublicSharingEnabled                = "public_sharing_enabled"
-	DataExportsEnabled                  = "data_exports_enabled"
-	RealProvidersEnabled                = "real_providers_enabled"
-	CalendarSyncEnabled                 = "calendar_sync_enabled"
-	AvailabilitySearchEnabled           = "availability_search_enabled"
-	TransportSearchEnabled              = "transport_search_enabled"
-	ReceiptOCREnabled                   = "receipt_ocr_enabled"
-	WorkspaceApprovalsEnabled           = "workspace_approvals_enabled"
-	PolicyRepairEnabled                 = "policy_repair_enabled"
-	WebPushEnabled                      = "web_push_enabled"
-	EmailNotificationsEnabled           = "email_notifications_enabled"
-	NotificationDigestsEnabled          = "notification_digests_enabled"
-	OfflineModeEnabled                  = "offline_mode_enabled"
-	AgendaViewEnabled                   = "agenda_view_enabled"
-	TimelineViewEnabled                 = "timeline_view_enabled"
-	CalendarViewEnabled                 = "calendar_view_enabled"
-	TimelineDragDropEnabled             = "timeline_drag_drop_enabled"
-	ScheduleConflictDetectionEnabled    = "schedule_conflict_detection_enabled"
-	OpsDashboardEnabled                 = "ops_dashboard_enabled"
-	AIFineTuningExperimentsEnabled      = "ai_fine_tuning_experiments_enabled"
-	AIAdapterInferenceEnabled           = "ai_adapter_inference_enabled"
-	AIAdapterStagingEnabled             = "ai_adapter_staging_enabled"
-	AIModelServingEnabled               = "ai_model_serving_enabled"
-	AIShadowEvaluationEnabled           = "ai_shadow_evaluation_enabled"
-	AICandidateInternalRolloutEnabled   = "ai_candidate_internal_rollout_enabled"
-	AICandidateAllowlistRolloutEnabled  = "ai_candidate_allowlist_rollout_enabled"
-	AICandidatePercentageRolloutEnabled = "ai_candidate_percentage_rollout_enabled"
-	AICandidateUserOptInEnabled         = "ai_candidate_user_opt_in_enabled"
-	AIAutomaticGuardrailPauseEnabled    = "ai_automatic_guardrail_pause_enabled"
+	AIGenerationEnabled                  = "ai_generation_enabled"
+	AIRepairEnabled                      = "ai_repair_enabled"
+	CopilotEnabled                       = "copilot_enabled"
+	RouteAlternativesEnabled             = "route_alternatives_enabled"
+	TemplateAdaptationEnabled            = "template_adaptation_enabled"
+	PublicSharingEnabled                 = "public_sharing_enabled"
+	DataExportsEnabled                   = "data_exports_enabled"
+	RealProvidersEnabled                 = "real_providers_enabled"
+	CalendarSyncEnabled                  = "calendar_sync_enabled"
+	AvailabilitySearchEnabled            = "availability_search_enabled"
+	TransportSearchEnabled               = "transport_search_enabled"
+	ReceiptOCREnabled                    = "receipt_ocr_enabled"
+	WorkspaceApprovalsEnabled            = "workspace_approvals_enabled"
+	PolicyRepairEnabled                  = "policy_repair_enabled"
+	WebPushEnabled                       = "web_push_enabled"
+	EmailNotificationsEnabled            = "email_notifications_enabled"
+	NotificationDigestsEnabled           = "notification_digests_enabled"
+	OfflineModeEnabled                   = "offline_mode_enabled"
+	AgendaViewEnabled                    = "agenda_view_enabled"
+	TimelineViewEnabled                  = "timeline_view_enabled"
+	CalendarViewEnabled                  = "calendar_view_enabled"
+	TimelineDragDropEnabled              = "timeline_drag_drop_enabled"
+	ScheduleConflictDetectionEnabled     = "schedule_conflict_detection_enabled"
+	TripWorkspaceConsolidationEnabled    = "trip_workspace_consolidation_enabled"
+	TripWorkspaceOverviewV2Enabled       = "trip_workspace_overview_v2_enabled"
+	TripWorkspaceNextBestActionEnabled   = "trip_workspace_next_best_action_enabled"
+	TripWorkspaceMobileNavigationEnabled = "trip_workspace_mobile_navigation_enabled"
+	TripWorkspaceDeepLinkV2Enabled       = "trip_workspace_deep_link_v2_enabled"
+	TripWorkspaceSharedActionsEnabled    = "trip_workspace_shared_actions_enabled"
+	OpsDashboardEnabled                  = "ops_dashboard_enabled"
+	AIFineTuningExperimentsEnabled       = "ai_fine_tuning_experiments_enabled"
+	AIAdapterInferenceEnabled            = "ai_adapter_inference_enabled"
+	AIAdapterStagingEnabled              = "ai_adapter_staging_enabled"
+	AIModelServingEnabled                = "ai_model_serving_enabled"
+	AIShadowEvaluationEnabled            = "ai_shadow_evaluation_enabled"
+	AICandidateInternalRolloutEnabled    = "ai_candidate_internal_rollout_enabled"
+	AICandidateAllowlistRolloutEnabled   = "ai_candidate_allowlist_rollout_enabled"
+	AICandidatePercentageRolloutEnabled  = "ai_candidate_percentage_rollout_enabled"
+	AICandidateUserOptInEnabled          = "ai_candidate_user_opt_in_enabled"
+	AIAutomaticGuardrailPauseEnabled     = "ai_automatic_guardrail_pause_enabled"
 )
 
 var registry = map[string]Definition{
-	AIGenerationEnabled:                 boolean(AIGenerationEnabled, true, true, "ai", "Create or regenerate an itinerary."),
-	AIRepairEnabled:                     boolean(AIRepairEnabled, false, true, "ai", "Create or apply AI repair proposals."),
-	CopilotEnabled:                      boolean(CopilotEnabled, true, true, "ai", "Use the trip Copilot."),
-	RouteAlternativesEnabled:            boolean(RouteAlternativesEnabled, true, true, "ai", "Create or apply route alternatives."),
-	TemplateAdaptationEnabled:           boolean(TemplateAdaptationEnabled, true, true, "ai", "Create template-adaptation jobs."),
-	PublicSharingEnabled:                boolean(PublicSharingEnabled, false, true, "sharing", "Create or change public trip shares."),
-	DataExportsEnabled:                  boolean(DataExportsEnabled, true, true, "sharing", "Create private data exports."),
-	RealProvidersEnabled:                boolean(RealProvidersEnabled, false, true, "integrations", "Permit calls to real provider APIs."),
-	CalendarSyncEnabled:                 boolean(CalendarSyncEnabled, false, true, "integrations", "Connect or sync external calendars."),
-	AvailabilitySearchEnabled:           boolean(AvailabilitySearchEnabled, true, true, "integrations", "Use availability-search providers."),
-	TransportSearchEnabled:              boolean(TransportSearchEnabled, true, true, "integrations", "Use transport-search providers."),
-	ReceiptOCREnabled:                   boolean(ReceiptOCREnabled, false, true, "integrations", "Extract data from uploaded receipts."),
-	WorkspaceApprovalsEnabled:           boolean(WorkspaceApprovalsEnabled, true, true, "collaboration", "Submit or decide workspace approvals."),
-	PolicyRepairEnabled:                 boolean(PolicyRepairEnabled, false, true, "collaboration", "Run automated policy repair."),
-	WebPushEnabled:                      boolean(WebPushEnabled, false, true, "notifications", "Register or send browser push notifications."),
-	EmailNotificationsEnabled:           boolean(EmailNotificationsEnabled, true, true, "notifications", "Send email notifications."),
-	NotificationDigestsEnabled:          boolean(NotificationDigestsEnabled, true, true, "notifications", "Manage or process notification digests."),
-	OfflineModeEnabled:                  boolean(OfflineModeEnabled, true, false, "pwa", "Expose optional offline UI."),
-	AgendaViewEnabled:                   boolean(AgendaViewEnabled, true, true, "planning", "Expose agenda itinerary planning mode."),
-	TimelineViewEnabled:                 boolean(TimelineViewEnabled, true, true, "planning", "Expose visual timeline itinerary planning mode."),
-	CalendarViewEnabled:                 boolean(CalendarViewEnabled, true, true, "planning", "Expose calendar itinerary planning mode."),
-	TimelineDragDropEnabled:             boolean(TimelineDragDropEnabled, true, true, "planning", "Allow drag-and-drop schedule edits in timeline planning mode."),
-	ScheduleConflictDetectionEnabled:    boolean(ScheduleConflictDetectionEnabled, true, true, "planning", "Run itinerary schedule conflict detection."),
-	OpsDashboardEnabled:                 boolean(OpsDashboardEnabled, false, true, "ops", "Expose allowlisted operations controls."),
-	AIFineTuningExperimentsEnabled:      backendOnlyBoolean(AIFineTuningExperimentsEnabled, false, false, "ai", "Allow Ops-only local fine-tuning experiment controls."),
-	AIAdapterInferenceEnabled:           backendOnlyBoolean(AIAdapterInferenceEnabled, false, false, "ai", "Allow adapter-backed AI inference in explicitly allowed environments."),
-	AIAdapterStagingEnabled:             backendOnlyBoolean(AIAdapterStagingEnabled, false, false, "ai", "Allow staging review of approved adapter candidates."),
-	AIModelServingEnabled:               backendOnlyBoolean(AIModelServingEnabled, true, true, "ai", "Enable deployment-aware AI model serving for the grounded baseline."),
-	AIShadowEvaluationEnabled:           backendOnlyBoolean(AIShadowEvaluationEnabled, false, false, "ai", "Allow sampled asynchronous candidate shadow evaluation."),
-	AICandidateInternalRolloutEnabled:   backendOnlyBoolean(AICandidateInternalRolloutEnabled, false, false, "ai", "Allow user-visible candidate responses for ops/internal users."),
-	AICandidateAllowlistRolloutEnabled:  backendOnlyBoolean(AICandidateAllowlistRolloutEnabled, false, false, "ai", "Allow user-visible candidate responses for explicit user or workspace allowlists."),
-	AICandidatePercentageRolloutEnabled: backendOnlyBoolean(AICandidatePercentageRolloutEnabled, false, false, "ai", "Allow deterministic percentage rollout for opted-in users."),
-	AICandidateUserOptInEnabled:         backendOnlyBoolean(AICandidateUserOptInEnabled, false, false, "ai", "Allow eligible users to opt in to experimental AI routing."),
-	AIAutomaticGuardrailPauseEnabled:    backendOnlyBoolean(AIAutomaticGuardrailPauseEnabled, false, false, "ai", "Allow critical guardrail failures to pause candidate traffic automatically."),
+	AIGenerationEnabled:                  boolean(AIGenerationEnabled, true, true, "ai", "Create or regenerate an itinerary."),
+	AIRepairEnabled:                      boolean(AIRepairEnabled, false, true, "ai", "Create or apply AI repair proposals."),
+	CopilotEnabled:                       boolean(CopilotEnabled, true, true, "ai", "Use the trip Copilot."),
+	RouteAlternativesEnabled:             boolean(RouteAlternativesEnabled, true, true, "ai", "Create or apply route alternatives."),
+	TemplateAdaptationEnabled:            boolean(TemplateAdaptationEnabled, true, true, "ai", "Create template-adaptation jobs."),
+	PublicSharingEnabled:                 boolean(PublicSharingEnabled, false, true, "sharing", "Create or change public trip shares."),
+	DataExportsEnabled:                   boolean(DataExportsEnabled, true, true, "sharing", "Create private data exports."),
+	RealProvidersEnabled:                 boolean(RealProvidersEnabled, false, true, "integrations", "Permit calls to real provider APIs."),
+	CalendarSyncEnabled:                  boolean(CalendarSyncEnabled, false, true, "integrations", "Connect or sync external calendars."),
+	AvailabilitySearchEnabled:            boolean(AvailabilitySearchEnabled, true, true, "integrations", "Use availability-search providers."),
+	TransportSearchEnabled:               boolean(TransportSearchEnabled, true, true, "integrations", "Use transport-search providers."),
+	ReceiptOCREnabled:                    boolean(ReceiptOCREnabled, false, true, "integrations", "Extract data from uploaded receipts."),
+	WorkspaceApprovalsEnabled:            boolean(WorkspaceApprovalsEnabled, true, true, "collaboration", "Submit or decide workspace approvals."),
+	PolicyRepairEnabled:                  boolean(PolicyRepairEnabled, false, true, "collaboration", "Run automated policy repair."),
+	WebPushEnabled:                       boolean(WebPushEnabled, false, true, "notifications", "Register or send browser push notifications."),
+	EmailNotificationsEnabled:            boolean(EmailNotificationsEnabled, true, true, "notifications", "Send email notifications."),
+	NotificationDigestsEnabled:           boolean(NotificationDigestsEnabled, true, true, "notifications", "Manage or process notification digests."),
+	OfflineModeEnabled:                   boolean(OfflineModeEnabled, true, false, "pwa", "Expose optional offline UI."),
+	AgendaViewEnabled:                    boolean(AgendaViewEnabled, true, true, "planning", "Expose agenda itinerary planning mode."),
+	TimelineViewEnabled:                  boolean(TimelineViewEnabled, true, true, "planning", "Expose visual timeline itinerary planning mode."),
+	CalendarViewEnabled:                  boolean(CalendarViewEnabled, true, true, "planning", "Expose calendar itinerary planning mode."),
+	TimelineDragDropEnabled:              boolean(TimelineDragDropEnabled, true, true, "planning", "Allow drag-and-drop schedule edits in timeline planning mode."),
+	ScheduleConflictDetectionEnabled:     boolean(ScheduleConflictDetectionEnabled, true, true, "planning", "Run itinerary schedule conflict detection."),
+	TripWorkspaceConsolidationEnabled:    boolean(TripWorkspaceConsolidationEnabled, false, true, "workspace", "Use the consolidated Trip Workspace shell and primary navigation."),
+	TripWorkspaceOverviewV2Enabled:       boolean(TripWorkspaceOverviewV2Enabled, false, true, "workspace", "Use the operational Trip Workspace overview."),
+	TripWorkspaceNextBestActionEnabled:   boolean(TripWorkspaceNextBestActionEnabled, false, true, "workspace", "Show deterministic next-best actions in Trip Workspace."),
+	TripWorkspaceMobileNavigationEnabled: boolean(TripWorkspaceMobileNavigationEnabled, false, true, "workspace", "Use compact Trip Workspace mobile navigation."),
+	TripWorkspaceDeepLinkV2Enabled:       boolean(TripWorkspaceDeepLinkV2Enabled, false, true, "workspace", "Resolve canonical Trip Workspace entity deep links."),
+	TripWorkspaceSharedActionsEnabled:    boolean(TripWorkspaceSharedActionsEnabled, false, true, "workspace", "Use the permission-aware shared trip action registry."),
+	OpsDashboardEnabled:                  boolean(OpsDashboardEnabled, false, true, "ops", "Expose allowlisted operations controls."),
+	AIFineTuningExperimentsEnabled:       backendOnlyBoolean(AIFineTuningExperimentsEnabled, false, false, "ai", "Allow Ops-only local fine-tuning experiment controls."),
+	AIAdapterInferenceEnabled:            backendOnlyBoolean(AIAdapterInferenceEnabled, false, false, "ai", "Allow adapter-backed AI inference in explicitly allowed environments."),
+	AIAdapterStagingEnabled:              backendOnlyBoolean(AIAdapterStagingEnabled, false, false, "ai", "Allow staging review of approved adapter candidates."),
+	AIModelServingEnabled:                backendOnlyBoolean(AIModelServingEnabled, true, true, "ai", "Enable deployment-aware AI model serving for the grounded baseline."),
+	AIShadowEvaluationEnabled:            backendOnlyBoolean(AIShadowEvaluationEnabled, false, false, "ai", "Allow sampled asynchronous candidate shadow evaluation."),
+	AICandidateInternalRolloutEnabled:    backendOnlyBoolean(AICandidateInternalRolloutEnabled, false, false, "ai", "Allow user-visible candidate responses for ops/internal users."),
+	AICandidateAllowlistRolloutEnabled:   backendOnlyBoolean(AICandidateAllowlistRolloutEnabled, false, false, "ai", "Allow user-visible candidate responses for explicit user or workspace allowlists."),
+	AICandidatePercentageRolloutEnabled:  backendOnlyBoolean(AICandidatePercentageRolloutEnabled, false, false, "ai", "Allow deterministic percentage rollout for opted-in users."),
+	AICandidateUserOptInEnabled:          backendOnlyBoolean(AICandidateUserOptInEnabled, false, false, "ai", "Allow eligible users to opt in to experimental AI routing."),
+	AIAutomaticGuardrailPauseEnabled:     backendOnlyBoolean(AIAutomaticGuardrailPauseEnabled, false, false, "ai", "Allow critical guardrail failures to pause candidate traffic automatically."),
 }
 
 func boolean(key string, productionDefault, localDefault bool, category, description string) Definition {

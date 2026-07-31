@@ -55,7 +55,10 @@ type SchedulePlanningWorkspaceProps = {
   featureAvailability?: FeatureAvailability;
   storageKey?: string;
   analyticsEntityId?: string;
+  initialView?: ScheduleViewMode | null;
+  initialDayNumber?: number | null;
   agendaSlot?: ReactNode;
+  onViewChange?: (view: ScheduleViewMode) => void;
   onChange?: (itinerary: Itinerary) => void;
 };
 
@@ -86,7 +89,10 @@ export function SchedulePlanningWorkspace({
   featureAvailability,
   storageKey = "timeline-planning-view",
   analyticsEntityId,
+  initialView,
+  initialDayNumber,
   agendaSlot,
+  onViewChange,
   onChange
 }: SchedulePlanningWorkspaceProps) {
   const [viewMode, setViewMode] = useState<ScheduleViewMode>("agenda");
@@ -119,9 +125,23 @@ export function SchedulePlanningWorkspace({
     }
     const stored = window.localStorage.getItem(storageKey) as ScheduleViewMode | null;
     const mobileDefault = window.matchMedia("(max-width: 767px)").matches ? "agenda" : "timeline";
-    const next = stored && enabledModes.includes(stored) ? stored : mobileDefault;
+    const next = initialView && enabledModes.includes(initialView)
+      ? initialView
+      : stored && enabledModes.includes(stored)
+        ? stored
+        : mobileDefault;
     setViewMode(enabledModes.includes(next) ? next : enabledModes[0] ?? "agenda");
-  }, [enabledModes, storageKey]);
+  }, [enabledModes, initialView, storageKey]);
+
+  useEffect(() => {
+    if (initialDayNumber == null) {
+      return;
+    }
+    const index = days.findIndex((day, dayIndex) => (day.day || dayIndex + 1) === initialDayNumber);
+    if (index >= 0) {
+      setSelectedDayIndex(index);
+    }
+  }, [days, initialDayNumber]);
 
   useEffect(() => {
     if (enabledModes.length > 0 && !enabledModes.includes(viewMode)) {
@@ -131,6 +151,7 @@ export function SchedulePlanningWorkspace({
 
   function selectView(mode: ScheduleViewMode) {
     setViewMode(mode);
+    onViewChange?.(mode);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(storageKey, mode);
     }

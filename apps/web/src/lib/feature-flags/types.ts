@@ -22,6 +22,12 @@ export type FeatureFlagKey =
   | "calendar_view_enabled"
   | "timeline_drag_drop_enabled"
   | "schedule_conflict_detection_enabled"
+  | "trip_workspace_consolidation_enabled"
+  | "trip_workspace_overview_v2_enabled"
+  | "trip_workspace_next_best_action_enabled"
+  | "trip_workspace_mobile_navigation_enabled"
+  | "trip_workspace_deep_link_v2_enabled"
+  | "trip_workspace_shared_actions_enabled"
   | "ops_dashboard_enabled";
 
 export type PublicFeatureFlagsResponse = {
@@ -55,5 +61,11 @@ export function fallbackFeatureFlags(): Record<FeatureFlagKey, boolean> {
   flags.calendar_view_enabled = true;
   flags.timeline_drag_drop_enabled = true;
   flags.schedule_conflict_detection_enabled = true;
+  flags.trip_workspace_consolidation_enabled = !production;
+  flags.trip_workspace_overview_v2_enabled = !production;
+  flags.trip_workspace_next_best_action_enabled = !production;
+  flags.trip_workspace_mobile_navigation_enabled = !production;
+  flags.trip_workspace_deep_link_v2_enabled = !production;
+  flags.trip_workspace_shared_actions_enabled = !production;
   return flags;
 }

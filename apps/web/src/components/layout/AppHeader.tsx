@@ -34,7 +34,8 @@ export function AppHeader() {
   // single-segment pattern that excludes `/workspaces/new` (still the old chrome)
   // and the nested `/workspaces/[id]/settings|analytics|budgets|...` routes.
   const isRedesignedTripDetail =
-    /^\/trips\/[^/]+$/.test(pathname) && pathname !== "/trips/new";
+    /^\/trips\/[^/]+(?:\/(?:overview|plan|money|group|prepare|more))?$/.test(pathname) &&
+    pathname !== "/trips/new";
   const isRedesignedTripAnalytics = /^\/trips\/[^/]+\/analytics$/.test(pathname);
   const isRedesignedTemplateDetail = /^\/templates\/[^/]+$/.test(pathname);
   const isRedesignedWorkspaceDetail =

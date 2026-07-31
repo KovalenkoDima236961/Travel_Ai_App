@@ -28,7 +28,7 @@ a client. Private routes require bearer JWT unless stated otherwise.
 | Version/reaction/travel-status/day/item regeneration routes under `/trips/{id}/itinerary/*` | Trip | Owner/editor or allowed viewer read | Version history, reactions, revision-safe edits/jobs | forbidden, conflict |
 | `GET/PUT /trips/{id}/route`; route-leg transport search/selection | Trip | Read/edit by action | Route and estimated transport options | validation, provider unavailable, conflict |
 | `GET/PUT/DELETE /trips/{id}/accommodation` | Trip | Read/edit by action | Accommodation state | validation, conflict |
-| `GET /trips/{id}/command-center-summary`, `/health`, `/verification`, `/travel-day` | Trip | Private read | Compact/advisory summaries | forbidden |
+| `GET /trips/{id}/command-center-summary`, `/health`, `/verification`, `/travel-day` | Trip | Private read | Compact/advisory summaries; command-center summary is the Trip Workspace overview aggregation contract | forbidden |
 | `POST /trips/{id}/verification/actions` | Trip | Owner/editor | Explicit verification refresh | provider quota/unavailable |
 
 ## Generation, discovery, templates, and Copilot

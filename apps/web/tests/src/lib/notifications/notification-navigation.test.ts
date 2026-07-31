@@ -34,13 +34,13 @@ describe("getNotificationHref", () => {
   it("routes comment notifications with a tripId to the trip detail page", () => {
     expect(
       getNotificationHref(notification({ type: "comment_created", tripId: "trip-1" }))
-    ).toBe("/trips/trip-1");
+    ).toBe("/trips/trip-1/group?view=discussion");
   });
 
   it("routes itinerary updates with a tripId to the trip detail page", () => {
     expect(
       getNotificationHref(notification({ type: "itinerary_updated", tripId: "trip-9" }))
-    ).toBe("/trips/trip-9");
+    ).toBe("/trips/trip-9/plan?view=itinerary");
   });
 
   it("routes workspace invitations to the invitations page", () => {
@@ -70,6 +70,35 @@ describe("getNotificationHref", () => {
         })
       )
     ).toBe("/workspaces/workspace-2");
+  });
+
+  it("canonicalizes legacy trip URLs from historical notification metadata", () => {
+    expect(
+      getNotificationHref(
+        notification({
+          tripId: "trip-1",
+          metadata: { url: "/trips/trip-1?tab=expenses&expenseId=expense-2" }
+        })
+      )
+    ).toBe("/trips/trip-1/money?view=expenses&expense=expense-2");
+  });
+
+  it("targets preparation and money entities", () => {
+    expect(
+      getNotificationHref(
+        notification({
+          type: "checklist_item_overdue",
+          tripId: "trip-1",
+          entityType: "checklist_item",
+          entityId: "item-3"
+        })
+      )
+    ).toBe("/trips/trip-1/prepare?view=checklist&item=item-3");
+    expect(
+      getNotificationHref(
+        notification({ type: "settlement_pending", tripId: "trip-1" })
+      )
+    ).toBe("/trips/trip-1/money?view=settlements");
   });
 
   it("falls back to the trips page when there is no tripId", () => {

@@ -26,4 +26,22 @@ test("creates a trip, starts deterministic generation, and opens it from the lis
   await expect(page.getByText("Vienna", { exact: true }).first()).toBeVisible();
   await page.getByText("Vienna", { exact: true }).first().click();
   await expect(page).toHaveURL(/\/trips\/[0-9a-f-]+/);
+
+  const tripId = new URL(page.url()).pathname.split("/")[2];
+  const workspaceNavigation = page.getByRole("navigation", { name: "Trip workspace" });
+  await expect(workspaceNavigation).toBeVisible();
+  await workspaceNavigation.getByRole("link", { name: "Plan", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}/plan`));
+  await expect(workspaceNavigation.getByRole("link", { name: "Plan", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  );
+
+  await page.goto(`/trips/${tripId}?tab=expenses`);
+  await expect(workspaceNavigation.getByRole("link", { name: "Money", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  );
+  await workspaceNavigation.getByRole("link", { name: "Prepare", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}/prepare`));
 });

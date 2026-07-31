@@ -121,6 +121,44 @@
     "viewAllIssues": "Усі проблеми", "plan": "План", "prepare": "Підготовка", "money": "Гроші",
     "team": "Команда", "control": "Контроль"
   },
+  "tripWorkspace": {
+    "navigationLabel": "Робочий простір подорожі", "mobileNavigationLabel": "Основні розділи подорожі",
+    "subviewLabel": "Подання розділу", "skipToContent": "Перейти до вмісту подорожі", "currentSection": "Поточний розділ",
+    "chooseSection": "Поточний розділ: {section}. Виберіть інший розділ", "openSearch": "Відкрити глобальний пошук",
+    "openSection": "Відкрити цей розділ", "returnToOverview": "Повернутися до огляду",
+    "unsavedChangesWarning": "Є незбережені зміни маршруту. Вийти й відхилити їх?",
+    "sections": { "overview": "Огляд", "plan": "План", "money": "Фінанси", "group": "Група", "prepare": "Підготовка", "more": "Більше" },
+    "views": {
+      "summary": "Підсумок", "attention": "Увага", "readiness": "Готовність", "activity": "Активність", "itinerary": "Маршрут",
+      "agenda": "Порядок денний", "timeline": "Хронологія", "calendar": "Календар", "route": "Шлях", "stay": "Проживання", "map": "Мапа",
+      "verification": "Перевірка", "overview": "Огляд", "budget": "Бюджет", "expenses": "Витрати", "receipts": "Квитанції",
+      "settlements": "Розрахунки", "splits": "Розподіл", "people": "Люди", "discussion": "Обговорення", "decisions": "Рішення",
+      "availability": "Доступність", "approvals": "Погодження", "checklist": "Список", "reminders": "Нагадування", "offline": "Офлайн",
+      "documents": "Документи", "tools": "Інструменти", "sharing": "Спільний доступ", "exports": "Експорт", "versions": "Версії",
+      "health": "Стан", "policy": "Політика", "settings": "Налаштування", "recap": "Підсумок подорожі"
+    },
+    "sectionHeadings": { "overview": "Огляд подорожі", "plan": "План", "money": "Фінанси", "group": "Група", "prepare": "Підготовка", "more": "Інші інструменти" },
+    "sectionDescriptions": { "prepare": "Завершіть завдання до від’їзду, нагадування та офлайн-підготовку." },
+    "status": {
+      "label": "Стан робочого простору", "archivedTitle": "В архіві.", "archivedDescription": "Подорож доступна лише для читання, доки власник її не відновить.",
+      "readOnlyTitle": "Лише перегляд.", "readOnlyDescription": "Ваша роль не дозволяє редагувати подорож.", "offlineTitle": "Офлайн.",
+      "offlineDescription": "Показано дані, збережені на цьому пристрої.", "offlineCachedDescription": "Показано дані, збережені на цьому пристрої о {cachedAt}."
+    },
+    "actions": {
+      "title": "Дії з подорожжю", "groups": { "primary": "Відкрити", "share_export": "Доступ і експорт", "history": "Історія", "reuse": "Повторне використання", "settings": "Налаштування" },
+      "labels": {
+        "open_today": "Відкрити режим дня", "edit_itinerary": "Редагувати маршрут", "invite_people": "Запросити людей", "share_trip": "Поділитися подорожжю",
+        "export_trip": "Експортувати подорож", "download_offline": "Завантажити для офлайну", "save_template": "Зберегти як шаблон",
+        "view_versions": "Переглянути історію версій", "view_recap": "Переглянути підсумок", "view_analytics": "Переглянути аналіз витрат",
+        "open_search": "Відкрити глобальний пошук", "archive_trip": "Архівувати подорож", "restore_trip": "Відновити подорож"
+      },
+      "disabled": { "offline": "Для цієї дії потрібен інтернет.", "read_only": "Ваша роль не дозволяє цю дію.", "archived": "Відновіть подорож перед внесенням змін." },
+      "confirm": {
+        "archive_trip": { "title": "Архівувати подорож?", "description": "Подорож стане доступною лише для читання й залишиться у бібліотеці.", "confirm": "Архівувати" },
+        "restore_trip": { "title": "Відновити подорож?", "description": "Подорож повернеться до попереднього стану.", "confirm": "Відновити" }
+      }
+    }
+  },
   "auth": {
     "email": "Електронна пошта", "password": "Пароль", "login": "Увійти",
     "register": "Створити обліковий запис", "tagline": "Кожна чудова подорож починається з однієї ідеї.",
@@ -708,6 +746,7 @@
     "permissionTitle": "У вас немає доступу до цієї дії", "permissionDescription": "Ваша поточна роль не дозволяє цю зміну.",
     "calendarTitle": "Не вдалося під’єднати календар", "calendarDescription": "Перевірте дозволи й спробуйте ще раз.",
     "deepLinkMissing": "Елемент за посиланням не знайдено. Можливо, його видалено або змінено.",
+    "deepLinkOfflineUnavailable": "Цього елемента немає в офлайн-копії. Підключіться до мережі, щоб відкрити його.",
     "checklistLoadTitle": "Не вдалося завантажити список", "checklistLoadDescription": "Подорож доступна. Спробуйте завантажити список ще раз.",
     "offlineTripsTitle": "Не вдалося завантажити офлайн-подорожі", "offlineTripsDescription": "Збережені дані залишаються на цьому пристрої. Спробуйте завантажити їх ще раз.",
     "unauthorized": "Увійдіть, щоб продовжити.",

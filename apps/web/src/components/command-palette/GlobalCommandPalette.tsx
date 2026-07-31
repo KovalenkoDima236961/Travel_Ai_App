@@ -36,8 +36,16 @@ export function GlobalCommandPalette() {
       }
     }
 
+    function handleOpenRequest() {
+      setOpen(true);
+    }
+
     window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
+    window.addEventListener("travel-ai:open-command-palette", handleOpenRequest);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      window.removeEventListener("travel-ai:open-command-palette", handleOpenRequest);
+    };
   }, [isAuthenticated, isLoading, publicShareRoute]);
 
   if (publicShareRoute || !isAuthenticated || isLoading) {
@@ -49,7 +57,9 @@ export function GlobalCommandPalette() {
       {!open ? (
         <button
           aria-label={t("title")}
-          className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-lg shadow-slate-950/10 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 md:hidden"
+          className={`fixed right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900 shadow-lg shadow-slate-950/10 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 md:hidden ${
+            /^\/trips\/[^/]+/.test(pathname ?? "") ? "bottom-20" : "bottom-4"
+          }`}
           onClick={() => setOpen(true)}
           type="button"
         >

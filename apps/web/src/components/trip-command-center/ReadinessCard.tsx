@@ -1,4 +1,5 @@
 import { readinessStatusClasses, readinessStatusLabel } from "./status-ui";
+import { normalizeTripWorkspaceHref } from "@/lib/trip-workspace/navigation";
 import type { ReadinessCard as ReadinessCardModel } from "@/types/trip-command-center";
 
 type ReadinessCardProps = {
@@ -56,7 +57,7 @@ export function ReadinessCard({ card }: ReadinessCardProps) {
       <div className="mt-auto flex flex-wrap gap-2 pt-5">
         {card.primaryAction ? (
           <a
-            href={card.primaryAction.href}
+            href={normalizeTripWorkspaceHref(card.primaryAction.href)}
             className="inline-flex h-9 items-center justify-center rounded-full bg-cocoa-900 px-4 text-[13px] font-semibold text-sand-100 transition hover:bg-cocoa-700"
           >
             {card.primaryAction.label}
@@ -64,7 +65,7 @@ export function ReadinessCard({ card }: ReadinessCardProps) {
         ) : null}
         {card.secondaryAction ? (
           <a
-            href={card.secondaryAction.href}
+            href={normalizeTripWorkspaceHref(card.secondaryAction.href)}
             className="inline-flex h-9 items-center justify-center rounded-full border border-sand-400 bg-white px-4 text-[13px] font-semibold text-cocoa-700 transition hover:border-sand-600 hover:text-cocoa-900"
           >
             {card.secondaryAction.label}

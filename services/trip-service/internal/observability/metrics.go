@@ -52,6 +52,22 @@ var (
 		},
 		[]string{"summary"},
 	)
+	tripWorkspaceSummaryRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "trip_workspace_summary_requests_total", Help: "Total Trip Workspace summary reads."},
+		[]string{"status"},
+	)
+	tripWorkspaceSummaryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "trip_workspace_summary_duration_seconds",
+			Help:    "End-to-end duration of Trip Workspace summary reads, including cache hits.",
+			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"status"},
+	)
+	tripWorkspaceSummaryPartial = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "trip_workspace_summary_partial_total", Help: "Partial Trip Workspace summary sources."},
+		[]string{"source"},
+	)
 	verificationRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "trip_verification_requests_total", Help: "Total private trip verification reads."},
 		[]string{"result"},
@@ -145,6 +161,9 @@ func init() {
 		summaryCacheMisses,
 		summaryCacheEvictions,
 		summaryComputeDuration,
+		tripWorkspaceSummaryRequests,
+		tripWorkspaceSummaryDuration,
+		tripWorkspaceSummaryPartial,
 		verificationRequests,
 		verificationDuration,
 		verificationScore,
@@ -181,6 +200,14 @@ func RecordSummaryCacheEviction(summary string) {
 
 func RecordSummaryCompute(summary string, duration time.Duration) {
 	summaryComputeDuration.WithLabelValues(summary).Observe(duration.Seconds())
+}
+
+func RecordTripWorkspaceSummary(status string, duration time.Duration, partialSources []string) {
+	tripWorkspaceSummaryRequests.WithLabelValues(status).Inc()
+	tripWorkspaceSummaryDuration.WithLabelValues(status).Observe(duration.Seconds())
+	for _, source := range partialSources {
+		tripWorkspaceSummaryPartial.WithLabelValues(source).Inc()
+	}
 }
 
 func RecordActivityEventCreated(eventType string) {

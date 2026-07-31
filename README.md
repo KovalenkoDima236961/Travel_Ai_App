@@ -106,6 +106,7 @@ listed in [ports](docs/development/ports.md) and
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [Trip Workspace](docs/features/trip-workspace.md) and [navigation architecture](docs/architecture/trip-workspace-navigation.md)
 - [Getting started](docs/development/getting-started.md)
 - [Troubleshooting](docs/development/troubleshooting.md)
 - [Ports](docs/development/ports.md)
