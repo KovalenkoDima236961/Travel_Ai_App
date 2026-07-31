@@ -1243,7 +1243,8 @@
       "recent": "Recent",
       "suggested": "Suggested actions",
       "quickActions": "Quick actions",
-      "currentTrip": "Current trip"
+      "currentTrip": "Current trip",
+      "offlineResults": "Offline results"
     },
     "empty": {
       "shortTitle": "Keep typing",

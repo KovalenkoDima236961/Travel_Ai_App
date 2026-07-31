@@ -107,7 +107,10 @@ Authenticated pages mount `GlobalCommandPalette` under `src/app/providers.tsx`.
 Cmd+K/Ctrl+K opens a keyboard-friendly dialog that searches Trip Service
 `GET /search`, mixes in local quick commands, boosts cached current-trip route
 and itinerary matches, and stores up to 20 recent selections in user-scoped
-localStorage. Public share pages disable the private palette.
+localStorage. When offline, it searches the user-scoped IndexedDB cache for
+saved trips, route/itinerary items, checklist items, reminders, and expenses.
+Mobile authenticated routes also show a floating search action. Public share
+pages disable the private palette.
 
 Command definitions live in `src/lib/command-palette/commands.ts`; recent item
 storage lives in `src/lib/command-palette/recent-items.ts`; the API client is

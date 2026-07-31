@@ -238,7 +238,9 @@ search:
   max_limit: 50
   per_category_limit: 5
   min_query_length: 2
+  max_query_length: 200
   query_timeout_seconds: 3
+  rate_limit_per_minute: 60
 
 summary_cache:
   enabled: true

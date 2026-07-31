@@ -43,6 +43,7 @@ func newResult(
 		Href:          href,
 		Icon:          iconForType(resultType),
 		Category:      categoryForType(resultType),
+		SourceService: "trip-service",
 		Metadata:      metadata,
 		TripID:        refs.TripID,
 		WorkspaceID:   refs.WorkspaceID,

@@ -2,6 +2,7 @@ package search
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,18 +12,24 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/KovalenkoDima236961/Travel_Ai_App/internal/auth"
+	tripsecurity "github.com/KovalenkoDima236961/Travel_Ai_App/internal/security"
 )
 
 type Handler struct {
 	service *Service
+	limiter *tripsecurity.RateLimiter
 	log     *zap.Logger
 }
 
-func NewHandler(service *Service, log *zap.Logger) *Handler {
+func NewHandler(service *Service, log *zap.Logger, limiter ...*tripsecurity.RateLimiter) *Handler {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Handler{service: service, log: log}
+	var rateLimiter *tripsecurity.RateLimiter
+	if len(limiter) > 0 {
+		rateLimiter = limiter[0]
+	}
+	return &Handler{service: service, limiter: rateLimiter, log: log}
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
@@ -35,11 +42,11 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if query == "" {
-		writeError(w, http.StatusBadRequest, "q is required")
+	if h.limiter != nil && !h.limiter.Allow("global_search:"+user.ID.String()) {
+		writeError(w, http.StatusTooManyRequests, "search_rate_limited")
 		return
 	}
+	query := r.URL.Query().Get("q")
 	scope, ok := ParseScope(r.URL.Query().Get("scope"))
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid scope")
@@ -62,16 +69,33 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = parsed
 	}
+	types, ok := parseResultTypes(w, r.URL.Query().Get("types"))
+	if !ok {
+		return
+	}
 
 	response, err := h.service.Search(r.Context(), user.ID, Params{
 		Query:           query,
 		Scope:           scope,
 		TripID:          tripID,
 		WorkspaceID:     workspaceID,
+		Types:           types,
 		Limit:           limit,
+		IncludeArchived: strings.EqualFold(r.URL.Query().Get("includeArchived"), "true"),
 		IncludeCommands: strings.EqualFold(r.URL.Query().Get("includeCommands"), "true"),
 	})
 	if err != nil {
+		switch {
+		case errors.Is(err, ErrQueryTooLong):
+			writeError(w, http.StatusBadRequest, "search_query_too_long")
+			return
+		case errors.Is(err, ErrInvalidQuery):
+			writeError(w, http.StatusBadRequest, "search_invalid_query")
+			return
+		case errors.Is(err, ErrInvalidFilter):
+			writeError(w, http.StatusBadRequest, "search_invalid_filter")
+			return
+		}
 		h.log.Warn("search request failed",
 			zap.String("scope", string(scope)),
 			zap.Int("queryLen", len(query)),
@@ -94,6 +118,27 @@ func parseOptionalUUID(w http.ResponseWriter, raw string, name string) (*uuid.UU
 		return nil, false
 	}
 	return &id, true
+}
+
+func parseResultTypes(w http.ResponseWriter, raw string) ([]ResultType, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, true
+	}
+	parts := strings.Split(raw, ",")
+	resultTypes := make([]ResultType, 0, len(parts))
+	for _, part := range parts {
+		resultType := ResultType(strings.TrimSpace(part))
+		if resultType == "" {
+			continue
+		}
+		if !knownResultType(resultType) {
+			writeError(w, http.StatusBadRequest, "search_invalid_filter")
+			return nil, false
+		}
+		resultTypes = append(resultTypes, resultType)
+	}
+	return resultTypes, true
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

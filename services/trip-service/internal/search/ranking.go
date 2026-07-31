@@ -55,6 +55,38 @@ func scoreResult(query string, tokens []string, result Result, currentTripID *uu
 	return score
 }
 
+func matchedFields(query string, tokens []string, result Result) []string {
+	matches := make([]string, 0, 4)
+	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
+	fields := []struct {
+		name  string
+		value string
+	}{
+		{name: "title", value: result.Title},
+		{name: "description", value: result.Description},
+		{name: "context", value: result.Context},
+		{name: "workspaceName", value: result.WorkspaceName},
+		{name: "type", value: string(result.Type)},
+	}
+	for _, field := range fields {
+		value := strings.ToLower(strings.TrimSpace(field.value))
+		if value == "" {
+			continue
+		}
+		if normalizedQuery != "" && strings.Contains(value, normalizedQuery) {
+			matches = append(matches, field.name)
+			continue
+		}
+		for _, token := range tokens {
+			if strings.Contains(value, token) {
+				matches = append(matches, field.name)
+				break
+			}
+		}
+	}
+	return matches
+}
+
 func typePriority(resultType ResultType) float64 {
 	switch resultType {
 	case ResultTypeTrip:
@@ -123,7 +155,18 @@ func buildResponse(query string, results []Result, limit, perCategoryLimit int) 
 		groups[index].Items = append(groups[index].Items, item)
 	}
 
-	return Response{Query: query, Items: items, Groups: groups, HasMore: hasMore}
+	return Response{
+		Query:   query,
+		Data:    items,
+		Items:   items,
+		Groups:  groups,
+		HasMore: hasMore,
+		Pagination: Pagination{
+			NextCursor: nil,
+			HasMore:    hasMore,
+			Limit:      limit,
+		},
+	}
 }
 
 func min(left, right int) int {

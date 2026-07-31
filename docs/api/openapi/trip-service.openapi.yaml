@@ -8,6 +8,7 @@ servers:
 security: [{ BearerAuth: [] }]
 tags:
   - name: Alpha
+  - name: Search
   - name: Trips
   - name: Itinerary
   - name: Generation jobs
@@ -91,6 +92,27 @@ paths:
         '400': { $ref: '#/components/responses/ErrorResponse' }
         '401': { $ref: '#/components/responses/ErrorResponse' }
         '413': { $ref: '#/components/responses/ErrorResponse' }
+        '429': { $ref: '#/components/responses/ErrorResponse' }
+        default: { $ref: '#/components/responses/ErrorResponse' }
+  /search:
+    get:
+      tags: [Search]
+      operationId: globalSearch
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 }, description: Search text. Empty queries may return safe commands when includeCommands is true. }
+        - { name: scope, in: query, schema: { type: string, enum: [all, trips, current_trip, workspace, ops], default: all } }
+        - { name: types, in: query, schema: { type: string }, description: Comma-separated GlobalSearchResultType values. }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: tripId, in: query, schema: { type: string, format: uuid } }
+        - { name: workspaceId, in: query, schema: { type: string, format: uuid } }
+        - { name: includeArchived, in: query, schema: { type: boolean, default: false } }
+        - { name: includeCommands, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: Permission-filtered global search results.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GlobalSearchResponse' } } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
         '429': { $ref: '#/components/responses/ErrorResponse' }
         default: { $ref: '#/components/responses/ErrorResponse' }
   /feedback/{feedbackId}:
@@ -2118,6 +2140,58 @@ components:
       required: [items]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/TripVoteSummary' } }
+    GlobalSearchResultType:
+      type: string
+      enum: [trip, workspace, template, itinerary_item, route_stop, route_leg, transport_option, expense, receipt, checklist_item, reminder, poll, collaborator, notification, setting, command, ops_page]
+    GlobalSearchResult:
+      type: object
+      required: [id, type, title, href, icon, category, score]
+      properties:
+        id: { type: string }
+        type: { $ref: '#/components/schemas/GlobalSearchResultType' }
+        title: { type: string }
+        description: { type: string }
+        context: { type: string }
+        workspaceName: { type: string }
+        href: { type: string }
+        icon: { type: string }
+        category: { type: string }
+        score: { type: number, format: double }
+        matchedFields: { type: array, items: { type: string } }
+        sourceService: { type: string }
+        metadata: { type: object, additionalProperties: true }
+    GlobalSearchResultGroup:
+      type: object
+      required: [title, items]
+      properties:
+        title: { type: string }
+        items: { type: array, items: { $ref: '#/components/schemas/GlobalSearchResult' } }
+    GlobalSearchPagination:
+      type: object
+      required: [nextCursor, hasMore, limit]
+      properties:
+        nextCursor: { type: string, nullable: true }
+        hasMore: { type: boolean }
+        limit: { type: integer }
+    GlobalSearchQueryMetadata:
+      type: object
+      required: [normalized, scope, includeArchived]
+      properties:
+        normalized: { type: string }
+        scope: { type: string, enum: [all, trips, current_trip, workspace, ops] }
+        types: { type: array, items: { $ref: '#/components/schemas/GlobalSearchResultType' } }
+        includeArchived: { type: boolean }
+    GlobalSearchResponse:
+      type: object
+      required: [query, data, items, groups, hasMore, pagination, queryMeta]
+      properties:
+        query: { type: string }
+        data: { type: array, items: { $ref: '#/components/schemas/GlobalSearchResult' } }
+        items: { type: array, items: { $ref: '#/components/schemas/GlobalSearchResult' } }
+        groups: { type: array, items: { $ref: '#/components/schemas/GlobalSearchResultGroup' } }
+        hasMore: { type: boolean }
+        pagination: { $ref: '#/components/schemas/GlobalSearchPagination' }
+        queryMeta: { $ref: '#/components/schemas/GlobalSearchQueryMetadata' }
     SuccessResponse:
       type: object
       required: [success]

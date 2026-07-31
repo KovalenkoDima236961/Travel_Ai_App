@@ -23,6 +23,7 @@ a client. Private routes require bearer JWT unless stated otherwise.
 | --- | --- | --- | --- | --- |
 | `POST/GET /trips`, `GET /trips/{id}`, `/shared-with-me`, `/library` | Trip | Private/read access | Create/list/read scoped trip DTOs | validation, forbidden |
 | `POST /trips/{id}/archive`, `/restore`; export routes | Trip | Owner/workspace role | Archive/restore and private export job | forbidden, conflict |
+| `GET /search` | Trip | Authenticated private user; server-side object access filters | Permission-aware global search plus optional safe navigation commands | `search_invalid_query`, `search_query_too_long`, `search_invalid_filter`, `search_rate_limited` |
 | `PUT /trips/{id}/itinerary` | Trip | Owner/editor | Itinerary + `expectedItineraryRevision` → updated trip | itinerary conflict |
 | Version/reaction/travel-status/day/item regeneration routes under `/trips/{id}/itinerary/*` | Trip | Owner/editor or allowed viewer read | Version history, reactions, revision-safe edits/jobs | forbidden, conflict |
 | `GET/PUT /trips/{id}/route`; route-leg transport search/selection | Trip | Read/edit by action | Route and estimated transport options | validation, provider unavailable, conflict |

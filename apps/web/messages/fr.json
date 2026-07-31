@@ -765,7 +765,7 @@
     "inputLabel": "Recherche",
     "loading": "Recherche...",
     "footer": "Flèches pour naviguer, Entrée pour ouvrir, Échap pour fermer.",
-    "sections": { "recent": "Récent", "suggested": "Actions suggérées", "quickActions": "Actions rapides", "currentTrip": "Voyage actuel" },
+    "sections": { "recent": "Récent", "suggested": "Actions suggérées", "quickActions": "Actions rapides", "currentTrip": "Voyage actuel", "offlineResults": "Résultats hors ligne" },
     "empty": {
       "shortTitle": "Continuez à saisir",
       "shortDescription": "Saisissez au moins deux caractères pour chercher dans les données privées.",

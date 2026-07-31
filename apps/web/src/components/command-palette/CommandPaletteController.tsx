@@ -16,11 +16,15 @@ import {
   getCommandRegistry,
   type CommandContext
 } from "@/lib/command-palette/commands";
-import { buildCurrentTripLocalResults } from "@/lib/command-palette/local-search";
+import {
+  buildCurrentTripLocalResults,
+  buildOfflineCachedResults
+} from "@/lib/command-palette/local-search";
 import {
   getRecentCommandPaletteItems,
   recordRecentCommandPaletteItem
 } from "@/lib/command-palette/recent-items";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import type { SearchResult } from "@/types/search";
 
 const MIN_QUERY_LENGTH = 2;
@@ -44,7 +48,9 @@ export function CommandPaletteController({
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recentItems, setRecentItems] = useState<SearchResult[]>([]);
+  const [offlineResults, setOfflineResults] = useState<SearchResult[]>([]);
   const debouncedQuery = useDebouncedValue(query, 180);
+  const { online } = useNetworkStatus();
   const currentTripId = useMemo(() => extractCurrentTripId(pathname), [pathname]);
 
   const cachedTrip = currentTripId
@@ -69,7 +75,7 @@ export function CommandPaletteController({
   const commands = useMemo(() => getCommandRegistry(t), [t]);
   const trimmedQuery = query.trim();
   const debouncedTrimmedQuery = debouncedQuery.trim();
-  const backendEnabled = debouncedTrimmedQuery.length >= MIN_QUERY_LENGTH;
+  const backendEnabled = online && debouncedTrimmedQuery.length >= MIN_QUERY_LENGTH;
   const backendSearch = useQuery({
     queryKey: searchKeys.global({
       q: debouncedTrimmedQuery,
@@ -87,6 +93,30 @@ export function CommandPaletteController({
     enabled: backendEnabled,
     staleTime: 10_000
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (online || debouncedTrimmedQuery.length < MIN_QUERY_LENGTH || !user?.id) {
+      setOfflineResults([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+    buildOfflineCachedResults(user.id, debouncedTrimmedQuery, 20)
+      .then((items) => {
+        if (!cancelled) {
+          setOfflineResults(items);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOfflineResults([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedTrimmedQuery, online, user?.id]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -119,6 +149,13 @@ export function CommandPaletteController({
         items: localResults.slice(0, 12)
       });
     }
+    if (offlineResults.length > 0) {
+      nextSections.push({
+        title: t("sections.offlineResults"),
+        kind: "results",
+        items: dedupeResults(offlineResults.slice(0, 12), nextSections)
+      });
+    }
     for (const group of backendGroups) {
       const items = dedupeResults(group.items.slice(0, 20), nextSections);
       if (items.length > 0) {
@@ -126,7 +163,7 @@ export function CommandPaletteController({
       }
     }
     return nextSections;
-  }, [backendSearch.data?.groups, commandContext, commands, currentTrip, recentItems, t, trimmedQuery]);
+  }, [backendSearch.data?.groups, commandContext, commands, currentTrip, offlineResults, recentItems, t, trimmedQuery]);
   const itemCount = useMemo(
     () => sections.reduce((total, section) => total + section.items.length, 0),
     [sections]
@@ -179,7 +216,7 @@ export function CommandPaletteController({
         errorDescription: t("error.description"),
         footer: t("footer")
       }}
-      loading={backendSearch.isFetching && debouncedTrimmedQuery.length >= MIN_QUERY_LENGTH}
+      loading={backendSearch.isFetching && backendEnabled}
       onClose={closePalette}
       onMoveSelection={moveSelection}
       onQueryChange={setQuery}

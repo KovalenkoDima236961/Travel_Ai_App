@@ -766,7 +766,7 @@
     "inputLabel": "Buscar",
     "loading": "Buscando...",
     "footer": "Usa flechas para moverte, Enter para abrir y Esc para cerrar.",
-    "sections": { "recent": "Reciente", "suggested": "Acciones sugeridas", "quickActions": "Acciones rápidas", "currentTrip": "Viaje actual" },
+    "sections": { "recent": "Reciente", "suggested": "Acciones sugeridas", "quickActions": "Acciones rápidas", "currentTrip": "Viaje actual", "offlineResults": "Resultados sin conexión" },
     "empty": {
       "shortTitle": "Sigue escribiendo",
       "shortDescription": "Escribe al menos dos caracteres para buscar datos privados.",

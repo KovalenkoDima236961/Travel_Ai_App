@@ -18,8 +18,14 @@ export function searchGlobal(params: SearchParams) {
   if (params.workspaceId) {
     query.set("workspaceId", params.workspaceId);
   }
+  if (params.types && params.types.length > 0) {
+    query.set("types", params.types.join(","));
+  }
   if (params.limit != null) {
     query.set("limit", String(params.limit));
+  }
+  if (params.includeArchived) {
+    query.set("includeArchived", "true");
   }
   if (params.includeCommands) {
     query.set("includeCommands", "true");

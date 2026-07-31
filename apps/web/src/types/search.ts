@@ -30,6 +30,8 @@ export type SearchResult = {
   icon: string;
   category: string;
   score: number;
+  matchedFields?: string[];
+  sourceService?: string;
   metadata?: Record<string, unknown>;
 };
 
@@ -40,16 +42,30 @@ export type SearchResultGroup = {
 
 export type SearchResponse = {
   query: string;
+  data?: SearchResult[];
   items: SearchResult[];
   groups: SearchResultGroup[];
   hasMore: boolean;
+  pagination?: {
+    nextCursor: string | null;
+    hasMore: boolean;
+    limit: number;
+  };
+  queryMeta?: {
+    normalized: string;
+    scope: SearchScope;
+    types?: SearchResultType[];
+    includeArchived: boolean;
+  };
 };
 
 export type SearchParams = {
   q: string;
   scope?: SearchScope;
+  types?: SearchResultType[];
   tripId?: string | null;
   workspaceId?: string | null;
   limit?: number;
+  includeArchived?: boolean;
   includeCommands?: boolean;
 };

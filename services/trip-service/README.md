@@ -83,17 +83,21 @@ freshness policy are documented in [`docs/verification.md`](../../docs/verificat
 
 Expense and receipt lists accept `limit`/`offset`, enforce 50/100 and 30/100 default/max sizes, and return `nextOffset`. Their metadata is batch-loaded to avoid N+1 OCR/participant reads; Trip Health/Budget Confidence batch latest OCR records and Group Readiness batch-loads poll votes. `DB_QUERY_TIMEOUT_SECONDS` sets statement timeout and `DB_SLOW_QUERY_THRESHOLD_MS` controls sanitized slow-operation logging. Metrics include DB operation latency/errors/pool state, summary cache hit/miss/eviction, and cold summary-compute duration. Apply migration `000034` before comparing query plans.
 
-`GET /search?q=...&scope=all&limit=20` powers the authenticated global command
-palette. Results are permission-filtered server-side across trips, route
-stops/legs, selected transport, itinerary items, expenses, receipts, checklist
-items, reminders, polls, collaborators, templates, and workspace names resolved
-through User Service internal workspace batch info. Public share routes do not
-mount this private endpoint. Search intentionally excludes raw OCR text, private
-expense notes, comments, prompts, tokens, provider secrets, calendar busy blocks,
-and share credentials. Configuration: `SEARCH_ENABLED`,
+`GET /search?q=...&scope=all&types=trip,itinerary_item&limit=20` powers the
+authenticated global command palette. Results are permission-filtered
+server-side across trips, route stops/legs, selected transport, itinerary items,
+expenses, receipts, checklist items, reminders, polls, collaborators, templates,
+and workspace names resolved through User Service internal workspace batch info.
+Archived trips are excluded unless `includeArchived=true`; safe navigation
+commands are returned only when `includeCommands=true`. Public share routes do
+not mount this private endpoint. Search intentionally excludes raw OCR text,
+private expense notes, comments, prompts, tokens, provider secrets, calendar busy
+blocks, and share credentials. Configuration: `SEARCH_ENABLED`,
 `SEARCH_DEFAULT_LIMIT`, `SEARCH_MAX_LIMIT`, `SEARCH_PER_CATEGORY_LIMIT`,
-`SEARCH_MIN_QUERY_LENGTH`, and `SEARCH_QUERY_TIMEOUT_SECONDS`. Metrics use the
-`search_*` prefix. Apply migration `000035` for trigram-backed text indexes.
+`SEARCH_MIN_QUERY_LENGTH`, `SEARCH_MAX_QUERY_LENGTH`,
+`SEARCH_QUERY_TIMEOUT_SECONDS`, and `GLOBAL_SEARCH_REQUESTS_PER_MINUTE`.
+Metrics use the `search_*` prefix. Apply migration `000035` for trigram-backed
+text indexes. See `docs/features/global-search.md`.
 
 ## Travel Assistant Copilot
 

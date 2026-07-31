@@ -17,6 +17,8 @@ type Result struct {
 	Icon          string         `json:"icon"`
 	Category      string         `json:"category"`
 	Score         float64        `json:"score"`
+	MatchedFields []string       `json:"matchedFields,omitempty"`
+	SourceService string         `json:"sourceService,omitempty"`
 	Metadata      map[string]any `json:"metadata,omitempty"`
 
 	TripID      *uuid.UUID `json:"-"`
@@ -29,9 +31,25 @@ type Group struct {
 	Items []Result `json:"items"`
 }
 
+type Pagination struct {
+	NextCursor *string `json:"nextCursor"`
+	HasMore    bool    `json:"hasMore"`
+	Limit      int     `json:"limit"`
+}
+
+type QueryMetadata struct {
+	Normalized      string       `json:"normalized"`
+	Scope           Scope        `json:"scope"`
+	Types           []ResultType `json:"types,omitempty"`
+	IncludeArchived bool         `json:"includeArchived"`
+}
+
 type Response struct {
-	Query   string   `json:"query"`
-	Items   []Result `json:"items"`
-	Groups  []Group  `json:"groups"`
-	HasMore bool     `json:"hasMore"`
+	Query      string        `json:"query"`
+	Data       []Result      `json:"data"`
+	Items      []Result      `json:"items"`
+	Groups     []Group       `json:"groups"`
+	HasMore    bool          `json:"hasMore"`
+	Pagination Pagination    `json:"pagination"`
+	QueryMeta  QueryMetadata `json:"queryMeta"`
 }

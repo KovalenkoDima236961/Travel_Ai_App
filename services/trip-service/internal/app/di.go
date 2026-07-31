@@ -566,7 +566,9 @@ func buildContainer(ctx context.Context, cfg *config.Config, log *zap.Logger) (*
 		MaxLimit:         cfg.Search.MaxLimit,
 		PerCategoryLimit: cfg.Search.PerCategoryLimit,
 		MinQueryLength:   cfg.Search.MinQueryLength,
+		MaxQueryLength:   cfg.Search.MaxQueryLength,
 		QueryTimeout:     time.Duration(cfg.Search.QueryTimeoutSeconds) * time.Second,
+		RateLimitPerMin:  cfg.Search.RateLimitPerMinute,
 	}, log)
 	generationJobWorker := generationjobs.NewWorker(repo, svc, generationJobsCfg, log, generationjobs.WithTracer(aiTraceService))
 	closer.Add(

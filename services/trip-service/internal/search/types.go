@@ -62,7 +62,9 @@ type Config struct {
 	MaxLimit         int
 	PerCategoryLimit int
 	MinQueryLength   int
+	MaxQueryLength   int
 	QueryTimeout     time.Duration
+	RateLimitPerMin  int
 }
 
 func NormalizeConfig(cfg Config) Config {
@@ -81,8 +83,17 @@ func NormalizeConfig(cfg Config) Config {
 	if cfg.MinQueryLength <= 0 {
 		cfg.MinQueryLength = 2
 	}
+	if cfg.MaxQueryLength <= 0 {
+		cfg.MaxQueryLength = 200
+	}
+	if cfg.MaxQueryLength < cfg.MinQueryLength {
+		cfg.MaxQueryLength = cfg.MinQueryLength
+	}
 	if cfg.QueryTimeout <= 0 {
 		cfg.QueryTimeout = 3 * time.Second
+	}
+	if cfg.RateLimitPerMin <= 0 {
+		cfg.RateLimitPerMin = 60
 	}
 	return cfg
 }
@@ -92,7 +103,9 @@ type Params struct {
 	Scope           Scope
 	TripID          *uuid.UUID
 	WorkspaceID     *uuid.UUID
+	Types           []ResultType
 	Limit           int
+	IncludeArchived bool
 	IncludeCommands bool
 }
 
@@ -107,6 +120,8 @@ type RepositorySearchParams struct {
 	WorkspaceIDs     []uuid.UUID
 	WorkspaceNames   map[uuid.UUID]string
 	CurrentTripID    *uuid.UUID
+	TypeFilters      map[ResultType]struct{}
 	Limit            int
 	PerCategoryLimit int
+	IncludeArchived  bool
 }

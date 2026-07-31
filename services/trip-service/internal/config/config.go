@@ -158,7 +158,9 @@ type SearchConfig struct {
 	MaxLimit            int  `yaml:"max_limit" env:"SEARCH_MAX_LIMIT" env-default:"50" validate:"min=1,max=50"`
 	PerCategoryLimit    int  `yaml:"per_category_limit" env:"SEARCH_PER_CATEGORY_LIMIT" env-default:"5" validate:"min=1,max=20"`
 	MinQueryLength      int  `yaml:"min_query_length" env:"SEARCH_MIN_QUERY_LENGTH" env-default:"2" validate:"min=1,max=20"`
+	MaxQueryLength      int  `yaml:"max_query_length" env:"SEARCH_MAX_QUERY_LENGTH" env-default:"200" validate:"min=1,max=1000"`
 	QueryTimeoutSeconds int  `yaml:"query_timeout_seconds" env:"SEARCH_QUERY_TIMEOUT_SECONDS" env-default:"3" validate:"min=1,max=30"`
+	RateLimitPerMinute  int  `yaml:"rate_limit_per_minute" env:"GLOBAL_SEARCH_REQUESTS_PER_MINUTE" env-default:"60" validate:"min=1,max=10000"`
 }
 
 // SummaryCacheConfig controls the small, process-local cache used by private,

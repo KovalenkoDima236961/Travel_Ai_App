@@ -2,8 +2,7 @@ package search
 
 import (
 	"context"
-	"fmt"
-	"strings"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,18 +49,18 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, params Params) (
 	}()
 
 	if !s.cfg.Enabled {
-		return Response{Query: strings.TrimSpace(params.Query)}, nil
+		return Response{}, nil
 	}
-	query := strings.TrimSpace(params.Query)
-	if query == "" {
-		status = "invalid"
-		return Response{}, fmt.Errorf("query is required")
+	query, err := normalizeQuery(params.Query, s.cfg.MaxQueryLength)
+	if err != nil {
+		status = "invalid_query"
+		return Response{}, err
 	}
-	if runeLen(query) < s.cfg.MinQueryLength {
-		recordSearch(params.Scope, "ok", time.Since(started), 0)
-		return Response{Query: query, Items: []Result{}, Groups: []Group{}}, nil
+	typeFilters, err := resultTypeFilters(params.Types)
+	if err != nil {
+		status = "invalid_filter"
+		return Response{}, err
 	}
-
 	limit := params.Limit
 	if limit <= 0 {
 		limit = s.cfg.DefaultLimit
@@ -71,6 +70,22 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, params Params) (
 	}
 
 	tokens := tokenize(query)
+	results := []Result{}
+	if params.IncludeCommands {
+		results = commandResults(query, tokens, params.TripID, typeFilters)
+	}
+	if query == "" || runeLen(query) < s.cfg.MinQueryLength {
+		now := time.Now()
+		for i := range results {
+			results[i].MatchedFields = matchedFields(query, tokens, results[i])
+			results[i].Score = scoreResult(query, tokens, results[i], params.TripID, now)
+		}
+		response := buildResponse(query, results, limit, s.cfg.PerCategoryLimit)
+		response.QueryMeta = queryMetadata(query, params.Scope, typeFilters, params.IncludeArchived)
+		recordSearch(params.Scope, "ok", time.Since(started), len(response.Items))
+		return response, nil
+	}
+
 	patterns := make([]string, 0, len(tokens)+1)
 	patterns = append(patterns, "%"+escapeLike(query)+"%")
 	for _, token := range tokens {
@@ -94,7 +109,7 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, params Params) (
 		filterTripID = nil
 	}
 
-	results, err := s.repo.Search(timeoutCtx, RepositorySearchParams{
+	repoResults, err := s.repo.Search(timeoutCtx, RepositorySearchParams{
 		UserID:           userID,
 		Query:            query,
 		Tokens:           tokens,
@@ -105,8 +120,10 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, params Params) (
 		WorkspaceIDs:     workspaceIDs,
 		WorkspaceNames:   workspaceNames,
 		CurrentTripID:    params.TripID,
+		TypeFilters:      typeFilters,
 		Limit:            limit,
 		PerCategoryLimit: s.cfg.PerCategoryLimit,
+		IncludeArchived:  params.IncludeArchived,
 	})
 	if err != nil {
 		status = "repository"
@@ -117,16 +134,19 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, params Params) (
 		)
 		return Response{}, err
 	}
+	results = append(results, repoResults...)
 
-	if params.Scope == ScopeAll || params.Scope == ScopeWorkspace {
+	if (params.Scope == ScopeAll || params.Scope == ScopeWorkspace) && typeAllowed(typeFilters, ResultTypeWorkspace) {
 		results = append(results, s.workspaceResults(query, tokens, workspaceIDs, workspaceRoles, workspaceNames, params.WorkspaceID)...)
 	}
 
 	now := time.Now()
 	for i := range results {
+		results[i].MatchedFields = matchedFields(query, tokens, results[i])
 		results[i].Score = scoreResult(query, tokens, results[i], params.TripID, now)
 	}
 	response := buildResponse(query, results, limit, s.cfg.PerCategoryLimit)
+	response.QueryMeta = queryMetadata(query, params.Scope, typeFilters, params.IncludeArchived)
 	recordSearch(params.Scope, "ok", time.Since(started), len(response.Items))
 	return response, nil
 }
@@ -202,31 +222,21 @@ func (s *Service) workspaceResults(
 	return results
 }
 
-func tokenize(query string) []string {
-	parts := strings.Fields(strings.ToLower(query))
-	out := make([]string, 0, len(parts))
-	seen := map[string]struct{}{}
-	for _, part := range parts {
-		part = strings.Trim(part, ".,:;!?()[]{}\"'")
-		if len([]rune(part)) < 2 {
-			continue
-		}
-		if _, ok := seen[part]; ok {
-			continue
-		}
-		out = append(out, part)
-		seen[part] = struct{}{}
+func queryMetadata(
+	query string,
+	scope Scope,
+	typeFilters map[ResultType]struct{},
+	includeArchived bool,
+) QueryMetadata {
+	types := make([]ResultType, 0, len(typeFilters))
+	for resultType := range typeFilters {
+		types = append(types, resultType)
 	}
-	return out
-}
-
-func escapeLike(value string) string {
-	value = strings.ReplaceAll(value, `\`, `\\`)
-	value = strings.ReplaceAll(value, `%`, `\%`)
-	value = strings.ReplaceAll(value, `_`, `\_`)
-	return value
-}
-
-func runeLen(value string) int {
-	return len([]rune(strings.TrimSpace(value)))
+	sort.Slice(types, func(i, j int) bool { return types[i] < types[j] })
+	return QueryMetadata{
+		Normalized:      query,
+		Scope:           scope,
+		Types:           types,
+		IncludeArchived: includeArchived,
+	}
 }

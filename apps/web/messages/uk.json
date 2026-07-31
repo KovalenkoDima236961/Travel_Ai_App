@@ -765,7 +765,7 @@
     "inputLabel": "Пошук",
     "loading": "Пошук...",
     "footer": "Стрілки для руху, Enter щоб відкрити, Esc щоб закрити.",
-    "sections": { "recent": "Нещодавні", "suggested": "Запропоновані дії", "quickActions": "Швидкі дії", "currentTrip": "Поточна подорож" },
+    "sections": { "recent": "Нещодавні", "suggested": "Запропоновані дії", "quickActions": "Швидкі дії", "currentTrip": "Поточна подорож", "offlineResults": "Офлайн-результати" },
     "empty": {
       "shortTitle": "Продовжуйте вводити",
       "shortDescription": "Введіть щонайменше два символи для пошуку приватних даних.",

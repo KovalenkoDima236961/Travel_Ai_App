@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Trip service global search:** Documented `GET /search`, result type filters,
+  archive inclusion, safe command opt-in, `data`/`pagination` response aliases,
+  matched fields, query metadata, and search-specific validation/rate-limit
+  errors. Additive for existing `items`/`groups` clients.
 - **Trip service alpha:** Added closed-alpha waitlist, invite activation,
   participant metadata, product analytics event, and structured feedback
   contracts. Additive.

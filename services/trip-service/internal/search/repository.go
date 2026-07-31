@@ -31,57 +31,73 @@ func (r *SearchRepository) Search(ctx context.Context, params RepositorySearchPa
 	}
 	results := make([]Result, 0, params.Limit*2)
 
-	if includeTripScoped(params.Scope) {
+	if includeTripScoped(params.Scope) && typeAllowed(params.TypeFilters, ResultTypeTrip) {
 		trips, err := r.searchTrips(ctx, params)
 		if err != nil {
 			return nil, err
 		}
 		results = append(results, trips...)
 	}
-	if params.Scope == ScopeAll || params.Scope == ScopeCurrentTrip || params.Scope == ScopeWorkspace {
+	if (params.Scope == ScopeAll || params.Scope == ScopeCurrentTrip || params.Scope == ScopeWorkspace) &&
+		anyTypeAllowed(params.TypeFilters, ResultTypeItineraryItem, ResultTypeRouteStop, ResultTypeRouteLeg, ResultTypeTransportOption) {
 		parsed, err := r.searchRouteAndItinerary(ctx, params)
 		if err != nil {
 			return nil, err
 		}
 		results = append(results, parsed...)
-
-		expenses, err := r.searchExpenses(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, expenses...)
-
-		receipts, err := r.searchReceipts(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, receipts...)
-
-		checklistItems, err := r.searchChecklistItems(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, checklistItems...)
-
-		reminders, err := r.searchReminders(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, reminders...)
-
-		polls, err := r.searchPolls(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, polls...)
-
-		collaborators, err := r.searchCollaborators(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, collaborators...)
 	}
-	if params.Scope == ScopeAll || params.Scope == ScopeTrips || params.Scope == ScopeWorkspace {
+	if (params.Scope == ScopeAll || params.Scope == ScopeCurrentTrip || params.Scope == ScopeWorkspace) &&
+		anyTypeAllowed(params.TypeFilters, ResultTypeExpense, ResultTypeReceipt, ResultTypeChecklistItem, ResultTypeReminder, ResultTypePoll, ResultTypeCollaborator) {
+		if typeAllowed(params.TypeFilters, ResultTypeExpense) {
+			expenses, err := r.searchExpenses(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, expenses...)
+		}
+
+		if typeAllowed(params.TypeFilters, ResultTypeReceipt) {
+			receipts, err := r.searchReceipts(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, receipts...)
+		}
+
+		if typeAllowed(params.TypeFilters, ResultTypeChecklistItem) {
+			checklistItems, err := r.searchChecklistItems(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, checklistItems...)
+		}
+
+		if typeAllowed(params.TypeFilters, ResultTypeReminder) {
+			reminders, err := r.searchReminders(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, reminders...)
+		}
+
+		if typeAllowed(params.TypeFilters, ResultTypePoll) {
+			polls, err := r.searchPolls(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, polls...)
+		}
+
+		if typeAllowed(params.TypeFilters, ResultTypeCollaborator) {
+			collaborators, err := r.searchCollaborators(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, collaborators...)
+		}
+	}
+	if (params.Scope == ScopeAll || params.Scope == ScopeTrips || params.Scope == ScopeWorkspace) &&
+		typeAllowed(params.TypeFilters, ResultTypeTemplate) {
 		templates, err := r.searchTemplates(ctx, params)
 		if err != nil {
 			return nil, err
@@ -96,9 +112,9 @@ func (r *SearchRepository) searchTrips(ctx context.Context, params RepositorySea
 SELECT t.id, t.destination, t.start_date, t.days, t.workspace_id, t.updated_at
 FROM trips t
 WHERE ` + accessibleTripPredicate + `
-  AND t.destination ILIKE ANY($5::text[])
+  AND t.destination ILIKE ANY($6::text[])
 ORDER BY t.updated_at DESC
-LIMIT $6`
+LIMIT $7`
 	rows, err := r.db.Query(ctx, query, params.queryArgs(queryLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search trips: %w", err)
@@ -140,7 +156,7 @@ SELECT t.id, t.destination, t.workspace_id, t.itinerary, t.route_json, t.updated
 FROM trips t
 WHERE ` + accessibleTripPredicate + `
 ORDER BY t.updated_at DESC
-LIMIT $5`
+LIMIT $6`
 	rows, err := r.db.Query(ctx, query, params.accessArgs(jsonTripLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search route itinerary: %w", err)
@@ -179,13 +195,13 @@ WHERE ` + accessibleTripPredicate + `
   AND e.status = 'active'
   AND e.deleted_at IS NULL
   AND (
-    e.title ILIKE ANY($5::text[])
-    OR COALESCE(e.description, '') ILIKE ANY($5::text[])
-    OR e.category ILIKE ANY($5::text[])
-    OR e.currency ILIKE ANY($5::text[])
+    e.title ILIKE ANY($6::text[])
+    OR COALESCE(e.description, '') ILIKE ANY($6::text[])
+    OR e.category ILIKE ANY($6::text[])
+    OR e.currency ILIKE ANY($6::text[])
   )
 ORDER BY e.updated_at DESC
-LIMIT $6`
+LIMIT $7`
 	rows, err := r.db.Query(ctx, query, params.queryArgs(queryLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search expenses: %w", err)
@@ -244,14 +260,14 @@ WHERE ` + accessibleTripPredicate + `
   AND r.deleted_at IS NULL
   AND r.status <> 'deleted'
   AND (
-    r.original_filename ILIKE ANY($5::text[])
-    OR COALESCE(e.title, '') ILIKE ANY($5::text[])
-    OR COALESCE(ocr.merchant, '') ILIKE ANY($5::text[])
-    OR COALESCE(ocr.suggested_title, '') ILIKE ANY($5::text[])
-    OR COALESCE(ocr.category, '') ILIKE ANY($5::text[])
+    r.original_filename ILIKE ANY($6::text[])
+    OR COALESCE(e.title, '') ILIKE ANY($6::text[])
+    OR COALESCE(ocr.merchant, '') ILIKE ANY($6::text[])
+    OR COALESCE(ocr.suggested_title, '') ILIKE ANY($6::text[])
+    OR COALESCE(ocr.category, '') ILIKE ANY($6::text[])
   )
 ORDER BY r.updated_at DESC
-LIMIT $6`
+LIMIT $7`
 	rows, err := r.db.Query(ctx, query, params.queryArgs(queryLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search receipts: %w", err)
@@ -301,13 +317,13 @@ JOIN trips t ON t.id = item.trip_id
 WHERE ` + accessibleTripPredicate + `
   AND item.deleted_at IS NULL
   AND (
-    item.title ILIKE ANY($5::text[])
-    OR COALESCE(item.description, '') ILIKE ANY($5::text[])
-    OR item.category ILIKE ANY($5::text[])
-    OR item.priority ILIKE ANY($5::text[])
+    item.title ILIKE ANY($6::text[])
+    OR COALESCE(item.description, '') ILIKE ANY($6::text[])
+    OR item.category ILIKE ANY($6::text[])
+    OR item.priority ILIKE ANY($6::text[])
   )
 ORDER BY item.updated_at DESC
-LIMIT $6`
+LIMIT $7`
 	rows, err := r.db.Query(ctx, query, params.queryArgs(queryLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search checklist items: %w", err)
@@ -355,14 +371,14 @@ JOIN trips t ON t.id = rem.trip_id
 WHERE ` + accessibleTripPredicate + `
   AND rem.deleted_at IS NULL
   AND (
-    rem.title ILIKE ANY($5::text[])
-    OR COALESCE(rem.description, '') ILIKE ANY($5::text[])
-    OR rem.category ILIKE ANY($5::text[])
-    OR rem.priority ILIKE ANY($5::text[])
-    OR rem.status ILIKE ANY($5::text[])
+    rem.title ILIKE ANY($6::text[])
+    OR COALESCE(rem.description, '') ILIKE ANY($6::text[])
+    OR rem.category ILIKE ANY($6::text[])
+    OR rem.priority ILIKE ANY($6::text[])
+    OR rem.status ILIKE ANY($6::text[])
   )
 ORDER BY rem.updated_at DESC
-LIMIT $6`
+LIMIT $7`
 	rows, err := r.db.Query(ctx, query, params.queryArgs(queryLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search reminders: %w", err)
@@ -411,13 +427,13 @@ JOIN trips t ON t.id = poll.trip_id
 WHERE ` + accessibleTripPredicate + `
   AND poll.status <> 'archived'
   AND (
-    poll.title ILIKE ANY($5::text[])
-    OR COALESCE(poll.description, '') ILIKE ANY($5::text[])
-    OR poll.poll_type ILIKE ANY($5::text[])
-    OR poll.status ILIKE ANY($5::text[])
+    poll.title ILIKE ANY($6::text[])
+    OR COALESCE(poll.description, '') ILIKE ANY($6::text[])
+    OR poll.poll_type ILIKE ANY($6::text[])
+    OR poll.status ILIKE ANY($6::text[])
   )
 ORDER BY poll.updated_at DESC
-LIMIT $6`
+LIMIT $7`
 	rows, err := r.db.Query(ctx, query, params.queryArgs(queryLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search polls: %w", err)
@@ -463,11 +479,11 @@ JOIN trips t ON t.id = collab.trip_id
 WHERE ` + accessibleTripPredicate + `
   AND collab.status = 'accepted'
   AND (
-    collab.user_id::text ILIKE ANY($5::text[])
-    OR collab.role ILIKE ANY($5::text[])
+    collab.user_id::text ILIKE ANY($6::text[])
+    OR collab.role ILIKE ANY($6::text[])
   )
 ORDER BY collab.updated_at DESC
-LIMIT $6`
+LIMIT $7`
 	rows, err := r.db.Query(ctx, query, params.queryArgs(queryLimit(params))...)
 	if err != nil {
 		return nil, fmt.Errorf("search collaborators: %w", err)
@@ -570,7 +586,8 @@ const accessibleTripPredicate = `(
     )
   )
   AND ($3::uuid IS NULL OR t.id = $3::uuid)
-  AND ($4::uuid IS NULL OR t.workspace_id = $4::uuid)`
+  AND ($4::uuid IS NULL OR t.workspace_id = $4::uuid)
+  AND ($5::boolean OR t.archived_at IS NULL)`
 
 func (params RepositorySearchParams) queryArgs(limit int) []any {
 	return []any{
@@ -578,6 +595,7 @@ func (params RepositorySearchParams) queryArgs(limit int) []any {
 		params.WorkspaceIDs,
 		uuidArg(params.TripID),
 		uuidArg(params.WorkspaceID),
+		params.IncludeArchived,
 		params.Patterns,
 		limit,
 	}
@@ -599,6 +617,7 @@ func (params RepositorySearchParams) accessArgs(limit int) []any {
 		params.WorkspaceIDs,
 		uuidArg(params.TripID),
 		uuidArg(params.WorkspaceID),
+		params.IncludeArchived,
 		limit,
 	}
 }
@@ -644,22 +663,24 @@ func routeResults(params RepositorySearchParams, tripID uuid.UUID, contextName, 
 		return nil
 	}
 	results := make([]Result, 0)
-	for _, stop := range route.Stops {
-		if !matchesTokens(params.Query, params.Tokens, stop.Destination, stop.City, stop.Country) {
-			continue
+	if typeAllowed(params.TypeFilters, ResultTypeRouteStop) {
+		for _, stop := range route.Stops {
+			if !matchesTokens(params.Query, params.Tokens, stop.Destination, stop.City, stop.Country) {
+				continue
+			}
+			stopID := firstNonEmpty(stop.ID, stop.Destination)
+			results = append(results, newResult(
+				ResultTypeRouteStop,
+				"route_stop:"+tripID.String()+":"+stopID,
+				firstNonEmpty(stop.Destination, stop.City, stop.Country),
+				strings.Join(nonEmpty([]string{stop.City, stop.Country, dateRange(stop.ArrivalDate, stop.DepartureDate)}), " · "),
+				contextName,
+				workspaceName,
+				tripTabHref(tripID, "route", map[string]string{"stopId": stopID}),
+				idMetadata(map[string]string{"tripId": tripID.String(), "stopId": stopID}),
+				refs,
+			))
 		}
-		stopID := firstNonEmpty(stop.ID, stop.Destination)
-		results = append(results, newResult(
-			ResultTypeRouteStop,
-			"route_stop:"+tripID.String()+":"+stopID,
-			firstNonEmpty(stop.Destination, stop.City, stop.Country),
-			strings.Join(nonEmpty([]string{stop.City, stop.Country, dateRange(stop.ArrivalDate, stop.DepartureDate)}), " · "),
-			contextName,
-			workspaceName,
-			tripTabHref(tripID, "route", map[string]string{"stopId": stopID}),
-			idMetadata(map[string]string{"tripId": tripID.String(), "stopId": stopID}),
-			refs,
-		))
 	}
 	for _, leg := range route.Legs {
 		selected := leg.SelectedTransportOption
@@ -667,7 +688,7 @@ func routeResults(params RepositorySearchParams, tripID uuid.UUID, contextName, 
 		if selected != nil {
 			selectedFields = append(selectedFields, selected.Provider, selected.OperatorName, selected.ServiceName, selected.OriginName, selected.DestinationName)
 		}
-		if matchesTokens(params.Query, params.Tokens, append([]string{leg.FromName, leg.ToName, leg.Mode}, selectedFields...)...) {
+		if typeAllowed(params.TypeFilters, ResultTypeRouteLeg) && matchesTokens(params.Query, params.Tokens, append([]string{leg.FromName, leg.ToName, leg.Mode}, selectedFields...)...) {
 			legID := firstNonEmpty(leg.ID, leg.FromStopID+"-"+leg.ToStopID)
 			results = append(results, newResult(
 				ResultTypeRouteLeg,
@@ -681,7 +702,7 @@ func routeResults(params RepositorySearchParams, tripID uuid.UUID, contextName, 
 				refs,
 			))
 		}
-		if selected != nil && matchesTokens(params.Query, params.Tokens, selected.Provider, selected.OperatorName, selected.ServiceName, selected.OriginName, selected.DestinationName, selected.Mode) {
+		if typeAllowed(params.TypeFilters, ResultTypeTransportOption) && selected != nil && matchesTokens(params.Query, params.Tokens, selected.Provider, selected.OperatorName, selected.ServiceName, selected.OriginName, selected.DestinationName, selected.Mode) {
 			optionID := firstNonEmpty(selected.ID, leg.ID)
 			results = append(results, newResult(
 				ResultTypeTransportOption,
@@ -705,6 +726,9 @@ func itineraryResults(params RepositorySearchParams, tripID uuid.UUID, contextNa
 	}
 	var itinerary aggregate.Itinerary
 	if err := json.Unmarshal(raw, &itinerary); err != nil {
+		return nil
+	}
+	if !typeAllowed(params.TypeFilters, ResultTypeItineraryItem) {
 		return nil
 	}
 	results := make([]Result, 0)

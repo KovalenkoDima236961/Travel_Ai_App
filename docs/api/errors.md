@@ -29,6 +29,10 @@ existing clients:
 | `itinerary_conflict` | 409 | Refetch current itinerary/revision; merge or explicitly retry. |
 | `edit_lock_conflict` | 409 | Show advisory editor lock/presence and allow a safe later retry. |
 | `rate_limited` | 429 | Back off; honor retry guidance. |
+| `search_invalid_query` | 400 | Clear control characters from the search box and retry with normal text. |
+| `search_query_too_long` | 400 | Trim the query to the documented maximum before retrying. |
+| `search_invalid_filter` | 400 | Remove unsupported result types, scope, trip, or workspace filters. |
+| `search_rate_limited` | 429 | Debounce/back off global search requests for the current user. |
 | `provider_rate_limited` | 429/503 | Display temporary provider degradation/fallback status. |
 | `provider_quota_exceeded` | 429/503 | Use fallback if supplied; do not loop retries. |
 | `provider_unavailable` | 502/503 | Preserve local edits and offer retry. |
